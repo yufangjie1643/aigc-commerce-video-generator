@@ -63,17 +63,11 @@ import type {
   UpdateDeployConfigRequest,
 } from '../types';
 import type { ArtifactManifest } from '../artifacts/types';
-import {
-  isOpenDesignHostAvailable,
-  openHostExternalUrl,
-} from '@open-design/host';
+import { isOpenDesignHostAvailable, openHostExternalUrl } from '@open-design/host';
 
 export const DEFAULT_DEPLOY_PROVIDER_ID = 'vercel-self';
 export const CLOUDFLARE_PAGES_PROVIDER_ID = 'cloudflare-pages';
-export const DEPLOY_PROVIDER_IDS = [
-  DEFAULT_DEPLOY_PROVIDER_ID,
-  CLOUDFLARE_PAGES_PROVIDER_ID,
-] as const;
+export const DEPLOY_PROVIDER_IDS = [DEFAULT_DEPLOY_PROVIDER_ID, CLOUDFLARE_PAGES_PROVIDER_ID] as const;
 
 export type WebDeployProviderId = (typeof DEPLOY_PROVIDER_IDS)[number];
 
@@ -290,9 +284,7 @@ export async function syncCommunityPets(
       body: JSON.stringify(input ?? {}),
     });
     if (!resp.ok) {
-      const payload = (await resp.json().catch(() => null)) as
-        | { error?: string }
-        | null;
+      const payload = (await resp.json().catch(() => null)) as { error?: string } | null;
       return {
         wrote: 0,
         skipped: 0,
@@ -348,9 +340,7 @@ export async function importSkill(
       body: JSON.stringify(input),
     });
     if (!resp.ok) {
-      const payload = (await resp.json().catch(() => null)) as
-        | { error?: SkillImportError }
-        | null;
+      const payload = (await resp.json().catch(() => null)) as { error?: SkillImportError } | null;
       return {
         error: {
           code: payload?.error?.code,
@@ -392,14 +382,11 @@ export async function updateSkill(
       body: JSON.stringify(input),
     });
     if (!resp.ok) {
-      const payload = (await resp.json().catch(() => null)) as
-        | { error?: SkillImportError }
-        | null;
+      const payload = (await resp.json().catch(() => null)) as { error?: SkillImportError } | null;
       return {
         error: {
           code: payload?.error?.code,
-          message:
-            payload?.error?.message ?? `Update failed (${resp.status}).`,
+          message: payload?.error?.message ?? `Update failed (${resp.status}).`,
         },
       };
     }
@@ -421,9 +408,7 @@ export interface SkillFileEntry {
 
 export async function fetchSkillFiles(id: string): Promise<SkillFileEntry[]> {
   try {
-    const resp = await fetch(
-      `/api/skills/${encodeURIComponent(id)}/files`,
-    );
+    const resp = await fetch(`/api/skills/${encodeURIComponent(id)}/files`);
     if (!resp.ok) return [];
     const json = (await resp.json()) as { files: SkillFileEntry[] };
     return json.files ?? [];
@@ -432,17 +417,13 @@ export async function fetchSkillFiles(id: string): Promise<SkillFileEntry[]> {
   }
 }
 
-export async function deleteSkill(
-  id: string,
-): Promise<{ ok: true } | { error: SkillImportError }> {
+export async function deleteSkill(id: string): Promise<{ ok: true } | { error: SkillImportError }> {
   try {
     const resp = await fetch(`/api/skills/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     if (!resp.ok) {
-      const payload = (await resp.json().catch(() => null)) as
-        | { error?: SkillImportError }
-        | null;
+      const payload = (await resp.json().catch(() => null)) as { error?: SkillImportError } | null;
       return {
         error: {
           code: payload?.error?.code,
@@ -480,9 +461,7 @@ export async function fetchDesignSystems(): Promise<DesignSystemSummary[]> {
 // design-system picker uses this so it can render a load-failure state
 // instead of silently showing an empty catalog, which would otherwise
 // be indistinguishable from "registry truly has no systems."
-export type DesignSystemsResult =
-  | { ok: true; designSystems: DesignSystemSummary[] }
-  | { ok: false };
+export type DesignSystemsResult = { ok: true; designSystems: DesignSystemSummary[] } | { ok: false };
 
 export async function fetchDesignSystemsResult(): Promise<DesignSystemsResult> {
   try {
@@ -505,9 +484,7 @@ export async function fetchDesignSystem(id: string): Promise<DesignSystemDetail 
   }
 }
 
-export async function fetchDesignSystemFiles(
-  id: string,
-): Promise<DesignSystemFileSummary[]> {
+export async function fetchDesignSystemFiles(id: string): Promise<DesignSystemFileSummary[]> {
   try {
     const resp = await fetch(`/api/design-systems/${encodeURIComponent(id)}/files`);
     if (!resp.ok) return [];
@@ -518,14 +495,9 @@ export async function fetchDesignSystemFiles(
   }
 }
 
-export async function fetchDesignSystemFile(
-  id: string,
-  filePath: string,
-): Promise<DesignSystemFileDetail | null> {
+export async function fetchDesignSystemFile(id: string, filePath: string): Promise<DesignSystemFileDetail | null> {
   try {
-    const resp = await fetch(
-      `/api/design-systems/${encodeURIComponent(id)}/file?path=${encodeURIComponent(filePath)}`,
-    );
+    const resp = await fetch(`/api/design-systems/${encodeURIComponent(id)}/file?path=${encodeURIComponent(filePath)}`);
     if (!resp.ok) return null;
     const json = (await resp.json()) as { file?: DesignSystemFileDetail };
     return json.file ?? null;
@@ -566,9 +538,7 @@ export interface DesignSystemDraftInput {
   provenance?: DesignSystemProvenance;
 }
 
-export async function createDesignSystemDraft(
-  input: DesignSystemDraftInput,
-): Promise<DesignSystemDetail | null> {
+export async function createDesignSystemDraft(input: DesignSystemDraftInput): Promise<DesignSystemDetail | null> {
   try {
     const resp = await fetch('/api/design-systems', {
       method: 'POST',
@@ -599,9 +569,7 @@ export async function startDesignSystemGenerationJob(
   }
 }
 
-export async function fetchDesignSystemGenerationJob(
-  id: string,
-): Promise<DesignSystemGenerationJob | null> {
+export async function fetchDesignSystemGenerationJob(id: string): Promise<DesignSystemGenerationJob | null> {
   try {
     const resp = await fetch(`/api/design-systems/generation-jobs/${encodeURIComponent(id)}`);
     if (!resp.ok) return null;
@@ -616,10 +584,9 @@ export async function fetchProjectDesignSystemPackageAudit(
   projectId: string,
 ): Promise<DesignSystemPackageAudit | null> {
   try {
-    const resp = await fetch(
-      `/api/projects/${encodeURIComponent(projectId)}/design-system-package-audit`,
-      { cache: 'no-store' },
-    );
+    const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/design-system-package-audit`, {
+      cache: 'no-store',
+    });
     if (!resp.ok) return null;
     const json = (await resp.json()) as { audit?: DesignSystemPackageAudit };
     return json.audit ?? null;
@@ -628,9 +595,7 @@ export async function fetchProjectDesignSystemPackageAudit(
   }
 }
 
-export async function fetchDesignSystemRevisions(
-  id: string,
-): Promise<DesignSystemRevision[]> {
+export async function fetchDesignSystemRevisions(id: string): Promise<DesignSystemRevision[]> {
   try {
     const resp = await fetch(`/api/design-systems/${encodeURIComponent(id)}/revisions`);
     if (!resp.ok) return [];
@@ -789,16 +754,14 @@ export async function importShadcnDesignSystem(
 }
 
 async function readImportError(resp: Response): Promise<SkillImportError> {
-  const payload = (await resp.json().catch(() => null)) as
-    | { error?: SkillImportError | string; message?: string }
-    | null;
+  const payload = (await resp.json().catch(() => null)) as {
+    error?: SkillImportError | string;
+    message?: string;
+  } | null;
   const error = payload?.error;
   if (typeof error === 'object' && error !== null) return error;
   return {
-    message:
-      typeof error === 'string'
-        ? error
-        : payload?.message ?? `Import failed (${resp.status}).`,
+    message: typeof error === 'string' ? error : (payload?.message ?? `Import failed (${resp.status}).`),
   };
 }
 
@@ -818,9 +781,7 @@ export async function fetchPromptTemplate(
   id: string,
 ): Promise<PromptTemplateDetail | null> {
   try {
-    const resp = await fetch(
-      `/api/prompt-templates/${encodeURIComponent(surface)}/${encodeURIComponent(id)}`,
-    );
+    const resp = await fetch(`/api/prompt-templates/${encodeURIComponent(surface)}/${encodeURIComponent(id)}`);
     if (!resp.ok) return null;
     const json = (await resp.json()) as { promptTemplate: PromptTemplateDetail };
     return json.promptTemplate ?? null;
@@ -1035,7 +996,10 @@ export async function connectConnector(connectorId: string): Promise<ConnectorAc
     }
     return { connector: json.connector ?? null, ...(json.auth === undefined ? {} : { auth: json.auth }) };
   } catch (err) {
-    renderConnectorAuthError(authWindow, err instanceof Error && err.message ? err.message : 'Could not start connector authentication.');
+    renderConnectorAuthError(
+      authWindow,
+      err instanceof Error && err.message ? err.message : 'Could not start connector authentication.',
+    );
     return {
       connector: null,
       error: err instanceof Error && err.message ? err.message : 'Could not start connector authentication.',
@@ -1043,7 +1007,9 @@ export async function connectConnector(connectorId: string): Promise<ConnectorAc
   }
 }
 
-async function prepareConnectorAuthConfig(connectorId: string): Promise<{ status: 'ready' } | { status: 'error'; message: string }> {
+async function prepareConnectorAuthConfig(
+  connectorId: string,
+): Promise<{ status: 'ready' } | { status: 'error'; message: string }> {
   const resp = await fetch('/api/connectors/auth-configs/prepare', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1129,7 +1095,7 @@ function renderConnectorAuthRedirect(authWindow: Window, redirectUrl: string): v
 
 async function readConnectorApiErrorMessage(resp: Response): Promise<string> {
   try {
-    const payload = await resp.json() as { error?: { message?: string }; message?: string };
+    const payload = (await resp.json()) as { error?: { message?: string }; message?: string };
     return payload.error?.message ?? payload.message ?? `Connection failed (${resp.status})`;
   } catch {
     return `Connection failed (${resp.status})`;
@@ -1279,10 +1245,7 @@ export type SkillExampleResult =
 // daemon-side). Anything other than `'html'` short-circuits to an
 // `unavailable` result so we don't fire a network call against a
 // daemon endpoint that only resolves HTML files. Issue #897.
-export async function fetchSkillExample(
-  id: string,
-  previewType: string = 'html',
-): Promise<SkillExampleResult> {
+export async function fetchSkillExample(id: string, previewType: string = 'html'): Promise<SkillExampleResult> {
   if (previewType !== 'html') {
     return { unavailable: true, kind: previewType };
   }
@@ -1301,9 +1264,7 @@ export async function fetchSkillExample(
   }
 }
 
-export async function fetchDeployConfig(
-  providerId?: WebDeployProviderId,
-): Promise<WebDeployConfigResponse | null> {
+export async function fetchDeployConfig(providerId?: WebDeployProviderId): Promise<WebDeployConfigResponse | null> {
   try {
     const resp = await fetch(`/api/deploy/config${deployProviderQuery(providerId)}`);
     if (!resp.ok) return null;
@@ -1313,9 +1274,7 @@ export async function fetchDeployConfig(
   }
 }
 
-export async function updateDeployConfig(
-  input: WebUpdateDeployConfigRequest,
-): Promise<WebDeployConfigResponse | null> {
+export async function updateDeployConfig(input: WebUpdateDeployConfigRequest): Promise<WebDeployConfigResponse | null> {
   try {
     const resp = await fetch('/api/deploy/config', {
       method: 'PUT',
@@ -1323,9 +1282,10 @@ export async function updateDeployConfig(
       body: JSON.stringify(input),
     });
     if (!resp.ok) {
-      const payload = (await resp.json().catch(() => null)) as
-        | { error?: { message?: string }; message?: string }
-        | null;
+      const payload = (await resp.json().catch(() => null)) as {
+        error?: { message?: string };
+        message?: string;
+      } | null;
       throw new Error(payload?.error?.message || payload?.message || `Could not save deploy config (${resp.status})`);
     }
     return (await resp.json()) as WebDeployConfigResponse;
@@ -1339,10 +1299,13 @@ export async function fetchCloudflarePagesZones(): Promise<WebCloudflarePagesZon
   try {
     const resp = await fetch('/api/deploy/cloudflare-pages/zones');
     if (!resp.ok) {
-      const payload = (await resp.json().catch(() => null)) as
-        | { error?: { message?: string }; message?: string }
-        | null;
-      throw new Error(payload?.error?.message || payload?.message || `Could not load Cloudflare zones (${resp.status})`);
+      const payload = (await resp.json().catch(() => null)) as {
+        error?: { message?: string };
+        message?: string;
+      } | null;
+      throw new Error(
+        payload?.error?.message || payload?.message || `Could not load Cloudflare zones (${resp.status})`,
+      );
     }
     return (await resp.json()) as WebCloudflarePagesZonesResponse;
   } catch (err) {
@@ -1351,9 +1314,7 @@ export async function fetchCloudflarePagesZones(): Promise<WebCloudflarePagesZon
   }
 }
 
-export async function fetchProjectDeployments(
-  projectId: string,
-): Promise<WebDeploymentInfo[]> {
+export async function fetchProjectDeployments(projectId: string): Promise<WebDeploymentInfo[]> {
   try {
     const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/deployments`);
     if (!resp.ok) return [];
@@ -1381,9 +1342,7 @@ export async function deployProjectFile(
     body: JSON.stringify(body),
   });
   if (!resp.ok) {
-    const payload = (await resp.json().catch(() => null)) as
-      | { error?: { message?: string }; message?: string }
-      | null;
+    const payload = (await resp.json().catch(() => null)) as { error?: { message?: string }; message?: string } | null;
     throw new Error(payload?.error?.message || payload?.message || `Deploy failed (${resp.status})`);
   }
   return (await resp.json()) as WebDeployProjectFileResponse;
@@ -1398,24 +1357,20 @@ export async function checkDeploymentLink(
     { method: 'POST' },
   );
   if (!resp.ok) {
-    const payload = (await resp.json().catch(() => null)) as
-      | { error?: { message?: string }; message?: string }
-      | null;
+    const payload = (await resp.json().catch(() => null)) as { error?: { message?: string }; message?: string } | null;
     throw new Error(payload?.error?.message || payload?.message || `Link check failed (${resp.status})`);
   }
   return (await resp.json()) as WebDeployProjectFileResponse;
 }
 
-export async function createSocialSharePayload(
-  input: SocialShareRequest,
-): Promise<SocialShareResponse> {
+export async function createSocialSharePayload(input: SocialShareRequest): Promise<SocialShareResponse> {
   const resp = await fetch('/api/social-share', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
   if (!resp.ok) {
-    const payload = await resp.json().catch(() => null) as {
+    const payload = (await resp.json().catch(() => null)) as {
       error?: { message?: string };
       message?: string;
     } | null;
@@ -1448,10 +1403,7 @@ export async function fetchProjectFolders(projectId: string): Promise<ProjectFol
   }
 }
 
-export async function createProjectFolder(
-  projectId: string,
-  name: string,
-): Promise<ProjectFolder | null> {
+export async function createProjectFolder(projectId: string, name: string): Promise<ProjectFolder | null> {
   try {
     const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/folders`, {
       method: 'POST',
@@ -1466,10 +1418,7 @@ export async function createProjectFolder(
   }
 }
 
-export async function deleteProjectFolder(
-  projectId: string,
-  folderPath: string,
-): Promise<boolean> {
+export async function deleteProjectFolder(projectId: string, folderPath: string): Promise<boolean> {
   try {
     const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/folders`, {
       method: 'DELETE',
@@ -1496,10 +1445,7 @@ export async function fetchLiveArtifacts(projectId: string): Promise<LiveArtifac
   }
 }
 
-export async function fetchLiveArtifact(
-  projectId: string,
-  artifactId: string,
-): Promise<LiveArtifact | null> {
+export async function fetchLiveArtifact(projectId: string, artifactId: string): Promise<LiveArtifact | null> {
   try {
     const resp = await fetch(liveArtifactDetailUrl(projectId, artifactId));
     if (!resp.ok) return null;
@@ -1533,10 +1479,7 @@ export class LiveArtifactRefreshError extends Error {
   }
 }
 
-export async function refreshLiveArtifact(
-  projectId: string,
-  artifactId: string,
-): Promise<LiveArtifactRefreshResult> {
+export async function refreshLiveArtifact(projectId: string, artifactId: string): Promise<LiveArtifactRefreshResult> {
   let resp: Response;
   try {
     resp = await fetch(
@@ -1544,10 +1487,7 @@ export async function refreshLiveArtifact(
       { method: 'POST' },
     );
   } catch (error) {
-    throw new LiveArtifactRefreshError(
-      error instanceof Error ? error.message : 'Refresh request failed.',
-      0,
-    );
+    throw new LiveArtifactRefreshError(error instanceof Error ? error.message : 'Refresh request failed.', 0);
   }
 
   if (!resp.ok) {
@@ -1593,10 +1533,7 @@ export async function updateLiveArtifact(
       },
     );
   } catch (error) {
-    throw new LiveArtifactRefreshError(
-      error instanceof Error ? error.message : 'Update request failed.',
-      0,
-    );
+    throw new LiveArtifactRefreshError(error instanceof Error ? error.message : 'Update request failed.', 0);
   }
 
   if (!resp.ok) {
@@ -1641,7 +1578,11 @@ export function liveArtifactDetailUrl(projectId: string, artifactId: string): st
 
 export type LiveArtifactPreviewVariant = 'rendered' | 'template' | 'rendered-source';
 
-export function liveArtifactPreviewUrl(projectId: string, artifactId: string, variant: LiveArtifactPreviewVariant = 'rendered'): string {
+export function liveArtifactPreviewUrl(
+  projectId: string,
+  artifactId: string,
+  variant: LiveArtifactPreviewVariant = 'rendered',
+): string {
   const variantQuery = variant === 'rendered' ? '' : `&variant=${encodeURIComponent(variant)}`;
   return `/api/live-artifacts/${encodeURIComponent(artifactId)}/preview?projectId=${encodeURIComponent(projectId)}${variantQuery}`;
 }
@@ -1675,10 +1616,7 @@ export interface ProjectFilePreview {
   sections: ProjectFilePreviewSection[];
 }
 
-export async function fetchProjectFilePreview(
-  projectId: string,
-  name: string,
-): Promise<ProjectFilePreview | null> {
+export async function fetchProjectFilePreview(projectId: string, name: string): Promise<ProjectFilePreview | null> {
   try {
     const resp = await fetch(
       `/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(name)}/preview`,
@@ -1728,10 +1666,7 @@ export async function fetchProjectFileText(
   }
 }
 
-export async function fetchPreviewComments(
-  projectId: string,
-  conversationId: string,
-): Promise<PreviewComment[]> {
+export async function fetchPreviewComments(projectId: string, conversationId: string): Promise<PreviewComment[]> {
   try {
     const resp = await fetch(
       `/api/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(conversationId)}/comments`,
@@ -1928,15 +1863,10 @@ export async function uploadProjectFiles(
     for (const f of batch) form.append('files', f);
 
     try {
-      const resp = await fetch(
-        `/api/projects/${encodeURIComponent(projectId)}/upload`,
-        { method: 'POST', body: form },
-      );
+      const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/upload`, { method: 'POST', body: form });
 
       if (!resp.ok) {
-        const payload = (await resp.json().catch(() => null)) as
-          | { code?: string; error?: string }
-          | null;
+        const payload = (await resp.json().catch(() => null)) as { code?: string; error?: string } | null;
         error = payload?.error ?? `upload failed (${resp.status})`;
         for (const f of batch) {
           failed.push({ name: f.name, code: payload?.code, error: error });
@@ -2001,15 +1931,9 @@ function looksLikeImage(name: string): boolean {
   return /\.(png|jpe?g|gif|webp|svg|avif|bmp)$/i.test(name);
 }
 
-export async function deleteProjectFile(
-  projectId: string,
-  name: string,
-): Promise<boolean> {
+export async function deleteProjectFile(projectId: string, name: string): Promise<boolean> {
   try {
-    const resp = await fetch(
-      projectRawUrl(projectId, name),
-      { method: 'DELETE' },
-    );
+    const resp = await fetch(projectRawUrl(projectId, name), { method: 'DELETE' });
     return resp.ok;
   } catch {
     return false;
@@ -2056,14 +1980,11 @@ export async function replaceProjectWorkingDir(
   if (desktopImportToken) {
     headers['x-od-desktop-import-token'] = desktopImportToken;
   }
-  const resp = await fetch(
-    `/api/projects/${encodeURIComponent(projectId)}/working-dir`,
-    {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ baseDir }),
-    },
-  );
+  const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/working-dir`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ baseDir }),
+  });
   if (!resp.ok) {
     const body = await readApiErrorBody(resp);
     throw new Error(body.message);
@@ -2074,9 +1995,7 @@ export async function replaceProjectWorkingDir(
 // Hand-off (open project in local app). The daemon enumerates installed
 // editors on demand (PATH probe + macOS bundle scan), and the POST
 // endpoint spawns the chosen app with the project's resolvedDir.
-export async function fetchHostEditors(): Promise<
-  import('@open-design/contracts').HostEditorsResponse
-> {
+export async function fetchHostEditors(): Promise<import('@open-design/contracts').HostEditorsResponse> {
   const resp = await fetch('/api/editors');
   if (!resp.ok) throw new Error(`GET /api/editors failed: ${resp.status}`);
   return (await resp.json()) as import('@open-design/contracts').HostEditorsResponse;
@@ -2086,14 +2005,11 @@ export async function openProjectInEditor(
   projectId: string,
   editorId: import('@open-design/contracts').HostEditorId,
 ): Promise<import('@open-design/contracts').OpenProjectInEditorResponse> {
-  const resp = await fetch(
-    `/api/projects/${encodeURIComponent(projectId)}/open-in`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ editorId }),
-    },
-  );
+  const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/open-in`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ editorId }),
+  });
   if (!resp.ok) {
     const body = await readApiErrorBody(resp);
     throw new Error(body.message);
@@ -2132,13 +2048,9 @@ export async function fetchDesignSystemShowcase(id: string): Promise<string | nu
 // asset for an otherwise valid plugin is not an error the user can
 // retry their way out of. Surfacing the calm "no shipped preview"
 // placeholder is the truthful UX.
-export async function fetchPluginPreviewHtml(
-  id: string,
-): Promise<SkillExampleResult> {
+export async function fetchPluginPreviewHtml(id: string): Promise<SkillExampleResult> {
   try {
-    const resp = await fetch(
-      `/api/plugins/${encodeURIComponent(id)}/preview`,
-    );
+    const resp = await fetch(`/api/plugins/${encodeURIComponent(id)}/preview`);
     if (!resp.ok) {
       if (resp.status === 404) return { unavailable: true, kind: 'html' };
       return { error: `HTTP ${resp.status}` };
@@ -2153,14 +2065,9 @@ export async function fetchPluginPreviewHtml(
 // Fetch a single example output by stem (matches the basename of the
 // `od.useCase.exampleOutputs[].path` minus its extension). 404 is
 // mapped to `unavailable` for the same reason as fetchPluginPreviewHtml.
-export async function fetchPluginExampleHtml(
-  pluginId: string,
-  stem: string,
-): Promise<SkillExampleResult> {
+export async function fetchPluginExampleHtml(pluginId: string, stem: string): Promise<SkillExampleResult> {
   try {
-    const resp = await fetch(
-      `/api/plugins/${encodeURIComponent(pluginId)}/example/${encodeURIComponent(stem)}`,
-    );
+    const resp = await fetch(`/api/plugins/${encodeURIComponent(pluginId)}/example/${encodeURIComponent(stem)}`);
     if (!resp.ok) {
       if (resp.status === 404) return { unavailable: true, kind: 'html' };
       return { error: `HTTP ${resp.status}` };
@@ -2177,14 +2084,9 @@ export async function fetchPluginExampleHtml(
 // caller can fall back to a placeholder; callers that need a
 // distinguishable failure should switch to the discriminated
 // SkillExampleResult shape used by the HTML helpers above.
-export async function fetchPluginAssetText(
-  pluginId: string,
-  relpath: string,
-): Promise<string | null> {
+export async function fetchPluginAssetText(pluginId: string, relpath: string): Promise<string | null> {
   try {
-    const resp = await fetch(
-      `/api/plugins/${encodeURIComponent(pluginId)}/asset/${encodePluginAssetPath(relpath)}`,
-    );
+    const resp = await fetch(`/api/plugins/${encodeURIComponent(pluginId)}/asset/${encodePluginAssetPath(relpath)}`);
     if (!resp.ok) return null;
     return await resp.text();
   } catch {
@@ -2201,9 +2103,7 @@ function encodePluginAssetPath(relpath: string): string {
     .join('/');
 }
 
-export async function installSkill(
-  input: InstallInput,
-): Promise<{ skill: SkillSummary } | { error: string }> {
+export async function installSkill(input: InstallInput): Promise<{ skill: SkillSummary } | { error: string }> {
   try {
     const resp = await fetch('/api/skills/install', {
       method: 'POST',
@@ -2218,9 +2118,7 @@ export async function installSkill(
   }
 }
 
-export async function uninstallSkill(
-  id: string,
-): Promise<{ ok: true } | { error: string }> {
+export async function uninstallSkill(id: string): Promise<{ ok: true } | { error: string }> {
   try {
     const resp = await fetch(`/api/skills/${encodeURIComponent(id)}`, {
       method: 'DELETE',
@@ -2250,9 +2148,7 @@ export async function installDesignSystem(
   }
 }
 
-export async function uninstallDesignSystem(
-  id: string,
-): Promise<{ ok: true } | { error: string }> {
+export async function uninstallDesignSystem(id: string): Promise<{ ok: true } | { error: string }> {
   try {
     const resp = await fetch(`/api/design-systems/${encodeURIComponent(id)}`, {
       method: 'DELETE',

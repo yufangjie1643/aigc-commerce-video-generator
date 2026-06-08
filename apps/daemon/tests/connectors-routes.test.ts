@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { COMPOSIO_LOGO_CACHE_MAX_ENTRIES } from '../src/connectors/routes.js';
 import { startServer } from '../src/server.js';
-import { ComposioConnectorProvider, composioConnectorProvider, getStaticComposioCatalogDefinitions } from '../src/connectors/composio.js';
+import {
+  ComposioConnectorProvider,
+  composioConnectorProvider,
+  getStaticComposioCatalogDefinitions,
+} from '../src/connectors/composio.js';
 import type { ConnectorCatalogDefinition, ConnectorDetail } from '../src/connectors/catalog.js';
 import { readComposioConfig, writeComposioConfig, type ComposioConfig } from '../src/connectors/composio-config.js';
 import { deleteConnectorCredentialsByProvider } from '../src/connectors/service.js';
@@ -17,7 +21,11 @@ type Deferred = { promise: Promise<void>; resolve: () => void };
 type ComposioRequestBody = JsonObject;
 type FetchInput = Parameters<typeof fetch>[0];
 type FetchReturn = Awaited<ReturnType<typeof fetch>>;
-type ComposioLogoFetch = (parsed: URL, init: RequestInit | undefined, input: FetchInput) => Promise<FetchReturn> | FetchReturn;
+type ComposioLogoFetch = (
+  parsed: URL,
+  init: RequestInit | undefined,
+  input: FetchInput,
+) => Promise<FetchReturn> | FetchReturn;
 
 interface MockComposioFetchOptions {
   authConfigs?: JsonObject[];
@@ -25,7 +33,11 @@ interface MockComposioFetchOptions {
   delayFirstAuthConfigs?: { started: Deferred; release: Deferred };
   delayFirstToolkits?: { started: Deferred; release: Deferred };
   logoFetch?: ComposioLogoFetch;
-  linkResponse?: JsonObject | Response | Array<JsonObject | Response> | ((requestBody: ComposioRequestBody) => JsonObject | Response);
+  linkResponse?:
+    | JsonObject
+    | Response
+    | Array<JsonObject | Response>
+    | ((requestBody: ComposioRequestBody) => JsonObject | Response);
   toolsFailureToolkits?: string[];
   toolkits?: JsonObject[];
 }
@@ -118,7 +130,13 @@ function mockComposioFetch(options: MockComposioFetchOptions = {}): void {
       lastComposioAuthConfigRequest = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
       const toolkitSlug = lastComposioAuthConfigRequest?.toolkit?.slug ?? 'GITHUB';
       if (createAuthConfigResponse instanceof Response) return createAuthConfigResponse;
-      return composioJson(createAuthConfigResponse ?? { id: `ac_${String(toolkitSlug).toLowerCase()}`, status: 'ENABLED', toolkit: { slug: toolkitSlug } });
+      return composioJson(
+        createAuthConfigResponse ?? {
+          id: `ac_${String(toolkitSlug).toLowerCase()}`,
+          status: 'ENABLED',
+          toolkit: { slug: toolkitSlug },
+        },
+      );
     }
     if (parsed.pathname === '/api/v3.1/toolkits') {
       composioDiscoveryRequestCounts.toolkits += 1;
@@ -126,12 +144,29 @@ function mockComposioFetch(options: MockComposioFetchOptions = {}): void {
         delayFirstToolkits.started.resolve();
         await delayFirstToolkits.release.promise;
       }
-      return composioJson({ items: toolkits ?? [
-        { slug: 'github', name: 'GitHub', description: 'GitHub toolkit', categories: [{ name: 'Developer' }], meta: { tools_count: 12 } },
-        { slug: 'youtube', name: 'YouTube', description: 'YouTube toolkit', categories: [{ name: 'Video' }], meta: { tools_count: 7 } },
-      ] });
+      return composioJson({
+        items: toolkits ?? [
+          {
+            slug: 'github',
+            name: 'GitHub',
+            description: 'GitHub toolkit',
+            categories: [{ name: 'Developer' }],
+            meta: { tools_count: 12 },
+          },
+          {
+            slug: 'youtube',
+            name: 'YouTube',
+            description: 'YouTube toolkit',
+            categories: [{ name: 'Video' }],
+            meta: { tools_count: 7 },
+          },
+        ],
+      });
     }
-    if (parsed.pathname === '/api/v3.1/tools' && toolsFailureToolkits.includes(parsed.searchParams.get('toolkit_slug') ?? '')) {
+    if (
+      parsed.pathname === '/api/v3.1/tools' &&
+      toolsFailureToolkits.includes(parsed.searchParams.get('toolkit_slug') ?? '')
+    ) {
       composioDiscoveryRequestCounts.tools += 1;
       return composioJson({ message: 'Composio tools unavailable' }, 503);
     }
@@ -139,8 +174,27 @@ function mockComposioFetch(options: MockComposioFetchOptions = {}): void {
       composioDiscoveryRequestCounts.tools += 1;
       return composioJson({
         items: [
-          { slug: 'GITHUB_SEARCH_REPOSITORIES', name: 'Search repositories', description: 'Search public and private repositories', toolkit: { slug: 'github' }, input_parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false }, tags: ['read'] },
-          { slug: 'GITHUB_LIST_PULL_REQUESTS', name: 'List pull requests', description: 'List pull requests for a repository.', toolkit: { slug: 'github' }, input_parameters: { type: 'object', additionalProperties: false }, tags: ['read'] },
+          {
+            slug: 'GITHUB_SEARCH_REPOSITORIES',
+            name: 'Search repositories',
+            description: 'Search public and private repositories',
+            toolkit: { slug: 'github' },
+            input_parameters: {
+              type: 'object',
+              properties: { query: { type: 'string' } },
+              required: ['query'],
+              additionalProperties: false,
+            },
+            tags: ['read'],
+          },
+          {
+            slug: 'GITHUB_LIST_PULL_REQUESTS',
+            name: 'List pull requests',
+            description: 'List pull requests for a repository.',
+            toolkit: { slug: 'github' },
+            input_parameters: { type: 'object', additionalProperties: false },
+            tags: ['read'],
+          },
         ],
       });
     }
@@ -149,30 +203,67 @@ function mockComposioFetch(options: MockComposioFetchOptions = {}): void {
       const cursor = parsed.searchParams.get('cursor');
       return composioJson({
         items: cursor
-          ? [{ slug: 'YOUTUBE_GET_VIDEO', name: 'Get video', description: 'Read a YouTube video.', toolkit: { slug: 'youtube' }, input_parameters: { type: 'object', additionalProperties: false }, tags: ['read'] }]
-          : [{ slug: 'YOUTUBE_SEARCH_VIDEOS', name: 'Search videos', description: 'Search YouTube videos.', toolkit: { slug: 'youtube' }, input_parameters: { type: 'object', additionalProperties: false }, tags: ['read'] }],
+          ? [
+              {
+                slug: 'YOUTUBE_GET_VIDEO',
+                name: 'Get video',
+                description: 'Read a YouTube video.',
+                toolkit: { slug: 'youtube' },
+                input_parameters: { type: 'object', additionalProperties: false },
+                tags: ['read'],
+              },
+            ]
+          : [
+              {
+                slug: 'YOUTUBE_SEARCH_VIDEOS',
+                name: 'Search videos',
+                description: 'Search YouTube videos.',
+                toolkit: { slug: 'youtube' },
+                input_parameters: { type: 'object', additionalProperties: false },
+                tags: ['read'],
+              },
+            ],
         total_items: 7,
         ...(cursor ? {} : { next_cursor: 'cursor_page_2' }),
       });
     }
     if (parsed.pathname === '/api/v3.1/connected_accounts/link') {
       lastComposioLinkRequest = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
-      const nextLinkResponse = typeof linkResponse === 'function'
-        ? linkResponse(lastComposioLinkRequest ?? {})
-        : Array.isArray(linkResponse)
-          ? linkResponse.shift()
-          : linkResponse;
+      const nextLinkResponse =
+        typeof linkResponse === 'function'
+          ? linkResponse(lastComposioLinkRequest ?? {})
+          : Array.isArray(linkResponse)
+            ? linkResponse.shift()
+            : linkResponse;
       if (nextLinkResponse instanceof Response) return nextLinkResponse;
       return composioJson(nextLinkResponse ?? {});
     }
     if (parsed.pathname === '/api/v3/connected_accounts/ca_github') {
-      return composioJson({ connected_account_id: 'ca_github', status: 'ACTIVE', account_label: 'octocat@example.com', toolkit: { slug: 'github' }, auth_config: { id: lastComposioLinkRequest?.auth_config_id ?? 'ac_github' } });
+      return composioJson({
+        connected_account_id: 'ca_github',
+        status: 'ACTIVE',
+        account_label: 'octocat@example.com',
+        toolkit: { slug: 'github' },
+        auth_config: { id: lastComposioLinkRequest?.auth_config_id ?? 'ac_github' },
+      });
     }
     if (parsed.pathname === '/api/v3/connected_accounts/ca_youtube') {
-      return composioJson({ connected_account_id: 'ca_youtube', status: 'ACTIVE', account_label: 'youtube@example.com', toolkit: { slug: 'youtube' }, auth_config: { id: lastComposioLinkRequest?.auth_config_id ?? 'ac_youtube' } });
+      return composioJson({
+        connected_account_id: 'ca_youtube',
+        status: 'ACTIVE',
+        account_label: 'youtube@example.com',
+        toolkit: { slug: 'youtube' },
+        auth_config: { id: lastComposioLinkRequest?.auth_config_id ?? 'ac_youtube' },
+      });
     }
     if (parsed.pathname === '/api/v3/connected_accounts/ca_douyin') {
-      return composioJson({ connected_account_id: 'ca_douyin', status: 'ACTIVE', account_label: 'douyin@example.com', toolkit: { slug: 'douyin' }, auth_config: { id: lastComposioLinkRequest?.auth_config_id ?? 'ac_douyin' } });
+      return composioJson({
+        connected_account_id: 'ca_douyin',
+        status: 'ACTIVE',
+        account_label: 'douyin@example.com',
+        toolkit: { slug: 'douyin' },
+        auth_config: { id: lastComposioLinkRequest?.auth_config_id ?? 'ac_douyin' },
+      });
     }
     if (parsed.pathname === '/api/v3.1/tools/execute/GITHUB_SEARCH_REPOSITORIES') {
       return composioJson({ successful: true, data: { results: [] }, log_id: 'log_1' });
@@ -190,7 +281,7 @@ beforeEach(async () => {
   lastComposioAuthConfigRequest = undefined;
   lastVideoCrawlerRequest = undefined;
   mockComposioFetch();
-  const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+  const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
   server = started.server;
   baseUrl = started.url;
   await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -217,10 +308,15 @@ afterEach(async () => {
 
 async function jsonFetch<TBody = JsonObject>(url: string, init?: RequestInit): Promise<JsonFetchResponse<TBody>> {
   const response = await fetch(url, init);
-  return { status: response.status, body: await response.json() as TBody };
+  return { status: response.status, body: (await response.json()) as TBody };
 }
 
-async function requestWithHostHeader(method: string, url: string, host: string, body?: JsonObject): Promise<HostHeaderResponse> {
+async function requestWithHostHeader(
+  method: string,
+  url: string,
+  host: string,
+  body?: JsonObject,
+): Promise<HostHeaderResponse> {
   const target = new URL(url);
   return await new Promise<HostHeaderResponse>((resolve, reject) => {
     const req = httpRequest(
@@ -259,7 +355,11 @@ async function putWithHostHeader(url: string, host: string, body: JsonObject): P
   return requestWithHostHeader('PUT', url, host, body);
 }
 
-function mintConnectorToolToken(projectId = 'connector-route-project', runId = 'connector-route-run', overrides: Partial<Parameters<typeof toolTokenRegistry.mint>[0]> = {}): string {
+function mintConnectorToolToken(
+  projectId = 'connector-route-project',
+  runId = 'connector-route-run',
+  overrides: Partial<Parameters<typeof toolTokenRegistry.mint>[0]> = {},
+): string {
   return toolTokenRegistry.mint({
     projectId,
     runId,
@@ -274,7 +374,13 @@ describe('connector routes', () => {
     const response = await jsonFetch(`${baseUrl}/api/connectors`);
 
     expect(response.status).toBe(200);
-    expect(response.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual(['github', 'youtube', 'tiktok', 'douyin', 'bilibili']);
+    expect(response.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual([
+      'github',
+      'youtube',
+      'tiktok',
+      'douyin',
+      'bilibili',
+    ]);
     const github = response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'github');
     expect(github).toMatchObject({
       id: 'github',
@@ -283,17 +389,21 @@ describe('connector routes', () => {
       toolCount: 2,
       auth: { provider: 'composio', configured: false },
     });
-    expect(github.tools).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'github.github_search_repositories' })]));
+    expect(github.tools).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'github.github_search_repositories' })]),
+    );
     expect(response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'youtube')).toMatchObject({
       id: 'youtube',
       category: 'Video',
       toolCount: 4,
       auth: { provider: 'cookie', configured: false },
     });
-    expect(response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'youtube')?.tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'youtube.youtube_search_videos' }),
-      expect.objectContaining({ name: 'youtube.youtube_get_comments' }),
-    ]));
+    expect(response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'youtube')?.tools).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'youtube.youtube_search_videos' }),
+        expect.objectContaining({ name: 'youtube.youtube_get_comments' }),
+      ]),
+    );
     expect(response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'douyin')).toMatchObject({
       id: 'douyin',
       name: '抖音',
@@ -307,10 +417,12 @@ describe('connector routes', () => {
       toolCount: 4,
       auth: { provider: 'cookie', configured: false },
     });
-    expect(response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'bilibili')?.tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'bilibili.bilibili_search_videos' }),
-      expect.objectContaining({ name: 'bilibili.bilibili_download_video' }),
-    ]));
+    expect(response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'bilibili')?.tools).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'bilibili.bilibili_search_videos' }),
+        expect.objectContaining({ name: 'bilibili.bilibili_download_video' }),
+      ]),
+    );
     expect(composioDiscoveryRequestCounts).toEqual({ authConfigs: 0, createdAuthConfigs: 0, toolkits: 0, tools: 0 });
   });
 
@@ -320,13 +432,30 @@ describe('connector routes', () => {
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
-    expect(first.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual(['github', 'youtube', 'tiktok', 'douyin', 'bilibili']);
-    expect(second.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual(['github', 'youtube', 'tiktok', 'douyin', 'bilibili']);
-    expect(first.body.connectors.find((connector: ConnectorDetail) => connector.id === 'github')).toMatchObject({ toolCount: 12 });
-    expect(first.body.connectors.find((connector: ConnectorDetail) => connector.id === 'youtube')).toMatchObject({ toolCount: 4, auth: { provider: 'cookie' } });
-    expect(first.body.connectors.find((connector: ConnectorDetail) => connector.id === 'bilibili')?.tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'bilibili.bilibili_get_comments' }),
-    ]));
+    expect(first.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual([
+      'github',
+      'youtube',
+      'tiktok',
+      'douyin',
+      'bilibili',
+    ]);
+    expect(second.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual([
+      'github',
+      'youtube',
+      'tiktok',
+      'douyin',
+      'bilibili',
+    ]);
+    expect(first.body.connectors.find((connector: ConnectorDetail) => connector.id === 'github')).toMatchObject({
+      toolCount: 12,
+    });
+    expect(first.body.connectors.find((connector: ConnectorDetail) => connector.id === 'youtube')).toMatchObject({
+      toolCount: 4,
+      auth: { provider: 'cookie' },
+    });
+    expect(first.body.connectors.find((connector: ConnectorDetail) => connector.id === 'bilibili')?.tools).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'bilibili.bilibili_get_comments' })]),
+    );
     expect(first.body.meta).toMatchObject({ provider: 'mixed' });
     expect(composioDiscoveryRequestCounts).toEqual({ authConfigs: 1, createdAuthConfigs: 0, toolkits: 1, tools: 0 });
   });
@@ -334,7 +463,13 @@ describe('connector routes', () => {
   it('preserves static advertised tool counts when live toolkit metadata omits counts', async () => {
     mockComposioFetch({
       toolkits: [
-        { slug: 'github', name: 'GitHub', description: 'GitHub toolkit', categories: [{ name: 'Developer' }], meta: {} },
+        {
+          slug: 'github',
+          name: 'GitHub',
+          description: 'GitHub toolkit',
+          categories: [{ name: 'Developer' }],
+          meta: {},
+        },
       ],
     });
     composioConnectorProvider.clearDiscoveryCache();
@@ -353,9 +488,15 @@ describe('connector routes', () => {
     const response = await jsonFetch(`${baseUrl}/api/connectors/discovery?hydrateTools=true`);
 
     expect(response.status).toBe(200);
-    expect(response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'github')?.tools).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'github.github_list_pull_requests' })]));
-    expect(response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'youtube')?.tools).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'youtube.youtube_search_videos' })]));
-    expect(response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'github')).toMatchObject({ toolCount: 12 });
+    expect(response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'github')?.tools).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'github.github_list_pull_requests' })]),
+    );
+    expect(response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'youtube')?.tools).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'youtube.youtube_search_videos' })]),
+    );
+    expect(response.body.connectors.find((connector: ConnectorDetail) => connector.id === 'github')).toMatchObject({
+      toolCount: 12,
+    });
     expect(composioDiscoveryRequestCounts).toEqual({ authConfigs: 1, createdAuthConfigs: 0, toolkits: 1, tools: 1 });
   });
 
@@ -365,10 +506,12 @@ describe('connector routes', () => {
 
     expect(metadata.status).toBe(200);
     expect(metadata.body.connector).toMatchObject({ id: 'youtube', toolCount: 4, auth: { provider: 'cookie' } });
-    expect(metadata.body.connector.tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'youtube.youtube_search_videos' }),
-      expect.objectContaining({ name: 'youtube.youtube_get_comments' }),
-    ]));
+    expect(metadata.body.connector.tools).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'youtube.youtube_search_videos' }),
+        expect.objectContaining({ name: 'youtube.youtube_get_comments' }),
+      ]),
+    );
     expect(preview.status).toBe(200);
     expect(preview.body.connector).toMatchObject({
       id: 'youtube',
@@ -414,7 +557,7 @@ describe('connector routes', () => {
       linkResponse: { connected_account_id: 'ca_youtube', status: 'ACTIVE', account_label: 'youtube@example.com' },
     });
     composioConnectorProvider.clearDiscoveryCache();
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -426,8 +569,16 @@ describe('connector routes', () => {
     const response = await jsonFetch(`${baseUrl}/api/connectors`);
 
     expect(response.status).toBe(200);
-    expect(response.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual(['github', 'youtube', 'tiktok', 'douyin', 'bilibili']);
-    expect(response.body.connectors.every((connector: ConnectorDetail) => connector.auth?.configured === false)).toBe(true);
+    expect(response.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual([
+      'github',
+      'youtube',
+      'tiktok',
+      'douyin',
+      'bilibili',
+    ]);
+    expect(response.body.connectors.every((connector: ConnectorDetail) => connector.auth?.configured === false)).toBe(
+      true,
+    );
   });
 
   it('returns static catalog connectors before Composio is configured', async () => {
@@ -437,8 +588,16 @@ describe('connector routes', () => {
     const response = await jsonFetch(`${baseUrl}/api/connectors`);
 
     expect(response.status).toBe(200);
-    expect(response.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual(['github', 'youtube', 'tiktok', 'douyin', 'bilibili']);
-    expect(response.body.connectors.every((connector: ConnectorDetail) => connector.auth?.configured === false)).toBe(true);
+    expect(response.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual([
+      'github',
+      'youtube',
+      'tiktok',
+      'douyin',
+      'bilibili',
+    ]);
+    expect(response.body.connectors.every((connector: ConnectorDetail) => connector.auth?.configured === false)).toBe(
+      true,
+    );
   });
 
   it('returns connector detail and 404 for unknown connectors', async () => {
@@ -457,7 +616,11 @@ describe('connector routes', () => {
     const afterConnect = { ...composioDiscoveryRequestCounts };
 
     expect(connect.status).toBe(200);
-    expect(connect.body.connector).toMatchObject({ id: 'github', status: 'connected', accountLabel: 'octocat@example.com' });
+    expect(connect.body.connector).toMatchObject({
+      id: 'github',
+      status: 'connected',
+      accountLabel: 'octocat@example.com',
+    });
 
     const disconnect = await jsonFetch(`${baseUrl}/api/connectors/github/connection`, { method: 'DELETE' });
     expect(disconnect.status).toBe(200);
@@ -477,7 +640,9 @@ describe('connector routes', () => {
   });
 
   it('rejects Composio config updates from non-loopback daemon hosts', async () => {
-    const response = await putWithHostHeader(`${baseUrl}/api/connectors/composio/config`, 'example.com', { apiKey: 'cmp_remote' });
+    const response = await putWithHostHeader(`${baseUrl}/api/connectors/composio/config`, 'example.com', {
+      apiKey: 'cmp_remote',
+    });
 
     expect(response.status).toBe(403);
     expect(response.body).toContain('request host must be a loopback daemon address');
@@ -511,7 +676,7 @@ describe('connector routes', () => {
       linkResponse: { connected_account_id: 'ca_github', status: 'ACTIVE', account_label: 'octocat@example.com' },
     });
     composioConnectorProvider.clearDiscoveryCache();
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -531,18 +696,18 @@ describe('connector routes', () => {
 
     expect(connect.status).toBe(200);
     expect(connect.body.connector).toMatchObject({ id: 'github', status: 'connected', auth: { configured: true } });
-    expect(connect.body.connector.tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'github.github_search_repositories' }),
-    ]));
+    expect(connect.body.connector.tools).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'github.github_search_repositories' })]),
+    );
     expect(lastComposioAuthConfigRequest).toEqual({
       toolkit: { slug: 'GITHUB' },
       auth_config: { type: 'use_composio_managed_auth' },
     });
     expect(lastComposioLinkRequest).toMatchObject({ auth_config_id: 'ac_github' });
     expect(tools.status).toBe(200);
-    expect(tools.body.connectors.find((connector: ConnectorDetail) => connector.id === 'github')?.tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'github.github_search_repositories' }),
-    ]));
+    expect(tools.body.connectors.find((connector: ConnectorDetail) => connector.id === 'github')?.tools).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'github.github_search_repositories' })]),
+    );
     expect(composioDiscoveryRequestCounts).toMatchObject({ authConfigs: 2, createdAuthConfigs: 1 });
   });
 
@@ -553,7 +718,7 @@ describe('connector routes', () => {
       linkResponse: { connected_account_id: 'ca_github', status: 'ACTIVE', account_label: 'octocat@example.com' },
     });
     composioConnectorProvider.clearDiscoveryCache();
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -581,7 +746,7 @@ describe('connector routes', () => {
       linkResponse: { connected_account_id: 'ca_github', status: 'ACTIVE', account_label: 'octocat@example.com' },
     });
     composioConnectorProvider.clearDiscoveryCache();
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -611,12 +776,13 @@ describe('connector routes', () => {
     await closeServer();
     mockComposioFetch({
       authConfigs: [{ id: 'ac_github_fresh', status: 'ENABLED', toolkit: { slug: 'github' } }],
-      linkResponse: (requestBody: ComposioRequestBody) => requestBody.auth_config_id === 'ac_github_stale'
-        ? composioJson({ message: 'stale auth config' }, 404)
-        : { connected_account_id: 'ca_github', status: 'ACTIVE', account_label: 'octocat@example.com' },
+      linkResponse: (requestBody: ComposioRequestBody) =>
+        requestBody.auth_config_id === 'ac_github_stale'
+          ? composioJson({ message: 'stale auth config' }, 404)
+          : { connected_account_id: 'ca_github', status: 'ACTIVE', account_label: 'octocat@example.com' },
     });
     composioConnectorProvider.clearDiscoveryCache();
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     writeComposioConfig({ apiKey: 'cmp_test', authConfigIds: { github: 'ac_github_stale' } });
@@ -644,7 +810,7 @@ describe('connector routes', () => {
     await closeServer();
     mockComposioFetch();
     composioConnectorProvider.clearDiscoveryCache();
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -671,16 +837,20 @@ describe('connector routes', () => {
     const authConfigs: JsonObject[] = [];
     mockComposioFetch({
       authConfigs,
-      createAuthConfigResponse: composioJson({
-        error: {
-          message: 'Default auth config not found for toolkit "github". Composio does not have managed credentials for this toolkit.',
-          suggested_fix: 'Use type "use_custom_auth" with your own credentials.',
+      createAuthConfigResponse: composioJson(
+        {
+          error: {
+            message:
+              'Default auth config not found for toolkit "github". Composio does not have managed credentials for this toolkit.',
+            suggested_fix: 'Use type "use_custom_auth" with your own credentials.',
+          },
         },
-      }, 400),
+        400,
+      ),
       linkResponse: { connected_account_id: 'ca_github', status: 'PENDING' },
     });
     composioConnectorProvider.clearDiscoveryCache();
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -705,7 +875,8 @@ describe('connector routes', () => {
     expect(firstPrepare.status).toBe(200);
     expect(firstPrepare.body.results.github).toEqual({
       status: 'custom_required',
-      message: 'GitHub requires a custom Composio auth config. Create or enable a GitHub auth config in Composio with your own OAuth credentials, then retry this connection.',
+      message:
+        'GitHub requires a custom Composio auth config. Create or enable a GitHub auth config in Composio with your own OAuth credentials, then retry this connection.',
     });
     expect(secondPrepare.status).toBe(200);
     expect(secondPrepare.body.results.github).toEqual({ status: 'ready', authConfigId: 'ac_github_custom' });
@@ -721,15 +892,19 @@ describe('connector routes', () => {
     await closeServer();
     mockComposioFetch({
       authConfigs: [],
-      createAuthConfigResponse: composioJson({
-        error: {
-          message: 'Default auth config not found for toolkit "github". Composio does not have managed credentials for this toolkit.',
-          suggested_fix: 'Use type "use_custom_auth" with your own credentials.',
+      createAuthConfigResponse: composioJson(
+        {
+          error: {
+            message:
+              'Default auth config not found for toolkit "github". Composio does not have managed credentials for this toolkit.',
+            suggested_fix: 'Use type "use_custom_auth" with your own credentials.',
+          },
         },
-      }, 400),
+        400,
+      ),
     });
     composioConnectorProvider.clearDiscoveryCache();
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -742,12 +917,15 @@ describe('connector routes', () => {
 
     expect(connect.status).toBe(409);
     expect(connect.body.error.code).toBe('CONNECTOR_AUTH_CONFIG_REQUIRED');
-    expect(connect.body.error.message).toBe('GitHub requires a custom Composio auth config. Create or enable a GitHub auth config in Composio with your own OAuth credentials, then retry this connection.');
+    expect(connect.body.error.message).toBe(
+      'GitHub requires a custom Composio auth config. Create or enable a GitHub auth config in Composio with your own OAuth credentials, then retry this connection.',
+    );
     expect(connect.body.error.details).toMatchObject({
       connectorId: 'github',
       provider: 'composio',
       reason: 'managed_auth_unavailable',
-      upstreamMessage: 'Default auth config not found for toolkit "github". Composio does not have managed credentials for this toolkit.',
+      upstreamMessage:
+        'Default auth config not found for toolkit "github". Composio does not have managed credentials for this toolkit.',
     });
   });
 
@@ -760,7 +938,7 @@ describe('connector routes', () => {
       linkResponse: { connected_account_id: 'ca_youtube', status: 'ACTIVE', account_label: 'youtube@example.com' },
     });
     composioConnectorProvider.clearDiscoveryCache();
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -787,7 +965,7 @@ describe('connector routes', () => {
       linkResponse: { connected_account_id: 'ca_github', status: 'ACTIVE', account_label: 'octocat@example.com' },
     });
     composioConnectorProvider.clearDiscoveryCache();
-    const restarted = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const restarted = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = restarted.server;
     baseUrl = restarted.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -798,14 +976,18 @@ describe('connector routes', () => {
     const staleDiscovery = composioConnectorProvider.listDefinitions(undefined, { hydrateTools: true });
     await started.promise;
 
-    const github = getStaticComposioCatalogDefinitions().find((connector: ConnectorCatalogDefinition) => connector.id === 'github');
+    const github = getStaticComposioCatalogDefinitions().find(
+      (connector: ConnectorCatalogDefinition) => connector.id === 'github',
+    );
     expect(github).toBeDefined();
     await composioConnectorProvider.connect(github!, `${baseUrl}/api/connectors/oauth/callback/github`);
     release.resolve();
     await staleDiscovery;
 
     const hydrated = await composioConnectorProvider.getHydratedDefinition('github');
-    expect(hydrated?.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(['github.github_search_repositories']));
+    expect(hydrated?.tools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(['github.github_search_repositories']),
+    );
     expect(hydrated?.allowedToolNames).toEqual(expect.arrayContaining(['github.github_search_repositories']));
   });
 
@@ -820,7 +1002,9 @@ describe('connector routes', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-30T00:00:00.000Z'));
     const provider = new ComposioConnectorProvider();
-    const github = getStaticComposioCatalogDefinitions().find((connector: ConnectorCatalogDefinition) => connector.id === 'github');
+    const github = getStaticComposioCatalogDefinitions().find(
+      (connector: ConnectorCatalogDefinition) => connector.id === 'github',
+    );
     expect(github).toBeDefined();
 
     await provider.connect(github!, `${baseUrl}/api/connectors/oauth/callback/github`);
@@ -844,7 +1028,7 @@ describe('connector routes', () => {
         redirect_url: 'https://example.com/oauth',
       },
     });
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -894,7 +1078,7 @@ describe('connector routes', () => {
         redirect_url: 'https://example.com/oauth',
       },
     });
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -915,7 +1099,7 @@ describe('connector routes', () => {
     const staleCallback = await fetch(
       `${baseUrl}/api/connectors/oauth/callback/github?state=${encodeURIComponent(callbackUrl.searchParams.get('state') ?? '')}&status=success&connected_account_id=ca_github`,
     );
-    const stalePayload = await staleCallback.json() as JsonObject;
+    const stalePayload = (await staleCallback.json()) as JsonObject;
 
     expect(staleCallback.status).toBe(400);
     expect(stalePayload.error.message).toBe('Composio OAuth state is missing or expired');
@@ -1003,7 +1187,7 @@ describe('connector routes', () => {
               if (!init?.signal) throw new Error('expected fetch timeout signal');
               if (init.signal.aborted) {
                 firstBodyReadAborted = true;
-                throw (init.signal.reason ?? new DOMException('Aborted', 'AbortError'));
+                throw init.signal.reason ?? new DOMException('Aborted', 'AbortError');
               }
               return Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
             },
@@ -1141,7 +1325,9 @@ describe('connector routes', () => {
 
     expect(firstResponse.status).toBe(200);
     expect(firstResponse.headers.get('content-type')).toBe('image/svg+xml');
-    expect(firstResponse.headers.get('content-security-policy')).toBe("default-src 'none'; img-src data:; style-src 'unsafe-inline'");
+    expect(firstResponse.headers.get('content-security-policy')).toBe(
+      "default-src 'none'; img-src data:; style-src 'unsafe-inline'",
+    );
     expect(await firstResponse.text()).toBe(svg);
 
     const secondResponse = await fetch(`${baseUrl}/api/connectors/logos/${slug}?theme=dark`);
@@ -1195,9 +1381,14 @@ describe('connector routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual(['github']);
-    expect(response.body.connectors[0].tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'github.github_search_repositories', safety: expect.objectContaining({ sideEffect: 'read', approval: 'auto', reason: expect.any(String) }) }),
-    ]));
+    expect(response.body.connectors[0].tools).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'github.github_search_repositories',
+          safety: expect.objectContaining({ sideEffect: 'read', approval: 'auto', reason: expect.any(String) }),
+        }),
+      ]),
+    );
     expect(composioDiscoveryRequestCounts).toEqual({ authConfigs: 1, createdAuthConfigs: 0, toolkits: 1, tools: 1 });
   });
 
@@ -1240,11 +1431,13 @@ describe('connector routes', () => {
     });
     expect(tools.status).toBe(200);
     expect(tools.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual(['bilibili']);
-    expect(tools.body.connectors[0].tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'bilibili.bilibili_search_videos' }),
-      expect.objectContaining({ name: 'bilibili.bilibili_download_video' }),
-      expect.objectContaining({ name: 'bilibili.bilibili_get_comments' }),
-    ]));
+    expect(tools.body.connectors[0].tools).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'bilibili.bilibili_search_videos' }),
+        expect.objectContaining({ name: 'bilibili.bilibili_download_video' }),
+        expect.objectContaining({ name: 'bilibili.bilibili_get_comments' }),
+      ]),
+    );
   });
 
   it('hydrates connected Composio tools when the fast definition only has partial static previews', async () => {
@@ -1253,11 +1446,17 @@ describe('connector routes', () => {
       authConfigs: [{ id: 'ac_github', status: 'ENABLED', toolkit: { slug: 'github' } }],
       linkResponse: { connected_account_id: 'ca_github', status: 'ACTIVE', account_label: 'octocat@example.com' },
       toolkits: [
-        { slug: 'github', name: 'GitHub', description: 'GitHub toolkit', categories: [{ name: 'Developer' }], meta: { tools_count: 12 } },
+        {
+          slug: 'github',
+          name: 'GitHub',
+          description: 'GitHub toolkit',
+          categories: [{ name: 'Developer' }],
+          meta: { tools_count: 12 },
+        },
       ],
     });
     composioConnectorProvider.clearDiscoveryCache();
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -1275,15 +1474,17 @@ describe('connector routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual(['github']);
-    expect(response.body.connectors[0].tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'github.github_search_repositories' }),
-      expect.objectContaining({
-        name: 'github.github_get_issue',
-        safety: expect.objectContaining({ sideEffect: 'read', approval: 'auto' }),
-        curation: expect.objectContaining({ useCases: ['personal_daily_digest'] }),
-      }),
-      expect.objectContaining({ name: 'github.github_list_pull_requests' }),
-    ]));
+    expect(response.body.connectors[0].tools).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'github.github_search_repositories' }),
+        expect.objectContaining({
+          name: 'github.github_get_issue',
+          safety: expect.objectContaining({ sideEffect: 'read', approval: 'auto' }),
+          curation: expect.objectContaining({ useCases: ['personal_daily_digest'] }),
+        }),
+        expect.objectContaining({ name: 'github.github_list_pull_requests' }),
+      ]),
+    );
     expect(composioDiscoveryRequestCounts.tools).toBe(1);
   });
 
@@ -1296,7 +1497,7 @@ describe('connector routes', () => {
       linkResponse: { connected_account_id: 'ca_github', status: 'ACTIVE', account_label: 'octocat@example.com' },
     });
     composioConnectorProvider.clearDiscoveryCache();
-    const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
+    const started = (await startServer({ port: 0, returnServer: true })) as StartedServer;
     server = started.server;
     baseUrl = started.url;
     await jsonFetch(`${baseUrl}/api/connectors/composio/config`, {
@@ -1313,16 +1514,18 @@ describe('connector routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual(['github']);
-    expect(response.body.connectors[0].tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        name: 'github.github_get_issue',
-        curation: expect.objectContaining({ useCases: ['personal_daily_digest'] }),
-      }),
-      expect.objectContaining({
-        name: 'github.github_list_pull_requests',
-        curation: expect.objectContaining({ useCases: ['personal_daily_digest'] }),
-      }),
-    ]));
+    expect(response.body.connectors[0].tools).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'github.github_get_issue',
+          curation: expect.objectContaining({ useCases: ['personal_daily_digest'] }),
+        }),
+        expect.objectContaining({
+          name: 'github.github_list_pull_requests',
+          curation: expect.objectContaining({ useCases: ['personal_daily_digest'] }),
+        }),
+      ]),
+    );
   });
 
   it('rejects invalid connector tool useCase filters', async () => {
@@ -1343,12 +1546,25 @@ describe('connector routes', () => {
     const response = await jsonFetch(`${baseUrl}/api/tools/connectors/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ connectorId: 'github', toolName: 'github.github_search_repositories', input: { query: 'open-design' } }),
+      body: JSON.stringify({
+        connectorId: 'github',
+        toolName: 'github.github_search_repositories',
+        input: { query: 'open-design' },
+      }),
     });
 
     expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({ ok: true, connectorId: 'github', accountLabel: 'octocat@example.com', toolName: 'github.github_search_repositories' });
-    expect(response.body.output).toMatchObject({ toolName: 'github.github_search_repositories', providerToolId: 'GITHUB_SEARCH_REPOSITORIES', data: { results: [] } });
+    expect(response.body).toMatchObject({
+      ok: true,
+      connectorId: 'github',
+      accountLabel: 'octocat@example.com',
+      toolName: 'github.github_search_repositories',
+    });
+    expect(response.body.output).toMatchObject({
+      toolName: 'github.github_search_repositories',
+      providerToolId: 'GITHUB_SEARCH_REPOSITORIES',
+      data: { results: [] },
+    });
   });
 
   it('executes connected video crawler tools through run-scoped tool auth', async () => {
@@ -1415,7 +1631,11 @@ describe('connector routes', () => {
     const execute = await jsonFetch(`${baseUrl}/api/tools/connectors/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${listOnlyToken}` },
-      body: JSON.stringify({ connectorId: 'github', toolName: 'github.github_search_repositories', input: { query: 'open-design' } }),
+      body: JSON.stringify({
+        connectorId: 'github',
+        toolName: 'github.github_search_repositories',
+        input: { query: 'open-design' },
+      }),
     });
 
     expect(execute.status).toBe(403);

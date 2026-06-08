@@ -1170,7 +1170,7 @@ function renderMetadataBlock(
     }
     if (mediaMode === 'enabled' && metadata.videoModel === 'hyperframes-html') {
       lines.push(
-        'Special case: `hyperframes-html` is a local HTML-to-MP4 renderer, not a photoreal text-to-video model. Treat it like a motion design renderer, ask at most one clarifying question, then dispatch immediately.',
+        'Special case: `hyperframes-html` is a local HTML-to-MP4 renderer, not a photoreal text-to-video model. Treat it like a motion design renderer. For ecommerce/product selling video briefs, obey the Ecommerce selling-video gate before dispatching; for other complete briefs, ask at most one clarifying question, then dispatch.',
       );
     }
   }
@@ -1367,15 +1367,17 @@ function renderMetadataBlock(
 const ECOMMERCE_VIDEO_CONFIGURATION_DIRECTIVE = `\
 ### Ecommerce selling-video configuration workflow
 
-When the video brief is for ecommerce, product selling, 带货, product demo, product promo, offer/CTA, or a product asset/reference-video workflow, normalize the brief through this production chain before dispatching generation:
+When the video brief is ecommerce, product selling, 带货, product demo, product ad, offer/CTA, livestream clip, marketplace short video, or a product asset/reference-video workflow, use a staged gate. Do not assume your way into rendering.
 
-1. **Project** — identify the product, channel, target customer, platform, current workflow stage, and the single next action. Respect explicit user render settings first; if aspect is unknown for short-form commerce video, prefer 9:16 and state the assumption.
-2. **Assets** — inventory product photo/video, package, logo, reference video, SKU/detail/lifestyle/proof shots. Produce an \`asset_manifest\`, note missing assets, and state whether generation can continue with placeholders.
-3. **Script** — derive hook, pain point, selling points, proof, offer, CTA, safety/brand constraints, and a 3-6 shot structure. If reference videos or templates are present, extract method, not subject copy.
-4. **Creation** — turn the script into an editable composition: each shot needs duration, visual goal, camera/motion, caption, voiceover, required asset, image/video prompt, match reason, and QA checks. Keep total duration within the selected \`lengthSeconds\`; if no length is selected, keep short-form commerce videos within 15-20 seconds.
-5. **Generate / diagnose** — carry render settings, queue state, validation, asset matching, subtitle/TTS prep, per-shot render, full composition, export, and QA as explicit stages. For failures, name the failed stage, last successful output, likely cause, and retry path.
+1. **Requirement Q&A** — first generate a compact Q&A to refine product, audience, platform, promise, selling points, proof, offer/CTA, style, duration, aspect, and legal/brand constraints. Stop for user answers when needed.
+2. **Local references** — load the active media scenario's local reference side file when available: \`plugins/_official/scenarios/od-media-generation/references/ecommerce-selling-video.md\`. Present several script/storyboard patterns for the user to choose from or combine; summarize the references instead of dumping the file.
+3. **Asset upload gate** — ask the user to upload or confirm product photos/videos, package, logo, SKU/detail/lifestyle/proof shots, and reference clips. Produce an \`asset_manifest\` with \`provided\`, \`missing\`, and \`not needed\` states. If the user explicitly chooses pure text-to-video with no assets, record that choice.
+4. **Storyboard confirmation** — only after requirements, reference direction, and assets are clear, draft \`storyboard[]\`. Each shot needs duration, visual goal, camera/motion, caption, voiceover, required asset, generation mode, prompt, match reason, and QA check. Ask for explicit approval before rendering.
+5. **Generation readiness** — call the media generation contract only after Q&A, reference choice, asset manifest, storyboard approval, and render settings are complete. Render settings must include provider/model, text-to-video vs image-to-video, aspect, duration, output target, and retry/diagnostics plan.
 
-Before calling the media generation contract, assemble a compact \`Ecommerce video config\` with:
+Before any local media call, assemble a compact \`Ecommerce video config\` with:
+- \`requirement_qa\`
+- \`reference_choice\`
 - \`project_goal\`
 - \`product_inputs\`
 - \`asset_manifest\`
@@ -1386,7 +1388,9 @@ Before calling the media generation contract, assemble a compact \`Ecommerce vid
 - \`missing_inputs\`
 - \`retry_or_diagnostics\`
 
-Ask at most one concise question only when a missing field blocks generation. Otherwise make a stated assumption, assemble the config, and continue to the media generation contract.`;
+Image-to-video rule: if the selected model supports image-to-video and the user has uploaded a suitable product/reference image, prefer that path and pass the image with \`--image <project-relative-path>\`. If the model is text-to-video only, keep images as prompt references and do not send them as image inputs.
+
+Hard stop: do not call \`"$OD_NODE_BIN" "$OD_BIN" media generate --surface video ...\`, image generation tools, renderers, or production scripts for this ecommerce workflow until the readiness gate is complete.`;
 
 function renderMediaMetadataAction(
   surface: MediaSurface,

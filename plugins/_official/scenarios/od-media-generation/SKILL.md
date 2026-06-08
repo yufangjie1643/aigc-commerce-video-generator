@@ -41,6 +41,41 @@ run only calls one of them. Picking the right atom is the agent's job:
 If the user picks this plugin manually without a media-typed project,
 prefer `media-image` and explain the assumption in the first reply.
 
+## Ecommerce selling-video gate
+
+For video projects whose brief is ecommerce, product selling, 带货,
+product demo, product ad, offer/CTA, livestream clip, or marketplace short
+video, override the default "generate next" instinct with this gated
+production workflow:
+
+1. **Requirement Q&A first.** Start by asking/answering a compact question
+   set that refines the product, audience, platform, promise, selling points,
+   proof, offer/CTA, style, duration, aspect, and constraints. Do not write
+   the final storyboard or call media generation in this first step.
+2. **Load local references.** Read
+   `references/ecommerce-selling-video.md`, then present 3-5 usable
+   script/storyboard patterns for the user to choose from or combine.
+3. **Asset upload gate.** Ask the user to upload or confirm product photos,
+   product videos, logo/package/SKU/detail shots, proof assets, and reference
+   clips. Produce an `asset_manifest` with `provided`, `missing`, and
+   `not needed` entries. If the user explicitly chooses pure text-to-video,
+   record that choice instead of pretending assets exist.
+4. **Storyboard confirmation.** Draft the shot list only after the reference
+   direction and assets are clear. Each shot needs duration, visual goal,
+   camera/motion, caption, voiceover, required asset, generation mode, and QA
+   check. Ask for explicit approval before rendering.
+5. **Generation readiness gate.** Only after the Q&A, reference choice,
+   asset manifest, storyboard approval, and render settings are complete may
+   you call the local media API.
+
+Do not call
+`"$OD_NODE_BIN" "$OD_BIN" media generate --surface video ...`
+until the readiness gate is complete. If the selected model supports
+image-to-video and a suitable product/reference image exists, prefer that path
+and pass the image with `--image <project-relative-path>`. If the model is
+text-to-video only, keep uploaded images as prompt references rather than
+sending them as image inputs.
+
 ## Atom call shape
 
 Every media atom takes the same kernel of inputs and returns a media

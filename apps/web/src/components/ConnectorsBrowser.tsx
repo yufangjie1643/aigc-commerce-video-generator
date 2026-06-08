@@ -21,14 +21,8 @@ import {
   fetchConnectorStatuses,
   openExternalUrl,
 } from '../providers/registry';
-import {
-  isTrustedConnectorCallbackOrigin,
-  sortConnectorsForSearch,
-} from './EntryView';
-import {
-  CONNECTOR_CALLBACK_MESSAGE_TYPE,
-  notifyConnectorsChanged,
-} from './connectors-events';
+import { isTrustedConnectorCallbackOrigin, sortConnectorsForSearch } from './EntryView';
+import { CONNECTOR_CALLBACK_MESSAGE_TYPE, notifyConnectorsChanged } from './connectors-events';
 import { hasConnectorStatusChanges } from './connectors-state';
 import { ConnectorLogo, useResolvedTheme } from './ConnectorLogo';
 import { Icon } from './Icon';
@@ -205,7 +199,10 @@ export function hasLoadedAllAdvertisedConnectorTools(connector: ConnectorDetail)
   return connector.tools.length >= connector.toolCount;
 }
 
-function mergeConnectorTools(current: ConnectorDetail['tools'], incoming: ConnectorDetail['tools']): ConnectorDetail['tools'] {
+function mergeConnectorTools(
+  current: ConnectorDetail['tools'],
+  incoming: ConnectorDetail['tools'],
+): ConnectorDetail['tools'] {
   const seen = new Set<string>();
   const merged: ConnectorDetail['tools'] = [];
   for (const tool of [...current, ...incoming]) {
@@ -216,7 +213,11 @@ function mergeConnectorTools(current: ConnectorDetail['tools'], incoming: Connec
   return merged;
 }
 
-export function mergeConnectorToolPreview(current: ConnectorDetail, next: ConnectorDetail, append: boolean): ConnectorDetail {
+export function mergeConnectorToolPreview(
+  current: ConnectorDetail,
+  next: ConnectorDetail,
+  append: boolean,
+): ConnectorDetail {
   const merged: ConnectorDetail = {
     ...current,
     ...next,
@@ -261,9 +262,7 @@ interface ConnectorsBrowserProps {
    *  / search clicks emit on `page_name: 'integrations'`; when omitted
    *  (SettingsDialog uses the settings page family instead), no event
    *  is fired. */
-  onConnectorsTabClick?: (
-    element: 'provider_chip' | 'search_connectors',
-  ) => void;
+  onConnectorsTabClick?: (element: 'provider_chip' | 'search_connectors') => void;
   /** Analytics hook for the per-connector authorization result. The
    *  daemon emits its own server-side telemetry but the click→outcome
    *  loop happens in the browser; this lets the parent emit
@@ -307,8 +306,8 @@ const PROVIDER_TABS: ReadonlyArray<{
   {
     id: 'video-crawler',
     label: 'Video crawler',
-    match: (connector) => connectorProvider(connector) === 'cookie'
-      || connector.provider === 'open-design-video-crawler',
+    match: (connector) =>
+      connectorProvider(connector) === 'cookie' || connector.provider === 'open-design-video-crawler',
   },
   {
     id: 'composio',
@@ -328,120 +327,120 @@ function connectorNeedsComposioKey(connector: ConnectorDetail, composioConfigure
 }
 
 const CONNECTOR_CATEGORY_KEYS = {
-  'accounting': 'connectors.category.accounting',
-  'admin': 'connectors.category.admin',
+  accounting: 'connectors.category.accounting',
+  admin: 'connectors.category.admin',
   'ads & conversion': 'connectors.category.advertising',
-  'advertising': 'connectors.category.advertising',
+  advertising: 'connectors.category.advertising',
   'ai agents': 'connectors.category.aiAgents',
   'ai chatbots': 'connectors.category.aiAgents',
   'ai infrastructure': 'connectors.category.aiInfrastructure',
   'ai meeting assistants': 'connectors.category.meetings',
-  'analytics': 'connectors.category.analytics',
+  analytics: 'connectors.category.analytics',
   'artificial intelligence': 'connectors.category.aiAgents',
-  'automation': 'connectors.category.automation',
+  automation: 'connectors.category.automation',
   'bookmark managers': 'connectors.category.personal',
-  'calendar': 'connectors.category.calendar',
-  'cms': 'connectors.category.cms',
-  'code': 'connectors.category.developer',
-  'commerce': 'connectors.category.commerce',
-  'communication': 'connectors.category.communication',
-  'connectors': 'connectors.category.integration',
-  'contacts': 'connectors.category.contacts',
-  'crm': 'connectors.category.crm',
+  calendar: 'connectors.category.calendar',
+  cms: 'connectors.category.cms',
+  code: 'connectors.category.developer',
+  commerce: 'connectors.category.commerce',
+  communication: 'connectors.category.communication',
+  connectors: 'connectors.category.integration',
+  contacts: 'connectors.category.contacts',
+  crm: 'connectors.category.crm',
   'customer support': 'connectors.category.support',
   'data platform': 'connectors.category.dataPlatform',
-  'database': 'connectors.category.database',
-  'databases': 'connectors.category.database',
-  'design': 'connectors.category.design',
-  'developer': 'connectors.category.developer',
+  database: 'connectors.category.database',
+  databases: 'connectors.category.database',
+  design: 'connectors.category.design',
+  developer: 'connectors.category.developer',
   'developer tools': 'connectors.category.developer',
-  'documents': 'connectors.category.documentation',
-  'documentation': 'connectors.category.documentation',
-  'ecommerce': 'connectors.category.commerce',
-  'education': 'connectors.category.education',
-  'email': 'connectors.category.email',
+  documents: 'connectors.category.documentation',
+  documentation: 'connectors.category.documentation',
+  ecommerce: 'connectors.category.commerce',
+  education: 'connectors.category.education',
+  email: 'connectors.category.email',
   'email newsletters': 'connectors.category.email',
-  'erp': 'connectors.category.erp',
-  'electronics': 'connectors.category.commerce',
-  'events': 'connectors.category.events',
+  erp: 'connectors.category.erp',
+  electronics: 'connectors.category.commerce',
+  events: 'connectors.category.events',
   'event management': 'connectors.category.events',
-  'example': 'connectors.category.integration',
-  'feedback': 'connectors.category.surveys',
+  example: 'connectors.category.integration',
+  feedback: 'connectors.category.surveys',
   'field service': 'connectors.category.fieldService',
   'file management & storage': 'connectors.category.storage',
-  'finance': 'connectors.category.finance',
-  'fitness': 'connectors.category.fitness',
-  'forms': 'connectors.category.forms',
+  finance: 'connectors.category.finance',
+  fitness: 'connectors.category.fitness',
+  forms: 'connectors.category.forms',
   'forms & surveys': 'connectors.category.forms',
-  'fundraising': 'connectors.category.nonprofit',
-  'gaming': 'connectors.category.gaming',
-  'hospitality': 'connectors.category.hospitality',
-  'hr': 'connectors.category.hr',
+  fundraising: 'connectors.category.nonprofit',
+  gaming: 'connectors.category.gaming',
+  hospitality: 'connectors.category.hospitality',
+  hr: 'connectors.category.hr',
   'hr talent & recruitment': 'connectors.category.recruiting',
   'human resources': 'connectors.category.hr',
   'images & design': 'connectors.category.design',
-  'important': 'connectors.category.integration',
-  'integration': 'connectors.category.integration',
-  'itsm': 'connectors.category.itsm',
+  important: 'connectors.category.integration',
+  integration: 'connectors.category.integration',
+  itsm: 'connectors.category.itsm',
   'it operations': 'connectors.category.itsm',
-  'localization': 'connectors.category.localization',
-  'logistics': 'connectors.category.logistics',
-  'maps': 'connectors.category.maps',
-  'marketing': 'connectors.category.marketing',
+  localization: 'connectors.category.localization',
+  logistics: 'connectors.category.logistics',
+  maps: 'connectors.category.maps',
+  marketing: 'connectors.category.marketing',
   'marketing automation': 'connectors.category.marketing',
-  'media': 'connectors.category.media',
-  'meetings': 'connectors.category.meetings',
+  media: 'connectors.category.media',
+  meetings: 'connectors.category.meetings',
   'model context protocol': 'connectors.category.developer',
   'news & lifestyle': 'connectors.category.media',
-  'nonprofit': 'connectors.category.nonprofit',
-  'notes': 'connectors.category.documentation',
-  'notifications': 'connectors.category.communication',
-  'observability': 'connectors.category.observability',
+  nonprofit: 'connectors.category.nonprofit',
+  notes: 'connectors.category.documentation',
+  notifications: 'connectors.category.communication',
+  observability: 'connectors.category.observability',
   'online courses': 'connectors.category.education',
-  'payments': 'connectors.category.payments',
+  payments: 'connectors.category.payments',
   'payment processing': 'connectors.category.payments',
-  'personal': 'connectors.category.personal',
+  personal: 'connectors.category.personal',
   'phone & sms': 'connectors.category.communication',
-  'presentations': 'connectors.category.presentations',
-  'premium': 'connectors.category.integration',
-  'procurement': 'connectors.category.procurement',
-  'product': 'connectors.category.product',
+  presentations: 'connectors.category.presentations',
+  premium: 'connectors.category.integration',
+  procurement: 'connectors.category.procurement',
+  product: 'connectors.category.product',
   'product management': 'connectors.category.product',
-  'productivity': 'connectors.category.productivity',
+  productivity: 'connectors.category.productivity',
   'productivity & project management': 'connectors.category.projectManagement',
   'project management': 'connectors.category.projectManagement',
   'proposal & invoice management': 'connectors.category.accounting',
-  'recruiting': 'connectors.category.recruiting',
-  'research': 'connectors.category.research',
-  'sales': 'connectors.category.salesIntelligence',
+  recruiting: 'connectors.category.recruiting',
+  research: 'connectors.category.research',
+  sales: 'connectors.category.salesIntelligence',
   'sales intelligence': 'connectors.category.salesIntelligence',
-  'scheduling': 'connectors.category.scheduling',
+  scheduling: 'connectors.category.scheduling',
   'scheduling & booking': 'connectors.category.scheduling',
-  'search': 'connectors.category.search',
-  'security': 'connectors.category.security',
+  search: 'connectors.category.search',
+  security: 'connectors.category.security',
   'security & identity tools': 'connectors.category.security',
   'server monitoring': 'connectors.category.observability',
-  'signing': 'connectors.category.signing',
-  'signatures': 'connectors.category.signing',
-  'social': 'connectors.category.social',
+  signing: 'connectors.category.signing',
+  signatures: 'connectors.category.signing',
+  social: 'connectors.category.social',
   'social media accounts': 'connectors.category.social',
   'social media marketing': 'connectors.category.marketing',
-  'spreadsheets': 'connectors.category.spreadsheets',
-  'storage': 'connectors.category.storage',
-  'support': 'connectors.category.support',
-  'surveys': 'connectors.category.surveys',
+  spreadsheets: 'connectors.category.spreadsheets',
+  storage: 'connectors.category.storage',
+  support: 'connectors.category.support',
+  surveys: 'connectors.category.surveys',
   'task management': 'connectors.category.tasks',
-  'tasks': 'connectors.category.tasks',
+  tasks: 'connectors.category.tasks',
   'team chat': 'connectors.category.communication',
   'team collaboration': 'connectors.category.communication',
   'time tracking': 'connectors.category.timeTracking',
   'time tracking software': 'connectors.category.timeTracking',
   'url shortener': 'connectors.category.marketing',
-  'video': 'connectors.category.video',
+  video: 'connectors.category.video',
   'video & audio': 'connectors.category.video',
   'video conferencing': 'connectors.category.meetings',
   'website builders': 'connectors.category.cms',
-  'whiteboard': 'connectors.category.whiteboard',
+  whiteboard: 'connectors.category.whiteboard',
 } as const satisfies Record<string, keyof Dict>;
 
 export function ConnectorsBrowser({
@@ -459,8 +458,11 @@ export function ConnectorsBrowser({
     connectorId: string;
     action: 'connect' | 'disconnect';
   } | null>(null);
-  const [connectorAuthorizationPending, setConnectorAuthorizationPending] = useState<ConnectorAuthorizationPendingState>(() => loadConnectorAuthorizationPending());
-  const [connectorAuthorizationCancelFailed, setConnectorAuthorizationCancelFailed] = useState<Record<string, boolean>>({});
+  const [connectorAuthorizationPending, setConnectorAuthorizationPending] =
+    useState<ConnectorAuthorizationPendingState>(() => loadConnectorAuthorizationPending());
+  const [connectorAuthorizationCancelFailed, setConnectorAuthorizationCancelFailed] = useState<Record<string, boolean>>(
+    {},
+  );
   const [connectorAuthorizationError, setConnectorAuthorizationError] = useState<Record<string, string>>({});
   const [detailConnectorId, setDetailConnectorId] = useState<string | null>(null);
   const [toolPreviewLoadingIds, setToolPreviewLoadingIds] = useState<Record<string, boolean>>({});
@@ -484,7 +486,9 @@ export function ConnectorsBrowser({
     setConnectors((curr) => applyConnectorStatuses(curr, statuses));
     setConnectorAuthorizationPending((curr) => updateConnectorAuthorizationPendingFromStatuses(curr, statuses));
     setConnectorAuthorizationError((curr) => clearConnectorAuthorizationErrorsForConnected(curr, statuses));
-    setConnectorAuthorizationCancelFailed((curr) => clearConnectorAuthorizationCancelFailuresForConnected(curr, statuses));
+    setConnectorAuthorizationCancelFailed((curr) =>
+      clearConnectorAuthorizationCancelFailuresForConnected(curr, statuses),
+    );
     if (statusChanged) notifyConnectorsChanged();
     return statuses;
   }, []);
@@ -494,46 +498,51 @@ export function ConnectorsBrowser({
     connectorAuthorizationPendingRef.current = connectorAuthorizationPending;
   }, [connectorAuthorizationPending]);
 
-  const cancelStaleAuthorizations = useCallback(async (
-    pendingBeforeReload: ConnectorAuthorizationPendingState,
-    statuses: ConnectorStatusResponse['statuses'],
-    nowMs = Date.now(),
-  ) => {
-    const stuck = Object.keys(pendingBeforeReload).filter((connectorId) => {
-      if (statuses[connectorId]?.status === 'connected') return false;
-      const expiresAt = pendingBeforeReload[connectorId]?.expiresAt;
-      if (!expiresAt) return false;
-      const expiresAtMs = Date.parse(expiresAt);
-      return Number.isFinite(expiresAtMs) && expiresAtMs <= nowMs;
-    });
-    if (stuck.length === 0) return;
-    await Promise.allSettled(stuck.map(async (connectorId) => {
-      let connector: ConnectorDetail | null = null;
-      try {
-        connector = await cancelConnectorAuthorizationRequest(connectorId);
-      } catch {
-        connector = null;
-      }
-      if (!connector) {
-        setConnectorAuthorizationCancelFailed((curr) => ({ ...curr, [connectorId]: true }));
-        return;
-      }
-      updateConnector(connector);
-      setConnectorAuthorizationCancelFailed((curr) => {
-        if (curr[connectorId] === undefined) return curr;
-        const next = { ...curr };
-        delete next[connectorId];
-        return next;
+  const cancelStaleAuthorizations = useCallback(
+    async (
+      pendingBeforeReload: ConnectorAuthorizationPendingState,
+      statuses: ConnectorStatusResponse['statuses'],
+      nowMs = Date.now(),
+    ) => {
+      const stuck = Object.keys(pendingBeforeReload).filter((connectorId) => {
+        if (statuses[connectorId]?.status === 'connected') return false;
+        const expiresAt = pendingBeforeReload[connectorId]?.expiresAt;
+        if (!expiresAt) return false;
+        const expiresAtMs = Date.parse(expiresAt);
+        return Number.isFinite(expiresAtMs) && expiresAtMs <= nowMs;
       });
-      setConnectorAuthorizationError((curr) => {
-        if (curr[connectorId] === undefined) return curr;
-        const next = { ...curr };
-        delete next[connectorId];
-        return next;
-      });
-      setConnectorAuthorizationPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
-    }));
-  }, []);
+      if (stuck.length === 0) return;
+      await Promise.allSettled(
+        stuck.map(async (connectorId) => {
+          let connector: ConnectorDetail | null = null;
+          try {
+            connector = await cancelConnectorAuthorizationRequest(connectorId);
+          } catch {
+            connector = null;
+          }
+          if (!connector) {
+            setConnectorAuthorizationCancelFailed((curr) => ({ ...curr, [connectorId]: true }));
+            return;
+          }
+          updateConnector(connector);
+          setConnectorAuthorizationCancelFailed((curr) => {
+            if (curr[connectorId] === undefined) return curr;
+            const next = { ...curr };
+            delete next[connectorId];
+            return next;
+          });
+          setConnectorAuthorizationError((curr) => {
+            if (curr[connectorId] === undefined) return curr;
+            const next = { ...curr };
+            delete next[connectorId];
+            return next;
+          });
+          setConnectorAuthorizationPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
+        }),
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
     saveConnectorAuthorizationPending(connectorAuthorizationPending);
@@ -598,11 +607,7 @@ export function ConnectorsBrowser({
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       const data = event.data;
-      if (
-        !data ||
-        typeof data !== 'object' ||
-        (data as { type?: unknown }).type !== CONNECTOR_CALLBACK_MESSAGE_TYPE
-      )
+      if (!data || typeof data !== 'object' || (data as { type?: unknown }).type !== CONNECTOR_CALLBACK_MESSAGE_TYPE)
         return;
       if (!isTrustedConnectorCallbackOrigin(event.origin)) return;
       void reloadConnectorStatuses();
@@ -681,9 +686,9 @@ export function ConnectorsBrowser({
 
   function updateConnector(next: ConnectorDetail | null) {
     if (!next) return;
-    setConnectors((curr) => curr.map((connector) => (
-      connector.id === next.id ? mergeConnectorActionResult(connector, next) : connector
-    )));
+    setConnectors((curr) =>
+      curr.map((connector) => (connector.id === next.id ? mergeConnectorActionResult(connector, next) : connector)),
+    );
   }
 
   async function runConnectorAction(connectorId: string, action: 'connect' | 'disconnect') {
@@ -708,10 +713,12 @@ export function ConnectorsBrowser({
           updateConnector(result.connector);
           if (result.connector && !result.error) {
             if (result.connector.status === 'connected') notifyConnectorsChanged();
-            setConnectorAuthorizationPending((curr) => updateConnectorAuthorizationPendingFromConnectResponse(curr, {
-              connector: result.connector!,
-              ...(result.auth === undefined ? {} : { auth: result.auth }),
-            }));
+            setConnectorAuthorizationPending((curr) =>
+              updateConnectorAuthorizationPendingFromConnectResponse(curr, {
+                connector: result.connector!,
+                ...(result.auth === undefined ? {} : { auth: result.auth }),
+              }),
+            );
             onConnectorAuthResult?.({
               connectorId,
               action: 'connect',
@@ -770,7 +777,7 @@ export function ConnectorsBrowser({
   }
 
   const detailConnector = useMemo(
-    () => (detailConnectorId ? connectors.find((c) => c.id === detailConnectorId) ?? null : null),
+    () => (detailConnectorId ? (connectors.find((c) => c.id === detailConnectorId) ?? null) : null),
     [detailConnectorId, connectors],
   );
 
@@ -785,9 +792,11 @@ export function ConnectorsBrowser({
         ...(cursor === undefined ? {} : { toolsCursor: cursor }),
       });
       if (next) {
-        setConnectors((curr) => curr.map((connector) => (
-          connector.id === next.id ? mergeConnectorToolPreview(connector, next, cursor !== undefined) : connector
-        )));
+        setConnectors((curr) =>
+          curr.map((connector) =>
+            connector.id === next.id ? mergeConnectorToolPreview(connector, next, cursor !== undefined) : connector,
+          ),
+        );
         setToolPreviewFetchedIds((curr) => ({ ...curr, [connectorId]: true }));
         setToolPreviewFailedIds((curr) => {
           if (curr[connectorId] === undefined) return curr;
@@ -813,7 +822,14 @@ export function ConnectorsBrowser({
     if (toolPreviewFailedIds[detailConnector.id] === toolPreviewRetryToken) return;
     if (toolPreviewLoadingIds[detailConnector.id]) return;
     void hydrateToolPreview(detailConnector.id);
-  }, [composioConfigured, detailConnector, toolPreviewFailedIds, toolPreviewFetchedIds, toolPreviewLoadingIds, toolPreviewRetryToken]);
+  }, [
+    composioConfigured,
+    detailConnector,
+    toolPreviewFailedIds,
+    toolPreviewFetchedIds,
+    toolPreviewLoadingIds,
+    toolPreviewRetryToken,
+  ]);
 
   function openConnectorDetails(connectorId: string) {
     setToolPreviewFailedIds((curr) => {
@@ -863,11 +879,7 @@ export function ConnectorsBrowser({
           </div>
         </div>
         <div className="toolbar-right">
-          <div
-            className="connectors-provider-tabs"
-            role="tablist"
-            aria-label="Connector provider"
-          >
+          <div className="connectors-provider-tabs" role="tablist" aria-label="Connector provider">
             {PROVIDER_TABS.map((provider) => {
               const active = provider.id === selectedProvider;
               return (
@@ -960,20 +972,10 @@ export function ConnectorsBrowser({
       {loading ? (
         <CenteredLoader label={t('common.loading')} />
       ) : (
-        <div
-          className={`connector-grid-wrap${showComposioGate ? ' is-masked' : ''}`}
-          data-testid="connector-grid-wrap"
-        >
+        <div className={`connector-grid-wrap${showComposioGate ? ' is-masked' : ''}`} data-testid="connector-grid-wrap">
           {hasNoResults && !showComposioGate ? (
-            <div
-              className="tab-empty connectors-empty"
-              role="status"
-              aria-live="polite"
-              data-testid="connectors-empty"
-            >
-              <p className="connectors-empty-title">
-                {t('connectors.emptyNoMatchTitle', { query: filter.trim() })}
-              </p>
+            <div className="tab-empty connectors-empty" role="status" aria-live="polite" data-testid="connectors-empty">
+              <p className="connectors-empty-title">{t('connectors.emptyNoMatchTitle', { query: filter.trim() })}</p>
               <p className="connectors-empty-body">{t('connectors.emptyNoMatchBody')}</p>
               <button
                 type="button"
@@ -987,19 +989,14 @@ export function ConnectorsBrowser({
               </button>
             </div>
           ) : (
-            <div
-              className="connector-grid"
-              aria-hidden={showComposioGate || undefined}
-            >
+            <div className="connector-grid" aria-hidden={showComposioGate || undefined}>
               {filteredConnectors.map((connector) => (
                 <ConnectorCard
                   key={connector.id}
                   connector={connector}
                   disabled={showComposioGate || connectorNeedsComposioKey(connector, composioConfigured)}
                   pendingAction={
-                    pendingConnectorAction?.connectorId === connector.id
-                      ? pendingConnectorAction.action
-                      : null
+                    pendingConnectorAction?.connectorId === connector.id ? pendingConnectorAction.action : null
                   }
                   authorizationPending={connectorAuthorizationPending[connector.id]}
                   authorizationCancelFailed={connectorAuthorizationCancelFailed[connector.id] === true}
@@ -1037,9 +1034,7 @@ export function ConnectorsBrowser({
           connector={detailConnector}
           disabled={showComposioGate || connectorNeedsComposioKey(detailConnector, composioConfigured)}
           pendingAction={
-            pendingConnectorAction?.connectorId === detailConnector.id
-              ? pendingConnectorAction.action
-              : null
+            pendingConnectorAction?.connectorId === detailConnector.id ? pendingConnectorAction.action : null
           }
           authorizationPending={connectorAuthorizationPending[detailConnector.id]}
           authorizationCancelFailed={connectorAuthorizationCancelFailed[detailConnector.id] === true}
@@ -1047,9 +1042,9 @@ export function ConnectorsBrowser({
           toolsLoading={toolsLoading}
           toolsPreviewLoading={Boolean(toolPreviewLoadingIds[detailConnector.id])}
           toolsLoaded={
-            Boolean(toolPreviewFetchedIds[detailConnector.id])
-            || toolPreviewFailedIds[detailConnector.id] === toolPreviewRetryToken
-            || hasLoadedAllAdvertisedConnectorTools(detailConnector)
+            Boolean(toolPreviewFetchedIds[detailConnector.id]) ||
+            toolPreviewFailedIds[detailConnector.id] === toolPreviewRetryToken ||
+            hasLoadedAllAdvertisedConnectorTools(detailConnector)
           }
           logoTheme={logoTheme}
           onClose={() => setDetailConnectorId(null)}
@@ -1174,10 +1169,7 @@ function ConnectorCard({
               row truncates with ellipsis (one line); the badge row is
               a fixed-height anchor that the badge animates into. */}
           <div className="connector-meta">
-            <span
-              className="connector-meta-item connector-meta-category"
-              title={categoryLabel}
-            >
+            <span className="connector-meta-item connector-meta-category" title={categoryLabel}>
               {categoryLabel}
             </span>
             <span className="connector-meta-tools" aria-hidden={!showToolsBadge}>
@@ -1391,7 +1383,9 @@ function ConnectorDetailDrawer({
           <div className="connector-drawer-titles">
             <div className="connector-drawer-eyebrow">
               <span>{categoryLabel}</span>
-              <span className="connector-meta-dot" aria-hidden>·</span>
+              <span className="connector-meta-dot" aria-hidden>
+                ·
+              </span>
               <span>{connector.provider}</span>
             </div>
             <h2 id="connector-drawer-title">{connector.name}</h2>
@@ -1426,15 +1420,9 @@ function ConnectorDetailDrawer({
               <p className="connector-drawer-description">{connector.description}</p>
               {isAuthorizationPending ? (
                 <div className="connector-authorization-block" role="status">
-                  <p className="connector-authorization-hint">
-                    {t('connectors.authorizationPendingHint')}
-                  </p>
+                  <p className="connector-authorization-hint">{t('connectors.authorizationPendingHint')}</p>
                   {authorizationPending.redirectUrl ? (
-                    <button
-                      type="button"
-                      className="connector-authorization-link"
-                      onClick={continueAuthorization}
-                    >
+                    <button type="button" className="connector-authorization-link" onClick={continueAuthorization}>
                       {CONNECTOR_AUTH_CONTINUE_LABEL}
                     </button>
                   ) : null}
@@ -1502,7 +1490,9 @@ function ConnectorDetailDrawer({
               {t('connectors.toolsSection')} <span className="connector-drawer-count">{toolCount}</span>
             </h3>
             {isLoadingTools ? (
-              <p className="connector-drawer-empty"><Icon name="spinner" size={12} /> {t('connectors.toolsLoading')}</p>
+              <p className="connector-drawer-empty">
+                <Icon name="spinner" size={12} /> {t('connectors.toolsLoading')}
+              </p>
             ) : toolDetailsUnavailable ? (
               <p className="connector-drawer-empty">{t('connectors.toolDetailsUnavailable', { n: toolCount })}</p>
             ) : actualToolCount === 0 ? (
@@ -1521,9 +1511,7 @@ function ConnectorDetailDrawer({
                           {tool.safety.sideEffect}
                         </span>
                       </div>
-                      {tool.description ? (
-                        <p className="connector-drawer-tool-desc">{tool.description}</p>
-                      ) : null}
+                      {tool.description ? <p className="connector-drawer-tool-desc">{tool.description}</p> : null}
                       <code className="connector-drawer-tool-name">{tool.name}</code>
                     </li>
                   ))}

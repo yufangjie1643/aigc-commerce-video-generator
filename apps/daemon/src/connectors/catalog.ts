@@ -122,9 +122,11 @@ export interface ConnectorToolSafetyClassificationInput {
   requiredScopes?: readonly string[];
 }
 
-const destructiveHintPattern = /(?:^|[._:\-/\s])(?:destructive|destroy|drop|truncate|purge|erase|wipe|remove-all|remove_all|revoke|reset)(?:$|[._:\-/\s])/i;
+const destructiveHintPattern =
+  /(?:^|[._:\-/\s])(?:destructive|destroy|drop|truncate|purge|erase|wipe|remove-all|remove_all|revoke|reset)(?:$|[._:\-/\s])/i;
 const writeHintPattern = /(?:^|[._:\-/\s])(?:write|create|update|delete|admin|send|post|manage)(?:$|[._:\-/\s])/i;
-const readOnlyHintPattern = /(?:^|[._:\-/\s])(?:read|readonly|read-only|read_only|get|list|search|fetch|view|query|inspect|summary|status)(?:$|[._:\-/\s])/i;
+const readOnlyHintPattern =
+  /(?:^|[._:\-/\s])(?:read|readonly|read-only|read_only|get|list|search|fetch|view|query|inspect|summary|status)(?:$|[._:\-/\s])/i;
 
 function connectorToolSafetyHaystack(input: ConnectorToolSafetyClassificationInput): string {
   return [input.name, input.title, input.description, ...(input.requiredScopes ?? [])]
@@ -224,7 +226,12 @@ function toolDefinitionToDetail(tool: ConnectorCatalogToolDefinition): Connector
     refreshEligible: tool.refreshEligible,
     ...(tool.curation === undefined
       ? {}
-      : { curation: { ...(tool.curation.useCases === undefined ? {} : { useCases: [...tool.curation.useCases] }), ...(tool.curation.reason === undefined ? {} : { reason: tool.curation.reason }) } }),
+      : {
+          curation: {
+            ...(tool.curation.useCases === undefined ? {} : { useCases: [...tool.curation.useCases] }),
+            ...(tool.curation.reason === undefined ? {} : { reason: tool.curation.reason }),
+          },
+        }),
   };
 }
 
@@ -246,9 +253,7 @@ export function connectorDefinitionToDetail(definition: ConnectorCatalogDefiniti
     ...(definition.toolCount === undefined ? {} : { toolCount: definition.toolCount }),
     ...(definition.toolsNextCursor === undefined ? {} : { toolsNextCursor: definition.toolsNextCursor }),
     ...(definition.toolsHasMore === undefined ? {} : { toolsHasMore: definition.toolsHasMore }),
-    ...(definition.featuredToolNames === undefined
-      ? {}
-      : { featuredToolNames: [...definition.featuredToolNames] }),
+    ...(definition.featuredToolNames === undefined ? {} : { featuredToolNames: [...definition.featuredToolNames] }),
     ...(definition.minimumApproval === undefined ? {} : { minimumApproval: definition.minimumApproval }),
     auth: {
       provider: definition.authentication ?? (definition.provider === 'open-design' ? 'local' : 'oauth'),

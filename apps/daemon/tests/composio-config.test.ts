@@ -53,7 +53,9 @@ describe('composio config', () => {
       apiKeyTail: '1234',
     });
     expect(readComposioConfig()).toMatchObject({ apiKey: 'cmp_secret_1234', authConfigIds: {} });
-    await expect(readFile(path.join(dir, 'connectors', 'composio-config.json'), 'utf8')).resolves.toContain('cmp_secret_1234');
+    await expect(readFile(path.join(dir, 'connectors', 'composio-config.json'), 'utf8')).resolves.toContain(
+      'cmp_secret_1234',
+    );
   });
 
   it('preserves and updates persisted auth config ids', async () => {
@@ -121,80 +123,100 @@ describe('composio config', () => {
   it('loads only supported persisted Composio catalog cache entries into fast definitions', async () => {
     const dir = await useTempComposioStore();
     await mkdir(path.join(dir, 'connectors'), { recursive: true });
-    await writeFile(path.join(dir, 'connectors', 'composio-catalog-cache.json'), JSON.stringify({
-      schemaVersion: 1,
-      provider: 'composio',
-      fetchedAt: '2026-05-07T00:00:00.000Z',
-      definitions: [
+    await writeFile(
+      path.join(dir, 'connectors', 'composio-catalog-cache.json'),
+      JSON.stringify(
         {
-          id: 'slack',
-          name: 'Slack',
+          schemaVersion: 1,
           provider: 'composio',
-          category: 'Communication',
-          providerConnectorId: 'SLACK',
-          authentication: 'composio',
-          toolCount: 48,
-          tools: [
+          fetchedAt: '2026-05-07T00:00:00.000Z',
+          definitions: [
             {
-              name: 'slack.slack_list_channels',
-              title: 'List channels',
-              description: 'List Slack channels',
-              safety: { sideEffect: 'read', approval: 'auto', reason: 'read-only' },
-              refreshEligible: true,
-              curation: { useCases: ['personal_daily_digest'], reason: 'Digest source' },
-              requiredScopes: ['read'],
-              providerToolId: 'SLACK_LIST_CHANNELS',
+              id: 'slack',
+              name: 'Slack',
+              provider: 'composio',
+              category: 'Communication',
+              providerConnectorId: 'SLACK',
+              authentication: 'composio',
+              toolCount: 48,
+              tools: [
+                {
+                  name: 'slack.slack_list_channels',
+                  title: 'List channels',
+                  description: 'List Slack channels',
+                  safety: { sideEffect: 'read', approval: 'auto', reason: 'read-only' },
+                  refreshEligible: true,
+                  curation: { useCases: ['personal_daily_digest'], reason: 'Digest source' },
+                  requiredScopes: ['read'],
+                  providerToolId: 'SLACK_LIST_CHANNELS',
+                },
+              ],
+              allowedToolNames: ['slack.slack_list_channels'],
+              minimumApproval: 'auto',
+            },
+            {
+              id: 'github',
+              name: 'GitHub',
+              provider: 'composio',
+              category: 'Developer',
+              providerConnectorId: 'GITHUB',
+              authentication: 'composio',
+              toolCount: 9,
+              tools: [
+                {
+                  name: 'github.github_search_repositories',
+                  title: 'Search repositories',
+                  description: 'Search GitHub repositories',
+                  safety: { sideEffect: 'read', approval: 'auto', reason: 'read-only' },
+                  refreshEligible: true,
+                  requiredScopes: ['read'],
+                  providerToolId: 'GITHUB_SEARCH_REPOSITORIES',
+                },
+              ],
+              allowedToolNames: ['github.github_search_repositories'],
+              minimumApproval: 'auto',
             },
           ],
-          allowedToolNames: ['slack.slack_list_channels'],
-          minimumApproval: 'auto',
         },
-        {
-          id: 'github',
-          name: 'GitHub',
-          provider: 'composio',
-          category: 'Developer',
-          providerConnectorId: 'GITHUB',
-          authentication: 'composio',
-          toolCount: 9,
-          tools: [
-            {
-              name: 'github.github_search_repositories',
-              title: 'Search repositories',
-              description: 'Search GitHub repositories',
-              safety: { sideEffect: 'read', approval: 'auto', reason: 'read-only' },
-              refreshEligible: true,
-              requiredScopes: ['read'],
-              providerToolId: 'GITHUB_SEARCH_REPOSITORIES',
-            },
-          ],
-          allowedToolNames: ['github.github_search_repositories'],
-          minimumApproval: 'auto',
-        },
-      ],
-    }, null, 2));
+        null,
+        2,
+      ),
+    );
 
     composioConnectorProvider.configureCatalogCache(dir);
 
-    expect(composioConnectorProvider.getFastDefinitions().find((definition) => definition.id === 'slack')).toBeUndefined();
-    expect(composioConnectorProvider.getFastDefinitions().find((definition) => definition.id === 'github')).toMatchObject({
+    expect(
+      composioConnectorProvider.getFastDefinitions().find((definition) => definition.id === 'slack'),
+    ).toBeUndefined();
+    expect(
+      composioConnectorProvider.getFastDefinitions().find((definition) => definition.id === 'github'),
+    ).toMatchObject({
       id: 'github',
       toolCount: 9,
-      tools: [expect.objectContaining({
-        name: 'github.github_search_repositories',
-      })],
+      tools: [
+        expect.objectContaining({
+          name: 'github.github_search_repositories',
+        }),
+      ],
     });
   });
 
   it('falls back to the static catalog when the persisted cache is empty', async () => {
     const dir = await useTempComposioStore();
     await mkdir(path.join(dir, 'connectors'), { recursive: true });
-    await writeFile(path.join(dir, 'connectors', 'composio-catalog-cache.json'), JSON.stringify({
-      schemaVersion: 1,
-      provider: 'composio',
-      fetchedAt: '2026-05-07T00:00:00.000Z',
-      definitions: [],
-    }, null, 2));
+    await writeFile(
+      path.join(dir, 'connectors', 'composio-catalog-cache.json'),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          provider: 'composio',
+          fetchedAt: '2026-05-07T00:00:00.000Z',
+          definitions: [],
+        },
+        null,
+        2,
+      ),
+    );
 
     composioConnectorProvider.configureCatalogCache(dir);
 
@@ -206,30 +228,50 @@ describe('composio config', () => {
     const defaultCachePath = path.join(defaultCacheDir, 'composio-catalog-cache.json');
     const dir = await useTempComposioStore();
     await mkdir(defaultCacheDir, { recursive: true });
-    await writeFile(defaultCachePath, JSON.stringify({
-      schemaVersion: 1,
-      provider: 'composio',
-      fetchedAt: '2026-05-07T00:00:00.000Z',
-      definitions: [composioDefinition('wrong-tenant')],
-    }, null, 2));
+    await writeFile(
+      defaultCachePath,
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          provider: 'composio',
+          fetchedAt: '2026-05-07T00:00:00.000Z',
+          definitions: [composioDefinition('wrong-tenant')],
+        },
+        null,
+        2,
+      ),
+    );
 
     try {
       vi.resetModules();
       const composioModule = await import('../src/connectors/composio.js');
 
-      expect(composioModule.composioConnectorProvider.getFastDefinitions().find((definition) => definition.id === 'wrong-tenant')).toBeUndefined();
+      expect(
+        composioModule.composioConnectorProvider
+          .getFastDefinitions()
+          .find((definition) => definition.id === 'wrong-tenant'),
+      ).toBeUndefined();
 
       await mkdir(path.join(dir, 'connectors'), { recursive: true });
-      await writeFile(path.join(dir, 'connectors', 'composio-catalog-cache.json'), JSON.stringify({
-        schemaVersion: 1,
-        provider: 'composio',
-        fetchedAt: '2026-05-07T00:00:00.000Z',
-        definitions: [composioDefinition('github')],
-      }, null, 2));
+      await writeFile(
+        path.join(dir, 'connectors', 'composio-catalog-cache.json'),
+        JSON.stringify(
+          {
+            schemaVersion: 1,
+            provider: 'composio',
+            fetchedAt: '2026-05-07T00:00:00.000Z',
+            definitions: [composioDefinition('github')],
+          },
+          null,
+          2,
+        ),
+      );
 
       composioModule.composioConnectorProvider.configureCatalogCache(dir);
 
-      expect(composioModule.composioConnectorProvider.getFastDefinitions().find((definition) => definition.id === 'github')).toMatchObject({
+      expect(
+        composioModule.composioConnectorProvider.getFastDefinitions().find((definition) => definition.id === 'github'),
+      ).toMatchObject({
         id: 'github',
       });
     } finally {
@@ -245,22 +287,15 @@ describe('composio config', () => {
       const parsed = new URL(input.toString(), 'https://backend.composio.dev');
       if (parsed.pathname === '/api/v3/auth_configs') {
         return composioJson({
-          items: [
-            { id: 'ac_notion', status: 'ENABLED', toolkit: { slug: 'notion' } },
-          ],
+          items: [{ id: 'ac_notion', status: 'ENABLED', toolkit: { slug: 'notion' } }],
         });
       }
       if (parsed.pathname === '/api/v3.1/toolkits') {
         return composioJson({
-          items: [
-            { slug: 'notion', name: 'Notion', categories: [{ name: 'Productivity' }] },
-          ],
+          items: [{ slug: 'notion', name: 'Notion', categories: [{ name: 'Productivity' }] }],
         });
       }
-      if (
-        parsed.pathname === '/api/v3.1/tools'
-        && parsed.searchParams.get('toolkit_slug') === 'notion'
-      ) {
+      if (parsed.pathname === '/api/v3.1/tools' && parsed.searchParams.get('toolkit_slug') === 'notion') {
         return composioJson({
           items: [
             {

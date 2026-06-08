@@ -18,9 +18,7 @@ import {
 import { CONNECTORS_CHANGED_EVENT } from '../../src/components/connectors-events';
 
 vi.mock('../../src/providers/registry', async () => {
-  const actual = await vi.importActual<typeof import('../../src/providers/registry')>(
-    '../../src/providers/registry',
-  );
+  const actual = await vi.importActual<typeof import('../../src/providers/registry')>('../../src/providers/registry');
   return {
     ...actual,
     cancelConnectorAuthorization: vi.fn(),
@@ -252,9 +250,7 @@ describe('ConnectorsBrowser', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(
-          'No tools available yet. Connect to discover what this integration exposes.',
-        ),
+        screen.getByText('No tools available yet. Connect to discover what this integration exposes.'),
       ).toBeTruthy();
       expect(screen.queryByText('Loading tools…')).toBeNull();
     });
@@ -273,9 +269,7 @@ describe('ConnectorsBrowser', () => {
     vi.mocked(fetchConnectorDiscovery).mockResolvedValue([]);
     vi.mocked(fetchConnectorStatuses).mockResolvedValue({});
 
-    const { rerender } = render(
-      <ConnectorsBrowser composioConfigured catalogRefreshKey="initial" />,
-    );
+    const { rerender } = render(<ConnectorsBrowser composioConfigured catalogRefreshKey="initial" />);
 
     await screen.findByRole('button', { name: 'Disconnect' });
 
@@ -441,9 +435,7 @@ describe('ConnectorsBrowser', () => {
     vi.mocked(fetchConnectorStatuses).mockResolvedValue({});
     vi.mocked(fetchConnectorDetail).mockResolvedValue(null);
 
-    const { rerender } = render(
-      <ConnectorsBrowser composioConfigured catalogRefreshKey="initial" />,
-    );
+    const { rerender } = render(<ConnectorsBrowser composioConfigured catalogRefreshKey="initial" />);
 
     await screen.findByText('Notion');
     fireEvent.click(screen.getByRole('button', { name: 'Open Notion details' }));
@@ -550,9 +542,7 @@ describe('ConnectorsBrowser', () => {
     await screen.findByRole('button', { name: 'Cancel' });
     const authorizationButton = screen.getByRole('button', { name: 'Continue in browser' });
     fireEvent.click(authorizationButton);
-    await waitFor(() => expect(openExternalUrl).toHaveBeenCalledWith(
-      'https://example.com/oauth',
-    ));
+    await waitFor(() => expect(openExternalUrl).toHaveBeenCalledWith('https://example.com/oauth'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
@@ -599,9 +589,9 @@ describe('ConnectorsBrowser', () => {
     const drawer = await screen.findByTestId('connector-drawer');
     expect(within(drawer).getByRole('alert').textContent).toContain("Couldn't cancel authorization. Try again.");
     expect(document.querySelector('.connector-panel-alert')).toBeNull();
-    expect(
-      JSON.parse(window.sessionStorage.getItem('od-connectors-authorization-pending') ?? '{}'),
-    ).toHaveProperty('github');
+    expect(JSON.parse(window.sessionStorage.getItem('od-connectors-authorization-pending') ?? '{}')).toHaveProperty(
+      'github',
+    );
   });
 
   it('clears failed authorization cancel alerts after status refresh connects', async () => {
@@ -749,9 +739,11 @@ describe('ConnectorsBrowser', () => {
     expect(message?.getAttribute('title')).toBe(longError);
     const alertRow = alert.closest('.connector-panel-alert');
     expect(alertRow).not.toBeNull();
-    fireEvent.click(within(alertRow as HTMLElement).getByRole('button', {
-      name: 'Open GitHub Enterprise Connector With A Very Long Display Name details',
-    }));
+    fireEvent.click(
+      within(alertRow as HTMLElement).getByRole('button', {
+        name: 'Open GitHub Enterprise Connector With A Very Long Display Name details',
+      }),
+    );
     const drawer = await screen.findByTestId('connector-drawer');
     expect(within(drawer).getByText(longError)).toBeTruthy();
     expect(document.querySelector('.connector-panel-alert')).toBeNull();
@@ -781,9 +773,9 @@ describe('ConnectorsBrowser', () => {
 
     await screen.findByText('GitHub');
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
-    await waitFor(() => expect(
-      screen.getByRole('status').textContent,
-    ).toContain('Composio provider is not configured'));
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toContain('Composio provider is not configured'),
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
     await waitFor(() => expect(connectConnector).toHaveBeenCalledTimes(2));
@@ -817,9 +809,9 @@ describe('ConnectorsBrowser', () => {
     await waitFor(() => expect(connectConnector).toHaveBeenCalledWith('github'));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Connect' })).toBeTruthy());
     expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
-    expect(
-      JSON.parse(window.sessionStorage.getItem('od-connectors-authorization-pending') ?? '{}'),
-    ).not.toHaveProperty('github');
+    expect(JSON.parse(window.sessionStorage.getItem('od-connectors-authorization-pending') ?? '{}')).not.toHaveProperty(
+      'github',
+    );
   });
 
   it('does not auto-cancel pending authorization on focus while the daemon authorization window is still valid', async () => {
@@ -855,9 +847,9 @@ describe('ConnectorsBrowser', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(cancelConnectorAuthorization).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
-    expect(
-      JSON.parse(window.sessionStorage.getItem('od-connectors-authorization-pending') ?? '{}'),
-    ).toHaveProperty('github');
+    expect(JSON.parse(window.sessionStorage.getItem('od-connectors-authorization-pending') ?? '{}')).toHaveProperty(
+      'github',
+    );
   });
 
   it('auto-cancels stuck pending authorization on focus once the daemon authorization window has expired', async () => {
@@ -897,9 +889,9 @@ describe('ConnectorsBrowser', () => {
 
     await waitFor(() => expect(cancelConnectorAuthorization).toHaveBeenCalledWith('github'));
     await screen.findByRole('button', { name: 'Connect' });
-    expect(
-      JSON.parse(window.sessionStorage.getItem('od-connectors-authorization-pending') ?? '{}'),
-    ).not.toHaveProperty('github');
+    expect(JSON.parse(window.sessionStorage.getItem('od-connectors-authorization-pending') ?? '{}')).not.toHaveProperty(
+      'github',
+    );
 
     vi.useRealTimers();
   });

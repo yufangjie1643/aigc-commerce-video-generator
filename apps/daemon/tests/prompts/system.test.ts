@@ -242,6 +242,7 @@ describe("composeSystemPrompt", () => {
     expect(prompt).toContain("`references/html-in-canvas.md`");
     expect(prompt).toContain("media generate --surface video --model hyperframes-html --composition-dir");
     expect(prompt).not.toContain("that path is\n   intentionally rejected for this model");
+    expect(prompt).toContain("For ecommerce/product selling video briefs, obey the Ecommerce selling-video gate");
   });
 
   it("turns media generation into brief question behavior in question mode", () => {
@@ -274,17 +275,38 @@ describe("composeSystemPrompt", () => {
     });
 
     expect(prompt).toContain("### Ecommerce selling-video configuration workflow");
-    expect(prompt).toContain("Project");
-    expect(prompt).toContain("Assets");
-    expect(prompt).toContain("Script");
-    expect(prompt).toContain("Creation");
-    expect(prompt).toContain("Generate / diagnose");
+    expect(prompt).toContain("Requirement Q&A");
+    expect(prompt).toContain("Local references");
+    expect(prompt).toContain("references/ecommerce-selling-video.md");
+    expect(prompt).toContain("Asset upload gate");
+    expect(prompt).toContain("Storyboard confirmation");
+    expect(prompt).toContain("Generation readiness");
+    expect(prompt).toContain("`requirement_qa`");
+    expect(prompt).toContain("`reference_choice`");
     expect(prompt).toContain("`asset_manifest`");
     expect(prompt).toContain("`storyboard[]`");
     expect(prompt).toContain("`retry_or_diagnostics`");
+    expect(prompt).toContain("--image <project-relative-path>");
+    expect(prompt).toContain("do not call `\"$OD_NODE_BIN\" \"$OD_BIN\" media generate --surface video ...`");
+    expect(prompt).not.toContain("Otherwise make a stated assumption");
     expect(prompt.indexOf("### Ecommerce selling-video configuration workflow")).toBeGreaterThan(
       prompt.indexOf("This is a **video** project")
     );
+  });
+
+  it("ships the local ecommerce selling-video reference library for the default media scenario", () => {
+    const mediaScenarioRoot = path.join(repoRoot, "plugins/_official/scenarios/od-media-generation");
+    const scenarioSkill = readFileSync(path.join(mediaScenarioRoot, "SKILL.md"), "utf8");
+    const reference = readFileSync(
+      path.join(mediaScenarioRoot, "references/ecommerce-selling-video.md"),
+      "utf8"
+    );
+
+    expect(scenarioSkill).toContain("references/ecommerce-selling-video.md");
+    expect(reference).toContain("## Required Gates");
+    expect(reference).toContain("## Image-to-Video Rule");
+    expect(reference).toContain("## Pattern A");
+    expect(reference).toContain("## Pattern E");
   });
 
   it("does not add the responsive web contract to deck metadata without platform fields", () => {

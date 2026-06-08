@@ -1,26 +1,26 @@
-import type { BoundedJsonObject } from "../live-artifacts/schema.js";
+import type { BoundedJsonObject } from '../live-artifacts/schema.js';
 
 import {
   defineConnectorTool,
   type ConnectorCatalogDefinition,
-  type ConnectorCatalogToolDefinition
-} from "./catalog.js";
-import { ConnectorServiceError, type ConnectorCredentialMaterial } from "./service.js";
+  type ConnectorCatalogToolDefinition,
+} from './catalog.js';
+import { ConnectorServiceError, type ConnectorCredentialMaterial } from './service.js';
 
-export const VIDEO_CRAWLER_PROVIDER = "open-design-video-crawler";
-export const VIDEO_CRAWLER_CREDENTIAL_PROVIDER = "video-crawler-cookie";
+export const VIDEO_CRAWLER_PROVIDER = 'open-design-video-crawler';
+export const VIDEO_CRAWLER_CREDENTIAL_PROVIDER = 'video-crawler-cookie';
 
 const VIDEO_CRAWLER_LOGIN_TTL_MS = 10 * 60 * 1000;
 
 const VIDEO_CRAWLER_READ_SAFETY = {
-  sideEffect: "read",
-  approval: "auto",
+  sideEffect: 'read',
+  approval: 'auto',
   reason:
-    "Video crawler tools read platform data with the user-provided cookie session and do not mutate the remote account."
+    'Video crawler tools read platform data with the user-provided cookie session and do not mutate the remote account.',
 } as const;
 
 interface VideoCrawlerPlatform {
-  id: "youtube" | "tiktok" | "douyin" | "bilibili";
+  id: 'youtube' | 'tiktok' | 'douyin' | 'bilibili';
   name: string;
   category: string;
   description: string;
@@ -29,84 +29,84 @@ interface VideoCrawlerPlatform {
 
 const VIDEO_CRAWLER_PLATFORMS: VideoCrawlerPlatform[] = [
   {
-    id: "youtube",
-    name: "YouTube",
-    category: "Video",
-    description: "Search YouTube videos, download source media, read engagement metrics, and collect comment threads.",
-    loginUrl: "https://www.youtube.com/"
+    id: 'youtube',
+    name: 'YouTube',
+    category: 'Video',
+    description: 'Search YouTube videos, download source media, read engagement metrics, and collect comment threads.',
+    loginUrl: 'https://www.youtube.com/',
   },
   {
-    id: "tiktok",
-    name: "TikTok",
-    category: "Video",
+    id: 'tiktok',
+    name: 'TikTok',
+    category: 'Video',
     description:
-      "Search TikTok short videos, download source media, read engagement metrics, and collect comment threads.",
-    loginUrl: "https://www.tiktok.com/"
+      'Search TikTok short videos, download source media, read engagement metrics, and collect comment threads.',
+    loginUrl: 'https://www.tiktok.com/',
   },
   {
-    id: "douyin",
-    name: "抖音",
-    category: "Video",
-    description: "登录抖音后搜索短视频、下载素材、读取播放/点赞/收藏等指标，并抓取评论区文本和互动数。",
-    loginUrl: "https://www.douyin.com/"
+    id: 'douyin',
+    name: '抖音',
+    category: 'Video',
+    description: '登录抖音后搜索短视频、下载素材、读取播放/点赞/收藏等指标，并抓取评论区文本和互动数。',
+    loginUrl: 'https://www.douyin.com/',
   },
   {
-    id: "bilibili",
-    name: "Bilibili",
-    category: "Video",
-    description: "登录 B 站后搜索视频、下载素材、读取播放/点赞/收藏/投币等指标，并抓取评论区文本和互动数。",
-    loginUrl: "https://www.bilibili.com/"
-  }
+    id: 'bilibili',
+    name: 'Bilibili',
+    category: 'Video',
+    description: '登录 B 站后搜索视频、下载素材、读取播放/点赞/收藏/投币等指标，并抓取评论区文本和互动数。',
+    loginUrl: 'https://www.bilibili.com/',
+  },
 ];
 
 const VIDEO_SEARCH_INPUT_SCHEMA: BoundedJsonObject = {
-  type: "object",
+  type: 'object',
   properties: {
-    query: { type: "string", maxLength: 200 },
-    limit: { type: "integer", minimum: 1, maximum: 50 },
-    sort: { type: "string", maxLength: 40 },
-    cursor: { type: "string", maxLength: 500 }
+    query: { type: 'string', maxLength: 200 },
+    limit: { type: 'integer', minimum: 1, maximum: 50 },
+    sort: { type: 'string', maxLength: 40 },
+    cursor: { type: 'string', maxLength: 500 },
   },
-  required: ["query"],
-  additionalProperties: false
+  required: ['query'],
+  additionalProperties: false,
 };
 
 const VIDEO_TARGET_INPUT_SCHEMA: BoundedJsonObject = {
-  type: "object",
+  type: 'object',
   properties: {
-    url: { type: "string", maxLength: 2000 },
-    videoId: { type: "string", maxLength: 200 },
-    includeStats: { type: "boolean" }
+    url: { type: 'string', maxLength: 2000 },
+    videoId: { type: 'string', maxLength: 200 },
+    includeStats: { type: 'boolean' },
   },
-  additionalProperties: false
+  additionalProperties: false,
 };
 
 const VIDEO_DOWNLOAD_INPUT_SCHEMA: BoundedJsonObject = {
-  type: "object",
+  type: 'object',
   properties: {
-    url: { type: "string", maxLength: 2000 },
-    videoId: { type: "string", maxLength: 200 },
-    resolution: { type: "string", maxLength: 40 },
-    format: { type: "string", maxLength: 20 },
-    outputFileName: { type: "string", maxLength: 180 }
+    url: { type: 'string', maxLength: 2000 },
+    videoId: { type: 'string', maxLength: 200 },
+    resolution: { type: 'string', maxLength: 40 },
+    format: { type: 'string', maxLength: 20 },
+    outputFileName: { type: 'string', maxLength: 180 },
   },
-  additionalProperties: false
+  additionalProperties: false,
 };
 
 const VIDEO_COMMENTS_INPUT_SCHEMA: BoundedJsonObject = {
-  type: "object",
+  type: 'object',
   properties: {
-    url: { type: "string", maxLength: 2000 },
-    videoId: { type: "string", maxLength: 200 },
-    limit: { type: "integer", minimum: 1, maximum: 100 },
-    cursor: { type: "string", maxLength: 500 }
+    url: { type: 'string', maxLength: 2000 },
+    videoId: { type: 'string', maxLength: 200 },
+    limit: { type: 'integer', minimum: 1, maximum: 100 },
+    cursor: { type: 'string', maxLength: 500 },
   },
-  additionalProperties: false
+  additionalProperties: false,
 };
 
 const VIDEO_LIST_OUTPUT_SCHEMA: BoundedJsonObject = {
-  type: "object",
-  additionalProperties: true
+  type: 'object',
+  additionalProperties: true,
 };
 
 function crawlerTool(
@@ -114,7 +114,7 @@ function crawlerTool(
   suffix: string,
   title: string,
   description: string,
-  inputSchemaJson: BoundedJsonObject
+  inputSchemaJson: BoundedJsonObject,
 ): ConnectorCatalogToolDefinition {
   return defineConnectorTool({
     name: `${platform.id}.${suffix}`,
@@ -125,7 +125,7 @@ function crawlerTool(
     outputSchemaJson: VIDEO_LIST_OUTPUT_SCHEMA,
     requiredScopes: ['read'],
     safety: VIDEO_CRAWLER_READ_SAFETY,
-    refreshEligible: true
+    refreshEligible: true,
   });
 }
 
@@ -134,31 +134,31 @@ function createPlatformDefinition(platform: VideoCrawlerPlatform): ConnectorCata
     crawlerTool(
       platform,
       `${platform.id}_search_videos`,
-      "Search videos",
+      'Search videos',
       `Search ${platform.name} videos and return video ids, titles, authors, URLs, cover images, publish time, and engagement counters.`,
-      VIDEO_SEARCH_INPUT_SCHEMA
+      VIDEO_SEARCH_INPUT_SCHEMA,
     ),
     crawlerTool(
       platform,
       `${platform.id}_get_video`,
-      "Get video metrics",
+      'Get video metrics',
       `Read one ${platform.name} video, including available resolutions, play count, like count, favorite count, share count, and comment count when available.`,
-      VIDEO_TARGET_INPUT_SCHEMA
+      VIDEO_TARGET_INPUT_SCHEMA,
     ),
     crawlerTool(
       platform,
       `${platform.id}_download_video`,
-      "Download video",
+      'Download video',
       `Download a ${platform.name} video into the project artifact area and return the saved path, selected resolution, format, and metadata.`,
-      VIDEO_DOWNLOAD_INPUT_SCHEMA
+      VIDEO_DOWNLOAD_INPUT_SCHEMA,
     ),
     crawlerTool(
       platform,
       `${platform.id}_get_comments`,
-      "Get comments",
+      'Get comments',
       `Fetch ${platform.name} comment text, authors, like counts, reply counts, timestamps, and pagination cursor for a video.`,
-      VIDEO_COMMENTS_INPUT_SCHEMA
-    )
+      VIDEO_COMMENTS_INPUT_SCHEMA,
+    ),
   ];
   const allowedToolNames = tools.map((tool) => tool.name);
   return {
@@ -167,14 +167,14 @@ function createPlatformDefinition(platform: VideoCrawlerPlatform): ConnectorCata
     provider: VIDEO_CRAWLER_PROVIDER,
     category: platform.category,
     description: platform.description,
-    authentication: "cookie",
+    authentication: 'cookie',
     providerConnectorId: platform.id,
     tools,
     allowedToolNames,
     curatedToolNames: allowedToolNames,
     featuredToolNames: allowedToolNames.slice(0, 3),
-    minimumApproval: "auto",
-    toolCount: tools.length
+    minimumApproval: 'auto',
+    toolCount: tools.length,
   };
 }
 
@@ -186,7 +186,7 @@ export function getStaticVideoCrawlerDefinitions(): ConnectorCatalogDefinition[]
       ...definition,
       tools: definition.tools.map((tool) => ({ ...tool, safety: { ...tool.safety } })),
       allowedToolNames: [...definition.allowedToolNames],
-      curatedToolNames: [...(definition.curatedToolNames ?? definition.allowedToolNames)]
+      curatedToolNames: [...(definition.curatedToolNames ?? definition.allowedToolNames)],
     };
     if (definition.featuredToolNames !== undefined) {
       copy.featuredToolNames = [...definition.featuredToolNames];
@@ -204,44 +204,44 @@ export function isVideoCrawlerDefinition(definition: ConnectorCatalogDefinition)
 }
 
 export function videoCrawlerLoginStart(connectorId: string): {
-  kind: "redirect_required";
+  kind: 'redirect_required';
   redirectUrl: string;
   expiresAt: string;
 } {
   const platform = VIDEO_CRAWLER_PLATFORMS.find((entry) => entry.id === connectorId);
   if (!platform) {
-    throw new ConnectorServiceError("CONNECTOR_NOT_FOUND", "video crawler connector not found", 404, { connectorId });
+    throw new ConnectorServiceError('CONNECTOR_NOT_FOUND', 'video crawler connector not found', 404, { connectorId });
   }
   return {
-    kind: "redirect_required",
+    kind: 'redirect_required',
     redirectUrl: platform.loginUrl,
-    expiresAt: new Date(Date.now() + VIDEO_CRAWLER_LOGIN_TTL_MS).toISOString()
+    expiresAt: new Date(Date.now() + VIDEO_CRAWLER_LOGIN_TTL_MS).toISOString(),
   };
 }
 
 function stringField(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 export function normalizeVideoCrawlerCredentials(
   definition: ConnectorCatalogDefinition,
-  credentials: ConnectorCredentialMaterial | undefined
+  credentials: ConnectorCredentialMaterial | undefined,
 ): ConnectorCredentialMaterial {
-  if (!credentials || typeof credentials !== "object" || Array.isArray(credentials)) {
+  if (!credentials || typeof credentials !== 'object' || Array.isArray(credentials)) {
     throw new ConnectorServiceError(
-      "CONNECTOR_NOT_CONNECTED",
+      'CONNECTOR_NOT_CONNECTED',
       `${definition.name} cookie credentials are required`,
       403,
-      { connectorId: definition.id }
+      { connectorId: definition.id },
     );
   }
   const cookie = stringField(credentials.cookie) ?? stringField(credentials.cookies);
   if (!cookie) {
     throw new ConnectorServiceError(
-      "CONNECTOR_NOT_CONNECTED",
+      'CONNECTOR_NOT_CONNECTED',
       `${definition.name} cookie credentials are required`,
       403,
-      { connectorId: definition.id }
+      { connectorId: definition.id },
     );
   }
   const userAgent = stringField(credentials.userAgent);
@@ -251,7 +251,7 @@ export function normalizeVideoCrawlerCredentials(
     platform: definition.id,
     cookie,
     ...(userAgent === undefined ? {} : { userAgent }),
-    ...(accountLabel === undefined ? {} : { accountLabel })
+    ...(accountLabel === undefined ? {} : { accountLabel }),
   };
 }
 
@@ -265,55 +265,55 @@ export class VideoCrawlerConnectorProvider {
     tool: ConnectorCatalogToolDefinition,
     input: BoundedJsonObject,
     credentials: ConnectorCredentialMaterial | undefined,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<BoundedJsonObject> {
     const crawlerBaseUrl = process.env.OD_VIDEO_CRAWLER_URL?.trim();
     if (!crawlerBaseUrl) {
       throw new ConnectorServiceError(
-        "CONNECTOR_EXECUTION_FAILED",
-        "Video crawler runtime is not configured. Set OD_VIDEO_CRAWLER_URL to the cookie-aware crawler bridge.",
+        'CONNECTOR_EXECUTION_FAILED',
+        'Video crawler runtime is not configured. Set OD_VIDEO_CRAWLER_URL to the cookie-aware crawler bridge.',
         501,
         {
           connectorId: definition.id,
-          toolName: tool.name
-        }
+          toolName: tool.name,
+        },
       );
     }
     const normalizedCredentials = normalizeVideoCrawlerCredentials(definition, credentials);
-    const endpoint = new URL("/api/video-crawler/execute", crawlerBaseUrl);
+    const endpoint = new URL('/api/video-crawler/execute', crawlerBaseUrl);
     const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         connectorId: definition.id,
         toolName: tool.name,
         providerToolId: tool.providerToolId ?? tool.name,
         input,
-        credentials: normalizedCredentials
+        credentials: normalizedCredentials,
       }),
-      ...(signal === undefined ? {} : { signal })
+      ...(signal === undefined ? {} : { signal }),
     });
     if (!response.ok) {
       throw new ConnectorServiceError(
-        "CONNECTOR_EXECUTION_FAILED",
+        'CONNECTOR_EXECUTION_FAILED',
         `Video crawler runtime failed with HTTP ${response.status}`,
         response.status === 401 || response.status === 403 ? 403 : 502,
         {
           connectorId: definition.id,
-          toolName: tool.name
-        }
+          toolName: tool.name,
+        },
       );
     }
     const payload = (await response.json()) as unknown;
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
       throw new ConnectorServiceError(
-        "CONNECTOR_EXECUTION_FAILED",
-        "Video crawler runtime returned a non-object payload",
+        'CONNECTOR_EXECUTION_FAILED',
+        'Video crawler runtime returned a non-object payload',
         502,
         {
           connectorId: definition.id,
-          toolName: tool.name
-        }
+          toolName: tool.name,
+        },
       );
     }
     return payload as BoundedJsonObject;
