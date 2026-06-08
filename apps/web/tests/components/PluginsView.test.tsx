@@ -57,9 +57,10 @@ function makePlugin(
       version: '1.0.0',
       title: id,
       description,
+      tags: ['product-promo', 'video-product-demo'],
       od: {
         kind: 'scenario',
-        mode: 'prototype',
+        mode: 'video',
       },
     },
     fsPath: '/tmp',
@@ -106,17 +107,17 @@ beforeEach(() => {
             source: 'github:owner/repo',
             version: '1.2.0',
             description: 'Remote catalog plugin.',
-            tags: ['deck'],
+            tags: ['product-promo', 'video-hooks'],
           },
           {
             name: 'open-design/official-plugin',
             title: 'Official Plugin',
-            title_i18n: { 'zh-CN': '官方看板' },
+            title_i18n: { 'zh-CN': '官方视频模板' },
             source: 'github:nexu-io/open-design@main/plugins/_official/examples/official-plugin',
             version: '1.0.0',
-            description: 'Bundled official plugin.',
-            description_i18n: { 'zh-CN': '内置官方插件。' },
-            tags: ['prototype', 'kanban'],
+            description: 'Bundled official ecommerce video template.',
+            description_i18n: { 'zh-CN': '内置官方带货视频模板。' },
+            tags: ['product-promo', 'video-product-demo'],
           },
         ],
       },
@@ -236,12 +237,12 @@ describe('PluginsView', () => {
             {
               name: 'open-design/official-plugin',
               title: 'Official Plugin',
-              title_i18n: { 'zh-CN': '官方看板' },
+              title_i18n: { 'zh-CN': '官方视频模板' },
               source: 'github:nexu-io/open-design@main/plugins/_official/examples/official-plugin',
               version: '1.0.0',
-              description: 'Bundled official plugin.',
-              description_i18n: { 'zh-CN': '内置官方插件。' },
-              tags: ['prototype', 'kanban'],
+              description: 'Bundled official ecommerce video template.',
+              description_i18n: { 'zh-CN': '内置官方带货视频模板。' },
+              tags: ['product-promo', 'video-product-demo'],
             },
           ],
         },
@@ -250,13 +251,13 @@ describe('PluginsView', () => {
     render(<PluginsView onUsePlugin={onUsePlugin} />);
 
     fireEvent.click(await screen.findByTestId('plugins-tab-available'));
-    expect(await screen.findByText('官方看板')).toBeTruthy();
+    expect(await screen.findByText('官方视频模板')).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('Search available plugins'), {
-      target: { value: '官方看板' },
+      target: { value: '官方视频模板' },
     });
 
-    expect(await screen.findByText('官方看板')).toBeTruthy();
+    expect(await screen.findByText('官方视频模板')).toBeTruthy();
     expect(screen.queryByText('Remote Plugin')).toBeNull();
 
     fireEvent.click(screen.getByTestId('plugins-available-install-open-design/official-plugin'));
@@ -285,7 +286,7 @@ describe('PluginsView', () => {
               source: 'github:team/official-plugin',
               version: '2.0.0',
               description: 'Team-scoped plugin that intentionally shares the official entry name.',
-              tags: ['team'],
+              tags: ['product-promo', 'team-template'],
             },
           ],
         },
@@ -308,14 +309,14 @@ describe('PluginsView', () => {
   });
 
   it('shows all installed plugins by default on the Plugins page', async () => {
-    const createPlugin = makePlugin('create-plugin', 'github', 'restricted', 'Create Plugin');
-    const importPlugin = makePlugin('import-plugin', 'github', 'restricted', 'Import Plugin');
-    importPlugin.manifest.od = {
+    const hookPlugin = makePlugin('hook-plugin', 'github', 'restricted', 'Hook Template');
+    const referencePlugin = makePlugin('reference-plugin', 'github', 'restricted', 'Reference Template');
+    referencePlugin.manifest.od = {
       kind: 'scenario',
-      mode: 'scenario',
-      taskKind: 'figma-migration',
+      mode: 'video',
+      taskKind: 'new-generation',
     };
-    mockedListPlugins.mockResolvedValue([createPlugin, importPlugin]);
+    mockedListPlugins.mockResolvedValue([hookPlugin, referencePlugin]);
     mockedListMarketplaces.mockResolvedValue([]);
 
     render(<PluginsView />);
@@ -326,7 +327,7 @@ describe('PluginsView', () => {
         .getAllByRole('listitem')
         .map((item) => item.getAttribute('data-plugin-id'))
         .sort(),
-    ).toEqual(['create-plugin', 'import-plugin']);
+    ).toEqual(['hook-plugin', 'reference-plugin']);
     const summary = screen.getByLabelText('Plugin summary');
     expect(within(summary).getByText('2')).toBeTruthy();
     expect(within(summary).getByText('Installed')).toBeTruthy();
@@ -563,7 +564,7 @@ describe('PluginsView', () => {
             source: 'github:owner/repo',
             version: '1.2.0',
             description: 'Remote catalog plugin.',
-            tags: ['deck'],
+            tags: ['product-promo', 'video-hooks'],
           }],
         },
       },
@@ -575,12 +576,12 @@ describe('PluginsView', () => {
           name: 'Team Catalog',
           version: '1.0.0',
           plugins: [{
-            name: 'figma-importer',
-            title: 'Figma Importer',
-            source: 'github:team/figma-importer',
+            name: 'script-strategy',
+            title: 'Script Strategy',
+            source: 'github:team/script-strategy',
             version: '0.2.0',
-            description: 'Imports a Figma source.',
-            tags: ['figma', 'import'],
+            description: 'Builds an ecommerce video script strategy.',
+            tags: ['script', 'selling-logic'],
           }],
         },
       },
@@ -590,13 +591,13 @@ describe('PluginsView', () => {
 
     fireEvent.click(await screen.findByTestId('plugins-tab-available'));
     expect(await screen.findByText('Remote Plugin')).toBeTruthy();
-    expect(screen.getByText('Figma Importer')).toBeTruthy();
+    expect(screen.getByText('Script Strategy')).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('Search available plugins'), {
-      target: { value: 'figma' },
+      target: { value: 'script' },
     });
 
-    expect(await screen.findByText('Figma Importer')).toBeTruthy();
+    expect(await screen.findByText('Script Strategy')).toBeTruthy();
     expect(screen.queryByText('Remote Plugin')).toBeNull();
 
     fireEvent.change(screen.getByLabelText('Source'), {
@@ -608,7 +609,7 @@ describe('PluginsView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear available plugin search' }));
 
     expect(await screen.findByText('Remote Plugin')).toBeTruthy();
-    expect(screen.queryByText('Figma Importer')).toBeNull();
+    expect(screen.queryByText('Script Strategy')).toBeNull();
   });
 
   it('keeps non-bundled installed registry entries out of Available', async () => {
@@ -742,7 +743,7 @@ describe('PluginsView', () => {
         createdAt: 1,
         updatedAt: 1,
         pendingPrompt: 'Publish it',
-        metadata: { kind: 'prototype' },
+        metadata: { kind: 'video' },
       },
       conversationId: 'conversation-1',
       appliedPluginSnapshotId: 'snapshot-1',

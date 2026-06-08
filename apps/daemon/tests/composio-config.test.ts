@@ -118,7 +118,7 @@ describe('composio config', () => {
     expect(readComposioConfig()).toEqual({ apiKey: '', authConfigIds: {} });
   });
 
-  it('loads persisted Composio catalog cache into fast definitions', async () => {
+  it('loads only supported persisted Composio catalog cache entries into fast definitions', async () => {
     const dir = await useTempComposioStore();
     await mkdir(path.join(dir, 'connectors'), { recursive: true });
     await writeFile(path.join(dir, 'connectors', 'composio-catalog-cache.json'), JSON.stringify({
@@ -149,17 +149,39 @@ describe('composio config', () => {
           allowedToolNames: ['slack.slack_list_channels'],
           minimumApproval: 'auto',
         },
+        {
+          id: 'github',
+          name: 'GitHub',
+          provider: 'composio',
+          category: 'Developer',
+          providerConnectorId: 'GITHUB',
+          authentication: 'composio',
+          toolCount: 9,
+          tools: [
+            {
+              name: 'github.github_search_repositories',
+              title: 'Search repositories',
+              description: 'Search GitHub repositories',
+              safety: { sideEffect: 'read', approval: 'auto', reason: 'read-only' },
+              refreshEligible: true,
+              requiredScopes: ['read'],
+              providerToolId: 'GITHUB_SEARCH_REPOSITORIES',
+            },
+          ],
+          allowedToolNames: ['github.github_search_repositories'],
+          minimumApproval: 'auto',
+        },
       ],
     }, null, 2));
 
     composioConnectorProvider.configureCatalogCache(dir);
 
-    expect(composioConnectorProvider.getFastDefinitions().find((definition) => definition.id === 'slack')).toMatchObject({
-      id: 'slack',
-      toolCount: 48,
+    expect(composioConnectorProvider.getFastDefinitions().find((definition) => definition.id === 'slack')).toBeUndefined();
+    expect(composioConnectorProvider.getFastDefinitions().find((definition) => definition.id === 'github')).toMatchObject({
+      id: 'github',
+      toolCount: 9,
       tools: [expect.objectContaining({
-        name: 'slack.slack_list_channels',
-        curation: expect.objectContaining({ useCases: ['personal_daily_digest'] }),
+        name: 'github.github_search_repositories',
       })],
     });
   });
@@ -202,20 +224,20 @@ describe('composio config', () => {
         schemaVersion: 1,
         provider: 'composio',
         fetchedAt: '2026-05-07T00:00:00.000Z',
-        definitions: [composioDefinition('right-tenant')],
+        definitions: [composioDefinition('github')],
       }, null, 2));
 
       composioModule.composioConnectorProvider.configureCatalogCache(dir);
 
-      expect(composioModule.composioConnectorProvider.getFastDefinitions().find((definition) => definition.id === 'right-tenant')).toMatchObject({
-        id: 'right-tenant',
+      expect(composioModule.composioConnectorProvider.getFastDefinitions().find((definition) => definition.id === 'github')).toMatchObject({
+        id: 'github',
       });
     } finally {
       await rm(defaultCachePath, { force: true });
     }
   });
 
-  it('treats the current Notion search action as read-only despite broad response-size wording', async () => {
+  it('does not hydrate removed Composio toolkits even when Composio returns them', async () => {
     await useTempComposioStore();
     writeComposioConfig({ apiKey: 'cmp_test' });
     const originalFetch = globalThis.fetch;
@@ -265,19 +287,15 @@ describe('composio config', () => {
     }) as typeof fetch;
 
     try {
+      await composioConnectorProvider.listDefinitions(undefined, { hydrateTools: false });
+
+      expect(composioConnectorProvider.isConfigured(composioDefinition('notion'))).toBe(false);
+
       const definition = await composioConnectorProvider.getPreviewDefinition('notion', {
         toolsLimit: 1000,
       });
-      const tool = definition?.tools.find(
-        (candidate) => candidate.name === 'notion.notion_search_notion_page',
-      );
 
-      expect(definition?.allowedToolNames).toContain('notion.notion_search_notion_page');
-      expect(tool).toMatchObject({
-        refreshEligible: true,
-        safety: { sideEffect: 'read', approval: 'auto' },
-        curation: expect.objectContaining({ useCases: ['personal_daily_digest'] }),
-      });
+      expect(definition).toBeUndefined();
     } finally {
       globalThis.fetch = originalFetch;
     }

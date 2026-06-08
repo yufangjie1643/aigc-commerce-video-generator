@@ -9,20 +9,11 @@
 // dark-on-dark text).
 
 const CURATED: Record<string, string> = {
-  notion: '#0B0B0B',
-  chrome: '#1A73E8',
-  claudeinchrome: '#1A73E8',
-  googlesheets: '#188038',
-  google_sheets: '#188038',
-  spreadsheets: '#188038',
   github: '#1F2328',
-  figma: '#A259FF',
-  slack: '#4A154B',
-  linear: '#5E6AD2',
-  posthog: '#C8401A',
-  gmail: '#C5221F',
-  googledrive: '#1A73E8',
-  airtable: '#D54402',
+  youtube: '#FF0000',
+  tiktok: '#00F2EA',
+  douyin: '#FE2C55',
+  bilibili: '#00A1D6',
 };
 
 const FALLBACK_PALETTE = [
@@ -71,8 +62,8 @@ function relativeLuminance({ r, g, b }: { r: number; g: number; b: number }): nu
 // In dark mode the pill text mixes the hue 72% with the light `--text`, so a
 // hue too dark stays dark after the mix. Lighten any hue below this luminance
 // toward white until it clears the floor, preserving the brand chroma. The
-// floor is tuned to lift near-black brands (Notion, GitHub, Slack) while
-// leaving already-bright hues (Figma, Linear) untouched.
+// floor is tuned to lift near-black brands (GitHub) while leaving
+// already-bright hues (TikTok, Bilibili) untouched.
 const DARK_THEME_MIN_LUMINANCE = 0.4;
 
 function lightenForDark(hex: string): string {

@@ -16,9 +16,7 @@ const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const DISCOVERY_CACHE_TTL_MS = 60_000;
 const PERSISTED_CATALOG_REFRESH_MS = 24 * 60 * 60 * 1000;
 
-const COMPOSIO_READ_ONLY_TOOL_SAFETY_OVERRIDES = new Set([
-  'notion:notion_search_notion_page',
-]);
+const COMPOSIO_READ_ONLY_TOOL_SAFETY_OVERRIDES = new Set<string>();
 
 const COMPOSIO_READ_ONLY_TOOL_SAFETY = {
   sideEffect: 'read',
@@ -56,7 +54,12 @@ const FEATURED_COMPOSIO_CATALOG: ConnectorCatalogDefinition[] = [
         providerToolId: 'GITHUB_SEARCH_REPOSITORIES',
         title: 'Search repositories',
         description: 'Search public and private repositories.',
-        inputSchemaJson: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false },
+        inputSchemaJson: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query'],
+          additionalProperties: false,
+        },
         outputSchemaJson: { type: 'object', additionalProperties: true },
         requiredScopes: ['read'],
       }),
@@ -65,7 +68,16 @@ const FEATURED_COMPOSIO_CATALOG: ConnectorCatalogDefinition[] = [
         providerToolId: 'GITHUB_GET_ISSUE',
         title: 'Get issue',
         description: 'Read a GitHub issue by owner, repository, and issue number.',
-        inputSchemaJson: { type: 'object', properties: { owner: { type: 'string' }, repo: { type: 'string' }, issue_number: { type: 'number' } }, required: ['owner', 'repo', 'issue_number'], additionalProperties: false },
+        inputSchemaJson: {
+          type: 'object',
+          properties: {
+            owner: { type: 'string' },
+            repo: { type: 'string' },
+            issue_number: { type: 'number' },
+          },
+          required: ['owner', 'repo', 'issue_number'],
+          additionalProperties: false,
+        },
         outputSchemaJson: { type: 'object', additionalProperties: true },
         requiredScopes: ['issues:read'],
       }),
@@ -75,257 +87,13 @@ const FEATURED_COMPOSIO_CATALOG: ConnectorCatalogDefinition[] = [
     minimumApproval: 'auto',
     toolCount: 2,
   },
-  {
-    id: 'notion',
-    name: 'Notion',
-    provider: 'composio',
-    category: 'Productivity',
-    description: 'Search and read Notion pages and databases.',
-    providerConnectorId: 'NOTION',
-    authentication: 'composio',
-    tools: [
-      defineConnectorTool({
-        name: 'notion.notion_search',
-        providerToolId: 'NOTION_SEARCH',
-        title: 'Search Notion',
-        description: 'Search Notion pages and databases.',
-        inputSchemaJson: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false },
-        outputSchemaJson: { type: 'object', additionalProperties: true },
-        requiredScopes: ['read'],
-      }),
-      defineConnectorTool({
-        name: 'notion.notion_fetch_database',
-        providerToolId: 'NOTION_FETCH_DATABASE',
-        title: 'Fetch database',
-        description: 'Read a Notion database by id.',
-        inputSchemaJson: { type: 'object', properties: { database_id: { type: 'string' } }, required: ['database_id'], additionalProperties: false },
-        outputSchemaJson: { type: 'object', additionalProperties: true },
-        requiredScopes: ['databases:read'],
-      }),
-    ],
-    allowedToolNames: ['notion.notion_search', 'notion.notion_fetch_database'],
-    featuredToolNames: ['notion.notion_search', 'notion.notion_fetch_database'],
-    minimumApproval: 'auto',
-    toolCount: 48,
-  },
-  {
-    id: 'google_drive',
-    name: 'Google Drive',
-    provider: 'composio',
-    category: 'Storage',
-    description: 'Search and read files from Google Drive.',
-    providerConnectorId: 'GOOGLEDRIVE',
-    authentication: 'composio',
-    tools: [
-      defineConnectorTool({
-        name: 'google_drive.googledrive_search',
-        providerToolId: 'GOOGLEDRIVE_SEARCH',
-        title: 'Search Drive',
-        description: 'Search files in Google Drive.',
-        inputSchemaJson: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false },
-        outputSchemaJson: { type: 'object', additionalProperties: true },
-        requiredScopes: ['drive.readonly'],
-      }),
-      defineConnectorTool({
-        name: 'google_drive.googledrive_get_file',
-        providerToolId: 'GOOGLEDRIVE_GET_FILE',
-        title: 'Get file',
-        description: 'Read Google Drive file metadata by id.',
-        inputSchemaJson: { type: 'object', properties: { file_id: { type: 'string' } }, required: ['file_id'], additionalProperties: false },
-        outputSchemaJson: { type: 'object', additionalProperties: true },
-        requiredScopes: ['drive.readonly'],
-      }),
-    ],
-    allowedToolNames: ['google_drive.googledrive_search', 'google_drive.googledrive_get_file'],
-    featuredToolNames: ['google_drive.googledrive_search', 'google_drive.googledrive_get_file'],
-    minimumApproval: 'auto',
-    toolCount: 2,
-  },
 ];
 
 const DOCUMENTED_COMPOSIO_TOOLKITS: ComposioToolkitCatalogEntry[] = [
-  { name: 'Airtable', slug: 'AIRTABLE' },
-  { name: 'Apaleo', slug: 'APALEO' },
-  { name: 'Asana', slug: 'ASANA' },
-  { name: 'Attio', slug: 'ATTIO' },
-  { name: 'Basecamp', slug: 'BASECAMP' },
-  { name: 'Bitbucket', slug: 'BITBUCKET' },
-  { name: 'Blackbaud', slug: 'BLACKBAUD' },
-  { name: 'Boldsign', slug: 'BOLDSIGN' },
-  { name: 'Box', slug: 'BOX' },
-  { name: 'Cal', slug: 'CAL' },
-  { name: 'Calendly', slug: 'CALENDLY' },
-  { name: 'Canva', slug: 'CANVA' },
-  { name: 'Capsule CRM', slug: 'CAPSULE_CRM' },
-  { name: 'ClickUp', slug: 'CLICKUP' },
-  { name: 'Confluence', slug: 'CONFLUENCE' },
-  { name: 'Contentful', slug: 'CONTENTFUL' },
-  { name: 'Convex', slug: 'CONVEX' },
-  { name: 'Crowdin', slug: 'CROWDIN' },
-  { name: 'Dart', slug: 'DART' },
-  { name: 'Dialpad', slug: 'DIALPAD' },
-  { name: 'DigitalOcean', slug: 'DIGITAL_OCEAN' },
-  { name: 'Discord', slug: 'DISCORD' },
-  { name: 'Discord Bot', slug: 'DISCORDBOT' },
-  { name: 'Dropbox', slug: 'DROPBOX' },
-  { name: 'Dub', slug: 'DUB' },
-  { name: 'Dynamics 365', slug: 'DYNAMICS365' },
-  { name: 'Eventbrite', slug: 'EVENTBRITE' },
-  { name: 'Excel', slug: 'EXCEL' },
-  { name: 'Exist', slug: 'EXIST' },
-  { name: 'Facebook', slug: 'FACEBOOK' },
-  { name: 'Fathom', slug: 'FATHOM' },
-  { name: 'Figma', slug: 'FIGMA' },
-  { name: 'Freeagent', slug: 'FREEAGENT' },
-  { name: 'FreshBooks', slug: 'FRESHBOOKS' },
   { name: 'GitHub', slug: 'GITHUB' },
-  { name: 'GitLab', slug: 'GITLAB' },
-  { name: 'Gmail', slug: 'GMAIL' },
-  { name: 'Google Ads', slug: 'GOOGLEADS' },
-  { name: 'Google Analytics', slug: 'GOOGLE_ANALYTICS' },
-  { name: 'Google BigQuery', slug: 'GOOGLEBIGQUERY' },
-  { name: 'Google Calendar', slug: 'GOOGLECALENDAR' },
-  { name: 'Google Classroom', slug: 'GOOGLE_CLASSROOM' },
-  { name: 'Google Docs', slug: 'GOOGLEDOCS' },
-  { name: 'Google Drive', slug: 'GOOGLEDRIVE' },
-  { name: 'Google Maps', slug: 'GOOGLE_MAPS' },
-  { name: 'Google Meet', slug: 'GOOGLEMEET' },
-  { name: 'Google Photos', slug: 'GOOGLEPHOTOS' },
-  { name: 'Google Search Console', slug: 'GOOGLE_SEARCH_CONSOLE' },
-  { name: 'Google Sheets', slug: 'GOOGLESHEETS' },
-  { name: 'Google Slides', slug: 'GOOGLESLIDES' },
-  { name: 'Google Super', slug: 'GOOGLESUPER' },
-  { name: 'Google Tasks', slug: 'GOOGLETASKS' },
-  { name: 'Gorgias', slug: 'GORGIAS' },
-  { name: 'Gumroad', slug: 'GUMROAD' },
-  { name: 'Harvest', slug: 'HARVEST' },
-  { name: 'HubSpot', slug: 'HUBSPOT' },
-  { name: 'Hugging Face', slug: 'HUGGING_FACE' },
-  { name: 'Instagram', slug: 'INSTAGRAM' },
-  { name: 'Intercom', slug: 'INTERCOM' },
-  { name: 'Jira', slug: 'JIRA' },
-  { name: 'Kit', slug: 'KIT' },
-  { name: 'Linear', slug: 'LINEAR' },
-  { name: 'LinkedIn', slug: 'LINKEDIN' },
-  { name: 'Linkhut', slug: 'LINKHUT' },
-  { name: 'Mailchimp', slug: 'MAILCHIMP' },
-  { name: 'Microsoft Teams', slug: 'MICROSOFT_TEAMS' },
-  { name: 'Miro', slug: 'MIRO' },
-  { name: 'Monday', slug: 'MONDAY' },
-  { name: 'Moneybird', slug: 'MONEYBIRD' },
-  { name: 'Mural', slug: 'MURAL' },
-  { name: 'Notion', slug: 'NOTION' },
-  { name: 'Omnisend', slug: 'OMNISEND' },
-  { name: 'OneDrive', slug: 'ONE_DRIVE' },
-  { name: 'Outlook', slug: 'OUTLOOK' },
-  { name: 'PagerDuty', slug: 'PAGERDUTY' },
-  { name: 'Prisma', slug: 'PRISMA' },
-  { name: 'Productboard', slug: 'PRODUCTBOARD' },
-  { name: 'Pushbullet', slug: 'PUSHBULLET' },
-  { name: 'QuickBooks', slug: 'QUICKBOOKS' },
-  { name: 'Reddit', slug: 'REDDIT' },
-  { name: 'Reddit Ads', slug: 'REDDIT_ADS' },
-  { name: 'Roam', slug: 'ROAM' },
-  { name: 'Salesforce', slug: 'SALESFORCE' },
-  { name: 'Sentry', slug: 'SENTRY' },
-  { name: 'Servicem8', slug: 'SERVICEM8' },
-  { name: 'SharePoint', slug: 'SHARE_POINT' },
-  { name: 'Shippo', slug: 'SHIPPO' },
-  { name: 'Slack', slug: 'SLACK' },
-  { name: 'Slackbot', slug: 'SLACKBOT' },
-  { name: 'Splitwise', slug: 'SPLITWISE' },
-  { name: 'Square', slug: 'SQUARE' },
-  { name: 'Stack Exchange', slug: 'STACK_EXCHANGE' },
-  { name: 'Strava', slug: 'STRAVA' },
-  { name: 'Stripe', slug: 'STRIPE' },
-  { name: 'Supabase', slug: 'SUPABASE' },
-  { name: 'Ticketmaster', slug: 'TICKETMASTER' },
-  { name: 'Ticktick', slug: 'TICKTICK' },
-  { name: 'Timely', slug: 'TIMELY' },
-  { name: 'Todoist', slug: 'TODOIST' },
-  { name: 'Toneden', slug: 'TONEDEN' },
-  { name: 'Trello', slug: 'TRELLO' },
-  { name: 'Typeform', slug: 'TYPEFORM' },
-  { name: 'WakaTime', slug: 'WAKATIME' },
-  { name: 'Webex', slug: 'WEBEX' },
-  { name: 'WhatsApp', slug: 'WHATSAPP' },
-  { name: 'Wrike', slug: 'WRIKE' },
-  { name: 'Yandex', slug: 'YANDEX' },
-  { name: 'YNAB', slug: 'YNAB' },
-  { name: 'YouTube', slug: 'YOUTUBE' },
-  { name: 'Zendesk', slug: 'ZENDESK' },
-  { name: 'Zoho', slug: 'ZOHO' },
-  { name: 'Zoho Bigin', slug: 'ZOHO_BIGIN' },
-  { name: 'Zoho Books', slug: 'ZOHO_BOOKS' },
-  { name: 'Zoho Desk', slug: 'ZOHO_DESK' },
-  { name: 'Zoho Inventory', slug: 'ZOHO_INVENTORY' },
-  { name: 'Zoho Invoice', slug: 'ZOHO_INVOICE' },
-  { name: 'Zoho Mail', slug: 'ZOHO_MAIL' },
-  { name: 'Zoom', slug: 'ZOOM' },
-  { name: 'Apify MCP', slug: 'APIFY_MCP' },
-  { name: 'BambooHR', slug: 'BAMBOOHR' },
-  { name: 'Beeminder', slug: 'BEEMINDER' },
-  { name: 'Bitwarden', slug: 'BITWARDEN' },
-  { name: 'Blackboard', slug: 'BLACKBOARD' },
-  { name: 'Borneo', slug: 'BORNEO' },
-  { name: 'Brevo', slug: 'BREVO' },
-  { name: 'Brex', slug: 'BREX' },
-  { name: 'Canvas', slug: 'CANVAS' },
-  { name: 'Clockify', slug: 'CLOCKIFY' },
-  { name: 'Coupa', slug: 'COUPA' },
-  { name: 'D2L Brightspace', slug: 'D2LBRIGHTSPACE' },
-  { name: 'Databricks', slug: 'DATABRICKS' },
-  { name: 'Datadog', slug: 'DATADOG' },
-  { name: 'DocuSign', slug: 'DOCUSIGN' },
-  { name: 'Dropbox Sign', slug: 'DROPBOX_SIGN' },
-  { name: 'Egnyte', slug: 'EGNYTE' },
-  { name: 'Epic Games', slug: 'EPIC_GAMES' },
-  { name: 'Fly', slug: 'FLY' },
-  { name: 'Follow Up Boss', slug: 'FOLLOW_UP_BOSS' },
-  { name: 'Gong', slug: 'GONG' },
-  { name: 'Google Admin', slug: 'GOOGLE_ADMIN' },
-  { name: 'Google Chat', slug: 'GOOGLE_CHAT' },
-  { name: 'Googlecontacts', slug: 'GOOGLECONTACTS' },
-  { name: 'Googleforms', slug: 'GOOGLEFORMS' },
-  { name: 'Granola MCP', slug: 'GRANOLA_MCP' },
-  { name: 'Gusto', slug: 'GUSTO' },
-  { name: 'Help Scout', slug: 'HELP_SCOUT' },
-  { name: 'Highlevel', slug: 'HIGHLEVEL' },
-  { name: 'Insighto.ai', slug: 'INSIGHTO_AI' },
-  { name: 'Klaviyo', slug: 'KLAVIYO' },
-  { name: 'Kommo', slug: 'KOMMO' },
-  { name: 'Lever', slug: 'LEVER' },
-  { name: 'Linkedin Ads', slug: 'LINKEDIN_ADS' },
-  { name: 'Lodgify', slug: 'LODGIFY' },
-  { name: 'Matterport', slug: 'MATTERPORT' },
-  { name: 'Meta Ads', slug: 'METAADS' },
-  { name: 'Monday MCP', slug: 'MONDAY_MCP' },
-  { name: 'Netsuite', slug: 'NETSUITE' },
-  { name: 'Parma', slug: 'PARMA' },
-  { name: 'Pinecone', slug: 'PINECONE' },
-  { name: 'Pipedrive', slug: 'PIPEDRIVE' },
-  { name: 'Ramp', slug: 'RAMP' },
-  { name: 'Razorpay', slug: 'RAZORPAY' },
-  { name: 'Recruitee', slug: 'RECRUITEE' },
-  { name: 'Salesforce Service Cloud', slug: 'SALESFORCE_SERVICE_CLOUD' },
-  { name: 'Scheduleonce', slug: 'SCHEDULEONCE' },
-  { name: 'Sendloop', slug: 'SENDLOOP' },
-  { name: 'ServiceNow', slug: 'SERVICENOW' },
-  { name: 'Shopify', slug: 'SHOPIFY' },
-  { name: 'Snapchat', slug: 'SNAPCHAT' },
-  { name: 'Snowflake', slug: 'SNOWFLAKE' },
-  { name: 'Spotify', slug: 'SPOTIFY' },
-  { name: 'Storyblok', slug: 'STORYBLOK' },
-  { name: 'SurveyMonkey', slug: 'SURVEY_MONKEY' },
-  { name: 'Tally', slug: 'TALLY' },
-  { name: 'Tavily MCP', slug: 'TAVILY_MCP' },
-  { name: 'Tiktok', slug: 'TIKTOK' },
-  { name: 'TinyFish MCP', slug: 'TINYFISH_MCP' },
-  { name: 'Twitter', slug: 'TWITTER' },
-  { name: 'Webflow', slug: 'WEBFLOW' },
-  { name: 'Xero', slug: 'XERO' },
-  { name: 'Zoominfo', slug: 'ZOOMINFO' },
 ];
+
+const SUPPORTED_COMPOSIO_CONNECTOR_IDS = new Set(['github']);
 
 const STATIC_COMPOSIO_CATALOG: ConnectorCatalogDefinition[] = buildStaticComposioCatalog();
 
@@ -433,10 +201,7 @@ interface ComposioAuthConfigResolution {
   fromCache: boolean;
 }
 
-export type ComposioAuthConfigPrepareResult =
-  | { status: 'ready'; authConfigId: string }
-  | { status: 'custom_required'; message: string }
-  | { status: 'error'; message: string };
+export type ComposioAuthConfigPrepareResult = { status: 'ready'; authConfigId: string } | { status: 'custom_required'; message: string } | { status: 'error'; message: string };
 
 export class ComposioConnectorProvider {
   private discoveredAuthConfigIds: Record<string, string> | undefined;
@@ -490,9 +255,8 @@ export class ComposioConnectorProvider {
   }
 
   getFastDefinitions(): ConnectorCatalogDefinition[] {
-    return this.persistedDefinitions && this.persistedDefinitions.length > 0
-      ? this.persistedDefinitions
-      : getStaticComposioCatalogDefinitions();
+    const staticDefinitions = getStaticComposioCatalogDefinitions();
+    return this.persistedDefinitions && this.persistedDefinitions.length > 0 ? mergePersistedComposioDefinitions(staticDefinitions, this.persistedDefinitions) : staticDefinitions;
   }
 
   getPersistedCatalogMetadata(): { fetchedAt?: string; stale: boolean } {
@@ -529,7 +293,10 @@ export class ComposioConnectorProvider {
     const promise = this.fetchDefinitions(signal, Boolean(options.hydrateTools))
       .then((definitions) => {
         if (this.definitionsGeneration === generation) {
-          this.definitionsCache.set(cacheKey, { definitions, expiresAtMs: Date.now() + DISCOVERY_CACHE_TTL_MS });
+          this.definitionsCache.set(cacheKey, {
+            definitions,
+            expiresAtMs: Date.now() + DISCOVERY_CACHE_TTL_MS,
+          });
         }
         this.setPersistedDefinitions(definitions, new Date().toISOString());
         return definitions;
@@ -552,10 +319,12 @@ export class ComposioConnectorProvider {
       const status = getString(item.status)?.toUpperCase();
       if (!authConfigId || !toolkitSlug || (status && status !== 'ENABLED')) continue;
       const connectorId = connectorIdForToolkitSlug(toolkitSlug);
+      if (!SUPPORTED_COMPOSIO_CONNECTOR_IDS.has(connectorId)) continue;
       discoveredAuthConfigIds[connectorId] = authConfigId;
       if (!configuredByConnectorId.has(connectorId)) configuredByConnectorId.set(connectorId, { authConfigId, toolkitSlug });
     }
     for (const [connectorId, local] of this.locallyCreatedAuthConfigs) {
+      if (!SUPPORTED_COMPOSIO_CONNECTOR_IDS.has(connectorId)) continue;
       discoveredAuthConfigIds[connectorId] = local.authConfigId;
       if (!configuredByConnectorId.has(connectorId)) configuredByConnectorId.set(connectorId, local);
     }
@@ -603,13 +372,13 @@ export class ComposioConnectorProvider {
       this.persistedFetchedAt = undefined;
       return;
     }
-    this.persistedDefinitions = parsed.definitions.map((definition) => cloneConnectorDefinition(definition));
+    this.persistedDefinitions = parsed.definitions.filter(isSupportedComposioDefinition).map((definition) => cloneConnectorDefinition(definition));
     this.persistedFetchedAt = parsed.fetchedAt;
     if (this.isPersistedCatalogStale() && this.getApiKey()) this.scheduleCatalogRefresh(0);
   }
 
   private setPersistedDefinitions(definitions: ConnectorCatalogDefinition[], fetchedAt: string): void {
-    this.persistedDefinitions = definitions.map((definition) => cloneConnectorDefinition(definition));
+    this.persistedDefinitions = definitions.filter(isSupportedComposioDefinition).map((definition) => cloneConnectorDefinition(definition));
     this.persistedFetchedAt = fetchedAt;
     try {
       writePersistedComposioCatalogCache(composioCatalogCacheFilePath, {
@@ -667,11 +436,14 @@ export class ComposioConnectorProvider {
     const providerConnectionId = getComposioConnectionId(response);
     const redirectUrl = getString(response.redirect_url) ?? getString(response.redirectUrl);
     const status = getString(response.status)?.toUpperCase();
-    this.pendingConnections.set(state, { connectorId: definition.id, state, ...(providerConnectionId ? { providerConnectionId } : {}), expiresAtMs });
+    this.pendingConnections.set(state, {
+      connectorId: definition.id,
+      state,
+      ...(providerConnectionId ? { providerConnectionId } : {}),
+      expiresAtMs,
+    });
 
-    const validatedConnection = status === 'ACTIVE' && providerConnectionId
-      ? await this.getValidatedConnectedAccount(definition, providerConnectionId, authConfig.authConfigId, signal)
-      : undefined;
+    const validatedConnection = status === 'ACTIVE' && providerConnectionId ? await this.getValidatedConnectedAccount(definition, providerConnectionId, authConfig.authConfigId, signal) : undefined;
     if (validatedConnection) this.pendingConnections.delete(state);
 
     return {
@@ -684,7 +456,11 @@ export class ComposioConnectorProvider {
   }
 
   async prepareAuthConfig(definition: ConnectorCatalogDefinition, signal?: AbortSignal): Promise<ComposioAuthConfigPrepareResult> {
-    if (definition.authentication !== 'composio') return { status: 'error', message: 'connector is not backed by Composio' };
+    if (definition.authentication !== 'composio')
+      return {
+        status: 'error',
+        message: 'connector is not backed by Composio',
+      };
     const unsupported = this.unsupportedManagedAuthConfigs.get(definition.id);
     if (unsupported) {
       const authConfigId = await this.getExistingAuthConfigIdForToolkit(definition, signal);
@@ -722,7 +498,9 @@ export class ComposioConnectorProvider {
     const pending = this.pendingConnections.get(input.state);
     this.pendingConnections.delete(input.state);
     if (!pending || pending.connectorId !== connectorId || pending.expiresAtMs < Date.now()) {
-      throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', 'Composio OAuth state is missing or expired', 400, { connectorId });
+      throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', 'Composio OAuth state is missing or expired', 400, {
+        connectorId,
+      });
     }
     if (input.status && input.status.toLowerCase() !== 'success') {
       throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', 'Composio OAuth did not complete successfully', 400, { connectorId });
@@ -772,7 +550,10 @@ export class ComposioConnectorProvider {
   async disconnect(credentials: ConnectorCredentialMaterial | undefined, signal?: AbortSignal): Promise<void> {
     const providerConnectionId = credentials ? getString(credentials.providerConnectionId) : undefined;
     if (!providerConnectionId || !this.getApiKey()) return;
-    const response = await this.request(`/api/v3/connected_accounts/${encodeURIComponent(providerConnectionId)}`, { method: 'DELETE', ...(signal === undefined ? {} : { signal }) });
+    const response = await this.request(`/api/v3/connected_accounts/${encodeURIComponent(providerConnectionId)}`, {
+      method: 'DELETE',
+      ...(signal === undefined ? {} : { signal }),
+    });
     if (!response.ok && response.status !== 404) {
       throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', `Composio disconnect failed with HTTP ${response.status}`, 502, { httpStatus: response.status });
     }
@@ -781,7 +562,9 @@ export class ComposioConnectorProvider {
   async execute(definition: ConnectorCatalogDefinition, tool: ConnectorCatalogToolDefinition, input: BoundedJsonObject, credentials: ConnectorCredentialMaterial | undefined, signal?: AbortSignal): Promise<BoundedJsonObject> {
     const providerConnectionId = credentials ? getString(credentials.providerConnectionId) : undefined;
     if (!providerConnectionId) {
-      throw new ConnectorServiceError('CONNECTOR_NOT_CONNECTED', 'Composio connector is not connected', 403, { connectorId: definition.id });
+      throw new ConnectorServiceError('CONNECTOR_NOT_CONNECTED', 'Composio connector is not connected', 403, {
+        connectorId: definition.id,
+      });
     }
     const providerToolId = tool.providerToolId ?? tool.name;
     const response = await this.requestJson<ComposioToolExecuteResponse>(`/api/v3.1/tools/execute/${encodeURIComponent(providerToolId)}`, {
@@ -805,8 +588,16 @@ export class ComposioConnectorProvider {
       toolName: tool.name,
       providerToolId,
       data: output,
-      ...(getString(response.log_id) ?? getString(response.logId) ? { providerExecutionId: (getString(response.log_id) ?? getString(response.logId))! } : {}),
-      ...(toBoundedJsonValue(response.session_info ?? response.sessionInfo) !== null ? { sessionInfo: toBoundedJsonValue(response.session_info ?? response.sessionInfo) } : {}),
+      ...((getString(response.log_id) ?? getString(response.logId))
+        ? {
+            providerExecutionId: (getString(response.log_id) ?? getString(response.logId))!,
+          }
+        : {}),
+      ...(toBoundedJsonValue(response.session_info ?? response.sessionInfo) !== null
+        ? {
+            sessionInfo: toBoundedJsonValue(response.session_info ?? response.sessionInfo),
+          }
+        : {}),
     };
   }
 
@@ -841,10 +632,9 @@ export class ComposioConnectorProvider {
       return { authConfigId, fromCache: false };
     }
 
-    const promise = this.createAndStoreManagedAuthConfigId(definition, signal)
-      .finally(() => {
-        if (this.authConfigCreationPromises.get(definition.id) === promise) this.authConfigCreationPromises.delete(definition.id);
-      });
+    const promise = this.createAndStoreManagedAuthConfigId(definition, signal).finally(() => {
+      if (this.authConfigCreationPromises.get(definition.id) === promise) this.authConfigCreationPromises.delete(definition.id);
+    });
     this.authConfigCreationPromises.set(definition.id, promise);
     const authConfigId = await promise;
     return { authConfigId, fromCache: false };
@@ -953,7 +743,11 @@ export class ComposioConnectorProvider {
       ...(this.discoveredAuthConfigIds ?? {}),
       [definition.id]: authConfigId,
     };
-    if (toolkitSlug) this.locallyCreatedAuthConfigs.set(definition.id, { authConfigId, toolkitSlug });
+    if (toolkitSlug)
+      this.locallyCreatedAuthConfigs.set(definition.id, {
+        authConfigId,
+        toolkitSlug,
+      });
     setComposioAuthConfigId(definition.id, authConfigId);
   }
 
@@ -966,19 +760,27 @@ export class ComposioConnectorProvider {
       const toolkitSlug = getComposioToolkitSlug(item);
       const status = getString(item.status)?.toUpperCase();
       if (!authConfigId || !toolkitSlug || (status && status !== 'ENABLED')) continue;
-      discovered[connectorIdForToolkitSlug(toolkitSlug)] = authConfigId;
+      const connectorId = connectorIdForToolkitSlug(toolkitSlug);
+      if (!SUPPORTED_COMPOSIO_CONNECTOR_IDS.has(connectorId)) continue;
+      discovered[connectorId] = authConfigId;
     }
-    for (const [connectorId, local] of this.locallyCreatedAuthConfigs) discovered[connectorId] = local.authConfigId;
+    for (const [connectorId, local] of this.locallyCreatedAuthConfigs) {
+      if (SUPPORTED_COMPOSIO_CONNECTOR_IDS.has(connectorId)) discovered[connectorId] = local.authConfigId;
+    }
     return discovered;
   }
 
   private async listAuthConfigs(signal?: AbortSignal, toolkitSlug?: string): Promise<ComposioAuthConfigResponse[]> {
-    const path = toolkitSlug
-      ? `/api/v3/auth_configs?${new URLSearchParams({ toolkit_slug: toolkitSlug }).toString()}`
-      : '/api/v3/auth_configs';
-    const response = await this.request(path, { method: 'GET', ...(signal === undefined ? {} : { signal }) });
+    const path = toolkitSlug ? `/api/v3/auth_configs?${new URLSearchParams({ toolkit_slug: toolkitSlug }).toString()}` : '/api/v3/auth_configs';
+    const response = await this.request(path, {
+      method: 'GET',
+      ...(signal === undefined ? {} : { signal }),
+    });
     if (!response.ok) return [];
-    const payload = await response.json() as { items?: unknown; data?: unknown };
+    const payload = (await response.json()) as {
+      items?: unknown;
+      data?: unknown;
+    };
     const items = Array.isArray(payload.items) ? payload.items : Array.isArray(payload.data) ? payload.data : [];
     return items.filter((item): item is ComposioAuthConfigResponse => Boolean(item && typeof item === 'object' && !Array.isArray(item)));
   }
@@ -992,9 +794,15 @@ export class ComposioConnectorProvider {
   }
 
   private async listToolkits(signal?: AbortSignal): Promise<ComposioToolkitResponse[]> {
-    const response = await this.request('/api/v3.1/toolkits?limit=1000', { method: 'GET', ...(signal === undefined ? {} : { signal }) });
+    const response = await this.request('/api/v3.1/toolkits?limit=1000', {
+      method: 'GET',
+      ...(signal === undefined ? {} : { signal }),
+    });
     if (!response.ok) return [];
-    const payload = await response.json() as { items?: unknown; data?: unknown };
+    const payload = (await response.json()) as {
+      items?: unknown;
+      data?: unknown;
+    };
     const items = Array.isArray(payload.items) ? payload.items : Array.isArray(payload.data) ? payload.data : [];
     return items.filter((item): item is ComposioToolkitResponse => Boolean(item && typeof item === 'object' && !Array.isArray(item)));
   }
@@ -1008,14 +816,27 @@ export class ComposioConnectorProvider {
   }
 
   private async listToolsPage(toolkitSlug: string, options: { limit?: number; cursor?: string; signal?: AbortSignal } = {}): Promise<ComposioToolsPage> {
-    const searchParams = new URLSearchParams({ toolkit_slug: toolkitSlug.toLowerCase(), limit: String(options.limit ?? 1000) });
+    const searchParams = new URLSearchParams({
+      toolkit_slug: toolkitSlug.toLowerCase(),
+      limit: String(options.limit ?? 1000),
+    });
     if (options.cursor) searchParams.set('cursor', options.cursor);
-    const response = await this.request(`/api/v3.1/tools?${searchParams.toString()}`, { method: 'GET', ...(options.signal === undefined ? {} : { signal: options.signal }) });
+    const response = await this.request(`/api/v3.1/tools?${searchParams.toString()}`, {
+      method: 'GET',
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    });
     if (!response.ok) {
       const message = await getComposioErrorMessage(response);
       throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', message ?? `Composio tools request failed with HTTP ${response.status}`, response.status === 401 ? 401 : 502, { httpStatus: response.status });
     }
-    const payload = await response.json() as { items?: unknown; data?: unknown; next_cursor?: unknown; nextCursor?: unknown; total_items?: unknown; totalItems?: unknown };
+    const payload = (await response.json()) as {
+      items?: unknown;
+      data?: unknown;
+      next_cursor?: unknown;
+      nextCursor?: unknown;
+      total_items?: unknown;
+      totalItems?: unknown;
+    };
     const items = Array.isArray(payload.items) ? payload.items : Array.isArray(payload.data) ? payload.data : [];
     const nextCursor = getString(payload.next_cursor) ?? getString(payload.nextCursor);
     const totalItems = getNonNegativeInteger(payload.total_items) ?? getNonNegativeInteger(payload.totalItems);
@@ -1027,7 +848,12 @@ export class ComposioConnectorProvider {
   }
 
   private async listTools(toolkitSlug: string, signal?: AbortSignal): Promise<ComposioToolResponse[]> {
-    return (await this.listToolsPage(toolkitSlug, { limit: 1000, ...(signal === undefined ? {} : { signal }) })).items;
+    return (
+      await this.listToolsPage(toolkitSlug, {
+        limit: 1000,
+        ...(signal === undefined ? {} : { signal }),
+      })
+    ).items;
   }
 
   private async listToolsSafe(toolkitSlug: string, signal?: AbortSignal): Promise<ComposioToolResponse[]> {
@@ -1047,30 +873,26 @@ export class ComposioConnectorProvider {
     toolPageOptions: { toolsLimit?: number; toolsCursor?: string } = {},
   ): Promise<ConnectorCatalogDefinition> {
     const connectorId = staticDefinition.id;
-    const toolPage = hydrateTools && toolPageOptions.toolsLimit !== undefined
-      ? await this.listToolsPage(toolkitSlug, {
-        limit: toolPageOptions.toolsLimit,
-        ...(toolPageOptions.toolsCursor === undefined ? {} : { cursor: toolPageOptions.toolsCursor }),
-        ...(signal === undefined ? {} : { signal }),
-      })
-      : undefined;
+    const toolPage =
+      hydrateTools && toolPageOptions.toolsLimit !== undefined
+        ? await this.listToolsPage(toolkitSlug, {
+            limit: toolPageOptions.toolsLimit,
+            ...(toolPageOptions.toolsCursor === undefined ? {} : { cursor: toolPageOptions.toolsCursor }),
+            ...(signal === undefined ? {} : { signal }),
+          })
+        : undefined;
     const liveTools = hydrateTools
-      ? (toolPage?.items ?? await this.listToolsSafe(toolkitSlug, signal))
-        .filter((tool) => {
-          const toolToolkitSlug = getString(tool.toolkit?.slug);
-          return !toolToolkitSlug || normalizeComposioSlug(toolToolkitSlug) === normalizeComposioSlug(toolkitSlug);
-        })
-        .map((tool) => this.toolDefinitionFromComposioTool(connectorId, tool))
+      ? (toolPage?.items ?? (await this.listToolsSafe(toolkitSlug, signal)))
+          .filter((tool) => {
+            const toolToolkitSlug = getString(tool.toolkit?.slug);
+            return !toolToolkitSlug || normalizeComposioSlug(toolToolkitSlug) === normalizeComposioSlug(toolkitSlug);
+          })
+          .map((tool) => this.toolDefinitionFromComposioTool(connectorId, tool))
       : [];
     const liveToolsByName = new Map(liveTools.map((tool) => [tool.name, tool]));
     const staticToolNames = new Set(staticDefinition.tools.map((tool) => tool.name));
-    const tools = [
-      ...staticDefinition.tools.map((tool) => mergeToolDefinition(tool, liveToolsByName.get(tool.name))),
-      ...liveTools.filter((tool) => !staticToolNames.has(tool.name)),
-    ];
-    const autoAllowedLiveToolNames = liveTools
-      .filter((tool) => tool.refreshEligible)
-      .map((tool) => tool.name);
+    const tools = [...staticDefinition.tools.map((tool) => mergeToolDefinition(tool, liveToolsByName.get(tool.name))), ...liveTools.filter((tool) => !staticToolNames.has(tool.name))];
+    const autoAllowedLiveToolNames = liveTools.filter((tool) => tool.refreshEligible).map((tool) => tool.name);
     const allowedToolNames = [...new Set([...staticDefinition.allowedToolNames, ...autoAllowedLiveToolNames])];
     // `curatedToolNames` mirrors the static catalog ONLY — it
     // intentionally never picks up `autoAllowedLiveToolNames`. It
@@ -1099,9 +921,7 @@ export class ComposioConnectorProvider {
       ...(toolPage === undefined ? {} : { toolsHasMore: toolPage.nextCursor !== undefined }),
       allowedToolNames,
       curatedToolNames,
-      ...(staticDefinition.featuredToolNames === undefined
-        ? tools.length > 0 ? { featuredToolNames: tools.slice(0, 3).map((tool) => tool.name) } : {}
-        : { featuredToolNames: staticDefinition.featuredToolNames }),
+      ...(staticDefinition.featuredToolNames === undefined ? (tools.length > 0 ? { featuredToolNames: tools.slice(0, 3).map((tool) => tool.name) } : {}) : { featuredToolNames: staticDefinition.featuredToolNames }),
     };
   }
 
@@ -1109,23 +929,26 @@ export class ComposioConnectorProvider {
     const providerToolId = getString(tool.slug) ?? getString(tool.name) ?? `${connectorId.toUpperCase()}_TOOL`;
     const description = getString(tool.description) ?? getString(tool.human_description) ?? getString(tool.humanDescription) ?? '';
     const requiredScopes = getStringArray(tool.scopes ?? tool.oauth_scopes ?? tool.oauthScopes ?? tool.auth_scopes ?? tool.authScopes ?? tool.tags);
-    return applyComposioToolCuration(defineConnectorTool({
-      name: `${connectorId}.${normalizeToolName(providerToolId)}`,
+    return applyComposioToolCuration(
+      defineConnectorTool({
+        name: `${connectorId}.${normalizeToolName(providerToolId)}`,
+        providerToolId,
+        title: getString(tool.name) ?? titleFromSlug(providerToolId),
+        ...(description ? { description } : {}),
+        inputSchemaJson: toBoundedJsonObject(tool.input_parameters ?? tool.inputParameters) ?? {
+          type: 'object',
+          additionalProperties: true,
+        },
+        outputSchemaJson: { type: 'object', additionalProperties: true },
+        requiredScopes,
+      }),
+      connectorId,
       providerToolId,
-      title: getString(tool.name) ?? titleFromSlug(providerToolId),
-      ...(description ? { description } : {}),
-      inputSchemaJson: toBoundedJsonObject(tool.input_parameters ?? tool.inputParameters) ?? { type: 'object', additionalProperties: true },
-      outputSchemaJson: { type: 'object', additionalProperties: true },
-      requiredScopes,
-    }), connectorId, providerToolId);
+    );
   }
 
   private connectionToCredentials(_definition: ConnectorCatalogDefinition, providerConnectionId: string, response: ComposioConnectedAccountResponse): ComposioConnectionCompletion {
-    const accountLabel = getString(response.account_label)
-      ?? getString(response.accountLabel)
-      ?? getString(response.email)
-      ?? getString(response.name)
-      ?? providerConnectionId;
+    const accountLabel = getString(response.account_label) ?? getString(response.accountLabel) ?? getString(response.email) ?? getString(response.name) ?? providerConnectionId;
     const accountId = getString(response.account_id) ?? getString(response.accountId);
     return {
       connectorId: _definition.id,
@@ -1144,7 +967,7 @@ export class ComposioConnectorProvider {
       const message = await getComposioErrorMessage(response);
       throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', message ?? `Composio request failed with HTTP ${response.status}`, response.status === 401 ? 401 : 502, { httpStatus: response.status });
     }
-    const value = await response.json() as unknown;
+    const value = (await response.json()) as unknown;
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', 'Composio returned an invalid response', 502);
     }
@@ -1154,7 +977,9 @@ export class ComposioConnectorProvider {
   private async request(path: string, input: { method: string; body?: string; signal?: AbortSignal }): Promise<Response> {
     const apiKey = this.getApiKey();
     if (!apiKey) {
-      throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', 'Composio provider is not configured', 503, { setting: 'apiKey' });
+      throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', 'Composio provider is not configured', 503, {
+        setting: 'apiKey',
+      });
     }
     const timeout = AbortSignal.timeout(DEFAULT_COMPOSIO_TIMEOUT_MS);
     const signal = input.signal ? AbortSignal.any([input.signal, timeout]) : timeout;
@@ -1245,6 +1070,21 @@ export function getStaticComposioCatalogDefinitions(): ConnectorCatalogDefinitio
   }));
 }
 
+function isSupportedComposioDefinition(definition: ConnectorCatalogDefinition): boolean {
+  if (SUPPORTED_COMPOSIO_CONNECTOR_IDS.has(definition.id)) return true;
+  const providerConnectorId = definition.providerConnectorId;
+  return providerConnectorId !== undefined && SUPPORTED_COMPOSIO_CONNECTOR_IDS.has(connectorIdForToolkitSlug(providerConnectorId));
+}
+
+function mergePersistedComposioDefinitions(staticDefinitions: ConnectorCatalogDefinition[], persistedDefinitions: ConnectorCatalogDefinition[]): ConnectorCatalogDefinition[] {
+  const byId = new Map(staticDefinitions.map((definition) => [definition.id, cloneConnectorDefinition(definition)]));
+  for (const definition of persistedDefinitions) {
+    if (!isSupportedComposioDefinition(definition) || !byId.has(definition.id)) continue;
+    byId.set(definition.id, cloneConnectorDefinition(definition));
+  }
+  return [...byId.values()];
+}
+
 function cloneConnectorDefinition(definition: ConnectorCatalogDefinition): ConnectorCatalogDefinition {
   return {
     ...definition,
@@ -1256,7 +1096,14 @@ function cloneConnectorDefinition(definition: ConnectorCatalogDefinition): Conne
       ...(tool.outputSchemaJson === undefined ? {} : { outputSchemaJson: toBoundedJsonObject(tool.outputSchemaJson)! }),
       safety: { ...tool.safety },
       refreshEligible: tool.refreshEligible,
-      ...(tool.curation === undefined ? {} : { curation: { ...(tool.curation.useCases === undefined ? {} : { useCases: [...tool.curation.useCases] }), ...(tool.curation.reason === undefined ? {} : { reason: tool.curation.reason }) } }),
+      ...(tool.curation === undefined
+        ? {}
+        : {
+            curation: {
+              ...(tool.curation.useCases === undefined ? {} : { useCases: [...tool.curation.useCases] }),
+              ...(tool.curation.reason === undefined ? {} : { reason: tool.curation.reason }),
+            },
+          }),
       requiredScopes: [...tool.requiredScopes],
       ...(tool.providerToolId === undefined ? {} : { providerToolId: tool.providerToolId }),
     })),
@@ -1270,9 +1117,7 @@ function normalizePersistedConnectorDefinition(value: unknown): ConnectorCatalog
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const record = value as Record<string, unknown>;
   if (typeof record.id !== 'string' || typeof record.name !== 'string' || typeof record.provider !== 'string' || typeof record.category !== 'string') return undefined;
-  const tools = Array.isArray(record.tools)
-    ? record.tools.map(normalizePersistedConnectorToolDefinition).filter((tool): tool is ConnectorCatalogToolDefinition => tool !== undefined)
-    : [];
+  const tools = Array.isArray(record.tools) ? record.tools.map(normalizePersistedConnectorToolDefinition).filter((tool): tool is ConnectorCatalogToolDefinition => tool !== undefined) : [];
   const definition: ConnectorCatalogDefinition = {
     id: record.id,
     name: record.name,
@@ -1318,13 +1163,19 @@ function normalizePersistedConnectorToolDefinition(value: unknown): ConnectorCat
     refreshEligible: Boolean(record.refreshEligible),
     ...(record.curation && typeof record.curation === 'object' && !Array.isArray(record.curation)
       ? {
-        curation: {
-          ...(((record.curation as Record<string, unknown>).useCases && Array.isArray((record.curation as Record<string, unknown>).useCases))
-            ? { useCases: ((record.curation as Record<string, unknown>).useCases as unknown[]).filter((item): item is 'personal_daily_digest' => item === 'personal_daily_digest') }
-            : {}),
-          ...(typeof (record.curation as Record<string, unknown>).reason === 'string' ? { reason: (record.curation as Record<string, unknown>).reason as string } : {}),
-        },
-      }
+          curation: {
+            ...((record.curation as Record<string, unknown>).useCases && Array.isArray((record.curation as Record<string, unknown>).useCases)
+              ? {
+                  useCases: ((record.curation as Record<string, unknown>).useCases as unknown[]).filter((item): item is 'personal_daily_digest' => item === 'personal_daily_digest'),
+                }
+              : {}),
+            ...(typeof (record.curation as Record<string, unknown>).reason === 'string'
+              ? {
+                  reason: (record.curation as Record<string, unknown>).reason as string,
+                }
+              : {}),
+          },
+        }
       : {}),
     requiredScopes: Array.isArray(record.requiredScopes) ? record.requiredScopes.filter((item): item is string => typeof item === 'string') : [],
     ...(typeof record.providerToolId === 'string' ? { providerToolId: record.providerToolId } : {}),
@@ -1352,7 +1203,10 @@ function readPersistedComposioCatalogCache(filePath: string): PersistedComposioC
 function writePersistedComposioCatalogCache(filePath: string, cache: PersistedComposioCatalogCache): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
   const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tempPath, `${JSON.stringify(cache, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  fs.writeFileSync(tempPath, `${JSON.stringify(cache, null, 2)}\n`, {
+    encoding: 'utf8',
+    mode: 0o600,
+  });
   fs.renameSync(tempPath, filePath);
   fs.chmodSync(filePath, 0o600);
 }
@@ -1374,13 +1228,15 @@ async function mapWithConcurrency<T, U>(items: readonly T[], concurrency: number
   const results = new Array<U>(items.length);
   let nextIndex = 0;
   const workerCount = Math.min(Math.max(1, concurrency), items.length);
-  await Promise.all(Array.from({ length: workerCount }, async () => {
-    while (nextIndex < items.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      results[index] = await mapper(items[index]!, index);
-    }
-  }));
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        results[index] = await mapper(items[index]!, index);
+      }
+    }),
+  );
   return results;
 }
 
@@ -1395,8 +1251,7 @@ function getComposioToolkitToolCount(toolkit: ComposioToolkitResponse | undefine
 }
 
 function isGenericComposioDescription(description: string): boolean {
-  return /^connect to .+ through composio\.?$/i.test(description.trim())
-    || /^.+ integration via composio\.?$/i.test(description.trim());
+  return /^connect to .+ through composio\.?$/i.test(description.trim()) || /^.+ integration via composio\.?$/i.test(description.trim());
 }
 
 function fallbackComposioDescription(name: string, category: string | undefined): string {
@@ -1434,7 +1289,6 @@ function appendOAuthStateToCallbackUrl(callbackUrl: string, state: string): stri
 
 function connectorIdForToolkitSlug(toolkitSlug: string): string {
   const normalized = normalizeComposioSlug(toolkitSlug);
-  if (normalized === 'googledrive' || normalized === 'gdrive' || normalized === 'drive') return 'google_drive';
   return normalized;
 }
 
@@ -1443,28 +1297,25 @@ function normalizeComposioSlug(value: string): string {
 }
 
 function normalizeToolName(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'tool';
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'tool'
+  );
 }
 
 function normalizeProviderToolId(value: string): string {
   return normalizeToolName(value);
 }
 
-function applyComposioToolCuration(
-  tool: ConnectorCatalogToolDefinition,
-  connectorId: string,
-  providerToolId: string | undefined,
-): ConnectorCatalogToolDefinition {
+function applyComposioToolCuration(tool: ConnectorCatalogToolDefinition, connectorId: string, providerToolId: string | undefined): ConnectorCatalogToolDefinition {
   const connectorKey = normalizeComposioSlug(connectorId);
   const overlay = COMPOSIO_CURATION_OVERLAY[connectorKey];
   const toolKey = providerToolId ? normalizeProviderToolId(providerToolId) : undefined;
   const curation = toolKey ? overlay?.[toolKey] : undefined;
-  const safetyOverride = toolKey
-    ? COMPOSIO_READ_ONLY_TOOL_SAFETY_OVERRIDES.has(`${connectorKey}:${toolKey}`)
-    : false;
-  const curated = curation === undefined
-    ? tool
-    : { ...tool, curation: { ...(tool.curation ?? {}), ...curation } };
+  const safetyOverride = toolKey ? COMPOSIO_READ_ONLY_TOOL_SAFETY_OVERRIDES.has(`${connectorKey}:${toolKey}`) : false;
+  const curated = curation === undefined ? tool : { ...tool, curation: { ...(tool.curation ?? {}), ...curation } };
   return safetyOverride
     ? {
         ...curated,
@@ -1507,17 +1358,11 @@ function getCustomAuthRequiredMessage(error: unknown, definition: ConnectorCatal
 
 async function getComposioErrorMessage(response: Response): Promise<string | undefined> {
   try {
-    const payload = await response.json() as unknown;
+    const payload = (await response.json()) as unknown;
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return undefined;
     const record = payload as Record<string, unknown>;
-    const error = record.error && typeof record.error === 'object' && !Array.isArray(record.error)
-      ? record.error as Record<string, unknown>
-      : undefined;
-    return getString(record.message)
-      ?? getString(error?.message)
-      ?? getString(record.error)
-      ?? getString(record.detail)
-      ?? getString(error?.suggested_fix);
+    const error = record.error && typeof record.error === 'object' && !Array.isArray(record.error) ? (record.error as Record<string, unknown>) : undefined;
+    return getString(record.message) ?? getString(error?.message) ?? getString(record.error) ?? getString(record.detail) ?? getString(error?.suggested_fix);
   } catch {
     return undefined;
   }

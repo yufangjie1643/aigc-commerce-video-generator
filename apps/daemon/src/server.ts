@@ -64,15 +64,9 @@ import {
   readVelaLoginStatus,
   spawnVelaLogin,
 } from './integrations/vela.js';
-import {
-  amrAccountFailureDetails,
-  classifyAmrAccountFailure,
-} from './integrations/vela-errors.js';
+import { amrAccountFailureDetails, classifyAmrAccountFailure } from './integrations/vela-errors.js';
 import { amrModelLoadingCache } from './runtimes/amr-model-cache.js';
-import {
-  fetchVelaPresetModels,
-  fetchVelaRemoteModelsWithRetry,
-} from './runtimes/defs/amr.js';
+import { fetchVelaPresetModels, fetchVelaRemoteModelsWithRetry } from './runtimes/defs/amr.js';
 import { migrateLegacyDataDirSync } from './legacy-data-migrator.js';
 import {
   consumedImportNonces,
@@ -93,12 +87,7 @@ export {
   signDesktopImportToken,
   verifyDesktopImportToken,
 } from './desktop-auth.js';
-import {
-  findSkillById,
-  listSkills,
-  resolveSkillId,
-  splitDerivedSkillId,
-} from './skills.js';
+import { findSkillById, listSkills, resolveSkillId, splitDerivedSkillId } from './skills.js';
 import { validateLinkedDirs } from './linked-dirs.js';
 import { installFromTarget, uninstallById, sanitizeRepoName } from './library-install.js';
 import { buildWindowsFolderDialogCommand, parseFolderDialogStdout } from './native-folder-dialog.js';
@@ -161,10 +150,7 @@ import {
   startSnapshotGc,
   uninstallPlugin,
 } from './plugins/index.js';
-import {
-  marketplaceManifestUrlForRegistry,
-  marketplaceRegistryIdFromUrl,
-} from './plugins/marketplaces.js';
+import { marketplaceManifestUrlForRegistry, marketplaceRegistryIdFromUrl } from './plugins/marketplaces.js';
 import {
   getSurface,
   listSurfacesForProject,
@@ -202,12 +188,7 @@ import { handleCritiqueArtifact } from './critique/artifact-handler.js';
 import { getCritiqueMetrics, register } from './metrics/index.js';
 import { readConformanceHistory } from './critique/conformance-history.js';
 import { evaluateRollout } from './critique/ratchet.js';
-import {
-  isCritiqueEnabled,
-  parseEnvEnabled,
-  parseRolloutPhase,
-  type SkillCritiquePolicy,
-} from './critique/rollout.js';
+import { isCritiqueEnabled, parseEnvEnabled, parseRolloutPhase, type SkillCritiquePolicy } from './critique/rollout.js';
 import { narrowProjectCritiqueOverride } from './critique/spawn-inputs.js';
 import { createCopilotStreamHandler } from './copilot-stream.js';
 import { createJsonEventStreamHandler } from './json-event-stream.js';
@@ -239,21 +220,10 @@ import {
   didRunCreateDesignSystemFile,
   runAskedUserQuestion,
 } from './run-artifacts.js';
-import {
-  reportRunCompletedFromDaemon,
-  reportRunFeedbackFromDaemon,
-} from './langfuse-bridge.js';
-import {
-  deriveLangfuseDeliveryState,
-  readTelemetrySinkConfig,
-} from './langfuse-trace.js';
+import { reportRunCompletedFromDaemon, reportRunFeedbackFromDaemon } from './langfuse-bridge.js';
+import { deriveLangfuseDeliveryState, readTelemetrySinkConfig } from './langfuse-trace.js';
 import { buildPromptStackTelemetry } from './prompt-telemetry.js';
-import {
-  createAnalyticsService,
-  newInsertId,
-  readAnalyticsContext,
-  readPublicConfigResponse,
-} from './analytics.js';
+import { createAnalyticsService, newInsertId, readAnalyticsContext, readPublicConfigResponse } from './analytics.js';
 import { observePendingInstallerApplyAttempts } from './update-apply-observations.js';
 import {
   agentIdToTracking,
@@ -299,7 +269,7 @@ import {
   VIDEO_LENGTHS_SEC,
   VIDEO_MODELS,
 } from './media-models.js';
-import { readMaskedConfig, writeConfig } from './media-config.js';
+import { readMaskedConfig, resolveProviderConfig, writeConfig } from './media-config.js';
 import {
   deleteMediaTask,
   getMediaTask,
@@ -323,19 +293,8 @@ import {
   resolveExternalMcpServersForRun,
   validateRunToolBundleForAgent,
 } from './run-tool-bundle.js';
-import {
-  beginAuth,
-  exchangeCodeForToken,
-  PendingAuthCache,
-  refreshAccessToken,
-} from './mcp-oauth.js';
-import {
-  clearToken,
-  getToken,
-  isTokenExpired,
-  readAllTokens,
-  setToken,
-} from './mcp-tokens.js';
+import { beginAuth, exchangeCodeForToken, PendingAuthCache, refreshAccessToken } from './mcp-oauth.js';
+import { clearToken, getToken, isTokenExpired, readAllTokens, setToken } from './mcp-tokens.js';
 import { agentCliEnvForAgent, readAppConfig, readPluginEnvKnobs, writeAppConfig } from './app-config.js';
 import { OrbitService, formatLocalProjectTimestamp, renderOrbitTemplateSystemPrompt } from './orbit.js';
 import { buildOrbitNoLiveArtifactSummary } from './orbit-agent-summary.js';
@@ -455,12 +414,18 @@ import { registerConnectorRoutes } from './connectors/routes.js';
 import { registerActiveContextRoutes } from './routes/active-context.js';
 import { registerHostToolsRoutes } from './routes/host-tools.js';
 import { registerMcpRoutes } from './mcp-routes.js';
+import { registerWeChatAgentRoutes } from './routes/wechat-agent.js';
 import { registerXaiRoutes } from './routes/xai.js';
 import { registerLiveArtifactRoutes } from './routes/live-artifact.js';
 import { registerDesignSystemToolRoutes } from './routes/design-system-tool.js';
 import { registerDeployRoutes, registerDeploymentCheckRoutes } from './routes/deploy.js';
 import { registerMediaRoutes } from './media-routes.js';
-import { registerProjectRoutes, registerProjectArtifactRoutes, registerProjectFileRoutes, registerProjectUploadRoutes } from './project-routes.js';
+import {
+  registerProjectRoutes,
+  registerProjectArtifactRoutes,
+  registerProjectFileRoutes,
+  registerProjectUploadRoutes,
+} from './project-routes.js';
 import { registerFinalizeRoutes, registerImportRoutes, registerProjectExportRoutes } from './import-export-routes.js';
 import { registerHandoffRoutes } from './routes/handoff.js';
 import { EmptyTranscriptError, synthesizeHandoffPrompt } from './handoff-design.js';
@@ -475,7 +440,12 @@ import { registerRoutineRoutes, routineDbRowToContract } from './routes/routine.
 import { installRouteRegistrationGuard } from './route-registration-guard.js';
 import { submitToolResultToRunState } from './run-tool-results.js';
 import { assertServerContextSatisfiesRoutes } from './route-context-contract.js';
-import { configureConnectorCredentialStore, connectorService, ConnectorServiceError, FileConnectorCredentialStore } from './connectors/service.js';
+import {
+  configureConnectorCredentialStore,
+  connectorService,
+  ConnectorServiceError,
+  FileConnectorCredentialStore,
+} from './connectors/service.js';
 import { composioConnectorProvider } from './connectors/composio.js';
 import { configureComposioConfigStore } from './connectors/composio-config.js';
 import { CHAT_TOOL_ENDPOINTS, CHAT_TOOL_OPERATIONS, toolTokenRegistry } from './tool-tokens.js';
@@ -518,9 +488,7 @@ const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 const DAEMON_CLI_PATH_ENV = 'OD_DAEMON_CLI_PATH';
 function cleanOptionalPath(value: string | undefined): string | null {
-  return typeof value === 'string' && value.trim().length > 0
-    ? path.resolve(value)
-    : null;
+  return typeof value === 'string' && value.trim().length > 0 ? path.resolve(value) : null;
 }
 
 export function resolveDaemonCliPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -540,17 +508,10 @@ export function composeLiveInstructionPrompt({
   clientSystemPrompt,
   finalPromptOverride,
 }) {
-  const override =
-    typeof finalPromptOverride === 'string'
-      ? finalPromptOverride.trim()
-      : '';
+  const override = typeof finalPromptOverride === 'string' ? finalPromptOverride.trim() : '';
   const parts = [daemonSystemPrompt, runtimeToolPrompt, clientSystemPrompt]
     .map((part) => (typeof part === 'string' ? part.trim() : ''))
-    .map((part) =>
-      override && part.includes(override)
-        ? part.split(override).join('').trim()
-        : part,
-    )
+    .map((part) => (override && part.includes(override) ? part.split(override).join('').trim() : part))
     .filter(Boolean);
   if (override) {
     parts.push(override);
@@ -570,14 +531,10 @@ function renderPluginBriefTemplate(template, inputs = {}) {
 
 export function resolveResearchCommandContract(research, message) {
   if (!research || !research.enabled) return '';
-  const researchQuery =
-    typeof research.query === 'string' && research.query.trim()
-      ? research.query
-      : message;
+  const researchQuery = typeof research.query === 'string' && research.query.trim() ? research.query : message;
   return renderResearchCommandContract({
     query: researchQuery,
-    maxSources:
-      typeof research.maxSources === 'number' ? research.maxSources : undefined,
+    maxSources: typeof research.maxSources === 'number' ? research.maxSources : undefined,
   });
 }
 
@@ -594,9 +551,7 @@ export function resolveCodexGeneratedImagesDir(
     typeof env?.CODEX_HOME === 'string' && env.CODEX_HOME.trim().length > 0
       ? env.CODEX_HOME.trim()
       : path.join(homeDir, '.codex');
-  const codexHome = rawCodexHome.startsWith('~/')
-    ? path.join(homeDir, rawCodexHome.slice(2))
-    : rawCodexHome;
+  const codexHome = rawCodexHome.startsWith('~/') ? path.join(homeDir, rawCodexHome.slice(2)) : rawCodexHome;
   return path.resolve(codexHome, 'generated_images');
 }
 
@@ -615,12 +570,7 @@ type CodexGeneratedImagesDirValidationOptions = {
 };
 
 function isMissingPathError(err: unknown): boolean {
-  return (
-    err &&
-    typeof err === 'object' &&
-    'code' in err &&
-    err.code === 'ENOENT'
-  );
+  return err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT';
 }
 
 function collectProtectedDirRoots(
@@ -652,10 +602,7 @@ function collectProtectedDirRoots(
   return Array.from(new Set(roots));
 }
 
-function findContainingProtectedRoot(
-  candidate: string,
-  protectedRoots: string[],
-): string | null {
+function findContainingProtectedRoot(candidate: string, protectedRoots: string[]): string | null {
   return protectedRoots.find((root) => isPathWithin(root, candidate)) ?? null;
 }
 
@@ -670,10 +617,7 @@ export function validateCodexGeneratedImagesDir(
     warn = console.warn,
   }: CodexGeneratedImagesDirValidationOptions = {},
 ): string | null {
-  if (
-    typeof codexGeneratedImagesDir !== 'string' ||
-    codexGeneratedImagesDir.trim().length === 0
-  ) {
+  if (typeof codexGeneratedImagesDir !== 'string' || codexGeneratedImagesDir.trim().length === 0) {
     return null;
   }
 
@@ -682,8 +626,7 @@ export function validateCodexGeneratedImagesDir(
     realpathSync,
     statSync,
   });
-  const warnSkipped = (reason: string) =>
-    warn(`[od] codex generated_images allowlist skipped: ${reason}`);
+  const warnSkipped = (reason: string) => warn(`[od] codex generated_images allowlist skipped: ${reason}`);
 
   const protectedRoot = findContainingProtectedRoot(resolved, protectedRoots);
   if (protectedRoot) {
@@ -708,10 +651,7 @@ export function validateCodexGeneratedImagesDir(
     }
 
     const parent = path.dirname(resolved);
-    const protectedParentRoot = findContainingProtectedRoot(
-      parent,
-      protectedRoots,
-    );
+    const protectedParentRoot = findContainingProtectedRoot(parent, protectedRoots);
     if (protectedParentRoot) {
       warnSkipped(`${parent} is inside protected root ${protectedParentRoot}`);
       return null;
@@ -719,18 +659,10 @@ export function validateCodexGeneratedImagesDir(
 
     mkdirSync(parent, { recursive: true });
     const canonicalParent = realpathSync(parent);
-    const canonicalCandidate = path.join(
-      canonicalParent,
-      path.basename(resolved),
-    );
-    const protectedCanonicalParentRoot = findContainingProtectedRoot(
-      canonicalCandidate,
-      protectedRoots,
-    );
+    const canonicalCandidate = path.join(canonicalParent, path.basename(resolved));
+    const protectedCanonicalParentRoot = findContainingProtectedRoot(canonicalCandidate, protectedRoots);
     if (protectedCanonicalParentRoot) {
-      warnSkipped(
-        `${canonicalCandidate} resolves inside protected root ${protectedCanonicalParentRoot}`,
-      );
+      warnSkipped(`${canonicalCandidate} resolves inside protected root ${protectedCanonicalParentRoot}`);
       return null;
     }
 
@@ -744,21 +676,15 @@ export function validateCodexGeneratedImagesDir(
       return null;
     }
     const canonicalDir = realpathSync(resolved);
-    const protectedCanonicalRoot = findContainingProtectedRoot(
-      canonicalDir,
-      protectedRoots,
-    );
+    const protectedCanonicalRoot = findContainingProtectedRoot(canonicalDir, protectedRoots);
     if (protectedCanonicalRoot) {
-      warnSkipped(
-        `${canonicalDir} resolves inside protected root ${protectedCanonicalRoot}`,
-      );
+      warnSkipped(`${canonicalDir} resolves inside protected root ${protectedCanonicalRoot}`);
       return null;
     }
 
     return canonicalDir;
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : String(err ?? 'unknown error');
+    const message = err instanceof Error ? err.message : String(err ?? 'unknown error');
     warn(`[od] codex generated_images allowlist mkdir failed: ${message}`);
     return null;
   }
@@ -779,23 +705,11 @@ export function resolveChatExtraAllowedDirs({
   codexGeneratedImagesDir?: string | null;
   existsSync?: (path: string) => boolean;
 }): string[] {
-  const isCodex =
-    typeof agentId === 'string' && agentId.trim().toLowerCase() === 'codex';
+  const isCodex = typeof agentId === 'string' && agentId.trim().toLowerCase() === 'codex';
   const candidates = isCodex
     ? [codexGeneratedImagesDir]
-    : [
-        skillsDir,
-        designSystemsDir,
-        ...(Array.isArray(linkedDirs) ? linkedDirs : []),
-      ];
-  return Array.from(
-    new Set(
-      candidates.filter(
-        (d) =>
-          typeof d === 'string' && d.length > 0 && existsSync(d),
-      ),
-    ),
-  );
+    : [skillsDir, designSystemsDir, ...(Array.isArray(linkedDirs) ? linkedDirs : [])];
+  return Array.from(new Set(candidates.filter((d) => typeof d === 'string' && d.length > 0 && existsSync(d))));
 }
 
 export function resolveGrantedCodexImagegenOverride({
@@ -861,28 +775,26 @@ export function normalizeCommentAttachments(input) {
       const intent = compactString(raw.intent, 220);
       const imageAttachments = normalizePreviewCommentImageAttachments(raw.imageAttachments);
       const commentContext = raw.commentContext === 'query' ? 'query' : 'context';
-      const comment = commentContext === 'query'
-        ? ''
-        : cleanString(raw.comment) || intent || imageOnlyCommentFallback(imageAttachments.length);
-      const selectionKind =
-        raw.selectionKind === 'visual' ? 'visual' : raw.selectionKind === 'pod' ? 'pod' : 'element';
+      const comment =
+        commentContext === 'query'
+          ? ''
+          : cleanString(raw.comment) || intent || imageOnlyCommentFallback(imageAttachments.length);
+      const selectionKind = raw.selectionKind === 'visual' ? 'visual' : raw.selectionKind === 'pod' ? 'pod' : 'element';
       if (!filePath || !elementId) return null;
       if (selectionKind !== 'visual' && !selector) return null;
       if (selectionKind === 'visual' && !screenshotPath) return null;
       const podMembers = selectionKind === 'pod' ? normalizeAttachmentPodMembers(raw.podMembers) : [];
       const memberCount =
         selectionKind === 'pod'
-          ? (podMembers.length > 0
-              ? podMembers.length
-              : Number.isFinite(raw.memberCount)
-                ? Math.max(0, Math.round(raw.memberCount))
-                : 0)
+          ? podMembers.length > 0
+            ? podMembers.length
+            : Number.isFinite(raw.memberCount)
+              ? Math.max(0, Math.round(raw.memberCount))
+              : 0
           : 0;
       return {
         id: cleanString(raw.id) || `comment-${index + 1}`,
-        order: Number.isFinite(raw.order)
-          ? Math.max(1, Math.round(raw.order))
-          : index + 1,
+        order: Number.isFinite(raw.order) ? Math.max(1, Math.round(raw.order)) : index + 1,
         filePath,
         elementId,
         selector,
@@ -897,9 +809,7 @@ export function normalizeCommentAttachments(input) {
         podMembers,
         screenshotPath: selectionKind === 'visual' ? screenshotPath : undefined,
         markKind: selectionKind === 'visual' ? markKind : undefined,
-        intent: selectionKind === 'visual'
-          ? intent || visualAnnotationIntent(markKind)
-          : undefined,
+        intent: selectionKind === 'visual' ? intent || visualAnnotationIntent(markKind) : undefined,
         imageAttachments: imageAttachments.length > 0 ? imageAttachments : undefined,
         commentContext,
         source: raw.source === 'board-batch' ? 'board-batch' : 'saved-comment',
@@ -918,8 +828,7 @@ export function renderCommentAttachmentHint(commentAttachments) {
     "Hard scope: change ONLY the elements identified below by selector / position / pod members. Do NOT modify sibling sub-pages, parent layout, global CSS, design tokens, or unrelated rules even if you notice issues there — surface those as a follow-up note in your reply instead of editing them. If the user's request cannot be satisfied without touching outside this scope, ask the user before proceeding. For visual marks, inspect the screenshot and modify the marked region first.",
   ];
   for (const item of commentAttachments) {
-    const targetKind =
-      item.selectionKind === 'visual' ? 'visual' : item.selectionKind === 'pod' ? 'pod' : 'element';
+    const targetKind = item.selectionKind === 'visual' ? 'visual' : item.selectionKind === 'pod' ? 'pod' : 'element';
     lines.push(
       '',
       `${item.order}. ${item.elementId}`,
@@ -994,9 +903,7 @@ function imageOnlyCommentFallback(count) {
 }
 
 function normalizeVisualMarkKind(value) {
-  return value === 'click' || value === 'click+stroke' || value === 'stroke'
-    ? value
-    : 'stroke';
+  return value === 'click' || value === 'click+stroke' || value === 'stroke' ? value : 'stroke';
 }
 
 function visualAnnotationIntent(markKind) {
@@ -1060,11 +967,10 @@ function normalizeAnnotationStyle(input) {
 
 function formatAnnotationStyle(style) {
   if (!style || typeof style !== 'object') return '';
-  return ANNOTATION_STYLE_KEYS
-    .map((key) => {
-      const value = style[key];
-      return value ? `${key}: ${value}` : null;
-    })
+  return ANNOTATION_STYLE_KEYS.map((key) => {
+    const value = style[key];
+    return value ? `${key}: ${value}` : null;
+  })
     .filter(Boolean)
     .join('; ');
 }
@@ -1105,10 +1011,7 @@ function formatAttachmentPosition(position) {
 function isPathWithin(base, target) {
   const relativePath = path.relative(path.resolve(base), path.resolve(target));
   return (
-    relativePath === '' ||
-    (relativePath.length > 0 &&
-      !relativePath.startsWith('..') &&
-      !path.isAbsolute(relativePath))
+    relativePath === '' || (relativePath.length > 0 && !relativePath.startsWith('..') && !path.isAbsolute(relativePath))
   );
 }
 
@@ -1126,9 +1029,7 @@ export function resolveSafeProjectAttachments(cwd, attachments, opts = {}) {
       const relativePath = pathImpl.relative(root, abs);
       const withinRoot =
         relativePath === '' ||
-        (relativePath.length > 0 &&
-          !relativePath.startsWith('..') &&
-          !pathImpl.isAbsolute(relativePath));
+        (relativePath.length > 0 && !relativePath.startsWith('..') && !pathImpl.isAbsolute(relativePath));
       if (withinRoot && existsSync(abs)) out.push(attachment);
     } catch {
       // Drop malformed paths; attachments are advisory prompt context.
@@ -1159,11 +1060,7 @@ function formatProjectEntrySize(size: number) {
 
 function formatDesignFilesEntryLine(entry: DesignFilesHintEntry | null | undefined, fallbackKind?: string) {
   const entryPath =
-    typeof entry?.path === 'string' && entry.path
-      ? entry.path
-      : typeof entry?.name === 'string'
-        ? entry.name
-        : '';
+    typeof entry?.path === 'string' && entry.path ? entry.path : typeof entry?.name === 'string' ? entry.name : '';
   if (!entryPath) return null;
   const kind = fallbackKind || entry.kind || entry.type || 'file';
   const size = kind === 'folder' ? '' : formatProjectEntrySize(Number(entry.size));
@@ -1214,7 +1111,10 @@ export function formatDesignFilesWorkspaceHint(
   }
 
   if (folderLines.length === 0 && fileLines.length === 0) {
-    lines.push('', 'No user-visible Design Files exist yet. Create clear project-relative files when the task requires output.');
+    lines.push(
+      '',
+      'No user-visible Design Files exist yet. Create clear project-relative files when the task requires output.',
+    );
   }
 
   return lines.join('\n');
@@ -1228,9 +1128,7 @@ export function resolveSafePromptImagePaths(imagePaths, opts = {}) {
   const existsSync = opts.existsSync ?? fs.existsSync;
   const statSync = opts.statSync ?? fs.statSync;
   const uploadDir = pathImpl.resolve(opts.uploadDir ?? UPLOAD_DIR);
-  const maxBytes = Number.isFinite(opts.maxBytes)
-    ? Number(opts.maxBytes)
-    : MAX_CHAT_IMAGE_BYTES;
+  const maxBytes = Number.isFinite(opts.maxBytes) ? Number(opts.maxBytes) : MAX_CHAT_IMAGE_BYTES;
   const safeImages = [];
   const oversizedImages = [];
   const failedImages = [];
@@ -1271,10 +1169,7 @@ export function resolveSafePromptImagePaths(imagePaths, opts = {}) {
 }
 
 function resolveProcessResourcesPath() {
-  if (
-    typeof process.resourcesPath === 'string' &&
-    process.resourcesPath.length > 0
-  ) {
+  if (typeof process.resourcesPath === 'string' && process.resourcesPath.length > 0) {
     return process.resourcesPath;
   }
 
@@ -1288,16 +1183,10 @@ function resolveProcessResourcesPath() {
   }
 
   const normalizedExecPath = process.execPath.toLowerCase();
-  const windowsResourceBinMarker =
-    `${path.sep}resources${path.sep}open-design${path.sep}bin${path.sep}`.toLowerCase();
-  const windowsMarkerIndex = normalizedExecPath.indexOf(
-    windowsResourceBinMarker,
-  );
+  const windowsResourceBinMarker = `${path.sep}resources${path.sep}open-design${path.sep}bin${path.sep}`.toLowerCase();
+  const windowsMarkerIndex = normalizedExecPath.indexOf(windowsResourceBinMarker);
   if (windowsMarkerIndex !== -1) {
-    return process.execPath.slice(
-      0,
-      windowsMarkerIndex + `${path.sep}resources`.length,
-    );
+    return process.execPath.slice(0, windowsMarkerIndex + `${path.sep}resources`.length);
   }
 
   return null;
@@ -1305,11 +1194,7 @@ function resolveProcessResourcesPath() {
 
 export function resolveDaemonResourceRoot({
   configured = process.env[RESOURCE_ROOT_ENV],
-  safeBases = [
-    PROJECT_ROOT,
-    resolveProcessResourcesPath(),
-    process.env.OD_INSTALLATION_DIR,
-  ],
+  safeBases = [PROJECT_ROOT, resolveProcessResourcesPath(), process.env.OD_INSTALLATION_DIR],
 } = {}) {
   if (!configured || configured.length === 0) return null;
 
@@ -1319,9 +1204,7 @@ export function resolveDaemonResourceRoot({
     .map((base) => path.resolve(base));
 
   if (!normalizedSafeBases.some((base) => isPathWithin(base, resolved))) {
-    throw new Error(
-      `${RESOURCE_ROOT_ENV} must be under the workspace root or app resources path`,
-    );
+    throw new Error(`${RESOURCE_ROOT_ENV} must be under the workspace root or app resources path`);
   }
 
   return resolved;
@@ -1339,11 +1222,7 @@ const DAEMON_RESOURCE_ROOT = resolveDaemonResourceRoot();
 const STATIC_DIR = path.join(PROJECT_ROOT, 'apps', 'web', 'out');
 const OD_BIN = resolveDaemonCliPath();
 const OD_NODE_BIN = process.execPath;
-const SKILLS_DIR = resolveDaemonResourceDir(
-  DAEMON_RESOURCE_ROOT,
-  'skills',
-  path.join(PROJECT_ROOT, 'skills'),
-);
+const SKILLS_DIR = resolveDaemonResourceDir(DAEMON_RESOURCE_ROOT, 'skills', path.join(PROJECT_ROOT, 'skills'));
 const DESIGN_SYSTEMS_DIR = resolveDaemonResourceDir(
   DAEMON_RESOURCE_ROOT,
   'design-systems',
@@ -1358,11 +1237,7 @@ const DESIGN_TEMPLATES_DIR = resolveDaemonResourceDir(
   'design-templates',
   path.join(PROJECT_ROOT, 'design-templates'),
 );
-const CRAFT_DIR = resolveDaemonResourceDir(
-  DAEMON_RESOURCE_ROOT,
-  'craft',
-  path.join(PROJECT_ROOT, 'craft'),
-);
+const CRAFT_DIR = resolveDaemonResourceDir(DAEMON_RESOURCE_ROOT, 'craft', path.join(PROJECT_ROOT, 'craft'));
 // User-installed skills and design systems live under the runtime data dir
 // so they respect OD_DATA_DIR overrides (test isolation, packaged runs).
 // Defined after RUNTIME_DATA_DIR is resolved below.
@@ -1426,7 +1301,7 @@ export function registerStaticSpaFallback(app, staticDir) {
 function defaultMarketplaceSeedConfig(id) {
   return {
     trust: id === OFFICIAL_MARKETPLACE_ID ? 'official' : 'restricted',
-    url:   marketplaceManifestUrlForRegistry(id),
+    url: marketplaceManifestUrlForRegistry(id),
   };
 }
 
@@ -1481,17 +1356,17 @@ function createMarketplaceFetcher(seedId, bundledMarketplaceEntries) {
       const manifestText = await marketplaceSeedManifestText(registryId, bundledMarketplaceEntries);
       if (manifestText != null) {
         return {
-          ok:     true,
+          ok: true,
           status: 200,
-          text:   async () => manifestText,
+          text: async () => manifestText,
         };
       }
     }
     const response = await fetch(url, { redirect: 'follow' });
     return {
-      ok:     response.ok,
+      ok: response.ok,
       status: response.status,
-      text:   () => response.text(),
+      text: () => response.text(),
     };
   };
 }
@@ -1588,14 +1463,14 @@ const USER_DESIGN_TEMPLATES_DIR = path.join(RUNTIME_DATA_DIR, 'design-templates'
 // can resolve to either root after the split.
 const SKILL_ROOTS = [USER_SKILLS_DIR, SKILLS_DIR];
 const DESIGN_TEMPLATE_ROOTS = [USER_DESIGN_TEMPLATES_DIR, DESIGN_TEMPLATES_DIR];
-const ALL_SKILL_LIKE_ROOTS = [
-  USER_SKILLS_DIR,
-  USER_DESIGN_TEMPLATES_DIR,
-  SKILLS_DIR,
-  DESIGN_TEMPLATES_DIR,
-];
+const ALL_SKILL_LIKE_ROOTS = [USER_SKILLS_DIR, USER_DESIGN_TEMPLATES_DIR, SKILLS_DIR, DESIGN_TEMPLATES_DIR];
 fs.mkdirSync(PROJECTS_DIR, { recursive: true });
-for (const dir of [USER_SKILLS_DIR, USER_DESIGN_SYSTEMS_DIR, USER_DESIGN_TEMPLATES_DIR, PLUGIN_REGISTRY_ROOTS.userPluginsRoot]) {
+for (const dir of [
+  USER_SKILLS_DIR,
+  USER_DESIGN_SYSTEMS_DIR,
+  USER_DESIGN_TEMPLATES_DIR,
+  PLUGIN_REGISTRY_ROOTS.userPluginsRoot,
+]) {
   fs.mkdirSync(dir, { recursive: true });
 }
 fs.mkdirSync(CRITIQUE_ARTIFACTS_DIR, { recursive: true });
@@ -1667,10 +1542,7 @@ async function refreshAndPersistToken(dataDir, serverId, current) {
     refreshToken: tokenResp.refresh_token ?? current.refreshToken,
     tokenType: tokenResp.token_type ?? 'Bearer',
     scope: tokenResp.scope ?? current.scope,
-    expiresAt:
-      typeof tokenResp.expires_in === 'number'
-        ? Date.now() + tokenResp.expires_in * 1000
-        : undefined,
+    expiresAt: typeof tokenResp.expires_in === 'number' ? Date.now() + tokenResp.expires_in * 1000 : undefined,
     savedAt: Date.now(),
     tokenEndpoint: current.tokenEndpoint,
     clientId: current.clientId,
@@ -1734,7 +1606,9 @@ function emitLiveArtifactEvent(grant, action, artifact) {
   if (action === 'created' && grant?.runId) {
     const handle = activeChatRunHandles.get(grant.runId);
     if (handle?.noteArtifactRegistered) {
-      try { handle.noteArtifactRegistered(); } catch {}
+      try {
+        handle.noteArtifactRegistered();
+      } catch {}
     }
   }
   return emitted;
@@ -1772,8 +1646,7 @@ function emitProjectEvent(projectId, payload) {
 
 // Windows ENAMETOOLONG mitigation constants
 const CMD_BAT_RE = /\.(cmd|bat)$/i;
-const PROMPT_TEMP_FILE = () =>
-  '.od-prompt-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.md';
+const PROMPT_TEMP_FILE = () => '.od-prompt-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.md';
 const promptFileBootstrap = (fp) =>
   `Your full instructions are stored in the file: ${fp.replace(/\\/g, '/')}. ` +
   'Open that file first and follow every instruction in it exactly — ' +
@@ -1842,9 +1715,7 @@ export function createAgentRuntimeEnv(
     const normalizedDir = normalize(nodeBinDir);
     const alreadyIncluded = parts.some((p) => {
       const n = normalize(p);
-      return process.platform === 'win32'
-        ? n.toLowerCase() === normalizedDir.toLowerCase()
-        : n === normalizedDir;
+      return process.platform === 'win32' ? n.toLowerCase() === normalizedDir.toLowerCase() : n === normalizedDir;
     });
     if (!alreadyIncluded) {
       env[pathKey] = [nodeBinDir, ...parts].join(path.delimiter);
@@ -1972,9 +1843,7 @@ function mergeRunContextSelections(...contexts) {
       merged.workspaceItems.push(item);
     }
   }
-  return Object.fromEntries(
-    Object.entries(merged).filter(([, ids]) => ids.length > 0),
-  );
+  return Object.fromEntries(Object.entries(merged).filter(([, ids]) => ids.length > 0));
 }
 
 function projectMetadataContextSelection(metadata) {
@@ -2010,12 +1879,9 @@ function formatContextRefList(ids, refs, titleKey = 'title') {
             : typeof ref?.name === 'string' && ref.name.trim()
               ? ref.name.trim()
               : id;
-      const meta = [
-        ref?.provider,
-        ref?.transport,
-        ref?.status,
-        ref?.accountLabel,
-      ].filter((value) => typeof value === 'string' && value.trim()).join(' · ');
+      const meta = [ref?.provider, ref?.transport, ref?.status, ref?.accountLabel]
+        .filter((value) => typeof value === 'string' && value.trim())
+        .join(' · ');
       return `- ${label} (\`${id}\`)${meta ? ` — ${meta}` : ''}`;
     })
     .join('\n');
@@ -2031,7 +1897,9 @@ function formatWorkspaceContextList(items) {
         item.url ? `url: ${item.url}` : null,
         item.title ? `title: ${item.title}` : null,
         item.tabId ? `tab: \`${item.tabId}\`` : null,
-      ].filter(Boolean).join(' | ');
+      ]
+        .filter(Boolean)
+        .join(' | ');
       return `${index + 1}. ${item.kind}: ${item.label} (\`${item.id}\`)${details ? ` — ${details}` : ''}`;
     })
     .join('\n');
@@ -2105,15 +1973,8 @@ export function normalizeProjectDisplayStatus(status) {
   return status === 'starting' || status === 'queued' ? 'running' : status;
 }
 
-export function composeProjectDisplayStatus(
-  baseStatus,
-  awaitingInputProjects,
-  projectId,
-) {
-  if (
-    baseStatus.value === 'succeeded' &&
-    awaitingInputProjects.has(projectId)
-  ) {
+export function composeProjectDisplayStatus(baseStatus, awaitingInputProjects, projectId) {
+  if (baseStatus.value === 'succeeded' && awaitingInputProjects.has(projectId)) {
     return { ...baseStatus, value: 'awaiting_input' };
   }
   return {
@@ -2150,13 +2011,13 @@ export function createCompatApiErrorResponse(code, message, init = {}) {
  * @param {Omit<ApiError, 'code' | 'message'>} [init]
  */
 function sendApiError(res, status, code, message, init = {}) {
-  return res
-    .status(status)
-    .json(createCompatApiErrorResponse(code, message, init));
+  return res.status(status).json(createCompatApiErrorResponse(code, message, init));
 }
 
 function normalizeProjectPluginFolderPath(input) {
-  const value = String(input ?? '').replace(/\\/g, '/').trim();
+  const value = String(input ?? '')
+    .replace(/\\/g, '/')
+    .trim();
   if (!value || value.includes('\0') || value.startsWith('/') || /^[A-Za-z]:\//.test(value)) {
     throw new Error('plugin folder path must be a relative project path');
   }
@@ -2237,9 +2098,7 @@ function execCommandViaLoginShell(command, args, opts = {}) {
 async function readProjectPluginManifest(folder) {
   const raw = await fs.promises.readFile(path.join(folder, 'open-design.json'), 'utf8');
   const manifest = JSON.parse(raw);
-  const name = typeof manifest.name === 'string' && manifest.name.trim()
-    ? manifest.name.trim()
-    : path.basename(folder);
+  const name = typeof manifest.name === 'string' && manifest.name.trim() ? manifest.name.trim() : path.basename(folder);
   if (/[/\\]/.test(name) || /^\.+$/.test(name)) {
     throw new Error(
       `open-design.json in ${folder}: name "${name}" must not contain path separators or consist only of dots`,
@@ -2255,10 +2114,7 @@ async function readProjectPluginManifest(folder) {
 
 export const __forTestReadProjectPluginManifest = readProjectPluginManifest;
 
-function resolveRunProjectKindForAnalytics({
-  hintProjectKind,
-  projectMetadata,
-}) {
+function resolveRunProjectKindForAnalytics({ hintProjectKind, projectMetadata }) {
   if (typeof hintProjectKind === 'string') return hintProjectKind;
   if (projectMetadata?.importedFrom === 'design-system') return 'design_system';
   return projectKindToTracking(projectMetadata?.kind);
@@ -2343,8 +2199,8 @@ export function __forTestRetryFinalResultForRunStatus(status, retryAttemptCount)
 }
 
 function runRetryEventsForAnalytics(events) {
-  return (Array.isArray(events) ? events : []).filter((rec) =>
-    rec?.event === 'run_retry_attempted' || rec?.event === 'run_retry_finished'
+  return (Array.isArray(events) ? events : []).filter(
+    (rec) => rec?.event === 'run_retry_attempted' || rec?.event === 'run_retry_finished',
   );
 }
 
@@ -2365,14 +2221,7 @@ const PLUGIN_SHARE_ACTION_LABELS = {
   'contribute-open-design': 'Contribute to Open Design',
 };
 
-const USER_PLUGIN_SOURCE_KINDS = new Set([
-  'user',
-  'project',
-  'marketplace',
-  'github',
-  'url',
-  'local',
-]);
+const USER_PLUGIN_SOURCE_KINDS = new Set(['user', 'project', 'marketplace', 'github', 'url', 'local']);
 
 const PLUGIN_CONTEXT_SKIP_DIRS = new Set([
   '.git',
@@ -2393,16 +2242,11 @@ const PLUGIN_CONTEXT_SKIP_DIRS = new Set([
   'vendor',
 ]);
 
-const PLUGIN_CONTEXT_SKIP_FILES = new Set([
-  '.DS_Store',
-  'Thumbs.db',
-]);
+const PLUGIN_CONTEXT_SKIP_FILES = new Set(['.DS_Store', 'Thumbs.db']);
 
 function normalizePluginShareAction(input) {
   const value = typeof input === 'string' ? input.trim() : '';
-  return Object.prototype.hasOwnProperty.call(PLUGIN_SHARE_ACTION_PLUGIN_IDS, value)
-    ? value
-    : null;
+  return Object.prototype.hasOwnProperty.call(PLUGIN_SHARE_ACTION_PLUGIN_IDS, value) ? value : null;
 }
 
 function renderPluginSharePrompt({ action, sourcePlugin, stagedPath }) {
@@ -2412,7 +2256,7 @@ function renderPluginSharePrompt({ action, sourcePlugin, stagedPath }) {
       `Publish the local Open Design plugin "${title}" as a new public GitHub repository.`,
       '',
       `The plugin source files have been copied into this project at \`${stagedPath}\`.`,
-      'Use the local daemon share endpoint so the publish flow runs through Open Design\'s validated GitHub path:',
+      "Use the local daemon share endpoint so the publish flow runs through Open Design's validated GitHub path:",
       '',
       '```bash',
       `curl -sS -X POST "$OD_DAEMON_URL/api/projects/$OD_PROJECT_ID/plugins/publish-github" \\`,
@@ -2429,7 +2273,7 @@ function renderPluginSharePrompt({ action, sourcePlugin, stagedPath }) {
     `Open a pull request to add the local Open Design plugin "${title}" to the Open Design repository.`,
     '',
     `The plugin source files have been copied into this project at \`${stagedPath}\`.`,
-    'Use the local daemon share endpoint so the contribution flow runs through Open Design\'s validated GitHub path:',
+    "Use the local daemon share endpoint so the contribution flow runs through Open Design's validated GitHub path:",
     '',
     '```bash',
     `curl -sS -X POST "$OD_DAEMON_URL/api/projects/$OD_PROJECT_ID/plugins/contribute-open-design" \\`,
@@ -2481,11 +2325,7 @@ function shouldSkipPluginContextEntry(name) {
   return PLUGIN_CONTEXT_SKIP_DIRS.has(name) || PLUGIN_CONTEXT_SKIP_FILES.has(name);
 }
 
-export function selectPromptImagePaths(
-  agentId,
-  safeImages,
-  amrStagedImages,
-) {
+export function selectPromptImagePaths(agentId, safeImages, amrStagedImages) {
   return agentId === 'amr' ? amrStagedImages : safeImages;
 }
 
@@ -2505,7 +2345,8 @@ async function ensureGhReady() {
     return {
       ok: false,
       code: 'gh-not-authenticated',
-      message: 'GitHub CLI is installed but not authenticated. Run `gh auth login --web`, finish browser authorization, then click this action again.',
+      message:
+        'GitHub CLI is installed but not authenticated. Run `gh auth login --web`, finish browser authorization, then click this action again.',
       url: 'https://github.com/login/device',
       log: [auth.stderr || auth.stdout || 'gh auth status failed'],
     };
@@ -2531,13 +2372,9 @@ function reconcileAssistantMessageOnRunEnd(db, runs, run) {
     });
 }
 
-
 function isPluginAuthoringRun(db, run) {
   if (run?.pluginId === 'od-plugin-authoring') return true;
-  if (
-    typeof run?.appliedPluginSnapshotId === 'string'
-    && run.appliedPluginSnapshotId.length > 0
-  ) {
+  if (typeof run?.appliedPluginSnapshotId === 'string' && run.appliedPluginSnapshotId.length > 0) {
     const snapshot = getSnapshot(db, run.appliedPluginSnapshotId);
     return snapshot?.pluginId === 'od-plugin-authoring';
   }
@@ -2686,14 +2523,16 @@ export function upsertSkillPluginCandidateAssistantMessage(db, run, candidate) {
     role: 'assistant',
     content: `Open Design found reusable skill material that can become a plugin: ${candidate.title}`,
     agentId: run.agentId ?? undefined,
-    events: [{
-      kind: 'plugin_candidate',
-      candidateId: candidate.id,
-      title: candidate.title,
-      description: candidate.description,
-      confidence: candidate.confidence,
-      draftPath: candidate.draftPath ?? null,
-    }],
+    events: [
+      {
+        kind: 'plugin_candidate',
+        candidateId: candidate.id,
+        title: candidate.title,
+        description: candidate.description,
+        confidence: candidate.confidence,
+        draftPath: candidate.draftPath ?? null,
+      },
+    ],
     createdAt: now,
     endedAt: now,
   });
@@ -2729,11 +2568,12 @@ function runSseEventToPersistedAgentEvent(event, data) {
     return chunk ? { kind: 'text', text: chunk } : null;
   }
   if (event === 'error') {
-    const message = typeof data?.error?.message === 'string'
-      ? data.error.message
-      : typeof data?.message === 'string'
-        ? data.message
-        : '';
+    const message =
+      typeof data?.error?.message === 'string'
+        ? data.error.message
+        : typeof data?.message === 'string'
+          ? data.message
+          : '';
     return {
       kind: 'status',
       label: 'error',
@@ -2782,9 +2622,7 @@ function daemonAgentPayloadToPersistedAgentEvent(data) {
       artifactId: data.artifactId,
       ...(data.refreshId ? { refreshId: data.refreshId } : {}),
       ...(data.title ? { title: data.title } : {}),
-      ...(typeof data.refreshedSourceCount === 'number'
-        ? { refreshedSourceCount: data.refreshedSourceCount }
-        : {}),
+      ...(typeof data.refreshedSourceCount === 'number' ? { refreshedSourceCount: data.refreshedSourceCount } : {}),
       ...(data.error ? { error: data.error } : {}),
     };
   }
@@ -2834,9 +2672,7 @@ function normalizePersistedToolInput(input) {
 
 function pinAssistantMessageOnRunCreate(db, run) {
   if (!run.conversationId || !run.assistantMessageId) return;
-  const existing = db
-    .prepare(`SELECT id FROM messages WHERE id = ?`)
-    .get(run.assistantMessageId);
+  const existing = db.prepare(`SELECT id FROM messages WHERE id = ?`).get(run.assistantMessageId);
   if (existing) {
     db.prepare(
       `UPDATE messages
@@ -2865,10 +2701,10 @@ function pinAssistantMessageOnRunCreate(db, run) {
 export function shouldReportRunCompletedFromMessage(saved, body = {}) {
   return Boolean(
     saved &&
-      saved.runId &&
-      typeof saved.runStatus === 'string' &&
-      TERMINAL_RUN_STATUSES.has(saved.runStatus) &&
-      body?.telemetryFinalized === true,
+    saved.runId &&
+    typeof saved.runStatus === 'string' &&
+    TERMINAL_RUN_STATUSES.has(saved.runStatus) &&
+    body?.telemetryFinalized === true,
   );
 }
 
@@ -2946,9 +2782,7 @@ function formAnswerTransitionForCurrentPrompt(currentPrompt) {
     `The user has answered the ${formId} form. Do not emit another ${formId} form.`,
   ];
   if (formId.toLowerCase() === 'discovery' || formId.toLowerCase() === 'task-type') {
-    lines.push(
-      'Continue with RULE 2 / RULE 3 now. For Branch B answers, build now instead of asking another brief.',
-    );
+    lines.push('Continue with RULE 2 / RULE 3 now. For Branch B answers, build now instead of asking another brief.');
   } else {
     lines.push(
       'Treat these form answers as the active user turn instead of replaying the transcript as a fresh request.',
@@ -2957,11 +2791,7 @@ function formAnswerTransitionForCurrentPrompt(currentPrompt) {
   return lines.join('\n');
 }
 
-export function composeChatUserRequestForAgent(
-  message,
-  currentPrompt,
-  options: { skipTranscript?: boolean } = {},
-) {
+export function composeChatUserRequestForAgent(message, currentPrompt, options: { skipTranscript?: boolean } = {}) {
   // When the adapter resumes its own session (today: `agy -c`), the
   // daemon-rendered `## user` / `## assistant` transcript is a duplicate
   // of what the upstream CLI already has in memory — and the embedded
@@ -2972,20 +2802,13 @@ export function composeChatUserRequestForAgent(
   // `RuntimeAgentDef.resumesSessionViaCli`.
   const skip = options.skipTranscript === true;
   const bodySource = skip ? currentPrompt : message;
-  const body =
-    typeof bodySource === 'string' && bodySource.trim()
-      ? bodySource
-      : '(No extra typed instruction.)';
+  const body = typeof bodySource === 'string' && bodySource.trim() ? bodySource : '(No extra typed instruction.)';
   const transition = formAnswerTransitionForCurrentPrompt(currentPrompt);
   if (!transition) return body;
   if (skip) {
     return [transition, body].join('\n\n');
   }
-  return [
-    transition,
-    '## Full conversation transcript',
-    body,
-  ].join('\n\n');
+  return [transition, '## Full conversation transcript', body].join('\n\n');
 }
 
 export function createFinalizedMessageTelemetryReporter({
@@ -3023,9 +2846,7 @@ const CLOUDFLARE_PAGES_PROJECT_METADATA_KEY = 'cloudflarePagesProjectName';
 
 function cloudflarePagesDeploymentMetadata(projectName) {
   const normalized = typeof projectName === 'string' ? projectName.trim() : '';
-  return normalized
-    ? { [CLOUDFLARE_PAGES_PROJECT_METADATA_KEY]: normalized }
-    : undefined;
+  return normalized ? { [CLOUDFLARE_PAGES_PROJECT_METADATA_KEY]: normalized } : undefined;
 }
 
 function cloudflarePagesProjectNameFromDeployment(deployment) {
@@ -3081,7 +2902,9 @@ async function checkCloudflarePagesDeploymentLinks(existing) {
     status: pagesDevResult.reachable ? 'ready' : pagesDevResult.status || 'link-delayed',
     statusMessage: pagesDevResult.reachable
       ? 'Public link is ready.'
-      : pagesDevResult.statusMessage || current.pagesDev?.statusMessage || 'Cloudflare Pages is still preparing the pages.dev link.',
+      : pagesDevResult.statusMessage ||
+        current.pagesDev?.statusMessage ||
+        'Cloudflare Pages is still preparing the pages.dev link.',
     reachableAt: pagesDevResult.reachable ? Date.now() : current.pagesDev?.reachableAt,
   };
   let customDomain = current.customDomain;
@@ -3111,16 +2934,12 @@ async function checkCloudflarePagesDeploymentLinks(existing) {
       pagesDomainStatus,
       validationData: pagesDomain?.validation_data ?? customDomain.validationData,
       verificationData: pagesDomain?.verification_data ?? customDomain.verificationData,
-      status: readyByReachability
-        ? 'ready'
-        : customDomain.status === 'failed' || failedByApi
-          ? 'failed'
-          : 'pending',
+      status: readyByReachability ? 'ready' : customDomain.status === 'failed' || failedByApi ? 'failed' : 'pending',
       statusMessage: readyByReachability
         ? 'Custom domain is ready.'
         : failedByApi
           ? 'Cloudflare Pages reported a custom-domain error.'
-        : customResult.statusMessage || customDomain.statusMessage || 'Custom domain is still being prepared.',
+          : customResult.statusMessage || customDomain.statusMessage || 'Custom domain is still being prepared.',
     };
   }
   const cloudflarePages = {
@@ -3176,7 +2995,13 @@ function sendLiveArtifactRouteError(res, err) {
     });
   }
   if (err instanceof ConnectorServiceError) {
-    return sendApiError(res, err.status, err.code, err.message, err.details === undefined ? {} : { details: err.details });
+    return sendApiError(
+      res,
+      err.status,
+      err.code,
+      err.message,
+      err.details === undefined ? {} : { details: err.details },
+    );
   }
   if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
     return sendApiError(res, 404, 'LIVE_ARTIFACT_NOT_FOUND', 'live artifact not found');
@@ -3200,7 +3025,10 @@ function normalizeLocalAuthority(value) {
 }
 
 function isLoopbackHostname(hostname) {
-  const normalized = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  const normalized = String(hostname || '')
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
   if (normalized === 'localhost') return true;
   if (normalized === '::1' || normalized === '0:0:0:0:0:0:0:1') return true;
   if (net.isIP(normalized) === 4) return normalized === '127.0.0.1' || normalized.startsWith('127.');
@@ -3209,7 +3037,10 @@ function isLoopbackHostname(hostname) {
 
 function isLoopbackPeerAddress(address) {
   if (typeof address !== 'string') return false;
-  const normalized = address.trim().toLowerCase().replace(/^\[|\]$/g, '');
+  const normalized = address
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '');
   if (!normalized) return false;
   if (normalized.startsWith('::ffff:')) return isLoopbackPeerAddress(normalized.slice('::ffff:'.length));
   if (normalized === '::1' || normalized === '0:0:0:0:0:0:0:1') return true;
@@ -3314,7 +3145,13 @@ function validateLocalDaemonRequest(req) {
 function requireLocalDaemonRequest(req, res, next) {
   const validation = validateLocalDaemonRequest(req);
   if (!validation.ok) {
-    return sendApiError(res, 403, 'FORBIDDEN', validation.message, validation.details ? { details: validation.details } : {});
+    return sendApiError(
+      res,
+      403,
+      'FORBIDDEN',
+      validation.message,
+      validation.details ? { details: validation.details } : {},
+    );
   }
 
   res.setHeader('Vary', 'Origin');
@@ -3465,10 +3302,7 @@ let openDesignDiscordPresenceInflight = null;
 
 async function readOpenDesignGithubRepoStats() {
   const now = Date.now();
-  if (
-    openDesignGithubRepoCache &&
-    now - openDesignGithubRepoCache.fetchedAt < OPEN_DESIGN_GITHUB_CACHE_TTL_MS
-  ) {
+  if (openDesignGithubRepoCache && now - openDesignGithubRepoCache.fetchedAt < OPEN_DESIGN_GITHUB_CACHE_TTL_MS) {
     return { ...openDesignGithubRepoCache, stale: false };
   }
 
@@ -3491,9 +3325,7 @@ async function readOpenDesignGithubRepoStats() {
         throw new Error(`GitHub repo metadata request failed with HTTP ${response.status}`);
       }
       const payload = await response.json();
-      const count = payload && typeof payload.stargazers_count === 'number'
-        ? payload.stargazers_count
-        : null;
+      const count = payload && typeof payload.stargazers_count === 'number' ? payload.stargazers_count : null;
       if (!Number.isFinite(count) || count == null || count < 0) {
         throw new Error('GitHub repo metadata did not include a numeric stargazers_count');
       }
@@ -3653,7 +3485,8 @@ function authorizeToolRequest(req, res, operation) {
   const endpoint = req.path;
   const validation = toolTokenRegistry.validate(bearerTokenFromRequest(req), { endpoint, operation });
   if (!validation.ok) {
-    const status = validation.code === 'TOOL_ENDPOINT_DENIED' || validation.code === 'TOOL_OPERATION_DENIED' ? 403 : 401;
+    const status =
+      validation.code === 'TOOL_ENDPOINT_DENIED' || validation.code === 'TOOL_OPERATION_DENIED' ? 403 : 401;
     sendApiError(res, status, validation.code, validation.message, {
       details: { endpoint, operation },
     });
@@ -3729,10 +3562,7 @@ function createSseErrorPayload(code, message, init = {}) {
 const MAX_CHAT_IMAGE_BYTES = 1024 * 1024;
 
 function rewriteKnownAgentStreamError(agentId, message, failureText = '') {
-  const rawMessage =
-    typeof message === 'string' && message.trim()
-      ? message.trim()
-      : 'Agent stream error';
+  const rawMessage = typeof message === 'string' && message.trim() ? message.trim() : 'Agent stream error';
   const combined = `${rawMessage}\n${failureText}`;
   if (
     /bufio\.scanner:\s*token too long/i.test(combined) &&
@@ -3745,9 +3575,7 @@ function rewriteKnownAgentStreamError(agentId, message, failureText = '') {
 }
 
 function createAmrModelUnavailablePayload(model, init = {}) {
-  const modelText = typeof model === 'string' && model.trim()
-    ? `"${model.trim()}"`
-    : 'the selected model';
+  const modelText = typeof model === 'string' && model.trim() ? `"${model.trim()}"` : 'the selected model';
   return createSseErrorPayload(
     'AMR_MODEL_UNAVAILABLE',
     `AMR model ${modelText} is not available from Vela. Refresh the AMR model list, choose a supported model, and retry this run.`,
@@ -3773,10 +3601,7 @@ const upload = multer({
     filename: (_req, file, cb) => {
       file.originalname = decodeMultipartFilename(file.originalname);
       const safe = sanitizeName(file.originalname);
-      cb(
-        null,
-        `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`,
-      );
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`);
     },
   }),
   limits: { fileSize: 20 * 1024 * 1024 },
@@ -3788,10 +3613,7 @@ const importUpload = multer({
     filename: (_req, file, cb) => {
       file.originalname = decodeMultipartFilename(file.originalname);
       const safe = sanitizeName(file.originalname);
-      cb(
-        null,
-        `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`,
-      );
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`);
     },
   }),
   limits: { fileSize: 100 * 1024 * 1024 },
@@ -3835,12 +3657,7 @@ const projectUpload = multer({
         // sanitized relative dir is stashed on the request so the route can
         // report each file's true project-relative path.
         const subdir = typeof req.body?.dir === 'string' ? req.body.dir : '';
-        const { absDir, relDir } = await ensureProjectSubdir(
-          PROJECTS_DIR,
-          req.params.id,
-          subdir,
-          meta,
-        );
+        const { absDir, relDir } = await ensureProjectSubdir(PROJECTS_DIR, req.params.id, subdir, meta);
         (req as any)._uploadRelDir = relDir;
         cb(null, absDir);
       } catch (err) {
@@ -3858,7 +3675,7 @@ const projectUpload = multer({
       cb(null, `${Date.now().toString(36)}-${safe}`);
     },
   }),
-  limits: { fileSize: 200 * 1024 * 1024 },  // 200MB — covers the largest design assets we expect (PPTX/PDF/raw images)
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB — covers the largest design assets we expect (PPTX/PDF/raw images)
 });
 
 function handleProjectUpload(req, res, next) {
@@ -3895,13 +3712,9 @@ function sendMulterError(res, err) {
     };
     const status = statusByCode[code] ?? 400;
     const message = errorByCode[code] ?? 'upload failed';
-    return sendApiError(
-      res,
-      status,
-      code === 'LIMIT_FILE_SIZE' ? 'PAYLOAD_TOO_LARGE' : 'BAD_REQUEST',
-      message,
-      { details: { legacyCode: code } },
-    );
+    return sendApiError(res, status, code === 'LIMIT_FILE_SIZE' ? 'PAYLOAD_TOO_LARGE' : 'BAD_REQUEST', message, {
+      details: { legacyCode: code },
+    });
   }
 
   if (err) {
@@ -4000,10 +3813,7 @@ function notifyTaskWaiters(db, task) {
       // Never let one bad waiter block the rest.
     }
   }
-  if (
-    MEDIA_TERMINAL_STATUSES.has(task.status) &&
-    !task._gcScheduled
-  ) {
+  if (MEDIA_TERMINAL_STATUSES.has(task.status) && !task._gcScheduled) {
     task._gcScheduled = true;
     setTimeout(() => {
       if (task.waiters.size === 0) {
@@ -4135,12 +3945,9 @@ async function runPluginShareTask(task, folder) {
   for (const step of pluginShareProgressPlan(task.action)) {
     appendPluginShareTaskProgress(task, `- ${step}`);
   }
-  const result = await execCommandViaLoginShell(OD_NODE_BIN, [
-    OD_BIN,
-    ...share.argv,
-    folder,
-    '--json',
-  ], { timeout: task.action === 'publish-github' ? 240_000 : 300_000 });
+  const result = await execCommandViaLoginShell(OD_NODE_BIN, [OD_BIN, ...share.argv, folder, '--json'], {
+    timeout: task.action === 'publish-github' ? 240_000 : 300_000,
+  });
   let payload = null;
   try {
     payload = result.stdout ? JSON.parse(result.stdout) : null;
@@ -4156,7 +3963,8 @@ async function runPluginShareTask(task, folder) {
     task.status = 'failed';
     task.error = {
       code: payload?.error?.label || share.failureCode,
-      message: payload?.error?.stderr || payload?.error?.stdout || result.stderr || result.stdout || `${share.title} failed.`,
+      message:
+        payload?.error?.stderr || payload?.error?.stdout || result.stderr || result.stdout || `${share.title} failed.`,
       log: stepLog.length > 0 ? stepLog : [result.stderr || result.stdout || `${share.command} failed`],
     };
     task.endedAt = Date.now();
@@ -4167,9 +3975,9 @@ async function runPluginShareTask(task, folder) {
   task.status = 'done';
   task.result = {
     message: url
-      ? (task.action === 'publish-github'
-          ? `Published plugin to ${url}.`
-          : `Opened Open Design PR flow at ${url}.`)
+      ? task.action === 'publish-github'
+        ? `Published plugin to ${url}.`
+        : `Opened Open Design PR flow at ${url}.`
       : share.successMessage,
     ...(url ? { url } : {}),
     log: stepLog,
@@ -4178,10 +3986,7 @@ async function runPluginShareTask(task, folder) {
   notifyPluginShareTaskWaiters(task);
 }
 
-export function createSseResponse(
-  res,
-  { keepAliveIntervalMs = SSE_KEEPALIVE_INTERVAL_MS } = {},
-) {
+export function createSseResponse(res, { keepAliveIntervalMs = SSE_KEEPALIVE_INTERVAL_MS } = {}) {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
@@ -4338,8 +4143,7 @@ export function classifyChatRunCloseStatus(params: {
 }): 'canceled' | 'succeeded' | 'failed' {
   if (params.cancelRequested) return 'canceled';
   if (params.code === 0) return 'succeeded';
-  const acpForcedShutdown =
-    params.code === null && params.signal === 'SIGTERM' && params.acpCleanCompletion;
+  const acpForcedShutdown = params.code === null && params.signal === 'SIGTERM' && params.acpCleanCompletion;
   if (acpForcedShutdown) return 'succeeded';
   const artifactQuietShutdown =
     params.artifactQuietShutdownRequested &&
@@ -4388,10 +4192,7 @@ type ClaudeStreamJsonBookkeepingRun = {
   } | null;
 };
 
-export function applyClaudeStreamJsonRunBookkeeping(
-  run: ClaudeStreamJsonBookkeepingRun,
-  ev: unknown,
-) {
+export function applyClaudeStreamJsonRunBookkeeping(run: ClaudeStreamJsonBookkeepingRun, ev: unknown) {
   if (!ev || typeof ev !== 'object') return;
   const event = ev as {
     type?: unknown;
@@ -4427,7 +4228,9 @@ export function applyClaudeStreamJsonRunBookkeeping(
   run.turnCompletedCleanly = true;
   if (run.stdinOpen) {
     if (run.child?.stdin && !run.child.stdin.destroyed) {
-      try { run.child.stdin.end(); } catch {}
+      try {
+        run.child.stdin.end();
+      } catch {}
     }
     run.stdinOpen = false;
   }
@@ -4477,8 +4280,8 @@ export async function startServer({
   if (!isLoopbackHostname(host) && apiToken.length === 0) {
     throw new Error(
       `OD_BIND_HOST=${host} requires OD_API_TOKEN to be set. ` +
-      `Generate one with \`openssl rand -hex 32\` and re-launch. ` +
-      `(Loopback hosts 127.0.0.1 / ::1 / localhost do not need a token.)`,
+        `Generate one with \`openssl rand -hex 32\` and re-launch. ` +
+        `(Loopback hosts 127.0.0.1 / ::1 / localhost do not need a token.)`,
     );
   }
 
@@ -4499,22 +4302,12 @@ export async function startServer({
   // Rich daemon status stays authenticated because it includes local
   // runtime paths.
   if (apiToken.length > 0) {
-    const openProbePaths = new Set([
-      '/health',
-      '/api/health',
-      '/ready',
-      '/api/ready',
-      '/version',
-      '/api/version',
-    ]);
+    const openProbePaths = new Set(['/health', '/api/health', '/ready', '/api/ready', '/version', '/api/version']);
     app.use('/api', (req, res, next) => {
       if (openProbePaths.has(req.path)) return next();
       if (req.method === 'GET') {
         const previewAsset = parseProjectPreviewAssetPath(req.path);
-        if (
-          previewAsset &&
-          projectPreviewScopes.validate(previewAsset.projectId, previewAsset.scope)
-        ) {
+        if (previewAsset && projectPreviewScopes.validate(previewAsset.projectId, previewAsset.scope)) {
           return next();
         }
       }
@@ -4588,10 +4381,7 @@ export async function startServer({
     if (typeof id === 'string' && id.startsWith('user:')) {
       return readDesignSystem(USER_DESIGN_SYSTEMS_DIR, id, { idPrefix: 'user:' });
     }
-    return (
-      (await readDesignSystem(DESIGN_SYSTEMS_DIR, id))
-      ?? (await readDesignSystem(USER_DESIGN_SYSTEMS_DIR, id))
-    );
+    return (await readDesignSystem(DESIGN_SYSTEMS_DIR, id)) ?? (await readDesignSystem(USER_DESIGN_SYSTEMS_DIR, id));
   }
 
   async function readAvailableDesignSystemPackageInfo(id) {
@@ -4599,8 +4389,8 @@ export async function startServer({
       return readDesignSystemPackageInfo(USER_DESIGN_SYSTEMS_DIR, id, { idPrefix: 'user:' });
     }
     return (
-      (await readDesignSystemPackageInfo(DESIGN_SYSTEMS_DIR, id))
-      ?? (await readDesignSystemPackageInfo(USER_DESIGN_SYSTEMS_DIR, id))
+      (await readDesignSystemPackageInfo(DESIGN_SYSTEMS_DIR, id)) ??
+      (await readDesignSystemPackageInfo(USER_DESIGN_SYSTEMS_DIR, id))
     );
   }
 
@@ -4750,7 +4540,9 @@ export async function startServer({
   }
 
   function hasLegacyDesignSystemPackageReferences(text) {
-    return /preview\/(colors-node-types|colors-ui-palette|typography-scale|spacing-system|logo-variants)\.html|ui_kits\/generated_interface(?:\/index\.html|\/)?/u.test(text);
+    return /preview\/(colors-node-types|colors-ui-palette|typography-scale|spacing-system|logo-variants)\.html|ui_kits\/generated_interface(?:\/index\.html|\/)?/u.test(
+      text,
+    );
   }
 
   async function removeLegacyDesignSystemWorkspaceArtifacts(project) {
@@ -4781,12 +4573,7 @@ export async function startServer({
     const project = getProject(db, summary.projectId);
     if (!project) return null;
     try {
-      const file = await readProjectFile(
-        PROJECTS_DIR,
-        project.id,
-        filePath,
-        project.metadata,
-      );
+      const file = await readProjectFile(PROJECTS_DIR, project.id, filePath, project.metadata);
       const text = file.buffer.toString('utf8');
       if (text.includes('\0')) return null;
       return text;
@@ -4804,8 +4591,7 @@ export async function startServer({
 
   // Routes that serve content to sandboxed iframes (Origin: null) for
   // read-only purposes.  All other /api routes reject Origin: null.
-  const _NULL_ORIGIN_SAFE_GET_RE =
-    /^\/projects\/[^/]+\/(?:raw|preview)\/|^\/codex-pets\/[^/]+\/spritesheet$/;
+  const _NULL_ORIGIN_SAFE_GET_RE = /^\/projects\/[^/]+\/(?:raw|preview)\/|^\/codex-pets\/[^/]+\/spritesheet$/;
 
   // Reject cross-origin requests to API endpoints.
   // Health/version remain open for monitoring probes.
@@ -4823,8 +4609,7 @@ export async function startServer({
     // Origin: null (sandboxed iframes).  Only allowed for safe, read-only
     // routes that set their own CORS headers for canvas drawing.
     if (origin === 'null') {
-      const isSafeReadOnly =
-        req.method === 'GET' && _NULL_ORIGIN_SAFE_GET_RE.test(req.path);
+      const isSafeReadOnly = req.method === 'GET' && _NULL_ORIGIN_SAFE_GET_RE.test(req.path);
       if (!isSafeReadOnly) {
         return res.status(403).json({ error: 'Origin: null not allowed for this route' });
       }
@@ -4848,7 +4633,11 @@ export async function startServer({
   // Wire the upload-destination bridge to this db so multer can route
   // file uploads into baseDir-rooted projects' actual folders.
   projectMetadataLookup = (id) => {
-    try { return getProject(db, id)?.metadata ?? null; } catch { return null; }
+    try {
+      return getProject(db, id)?.metadata ?? null;
+    } catch {
+      return null;
+    }
   };
   configureConnectorCredentialStore(new FileConnectorCredentialStore(RUNTIME_DATA_DIR));
   configureComposioConfigStore(RUNTIME_DATA_DIR);
@@ -4928,22 +4717,22 @@ export async function startServer({
       bundledRoot: BUNDLED_PLUGINS_DIR,
       marketplaceProvenance: {
         sourceMarketplaceId: OFFICIAL_MARKETPLACE_ID,
-        marketplaceTrust:    'official',
-        entryNamePrefix:     'open-design',
+        marketplaceTrust: 'official',
+        entryNamePrefix: 'open-design',
       },
     });
     bundledMarketplaceEntries = result.registered.map((plugin) => ({
-      name:        `open-design/${plugin.id}`,
-      title:       plugin.title,
-      title_i18n:  plugin.manifest.title_i18n,
+      name: `open-design/${plugin.id}`,
+      title: plugin.title,
+      title_i18n: plugin.manifest.title_i18n,
       description: plugin.manifest.description,
       description_i18n: plugin.manifest.description_i18n,
-      version:     plugin.version,
-      source:      bundledPluginRegistrySource(plugin.source),
-      publisher:   { id: 'open-design', url: 'https://open-design.ai' },
-      homepage:    plugin.manifest.homepage,
-      license:     plugin.manifest.license,
-      tags:        plugin.manifest.tags,
+      version: plugin.version,
+      source: bundledPluginRegistrySource(plugin.source),
+      publisher: { id: 'open-design', url: 'https://open-design.ai' },
+      homepage: plugin.manifest.homepage,
+      license: plugin.manifest.license,
+      tags: plugin.manifest.tags,
       capabilitiesSummary: Array.isArray(plugin.manifest.od?.capabilities)
         ? plugin.manifest.od.capabilities
         : undefined,
@@ -4955,7 +4744,7 @@ export async function startServer({
       for (const w of result.warnings) console.warn(`[plugins] bundled warn: ${w}`);
     }
   } catch (err) {
-    console.warn(`[plugins] bundled registration failed: ${(err)?.message ?? err}`);
+    console.warn(`[plugins] bundled registration failed: ${err?.message ?? err}`);
   }
 
   try {
@@ -4983,7 +4772,7 @@ export async function startServer({
       }
     }
   } catch (err) {
-    console.warn(`[plugins] registry seed failed: ${(err)?.message ?? err}`);
+    console.warn(`[plugins] registry seed failed: ${err?.message ?? err}`);
   }
 
   // Plan §3.A5 / spec §16 Phase 5 / PB2: periodic snapshot GC. Disabled
@@ -4999,7 +4788,7 @@ export async function startServer({
       console.log(`[plugins] snapshot GC startup sweep removed ${initialSweep.removed} row(s)`);
     }
   } catch (err) {
-    console.warn(`[plugins] snapshot GC startup sweep failed: ${(err)?.message ?? err}`);
+    console.warn(`[plugins] snapshot GC startup sweep failed: ${err?.message ?? err}`);
   }
   void snapshotGc; // keep handle alive for the daemon's lifetime
 
@@ -5044,12 +4833,12 @@ export async function startServer({
   app.get('/api/github/open-design', async (_req, res) => {
     try {
       const stats = await readOpenDesignGithubRepoStats();
-      const payload = /** @type {OpenDesignGithubRepoResponse} */ ({
+      const payload = /** @type {OpenDesignGithubRepoResponse} */ {
         repo: 'nexu-io/open-design',
         stargazers_count: stats.stargazersCount,
         fetchedAt: stats.fetchedAt,
         stale: stats.stale,
-      });
+      };
       res.json(payload);
     } catch (error) {
       res.status(502).json({
@@ -5061,13 +4850,13 @@ export async function startServer({
   app.get('/api/github/open-design/releases/latest', async (_req, res) => {
     try {
       const release = await readOpenDesignLatestReleaseInfo();
-      const payload = /** @type {OpenDesignGithubLatestReleaseResponse} */ ({
+      const payload = /** @type {OpenDesignGithubLatestReleaseResponse} */ {
         repo: 'nexu-io/open-design',
         tag_name: release.tagName,
         html_url: release.htmlUrl,
         fetchedAt: release.fetchedAt,
         stale: release.stale,
-      });
+      };
       res.json(payload);
     } catch (error) {
       res.status(502).json({
@@ -5079,14 +4868,14 @@ export async function startServer({
   app.get('/api/community/discord', async (_req, res) => {
     try {
       const presence = await readOpenDesignDiscordPresence();
-      const payload = /** @type {OpenDesignDiscordPresenceResponse} */ ({
+      const payload = /** @type {OpenDesignDiscordPresenceResponse} */ {
         inviteCode: OPEN_DESIGN_DISCORD_INVITE_CODE,
         inviteUrl: OPEN_DESIGN_DISCORD_INVITE_URL,
         onlineCount: presence.onlineCount,
         memberCount: presence.memberCount,
         fetchedAt: presence.fetchedAt,
         stale: presence.stale,
-      });
+      };
       res.json(payload);
     } catch (error) {
       res.status(502).json({
@@ -5109,14 +4898,12 @@ export async function startServer({
       dataDir: RUNTIME_DATA_DIR,
       mediaConfigDir: process.env.OD_MEDIA_CONFIG_DIR ?? null,
       sandboxMode: SANDBOX_RUNTIME.enabled,
-      sandbox: SANDBOX_RUNTIME.enabled
-        ? { enabled: true, roots: SANDBOX_RUNTIME.roots }
-        : { enabled: false },
+      sandbox: SANDBOX_RUNTIME.enabled ? { enabled: true, roots: SANDBOX_RUNTIME.roots } : { enabled: false },
       pid: process.pid,
       shuttingDown: daemonShuttingDown,
       installedPlugins: (() => {
         try {
-          return (db.prepare('SELECT COUNT(*) AS n FROM installed_plugins').get())?.n ?? 0;
+          return db.prepare('SELECT COUNT(*) AS n FROM installed_plugins').get()?.n ?? 0;
         } catch {
           return 0;
         }
@@ -5236,7 +5023,9 @@ export async function startServer({
     const unsubscribe = subscribePluginEvents((ev) => {
       res.write(`event: plugin\ndata: ${JSON.stringify(ev)}\n\n`);
     });
-    req.on('close', () => { unsubscribe(); });
+    req.on('close', () => {
+      unsubscribe();
+    });
   });
 
   // Plan §3.LL1 — `od daemon db verify`. Runs SQLite
@@ -5274,7 +5063,7 @@ export async function startServer({
       res.json({
         ok: true,
         beforeBytes: before.sizeBytes,
-        afterBytes:  after.sizeBytes,
+        afterBytes: after.sizeBytes,
         reclaimedBytes: Math.max(0, before.sizeBytes - after.sizeBytes),
         elapsedMs,
       });
@@ -5338,7 +5127,7 @@ export async function startServer({
   app.get('/api/critique/conformance', async (req, res) => {
     try {
       const windowDays = parsePositiveInt(req.query.windowDays, 14);
-      const shippedThreshold = parseRate(req.query.shippedThreshold, 0.90);
+      const shippedThreshold = parseRate(req.query.shippedThreshold, 0.9);
       const cleanParseThreshold = parseRate(req.query.cleanParseThreshold, 0.95);
       const history = await readConformanceHistory(RUNTIME_DATA_DIR, windowDays);
       const decision = evaluateRollout({
@@ -5378,7 +5167,6 @@ export async function startServer({
   );
 
   // ---- Projects (DB-backed) -------------------------------------------------
-
 
   registerMemoryRoutes(app, {
     http: { createSseResponse, requireLocalDaemonRequest },
@@ -5532,9 +5320,7 @@ export async function startServer({
       // Echo the installationId so the web client uses the same anonymous
       // id PostHog already saw on prior runs (and that Langfuse uses too).
       const installationId =
-        typeof appCfg.installationId === 'string' && appCfg.installationId
-          ? appCfg.installationId
-          : null;
+        typeof appCfg.installationId === 'string' && appCfg.installationId ? appCfg.installationId : null;
       res.json({
         enabled: consentGranted,
         key: baseline.key,
@@ -5599,10 +5385,7 @@ export async function startServer({
   // corruption. See codex review on PR #2527 (Siri-Ray).
   const FATAL_FLUSH_TIMEOUT_MS = 1000;
   let fatalShuttingDown = false;
-  const triggerFatalShutdown = (
-    eventName: string,
-    properties: Record<string, unknown>,
-  ): void => {
+  const triggerFatalShutdown = (eventName: string, properties: Record<string, unknown>): void => {
     if (fatalShuttingDown) return;
     fatalShuttingDown = true;
     // CRITICAL — wait for captureSafety to ENQUEUE the event in
@@ -5785,7 +5568,14 @@ export async function startServer({
     updatePreviewCommentStatus,
     deletePreviewComment,
   };
-  const templateDeps = { getTemplate, listTemplates, deleteTemplate, insertTemplate, findTemplateByNameAndProject, updateTemplate };
+  const templateDeps = {
+    getTemplate,
+    listTemplates,
+    deleteTemplate,
+    insertTemplate,
+    findTemplateByNameAndProject,
+    updateTemplate,
+  };
   const projectStatusDeps = {
     listLatestProjectRunStatuses,
     listProjectsAwaitingInput,
@@ -5843,6 +5633,7 @@ export async function startServer({
     VIDEO_LENGTHS_SEC,
     AUDIO_DURATIONS_SEC,
     readMaskedConfig,
+    resolveProviderConfig,
     writeConfig,
     generateMedia,
     mediaTasks,
@@ -5900,7 +5691,13 @@ export async function startServer({
     EmptyTranscriptError,
     redactSecrets,
   };
-  const validationDeps = { isSafeId, validateExternalApiBaseUrl, validateBaseUrl, validateProjectDesignSystemId, validateProjectSkillId };
+  const validationDeps = {
+    isSafeId,
+    validateExternalApiBaseUrl,
+    validateBaseUrl,
+    validateProjectDesignSystemId,
+    validateProjectSkillId,
+  };
   const agentDeps = {
     listProviderModels,
     testProviderConnection,
@@ -5922,6 +5719,10 @@ export async function startServer({
     http: httpDeps,
     paths: pathDeps,
     mcp: { pendingAuth: mcpPendingAuth, daemonUrlRef },
+  });
+  registerWeChatAgentRoutes(app, {
+    http: httpDeps,
+    paths: { RUNTIME_DATA_DIR },
   });
   registerXaiRoutes(app, {
     http: httpDeps,
@@ -5993,10 +5794,7 @@ export async function startServer({
     },
     tokenContractRebuild: {
       maybeStartForImportedDesignSystem: async (designSystemId) => {
-        const preparation = await prepareDesignTokenContractRebuild(
-          USER_DESIGN_SYSTEMS_DIR,
-          designSystemId,
-        );
+        const preparation = await prepareDesignTokenContractRebuild(USER_DESIGN_SYSTEMS_DIR, designSystemId);
         if (!preparation.revision) return { decision: preparation.decision };
         const job = designSystemGenerationJobs.rebuildTokenContract({
           designSystemId,
@@ -6131,9 +5929,14 @@ export async function startServer({
       }
       sinks.add(projectEventSink);
       const watchProject = getProject(db, req.params.id);
-      sub = subscribeFileEvents(PROJECTS_DIR, req.params.id, (evt) => {
-        sse.send('file-changed', evt);
-      }, { metadata: watchProject?.metadata });
+      sub = subscribeFileEvents(
+        PROJECTS_DIR,
+        req.params.id,
+        (evt) => {
+          sse.send('file-changed', evt);
+        },
+        { metadata: watchProject?.metadata },
+      );
       sub.ready.then(() => sse.send('ready', { projectId: req.params.id })).catch(() => {});
       const cleanup = () => {
         if (sub) {
@@ -6168,13 +5971,9 @@ export async function startServer({
     }
     const { title, seedFromConversationId, forkAfterMessageId } = req.body || {};
     const now = Date.now();
-    const hasExplicitSessionMode = Boolean(
-      req.body && Object.prototype.hasOwnProperty.call(req.body, 'sessionMode'),
-    );
+    const hasExplicitSessionMode = Boolean(req.body && Object.prototype.hasOwnProperty.call(req.body, 'sessionMode'));
     const requestedForkMessageId =
-      typeof forkAfterMessageId === 'string' && forkAfterMessageId
-        ? forkAfterMessageId
-        : null;
+      typeof forkAfterMessageId === 'string' && forkAfterMessageId ? forkAfterMessageId : null;
     const sourceConversation =
       typeof seedFromConversationId === 'string' && seedFromConversationId
         ? getConversation(db, seedFromConversationId)
@@ -6192,12 +5991,11 @@ export async function startServer({
     } else if (requestedForkMessageId) {
       return res.status(404).json({ error: 'fork source conversation not found' });
     }
-    const sessionMode =
-      hasExplicitSessionMode
-        ? normalizeConversationSessionMode(req.body.sessionMode)
-        : sourceConversation && sourceConversation.projectId === req.params.id
-          ? normalizeConversationSessionMode(sourceConversation.sessionMode)
-          : 'design';
+    const sessionMode = hasExplicitSessionMode
+      ? normalizeConversationSessionMode(req.body.sessionMode)
+      : sourceConversation && sourceConversation.projectId === req.params.id
+        ? normalizeConversationSessionMode(sourceConversation.sessionMode)
+        : 'design';
     const conv = insertConversation(db, {
       id: randomId(),
       projectId: req.params.id,
@@ -6285,12 +6083,7 @@ export async function startServer({
       return res.status(404).json({ error: 'conversation not found' });
     }
     try {
-      const comment = upsertPreviewComment(
-        db,
-        req.params.id,
-        req.params.cid,
-        req.body || {},
-      );
+      const comment = upsertPreviewComment(db, req.params.id, req.params.cid, req.body || {});
       updateProject(db, req.params.id, {});
       res.json({ comment });
     } catch (err) {
@@ -6298,49 +6091,37 @@ export async function startServer({
     }
   });
 
-  app.patch(
-    '/api/projects/:id/conversations/:cid/comments/:commentId',
-    (req, res) => {
-      const conv = getConversation(db, req.params.cid);
-      if (!conv || conv.projectId !== req.params.id) {
-        return res.status(404).json({ error: 'conversation not found' });
-      }
-      try {
-        const comment = updatePreviewCommentStatus(
-          db,
-          req.params.id,
-          req.params.cid,
-          req.params.commentId,
-          req.body?.status,
-        );
-        if (!comment)
-          return res.status(404).json({ error: 'comment not found' });
-        updateProject(db, req.params.id, {});
-        res.json({ comment });
-      } catch (err) {
-        res.status(400).json({ error: String(err?.message || err) });
-      }
-    },
-  );
-
-  app.delete(
-    '/api/projects/:id/conversations/:cid/comments/:commentId',
-    (req, res) => {
-      const conv = getConversation(db, req.params.cid);
-      if (!conv || conv.projectId !== req.params.id) {
-        return res.status(404).json({ error: 'conversation not found' });
-      }
-      const ok = deletePreviewComment(
+  app.patch('/api/projects/:id/conversations/:cid/comments/:commentId', (req, res) => {
+    const conv = getConversation(db, req.params.cid);
+    if (!conv || conv.projectId !== req.params.id) {
+      return res.status(404).json({ error: 'conversation not found' });
+    }
+    try {
+      const comment = updatePreviewCommentStatus(
         db,
         req.params.id,
         req.params.cid,
         req.params.commentId,
+        req.body?.status,
       );
-      if (!ok) return res.status(404).json({ error: 'comment not found' });
+      if (!comment) return res.status(404).json({ error: 'comment not found' });
       updateProject(db, req.params.id, {});
-      res.json({ ok: true });
-    },
-  );
+      res.json({ comment });
+    } catch (err) {
+      res.status(400).json({ error: String(err?.message || err) });
+    }
+  });
+
+  app.delete('/api/projects/:id/conversations/:cid/comments/:commentId', (req, res) => {
+    const conv = getConversation(db, req.params.cid);
+    if (!conv || conv.projectId !== req.params.id) {
+      return res.status(404).json({ error: 'conversation not found' });
+    }
+    const ok = deletePreviewComment(db, req.params.id, req.params.cid, req.params.commentId);
+    if (!ok) return res.status(404).json({ error: 'comment not found' });
+    updateProject(db, req.params.id, {});
+    res.json({ ok: true });
+  });
 
   // ---- Tabs -----------------------------------------------------------------
 
@@ -6362,15 +6143,11 @@ export async function startServer({
     if (!Array.isArray(browserTabs)) {
       return res.status(400).json({ error: 'browserTabs must be an array' });
     }
-    const result = setTabs(
-      db,
-      req.params.id,
-      {
-        tabs,
-        active: typeof active === 'string' ? active : null,
-        browserTabs,
-      },
-    );
+    const result = setTabs(db, req.params.id, {
+      tabs,
+      active: typeof active === 'string' ? active : null,
+      browserTabs,
+    });
     res.json(result);
   });
 
@@ -6412,14 +6189,8 @@ export async function startServer({
       });
       const snapshot = [];
       for (const f of files) {
-        if (f.kind !== 'html' && f.kind !== 'text' && f.kind !== 'code')
-          continue;
-        const entry = await readProjectFile(
-          PROJECTS_DIR,
-          sourceProjectId,
-          f.name,
-          sourceProject.metadata,
-        );
+        if (f.kind !== 'html' && f.kind !== 'text' && f.kind !== 'code') continue;
+        const entry = await readProjectFile(PROJECTS_DIR, sourceProjectId, f.name, sourceProject.metadata);
         if (entry && Buffer.isBuffer(entry.buffer)) {
           snapshot.push({
             name: f.name,
@@ -6647,10 +6418,7 @@ export async function startServer({
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const sourceRaw = typeof body.source === 'string' ? body.source : 'all';
-      const source =
-        sourceRaw === 'petshare' || sourceRaw === 'hatchery'
-          ? sourceRaw
-          : 'all';
+      const source = sourceRaw === 'petshare' || sourceRaw === 'hatchery' ? sourceRaw : 'all';
       const result = await syncCommunityPets({
         source,
         force: Boolean(body.force),
@@ -6667,17 +6435,9 @@ export async function startServer({
         bundledRoot: BUNDLED_PETS_DIR,
       });
       if (!sheet) {
-        return res
-          .status(404)
-          .type('text/plain')
-          .send('codex pet spritesheet not found');
+        return res.status(404).type('text/plain').send('codex pet spritesheet not found');
       }
-      const mime =
-        sheet.ext === 'webp'
-          ? 'image/webp'
-          : sheet.ext === 'gif'
-            ? 'image/gif'
-            : 'image/png';
+      const mime = sheet.ext === 'webp' ? 'image/webp' : sheet.ext === 'gif' ? 'image/gif' : 'image/png';
       res.type(mime);
       // Same-origin callers (the web app proxies `/api/*` through to
       // the daemon, so PetSettings adoption fetches arrive same-origin)
@@ -6756,11 +6516,9 @@ export async function startServer({
 
   app.post('/api/design-systems/:id/token-contract/rebuild-jobs', async (req, res) => {
     try {
-      const preparation = await prepareDesignTokenContractRebuild(
-        USER_DESIGN_SYSTEMS_DIR,
-        req.params.id,
-        { force: req.body?.force === true },
-      );
+      const preparation = await prepareDesignTokenContractRebuild(USER_DESIGN_SYSTEMS_DIR, req.params.id, {
+        force: req.body?.force === true,
+      });
       if (!preparation.decision.available) {
         return res.status(200).json({ decision: preparation.decision });
       }
@@ -6780,10 +6538,7 @@ export async function startServer({
 
   app.get('/api/design-systems/:id/revisions', async (req, res) => {
     try {
-      const revisions = await listUserDesignSystemRevisions(
-        USER_DESIGN_SYSTEMS_DIR,
-        req.params.id,
-      );
+      const revisions = await listUserDesignSystemRevisions(USER_DESIGN_SYSTEMS_DIR, req.params.id);
       if (!revisions) {
         return res.status(404).json({ error: 'editable design system not found' });
       }
@@ -6819,9 +6574,8 @@ export async function startServer({
       const systems = await listAllDesignSystems();
       const summary = systems.find((s) => s.id === req.params.id);
       const projectBody = await readDesignSystemWorkspaceTextFile(db, summary, 'DESIGN.md');
-      const body = projectBody ?? await readAvailableDesignSystem(req.params.id);
-      if (body === null || !summary)
-        return res.status(404).json({ error: 'design system not found' });
+      const body = projectBody ?? (await readAvailableDesignSystem(req.params.id));
+      if (body === null || !summary) return res.status(404).json({ error: 'design system not found' });
       const packageInfo = await readAvailableDesignSystemPackageInfo(req.params.id);
       const detail = { ...summary, body, ...(packageInfo ? { packageInfo } : {}) };
       res.json({ ...detail, designSystem: detail });
@@ -6857,11 +6611,7 @@ export async function startServer({
   app.get('/api/design-systems/:id/file', async (req, res) => {
     try {
       const requestedPath = typeof req.query.path === 'string' ? req.query.path : '';
-      const file = await readUserDesignSystemFile(
-        USER_DESIGN_SYSTEMS_DIR,
-        req.params.id,
-        requestedPath,
-      );
+      const file = await readUserDesignSystemFile(USER_DESIGN_SYSTEMS_DIR, req.params.id, requestedPath);
       if (!file) return res.status(404).json({ error: 'design system file not found' });
       res.json({ file });
     } catch (err) {
@@ -6871,11 +6621,7 @@ export async function startServer({
 
   app.patch('/api/design-systems/:id', async (req, res) => {
     try {
-      const updated = await updateUserDesignSystem(
-        USER_DESIGN_SYSTEMS_DIR,
-        req.params.id,
-        req.body || {},
-      );
+      const updated = await updateUserDesignSystem(USER_DESIGN_SYSTEMS_DIR, req.params.id, req.body || {});
       if (!updated) {
         return res.status(404).json({ error: 'editable design system not found' });
       }
@@ -7235,7 +6981,11 @@ export async function startServer({
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
 
-    writeEvent('progress', { kind: 'progress', phase: 'resolving', message: `Upgrading ${id} from ${source} (policy=${policy})` });
+    writeEvent('progress', {
+      kind: 'progress',
+      phase: 'resolving',
+      message: `Upgrading ${id} from ${source} (policy=${policy})`,
+    });
 
     try {
       for await (const ev of installPlugin(db, {
@@ -7267,10 +7017,7 @@ export async function startServer({
   // walked from disk; craft is empty in v1; atoms come from the
   // first-party catalog. Project-scoped overrides arrive in Phase 4.
   async function loadPluginRegistryView() {
-    const [skills, designSystems] = await Promise.all([
-      listAllSkills(),
-      listAllDesignSystems(),
-    ]);
+    const [skills, designSystems] = await Promise.all([listAllSkills(), listAllDesignSystems()]);
     // Spec §23.3.3: surface the bundled scenario plugins so apply()
     // can fall back to the matching scenario's pipeline when the
     // consumer plugin omits od.pipeline. Each scenario carries a
@@ -7317,8 +7064,13 @@ export async function startServer({
         if (!od || od.kind !== 'scenario') continue;
         if (!od.pipeline || !Array.isArray(od.pipeline.stages) || od.pipeline.stages.length === 0) continue;
         const taskKind = (od.taskKind ?? 'new-generation') as ScenarioEntry['taskKind'];
-        if (taskKind !== 'new-generation' && taskKind !== 'figma-migration' &&
-            taskKind !== 'code-migration' && taskKind !== 'tune-collab') continue;
+        if (
+          taskKind !== 'new-generation' &&
+          taskKind !== 'figma-migration' &&
+          taskKind !== 'code-migration' &&
+          taskKind !== 'tune-collab'
+        )
+          continue;
         const entry: ScenarioEntry = { id: row.id, taskKind, pipeline: od.pipeline };
         const existing = byTaskKind.get(taskKind);
         if (!existing || entry.id === `od-${taskKind}`) {
@@ -7339,9 +7091,7 @@ export async function startServer({
       if (!plugin) return res.status(404).json({ error: 'plugin not found' });
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const inputs = body.inputs && typeof body.inputs === 'object' ? body.inputs : {};
-      const grantCaps = Array.isArray(body.grantCaps)
-        ? body.grantCaps.filter((c) => typeof c === 'string')
-        : [];
+      const grantCaps = Array.isArray(body.grantCaps) ? body.grantCaps.filter((c) => typeof c === 'string') : [];
       const locale = typeof body.locale === 'string' ? body.locale : undefined;
 
       const registry = await loadPluginRegistryView();
@@ -7356,7 +7106,12 @@ export async function startServer({
         computed.result.capabilitiesGranted = Array.from(merged);
         computed.result.appliedPlugin.capabilitiesGranted = Array.from(merged);
       }
-      res.json({ ok: true, ...computed.result, warnings: computed.warnings, manifestSourceDigest: computed.manifestSourceDigest });
+      res.json({
+        ok: true,
+        ...computed.result,
+        warnings: computed.warnings,
+        manifestSourceDigest: computed.manifestSourceDigest,
+      });
     } catch (err) {
       if (err instanceof MissingInputError) {
         return res.status(422).json({ error: 'missing_inputs', fields: err.fields });
@@ -7406,10 +7161,7 @@ export async function startServer({
       const prompt = renderPluginSharePrompt({ action, sourcePlugin, stagedPath });
       const metadata = { kind: 'prototype' };
       const projectRoot = await ensureProject(PROJECTS_DIR, id, metadata);
-      await copyPluginFolderForProjectContext(
-        sourcePlugin.fsPath,
-        path.join(projectRoot, 'plugin-source', sourceSlug),
-      );
+      await copyPluginFolderForProjectContext(sourcePlugin.fsPath, path.join(projectRoot, 'plugin-source', sourceSlug));
 
       insertProject(db, {
         id,
@@ -7501,8 +7253,7 @@ export async function startServer({
       if (!plugin) return res.status(404).json({ error: 'plugin not found' });
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const action = body.action === 'revoke' ? 'revoke' : 'grant';
-      const { validateCapabilityList, grantCapabilities, revokeCapabilities } =
-        await import('./plugins/trust.js');
+      const { validateCapabilityList, grantCapabilities, revokeCapabilities } = await import('./plugins/trust.js');
       const { accepted, rejected } = validateCapabilityList(body.capabilities);
       if (rejected.length > 0) {
         return res.status(400).json({
@@ -7521,9 +7272,10 @@ export async function startServer({
           },
         });
       }
-      const next = action === 'revoke'
-        ? revokeCapabilities({ db, pluginId: req.params.id, capabilities: accepted })
-        : grantCapabilities({ db, pluginId: req.params.id, capabilities: accepted });
+      const next =
+        action === 'revoke'
+          ? revokeCapabilities({ db, pluginId: req.params.id, capabilities: accepted })
+          : grantCapabilities({ db, pluginId: req.params.id, capabilities: accepted });
       const updated = getInstalledPlugin(db, req.params.id);
       // Plan §3.JJ1 — emit a 'plugin.trust-changed' event so the
       // ops live-tail surfaces capability mutations for security
@@ -7531,9 +7283,9 @@ export async function startServer({
       try {
         const { recordPluginEvent } = await import('./plugins/events.js');
         recordPluginEvent({
-          kind:     'plugin.trust-changed',
+          kind: 'plugin.trust-changed',
           pluginId: req.params.id,
-          details:  { action, capabilities: accepted, total: next.length },
+          details: { action, capabilities: accepted, total: next.length },
         });
       } catch {
         // ignore — event recording never blocks the trust mutation.
@@ -7653,9 +7405,7 @@ export async function startServer({
         if (shellTarget) {
           const targetFull = path.resolve(path.dirname(resolved), shellTarget);
           const rootDir = path.resolve(plugin.fsPath);
-          const insideRoot =
-            (targetFull + path.sep).startsWith(root) ||
-            targetFull === rootDir;
+          const insideRoot = (targetFull + path.sep).startsWith(root) || targetFull === rootDir;
           if (insideRoot) {
             try {
               const st = await fsp.stat(targetFull);
@@ -7672,14 +7422,10 @@ export async function startServer({
         }
       }
       if (resolvedRel && /(^|\/)example-slides\.html$/i.test(resolvedRel)) {
-        const templateRel = resolvedRel.replace(
-          /(^|\/)example-slides\.html$/i,
-          '$1template.html',
-        );
+        const templateRel = resolvedRel.replace(/(^|\/)example-slides\.html$/i, '$1template.html');
         const templateFull = path.resolve(plugin.fsPath, templateRel);
         const templateInside =
-          (templateFull + path.sep).startsWith(root) ||
-          templateFull === path.resolve(plugin.fsPath);
+          (templateFull + path.sep).startsWith(root) || templateFull === path.resolve(plugin.fsPath);
         if (templateInside) {
           try {
             const st = await fsp.stat(templateFull);
@@ -7709,14 +7455,21 @@ export async function startServer({
       res.setHeader('X-Content-Type-Options', 'nosniff');
       const ext = path.extname(contentPath).toLowerCase();
       const ct =
-        ext === '.html' ? 'text/html; charset=utf-8'
-        : ext === '.js'  ? 'application/javascript; charset=utf-8'
-        : ext === '.css' ? 'text/css; charset=utf-8'
-        : ext === '.json' ? 'application/json; charset=utf-8'
-        : ext === '.svg' ? 'image/svg+xml'
-        : ext === '.png' ? 'image/png'
-        : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
-        : 'application/octet-stream';
+        ext === '.html'
+          ? 'text/html; charset=utf-8'
+          : ext === '.js'
+            ? 'application/javascript; charset=utf-8'
+            : ext === '.css'
+              ? 'text/css; charset=utf-8'
+              : ext === '.json'
+                ? 'application/json; charset=utf-8'
+                : ext === '.svg'
+                  ? 'image/svg+xml'
+                  : ext === '.png'
+                    ? 'image/png'
+                    : ext === '.jpg' || ext === '.jpeg'
+                      ? 'image/jpeg'
+                      : 'application/octet-stream';
       res.setHeader('Content-Type', ct);
       if (ext === '.html' && typeof contentRel === 'string') {
         buf = Buffer.from(
@@ -7742,13 +7495,7 @@ export async function startServer({
     const iframeMatch = /^<iframe\b[^>]*\bsrc\s*=\s*(['"])([^'"]+)\1[^>]*>\s*(?:<\/iframe>)?\s*$/i.exec(body);
     if (!iframeMatch) return null;
     const src = iframeMatch[2].trim();
-    if (
-      !src ||
-      src.startsWith('/') ||
-      src.startsWith('//') ||
-      src.includes('\0') ||
-      /^[a-z][a-z0-9+.-]*:/i.test(src)
-    ) {
+    if (!src || src.startsWith('/') || src.startsWith('//') || src.includes('\0') || /^[a-z][a-z0-9+.-]*:/i.test(src)) {
       return null;
     }
     const pathOnly = src.split(/[?#]/)[0] ?? '';
@@ -7829,8 +7576,7 @@ export async function startServer({
       candidates.push(trimmed);
     }
 
-    const manifest =
-      ((plugin as { manifest?: unknown }).manifest ?? {}) as Record<string, unknown>;
+    const manifest = ((plugin as { manifest?: unknown }).manifest ?? {}) as Record<string, unknown>;
     const od = (manifest.od ?? {}) as Record<string, unknown>;
     const preview = (od.preview ?? {}) as Record<string, unknown>;
 
@@ -7844,9 +7590,7 @@ export async function startServer({
     }
 
     const useCase = (od.useCase ?? {}) as Record<string, unknown>;
-    const exampleOutputs = Array.isArray(useCase.exampleOutputs)
-      ? useCase.exampleOutputs
-      : [];
+    const exampleOutputs = Array.isArray(useCase.exampleOutputs) ? useCase.exampleOutputs : [];
     for (const ex of exampleOutputs) {
       const p = (ex as { path?: unknown })?.path;
       if (typeof p === 'string' && /\.html?$/i.test(p)) push(p);
@@ -7913,8 +7657,9 @@ export async function startServer({
       return res.status(400).json({ error: 'invalid example name' });
     }
     await servePluginSandboxedHtml(req, res, async (plugin) => {
-      const examples = ((plugin as { manifest?: { od?: { useCase?: { exampleOutputs?: Array<{ path?: unknown; title?: unknown }> } } } })
-        .manifest?.od?.useCase?.exampleOutputs ?? []) as Array<{ path?: unknown; title?: unknown }>;
+      const examples = ((
+        plugin as { manifest?: { od?: { useCase?: { exampleOutputs?: Array<{ path?: unknown; title?: unknown }> } } } }
+      ).manifest?.od?.useCase?.exampleOutputs ?? []) as Array<{ path?: unknown; title?: unknown }>;
       const match = examples.find((e) => {
         if (!e || typeof e.path !== 'string') return false;
         const segments = e.path.split(/[\\/]/).filter(Boolean);
@@ -7931,10 +7676,7 @@ export async function startServer({
       // Allow `examples/<name>/index.html` and `examples/<name>.html`
       // so plugin authors can ship example folders without enumerating
       // them in the manifest.
-      return [
-        `examples/${name}/index.html`,
-        `examples/${name}.html`,
-      ];
+      return [`examples/${name}/index.html`, `examples/${name}.html`];
     });
   });
 
@@ -8001,14 +7743,21 @@ export async function startServer({
       res.setHeader('X-Content-Type-Options', 'nosniff');
       const ext = path.extname(resolved).toLowerCase();
       const ct =
-        ext === '.html' ? 'text/html; charset=utf-8'
-        : ext === '.js'  ? 'application/javascript; charset=utf-8'
-        : ext === '.css' ? 'text/css; charset=utf-8'
-        : ext === '.json' ? 'application/json; charset=utf-8'
-        : ext === '.svg' ? 'image/svg+xml'
-        : ext === '.png' ? 'image/png'
-        : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
-        : 'application/octet-stream';
+        ext === '.html'
+          ? 'text/html; charset=utf-8'
+          : ext === '.js'
+            ? 'application/javascript; charset=utf-8'
+            : ext === '.css'
+              ? 'text/css; charset=utf-8'
+              : ext === '.json'
+                ? 'application/json; charset=utf-8'
+                : ext === '.svg'
+                  ? 'image/svg+xml'
+                  : ext === '.png'
+                    ? 'image/png'
+                    : ext === '.jpg' || ext === '.jpeg'
+                      ? 'image/jpeg'
+                      : 'application/octet-stream';
       res.setHeader('Content-Type', ct);
       res.send(buf);
     } catch (err) {
@@ -8043,9 +7792,9 @@ export async function startServer({
           const text = await fsp.readFile(fullPath, 'utf8');
           const heading = text.split('\n').find((line) => line.startsWith('# '));
           out.push({
-            id:     slug,
-            label:  heading ? heading.replace(/^#+\s*/, '').trim() : slug,
-            bytes:  Buffer.byteLength(text, 'utf8'),
+            id: slug,
+            label: heading ? heading.replace(/^#+\s*/, '').trim() : slug,
+            bytes: Buffer.byteLength(text, 'utf8'),
           });
         } catch {
           // Skip unreadable files; surface what we can.
@@ -8096,11 +7845,16 @@ export async function startServer({
     try {
       const { pluginInventoryStats, snapshotInventoryStats } = await import('./plugins/stats.js');
       const installed = listInstalledPlugins(db);
-      const inventoryRows = db.prepare(
-        `SELECT status, project_id, run_id, applied_at FROM applied_plugin_snapshots`,
-      ).all() as Array<{ status: 'fresh' | 'stale'; project_id: string | null; run_id: string | null; applied_at: number }>;
+      const inventoryRows = db
+        .prepare(`SELECT status, project_id, run_id, applied_at FROM applied_plugin_snapshots`)
+        .all() as Array<{
+        status: 'fresh' | 'stale';
+        project_id: string | null;
+        run_id: string | null;
+        applied_at: number;
+      }>;
       res.json({
-        plugins:   pluginInventoryStats(installed),
+        plugins: pluginInventoryStats(installed),
         snapshots: snapshotInventoryStats(inventoryRows),
         generatedAt: Date.now(),
       });
@@ -8157,10 +7911,7 @@ export async function startServer({
       const result = await addMarketplace(db, {
         url,
         trust,
-        fetcher: createMarketplaceFetcher(
-          marketplaceRegistryIdFromUrl(url),
-          bundledMarketplaceEntries,
-        ),
+        fetcher: createMarketplaceFetcher(marketplaceRegistryIdFromUrl(url), bundledMarketplaceEntries),
       });
       if (!result.ok) {
         return res.status(result.status).json({
@@ -8199,7 +7950,7 @@ export async function startServer({
     try {
       const { getMarketplace, refreshMarketplace } = await import('./plugins/marketplaces.js');
       const row = getMarketplace(db, req.params.id);
-      const seedId = row ? marketplaceRegistryIdFromUrl(row.url) ?? req.params.id : req.params.id;
+      const seedId = row ? (marketplaceRegistryIdFromUrl(row.url) ?? req.params.id) : req.params.id;
       const result = await refreshMarketplace(
         db,
         req.params.id,
@@ -8215,15 +7966,17 @@ export async function startServer({
       try {
         const { recordPluginEvent } = await import('./plugins/events.js');
         recordPluginEvent({
-          kind:     'plugin.marketplace-refreshed',
+          kind: 'plugin.marketplace-refreshed',
           pluginId: '',
-          details:  {
+          details: {
             marketplaceId: req.params.id,
             marketplaceVersion: result.row.version,
             specVersion: result.row.specVersion,
           },
         });
-      } catch { /* best-effort */ }
+      } catch {
+        /* best-effort */
+      }
       res.json(result.row);
     } catch (err) {
       res.status(500).json({ error: String(err) });
@@ -8233,9 +7986,8 @@ export async function startServer({
   app.post('/api/marketplaces/:id/trust', async (req, res) => {
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      const trust = body.trust === 'trusted' || body.trust === 'restricted' || body.trust === 'official'
-        ? body.trust
-        : null;
+      const trust =
+        body.trust === 'trusted' || body.trust === 'restricted' || body.trust === 'official' ? body.trust : null;
       if (!trust) {
         return res.status(400).json({ error: 'trust must be one of: trusted, restricted, official' });
       }
@@ -8263,11 +8015,9 @@ export async function startServer({
   // snapshots list` and the audit dashboard.
   app.get('/api/applied-plugins', (_req, res) => {
     try {
-      const rows = db
-        .prepare(`SELECT id FROM applied_plugin_snapshots ORDER BY applied_at DESC LIMIT 500`)
-        .all();
+      const rows = db.prepare(`SELECT id FROM applied_plugin_snapshots ORDER BY applied_at DESC LIMIT 500`).all();
       res.json({
-        snapshots: rows.map((r) => getSnapshot(db, (r).id)).filter((x) => x !== null),
+        snapshots: rows.map((r) => getSnapshot(db, r.id)).filter((x) => x !== null),
       });
     } catch (err) {
       res.status(500).json({ error: String(err) });
@@ -8279,7 +8029,7 @@ export async function startServer({
         .prepare(`SELECT id FROM applied_plugin_snapshots WHERE project_id = ? ORDER BY applied_at DESC`)
         .all(req.params.projectId);
       res.json({
-        snapshots: rows.map((r) => getSnapshot(db, (r).id)).filter((x) => x !== null),
+        snapshots: rows.map((r) => getSnapshot(db, r.id)).filter((x) => x !== null),
       });
     } catch (err) {
       res.status(500).json({ error: String(err) });
@@ -8294,15 +8044,12 @@ export async function startServer({
   app.post('/api/applied-plugins/export', requireLocalDaemonRequest, async (req, res) => {
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      const target = body.target === 'od' || body.target === 'claude-plugin' || body.target === 'agent-skill'
-        ? body.target
-        : null;
+      const target =
+        body.target === 'od' || body.target === 'claude-plugin' || body.target === 'agent-skill' ? body.target : null;
       if (!target) {
         return res.status(400).json({ error: 'target must be one of: od, claude-plugin, agent-skill' });
       }
-      const outDir = typeof body.outDir === 'string' && body.outDir.length > 0
-        ? body.outDir
-        : null;
+      const outDir = typeof body.outDir === 'string' && body.outDir.length > 0 ? body.outDir : null;
       if (!outDir) {
         return res.status(400).json({ error: 'outDir is required' });
       }
@@ -8313,7 +8060,7 @@ export async function startServer({
           target,
           outDir,
           ...(typeof body.snapshotId === 'string' ? { snapshotId: body.snapshotId } : {}),
-          ...(typeof body.projectId  === 'string' ? { projectId:  body.projectId  } : {}),
+          ...(typeof body.projectId === 'string' ? { projectId: body.projectId } : {}),
         });
         res.json({ ok: true, ...result });
       } catch (err) {
@@ -8345,11 +8092,13 @@ export async function startServer({
         try {
           const { recordPluginEvent } = await import('./plugins/events.js');
           recordPluginEvent({
-            kind:     'plugin.snapshot-pruned',
+            kind: 'plugin.snapshot-pruned',
             pluginId: '',
-            details:  { removed: result.removed, ...(before ? { before } : {}) },
+            details: { removed: result.removed, ...(before ? { before } : {}) },
           });
-        } catch { /* best-effort */ }
+        } catch {
+          /* best-effort */
+        }
       }
       res.json({ ok: true, removed: result.removed, ids: result.ids });
     } catch (err) {
@@ -8384,10 +8133,7 @@ export async function startServer({
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const value = 'value' in body ? body.value : null;
-      const respondedBy =
-        body.respondedBy === 'agent' || body.respondedBy === 'auto'
-          ? body.respondedBy
-          : 'user';
+      const respondedBy = body.respondedBy === 'agent' || body.respondedBy === 'auto' ? body.respondedBy : 'user';
       // The CLI / web pass `surfaceId` (the plugin-declared id) — look up
       // the matching pending row scoped to the run, then write through.
       const stmt = db.prepare(
@@ -8415,9 +8161,10 @@ export async function startServer({
           const projectId = (run as { projectId?: string | null } | undefined)?.projectId ?? null;
           if (projectId) {
             const project = getProject(db, projectId);
-            const metadata = project?.metadata && typeof project.metadata === 'string'
-              ? JSON.parse(project.metadata)
-              : project?.metadata ?? undefined;
+            const metadata =
+              project?.metadata && typeof project.metadata === 'string'
+                ? JSON.parse(project.metadata)
+                : (project?.metadata ?? undefined);
             const cwd = resolveProjectDir(PROJECTS_DIR, projectId, metadata);
             const bridgeResult = await applyDiffReviewDecisionToCwd({
               cwd,
@@ -8458,25 +8205,25 @@ export async function startServer({
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const snapshotId = typeof body.snapshotId === 'string' ? body.snapshotId : '';
-      const surfaceId  = typeof body.surfaceId  === 'string' ? body.surfaceId  : '';
-      const persist    = body.persist === 'run' || body.persist === 'conversation' || body.persist === 'project'
-        ? body.persist
-        : 'project';
-      const kind = body.kind === 'form' || body.kind === 'choice' || body.kind === 'oauth-prompt'
-        ? body.kind
-        : 'confirmation';
+      const surfaceId = typeof body.surfaceId === 'string' ? body.surfaceId : '';
+      const persist =
+        body.persist === 'run' || body.persist === 'conversation' || body.persist === 'project'
+          ? body.persist
+          : 'project';
+      const kind =
+        body.kind === 'form' || body.kind === 'choice' || body.kind === 'oauth-prompt' ? body.kind : 'confirmation';
       if (!snapshotId || !surfaceId) {
         return res.status(400).json({ error: 'snapshotId and surfaceId are required' });
       }
       const row = prefillProjectSurface(db, {
-        projectId:        req.params.projectId,
+        projectId: req.params.projectId,
         pluginSnapshotId: snapshotId,
         surfaceId,
         kind,
         persist,
-        value:            'value' in body ? body.value : null,
-        schema:           body.schema,
-        expiresAt:        typeof body.expiresAt === 'number' ? body.expiresAt : null,
+        value: 'value' in body ? body.value : null,
+        schema: body.schema,
+        expiresAt: typeof body.expiresAt === 'number' ? body.expiresAt : null,
       });
       res.json({ ok: true, surface: row });
     } catch (err) {
@@ -8486,11 +8233,13 @@ export async function startServer({
 
   app.get('/api/runs/:runId/genui/:surfaceId', (req, res) => {
     try {
-      const row = db.prepare(
-        `SELECT id FROM genui_surfaces
+      const row = db
+        .prepare(
+          `SELECT id FROM genui_surfaces
           WHERE run_id = ? AND surface_id = ?
           ORDER BY requested_at DESC LIMIT 1`,
-      ).get(req.params.runId, req.params.surfaceId) as { id?: string } | undefined;
+        )
+        .get(req.params.runId, req.params.surfaceId) as { id?: string } | undefined;
       if (!row?.id) return res.status(404).json({ error: 'surface not found' });
       const surface = getSurface(db, row.id);
       if (!surface) return res.status(404).json({ error: 'surface not found' });
@@ -8546,17 +8295,17 @@ export async function startServer({
       const snapshot = getSnapshot(db, snapshotId);
       if (!snapshot) return res.status(404).json({ error: 'snapshot not found' });
       res.json({
-        ok:        true,
-        runId:     req.params.runId,
+        ok: true,
+        runId: req.params.runId,
         snapshotId,
         snapshot,
         // The caller re-launches the agent by re-applying these inputs;
         // the digest match guarantees byte-equality (§8.2.1).
         rerun: {
-          pluginId:             snapshot.pluginId,
-          pluginSpecVersion:    snapshot.pluginSpecVersion,
-          pluginVersion:        snapshot.pluginVersion,
-          inputs:               snapshot.inputs,
+          pluginId: snapshot.pluginId,
+          pluginSpecVersion: snapshot.pluginSpecVersion,
+          pluginVersion: snapshot.pluginVersion,
+          inputs: snapshot.inputs,
           manifestSourceDigest: snapshot.manifestSourceDigest,
         },
       });
@@ -8578,13 +8327,8 @@ export async function startServer({
 
   app.get('/api/prompt-templates/:surface/:id', async (req, res) => {
     try {
-      const tpl = await readPromptTemplate(
-        PROMPT_TEMPLATES_DIR,
-        req.params.surface,
-        req.params.id,
-      );
-      if (!tpl)
-        return res.status(404).json({ error: 'prompt template not found' });
+      const tpl = await readPromptTemplate(PROMPT_TEMPLATES_DIR, req.params.surface, req.params.id);
+      if (!tpl) return res.status(404).json({ error: 'prompt template not found' });
       res.json({ promptTemplate: tpl });
     } catch (err) {
       res.status(500).json({ error: String(err) });
@@ -8598,8 +8342,7 @@ export async function startServer({
   app.get('/api/design-systems/:id/preview', async (req, res) => {
     try {
       const body = await readAvailableDesignSystem(req.params.id);
-      if (body === null)
-        return res.status(404).type('text/plain').send('not found');
+      if (body === null) return res.status(404).type('text/plain').send('not found');
       const html = renderDesignSystemPreview(req.params.id, body);
       res.type('text/html').send(html);
     } catch (err) {
@@ -8613,8 +8356,7 @@ export async function startServer({
   app.get('/api/design-systems/:id/showcase', async (req, res) => {
     try {
       const body = await readAvailableDesignSystem(req.params.id);
-      if (body === null)
-        return res.status(404).type('text/plain').send('not found');
+      if (body === null) return res.status(404).type('text/plain').send('not found');
       const html = renderDesignSystemShowcase(req.params.id, body);
       res.type('text/html').send(html);
     } catch (err) {
@@ -8663,21 +8405,12 @@ export async function startServer({
         if (!parent) {
           return res.status(404).type('text/plain').send('skill not found');
         }
-        const candidate = path.join(
-          parent.dir,
-          'examples',
-          `${derived.childKey}.html`,
-        );
+        const candidate = path.join(parent.dir, 'examples', `${derived.childKey}.html`);
         if (fs.existsSync(candidate)) {
           const html = await fs.promises.readFile(candidate, 'utf8');
-          return res
-            .type('text/html')
-            .send(rewriteSkillAssetUrls(html, parent.id));
+          return res.type('text/html').send(rewriteSkillAssetUrls(html, parent.id));
         }
-        return res
-          .status(404)
-          .type('text/plain')
-          .send('derived example not found');
+        return res.status(404).type('text/plain').send('derived example not found');
       }
 
       const skill = findSkillById(skills, req.params.id);
@@ -8688,9 +8421,7 @@ export async function startServer({
       const baked = path.join(skill.dir, 'example.html');
       if (fs.existsSync(baked)) {
         const html = await fs.promises.readFile(baked, 'utf8');
-        return res
-          .type('text/html')
-          .send(rewriteSkillAssetUrls(html, skill.id));
+        return res.type('text/html').send(rewriteSkillAssetUrls(html, skill.id));
       }
 
       const tpl = path.join(skill.dir, 'assets', 'template.html');
@@ -8700,25 +8431,19 @@ export async function startServer({
           const tplHtml = await fs.promises.readFile(tpl, 'utf8');
           const slidesHtml = await fs.promises.readFile(slides, 'utf8');
           const assembled = assembleExample(tplHtml, slidesHtml, skill.name);
-          return res
-            .type('text/html')
-            .send(rewriteSkillAssetUrls(assembled, skill.id));
+          return res.type('text/html').send(rewriteSkillAssetUrls(assembled, skill.id));
         } catch {
           // Fall through to raw template on read failure.
         }
       }
       if (fs.existsSync(tpl)) {
         const html = await fs.promises.readFile(tpl, 'utf8');
-        return res
-          .type('text/html')
-          .send(rewriteSkillAssetUrls(html, skill.id));
+        return res.type('text/html').send(rewriteSkillAssetUrls(html, skill.id));
       }
       const idx = path.join(skill.dir, 'assets', 'index.html');
       if (fs.existsSync(idx)) {
         const html = await fs.promises.readFile(idx, 'utf8');
-        return res
-          .type('text/html')
-          .send(rewriteSkillAssetUrls(html, skill.id));
+        return res.type('text/html').send(rewriteSkillAssetUrls(html, skill.id));
       }
 
       // Friendly fallback for skills that aggregate examples in a sibling
@@ -8744,9 +8469,7 @@ export async function startServer({
           const direct = path.join(examplesDir, name);
           try {
             const html = await fs.promises.readFile(direct, 'utf8');
-            return res
-              .type('text/html')
-              .send(rewriteSkillAssetUrls(html, skill.id));
+            return res.type('text/html').send(rewriteSkillAssetUrls(html, skill.id));
           } catch {
             continue;
           }
@@ -8756,9 +8479,7 @@ export async function startServer({
       res
         .status(404)
         .type('text/plain')
-        .send(
-          'no example.html, assets/template.html, assets/index.html, or examples/*.html for this skill',
-        );
+        .send('no example.html, assets/template.html, assets/index.html, or examples/*.html for this skill');
     } catch (err) {
       res.status(500).type('text/plain').send(String(err));
     }
@@ -9136,24 +8857,33 @@ export async function startServer({
           projectId,
           artifactId: req.params.artifactId,
           onStarted: ({ refreshId }) => {
-            emitLiveArtifactRefreshEvent({ projectId }, { phase: 'started', artifactId: req.params.artifactId, refreshId });
+            emitLiveArtifactRefreshEvent(
+              { projectId },
+              { phase: 'started', artifactId: req.params.artifactId, refreshId },
+            );
           },
         });
       } catch (refreshErr) {
-        emitLiveArtifactRefreshEvent({ projectId }, {
-          phase: 'failed',
-          artifactId: req.params.artifactId,
-          error: refreshErr instanceof Error ? refreshErr.message : String(refreshErr),
-        });
+        emitLiveArtifactRefreshEvent(
+          { projectId },
+          {
+            phase: 'failed',
+            artifactId: req.params.artifactId,
+            error: refreshErr instanceof Error ? refreshErr.message : String(refreshErr),
+          },
+        );
         throw refreshErr;
       }
-      emitLiveArtifactRefreshEvent({ projectId }, {
-        phase: 'succeeded',
-        artifactId: req.params.artifactId,
-        refreshId: result.refresh.id,
-        title: result.artifact.title,
-        refreshedSourceCount: result.refresh.refreshedSourceCount,
-      });
+      emitLiveArtifactRefreshEvent(
+        { projectId },
+        {
+          phase: 'succeeded',
+          artifactId: req.params.artifactId,
+          refreshId: result.refresh.id,
+          title: result.artifact.title,
+          refreshedSourceCount: result.refresh.refreshedSourceCount,
+        },
+      );
       res.json(result);
     } catch (err) {
       sendLiveArtifactRouteError(res, err);
@@ -9166,8 +8896,7 @@ export async function startServer({
 
   app.get('/api/deploy/config', async (req, res) => {
     try {
-      const providerId =
-        typeof req.query.providerId === 'string' ? req.query.providerId : VERCEL_PROVIDER_ID;
+      const providerId = typeof req.query.providerId === 'string' ? req.query.providerId : VERCEL_PROVIDER_ID;
       if (!isDeployProviderId(providerId)) {
         return sendApiError(res, 400, 'BAD_REQUEST', 'unsupported deploy provider');
       }
@@ -9182,8 +8911,7 @@ export async function startServer({
   app.put('/api/deploy/config', async (req, res) => {
     try {
       const input = req.body || {};
-      const providerId =
-        typeof input.providerId === 'string' ? input.providerId : VERCEL_PROVIDER_ID;
+      const providerId = typeof input.providerId === 'string' ? input.providerId : VERCEL_PROVIDER_ID;
       if (!isDeployProviderId(providerId)) {
         return sendApiError(res, 400, 'BAD_REQUEST', 'unsupported deploy provider');
       }
@@ -9202,10 +8930,7 @@ export async function startServer({
       res.json(body);
     } catch (err) {
       const status = err instanceof DeployError ? err.status : 400;
-      const init =
-        err instanceof DeployError && err.details
-          ? { details: err.details }
-          : {};
+      const init = err instanceof DeployError && err.details ? { details: err.details } : {};
       sendApiError(res, status, 'BAD_REQUEST', String(err?.message || err), init);
     }
   });
@@ -9224,12 +8949,7 @@ export async function startServer({
     try {
       const { fileName, providerId = VERCEL_PROVIDER_ID, cloudflarePages } = req.body || {};
       if (!isDeployProviderId(providerId)) {
-        return sendApiError(
-          res,
-          400,
-          'BAD_REQUEST',
-          'unsupported deploy provider',
-        );
+        return sendApiError(res, 400, 'BAD_REQUEST', 'unsupported deploy provider');
       }
       if (typeof fileName !== 'string' || !fileName.trim()) {
         return sendApiError(res, 400, 'BAD_REQUEST', 'fileName required');
@@ -9237,33 +8957,31 @@ export async function startServer({
 
       const prior = getDeployment(db, req.params.id, fileName, providerId);
       const deployProject = getProject(db, req.params.id);
-      const files = await buildDeployFileSet(
-        PROJECTS_DIR,
-        req.params.id,
-        fileName,
-        { metadata: deployProject?.metadata },
-      );
+      const files = await buildDeployFileSet(PROJECTS_DIR, req.params.id, fileName, {
+        metadata: deployProject?.metadata,
+      });
       const project = getProject(db, req.params.id);
       const cloudflarePagesProjectName =
         providerId === CLOUDFLARE_PAGES_PROVIDER_ID
           ? cloudflarePagesProjectNameForDeploy(db, req.params.id, project?.name, prior)
           : '';
-      const result = providerId === CLOUDFLARE_PAGES_PROVIDER_ID
-        ? await deployToCloudflarePages({
-            config: {
-              ...await readDeployConfig(CLOUDFLARE_PAGES_PROVIDER_ID),
-              projectName: cloudflarePagesProjectName,
-            },
-            files,
-            projectId: req.params.id,
-            cloudflarePages,
-            priorMetadata: prior?.providerMetadata,
-          })
-        : await deployToVercel({
-            config: await readDeployConfig(VERCEL_PROVIDER_ID),
-            files,
-            projectId: req.params.id,
-          });
+      const result =
+        providerId === CLOUDFLARE_PAGES_PROVIDER_ID
+          ? await deployToCloudflarePages({
+              config: {
+                ...(await readDeployConfig(CLOUDFLARE_PAGES_PROVIDER_ID)),
+                projectName: cloudflarePagesProjectName,
+              },
+              files,
+              projectId: req.params.id,
+              cloudflarePages,
+              priorMetadata: prior?.providerMetadata,
+            })
+          : await deployToVercel({
+              config: await readDeployConfig(VERCEL_PROVIDER_ID),
+              files,
+              projectId: req.params.id,
+            });
       const now = Date.now();
       /** @type {import('@open-design/contracts').DeployProjectFileResponse} */
       const body = upsertDeployment(db, {
@@ -9289,17 +9007,8 @@ export async function startServer({
       res.json(publicDeployment(body));
     } catch (err) {
       const status = err instanceof DeployError ? err.status : 400;
-      const init =
-        err instanceof DeployError && err.details
-          ? { details: err.details }
-          : {};
-      sendApiError(
-        res,
-        status,
-        status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST',
-        String(err?.message || err),
-        init,
-      );
+      const init = err instanceof DeployError && err.details ? { details: err.details } : {};
+      sendApiError(res, status, status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST', String(err?.message || err), init);
     }
   });
 
@@ -9307,24 +9016,17 @@ export async function startServer({
     try {
       const { fileName, providerId = VERCEL_PROVIDER_ID } = req.body || {};
       if (!isDeployProviderId(providerId)) {
-        return sendApiError(
-          res,
-          400,
-          'BAD_REQUEST',
-          'unsupported deploy provider',
-        );
+        return sendApiError(res, 400, 'BAD_REQUEST', 'unsupported deploy provider');
       }
       if (typeof fileName !== 'string' || !fileName.trim()) {
         return sendApiError(res, 400, 'BAD_REQUEST', 'fileName required');
       }
       const preflightProject = getProject(db, req.params.id);
       /** @type {import('@open-design/contracts').DeployPreflightResponse} */
-      const body = await prepareDeployPreflight(
-        PROJECTS_DIR,
-        req.params.id,
-        fileName,
-        { metadata: preflightProject?.metadata, providerId },
-      );
+      const body = await prepareDeployPreflight(PROJECTS_DIR, req.params.id, fileName, {
+        metadata: preflightProject?.metadata,
+        providerId,
+      });
       res.json(body);
     } catch (err) {
       // DeployError is a known/expected outcome (validation, missing file).
@@ -9335,12 +9037,7 @@ export async function startServer({
         console.error('[deploy/preflight]', err);
       }
       const status = err instanceof DeployError ? err.status : 400;
-      sendApiError(
-        res,
-        status,
-        status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST',
-        String(err?.message || err),
-      );
+      sendApiError(res, status, status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST', String(err?.message || err));
     }
   });
 
@@ -9386,13 +9083,12 @@ export async function startServer({
         return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'project not found');
       }
 
-      const result = await finalizeDesignPackage(
-        db,
-        PROJECTS_DIR,
-        DESIGN_SYSTEMS_DIR,
-        req.params.id,
-        { apiKey, baseUrl, model, maxTokens },
-      );
+      const result = await finalizeDesignPackage(db, PROJECTS_DIR, DESIGN_SYSTEMS_DIR, req.params.id, {
+        apiKey,
+        baseUrl,
+        model,
+        maxTokens,
+      });
       res.json(result);
     } catch (err) {
       // Concurrent finalize - the lockfile was already held by another
@@ -9423,8 +9119,7 @@ export async function startServer({
       // caller passed an already-aborted signal. Either way, surface as
       // 503 with the shared UPSTREAM_UNAVAILABLE code (no dedicated
       // TIMEOUT code in the contracts ApiErrorCode union).
-      const errName =
-        err && typeof err === 'object' && 'name' in err ? (err as { name?: unknown }).name : '';
+      const errName = err && typeof err === 'object' && 'name' in err ? (err as { name?: unknown }).name : '';
       if (errName === 'AbortError') {
         return sendApiError(res, 503, 'UPSTREAM_UNAVAILABLE', 'finalize timed out');
       }
@@ -9439,62 +9134,45 @@ export async function startServer({
     }
   });
 
-  app.post(
-    '/api/projects/:id/deployments/:deploymentId/check-link',
-    async (req, res) => {
-      try {
-        const existing = getDeploymentById(
-          db,
-          req.params.id,
-          req.params.deploymentId,
-        );
-        if (!existing) {
-          return sendApiError(
-            res,
-            404,
-            'FILE_NOT_FOUND',
-            'deployment not found',
-          );
-        }
-        const stableCloudflareProjectName =
-          existing.providerId === CLOUDFLARE_PAGES_PROVIDER_ID
-            ? cloudflarePagesProjectNameFromDeployment(existing)
-            : '';
-        if (existing.providerId === CLOUDFLARE_PAGES_PROVIDER_ID && existing.cloudflarePages?.pagesDev?.url) {
-          const checked = await checkCloudflarePagesDeploymentLinks(existing);
-          const now = Date.now();
-          /** @type {import('@open-design/contracts').CheckDeploymentLinkResponse} */
-          const body = upsertDeployment(db, {
-            ...existing,
-            ...checked,
-            reachableAt: checked.status === 'ready' ? now : existing.reachableAt,
-            updatedAt: now,
-          });
-          return res.json(publicDeployment(body));
-        }
-        const checkUrl = stableCloudflareProjectName
-          ? `https://${stableCloudflareProjectName}.pages.dev`
-          : existing.url;
-        const result = await checkDeploymentUrl(checkUrl);
+  app.post('/api/projects/:id/deployments/:deploymentId/check-link', async (req, res) => {
+    try {
+      const existing = getDeploymentById(db, req.params.id, req.params.deploymentId);
+      if (!existing) {
+        return sendApiError(res, 404, 'FILE_NOT_FOUND', 'deployment not found');
+      }
+      const stableCloudflareProjectName =
+        existing.providerId === CLOUDFLARE_PAGES_PROVIDER_ID ? cloudflarePagesProjectNameFromDeployment(existing) : '';
+      if (existing.providerId === CLOUDFLARE_PAGES_PROVIDER_ID && existing.cloudflarePages?.pagesDev?.url) {
+        const checked = await checkCloudflarePagesDeploymentLinks(existing);
         const now = Date.now();
         /** @type {import('@open-design/contracts').CheckDeploymentLinkResponse} */
         const body = upsertDeployment(db, {
           ...existing,
-          url: checkUrl || existing.url,
-          status: result.reachable ? 'ready' : result.status || 'link-delayed',
-          statusMessage: result.reachable
-            ? 'Public link is ready.'
-            : result.statusMessage ||
-              'Vercel is still preparing the public link.',
-          reachableAt: result.reachable ? now : existing.reachableAt,
+          ...checked,
+          reachableAt: checked.status === 'ready' ? now : existing.reachableAt,
           updatedAt: now,
         });
-        res.json(publicDeployment(body));
-      } catch (err) {
-        sendApiError(res, 400, 'BAD_REQUEST', String(err?.message || err));
+        return res.json(publicDeployment(body));
       }
-    },
-  );
+      const checkUrl = stableCloudflareProjectName ? `https://${stableCloudflareProjectName}.pages.dev` : existing.url;
+      const result = await checkDeploymentUrl(checkUrl);
+      const now = Date.now();
+      /** @type {import('@open-design/contracts').CheckDeploymentLinkResponse} */
+      const body = upsertDeployment(db, {
+        ...existing,
+        url: checkUrl || existing.url,
+        status: result.reachable ? 'ready' : result.status || 'link-delayed',
+        statusMessage: result.reachable
+          ? 'Public link is ready.'
+          : result.statusMessage || 'Vercel is still preparing the public link.',
+        reachableAt: result.reachable ? now : existing.reachableAt,
+        updatedAt: now,
+      });
+      res.json(publicDeployment(body));
+    } catch (err) {
+      sendApiError(res, 400, 'BAD_REQUEST', String(err?.message || err));
+    }
+  });
 
   // Shared device frames (iPhone, Android, iPad, MacBook, browser chrome).
   // Skills can compose multi-screen / multi-device layouts by pointing at
@@ -9574,20 +9252,18 @@ export async function startServer({
       const relativePath = normalizeProjectPluginFolderPath(body.path);
       const projectRoot = resolveProjectDir(PROJECTS_DIR, req.params.id, project.metadata);
       const folder = await resolveProjectChildDirectory(projectRoot, relativePath);
-      const result = await execCommandViaLoginShell(OD_NODE_BIN, [
-        OD_BIN,
-        'plugin',
-        'publish-repo',
-        folder,
-        '--json',
-      ], { timeout: 240_000 });
+      const result = await execCommandViaLoginShell(OD_NODE_BIN, [OD_BIN, 'plugin', 'publish-repo', folder, '--json'], {
+        timeout: 240_000,
+      });
       const payload = result.stdout ? JSON.parse(result.stdout) : null;
       if (!result.ok || !payload?.ok) {
         res.status(500).json({
           ok: false,
           code: payload?.error?.label || 'publish-repo-failed',
           message: payload?.error?.stderr || payload?.error?.stdout || 'GitHub repo publish failed.',
-          log: payload?.steps?.map((step) => step.stderr || step.stdout || step.command).filter(Boolean) ?? [result.stderr || result.stdout || 'publish-repo failed'],
+          log: payload?.steps?.map((step) => step.stderr || step.stdout || step.command).filter(Boolean) ?? [
+            result.stderr || result.stdout || 'publish-repo failed',
+          ],
         });
         return;
       }
@@ -9664,9 +9340,7 @@ export async function startServer({
         return;
       }
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      const action = body.action === 'publish-github' || body.action === 'contribute-open-design'
-        ? body.action
-        : null;
+      const action = body.action === 'publish-github' || body.action === 'contribute-open-design' ? body.action : null;
       if (!action) {
         sendApiError(res, 400, 'BAD_REQUEST', 'plugin share action is required');
         return;
@@ -9727,20 +9401,20 @@ export async function startServer({
       const relativePath = normalizeProjectPluginFolderPath(body.path);
       const projectRoot = resolveProjectDir(PROJECTS_DIR, req.params.id, project.metadata);
       const folder = await resolveProjectChildDirectory(projectRoot, relativePath);
-      const result = await execCommandViaLoginShell(OD_NODE_BIN, [
-        OD_BIN,
-        'plugin',
-        'open-design-pr',
-        folder,
-        '--json',
-      ], { timeout: 300_000 });
+      const result = await execCommandViaLoginShell(
+        OD_NODE_BIN,
+        [OD_BIN, 'plugin', 'open-design-pr', folder, '--json'],
+        { timeout: 300_000 },
+      );
       const payload = result.stdout ? JSON.parse(result.stdout) : null;
       if (!result.ok || !payload?.ok) {
         res.status(500).json({
           ok: false,
           code: payload?.error?.label || 'open-design-pr-failed',
           message: payload?.error?.stderr || payload?.error?.stdout || 'Open Design PR creation failed.',
-          log: payload?.steps?.map((step) => step.stderr || step.stdout || step.command).filter(Boolean) ?? [result.stderr || result.stdout || 'open-design-pr failed'],
+          log: payload?.steps?.map((step) => step.stderr || step.stdout || step.command).filter(Boolean) ?? [
+            result.stderr || result.stdout || 'open-design-pr failed',
+          ],
         });
         return;
       }
@@ -9766,9 +9440,7 @@ export async function startServer({
         return;
       }
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      const action = body.action === 'publish-github' || body.action === 'contribute-open-design'
-        ? body.action
-        : null;
+      const action = body.action === 'publish-github' || body.action === 'contribute-open-design' ? body.action : null;
       if (!action) {
         sendApiError(res, 400, 'BAD_REQUEST', 'plugin share action is required');
         return;
@@ -9820,9 +9492,7 @@ export async function startServer({
     if (!task) return res.status(404).json({ error: 'task not found' });
 
     const since = Number.isFinite(req.body?.since) ? Number(req.body.since) : 0;
-    const requestedTimeout = Number.isFinite(req.body?.timeoutMs)
-      ? Number(req.body.timeoutMs)
-      : 25_000;
+    const requestedTimeout = Number.isFinite(req.body?.timeoutMs) ? Number(req.body.timeoutMs) : 25_000;
     const timeoutMs = Math.min(Math.max(requestedTimeout, 0), 25_000);
 
     const respond = () => {
@@ -9877,20 +9547,14 @@ export async function startServer({
     try {
       const root = typeof req.query?.root === 'string' ? req.query.root : '';
       const project = getProject(db, req.params.id);
-      const { buffer, baseName } = await buildProjectArchive(
-        PROJECTS_DIR,
-        req.params.id,
-        root,
-        project?.metadata,
-      );
+      const { buffer, baseName } = await buildProjectArchive(PROJECTS_DIR, req.params.id, root, project?.metadata);
       const fallbackName = project?.name || req.params.id;
       const fileSlug = sanitizeArchiveFilename(baseName || fallbackName) || 'project';
       const filename = `${fileSlug}.zip`;
       // RFC 5987 dance: legacy `filename=` carries an ASCII fallback, while
       // `filename*=UTF-8''…` lets modern browsers pick up project names
       // with non-ASCII characters (accents, CJK, etc.) without mojibake.
-      const asciiFallback =
-        filename.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '_') || 'project.zip';
+      const asciiFallback = filename.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '_') || 'project.zip';
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader(
         'Content-Disposition',
@@ -9900,12 +9564,7 @@ export async function startServer({
     } catch (err) {
       const code = err && err.code;
       const status = code === 'ENOENT' || code === 'ENOTDIR' ? 404 : 400;
-      sendApiError(
-        res,
-        status,
-        status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST',
-        String(err?.message || err),
-      );
+      sendApiError(res, status, status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST', String(err?.message || err));
     }
   });
 
@@ -9919,16 +9578,10 @@ export async function startServer({
         return;
       }
       const project = getProject(db, req.params.id);
-      const { buffer } = await buildBatchArchive(
-        PROJECTS_DIR,
-        req.params.id,
-        files,
-        project?.metadata,
-      );
+      const { buffer } = await buildBatchArchive(PROJECTS_DIR, req.params.id, files, project?.metadata);
       const fileSlug = sanitizeArchiveFilename(project?.name || req.params.id) || 'project';
       const filename = `${fileSlug}.zip`;
-      const asciiFallback =
-        filename.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '_') || 'project.zip';
+      const asciiFallback = filename.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '_') || 'project.zip';
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader(
         'Content-Disposition',
@@ -9938,12 +9591,7 @@ export async function startServer({
     } catch (err) {
       const code = err && err.code;
       const status = code === 'ENOENT' ? 404 : 400;
-      sendApiError(
-        res,
-        status,
-        status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST',
-        String(err?.message || err),
-      );
+      sendApiError(res, status, status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST', String(err?.message || err));
     }
   });
 
@@ -9975,12 +9623,7 @@ export async function startServer({
       res.type(file.mime).send(file.buffer);
     } catch (err) {
       const status = err && err.code === 'ENOENT' ? 404 : 400;
-      sendApiError(
-        res,
-        status,
-        status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST',
-        String(err),
-      );
+      sendApiError(res, status, status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST', String(err));
     }
   });
 
@@ -9995,33 +9638,18 @@ export async function startServer({
       res.json(body);
     } catch (err) {
       const status = err && err.code === 'ENOENT' ? 404 : 400;
-      sendApiError(
-        res,
-        status,
-        status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST',
-        String(err),
-      );
+      sendApiError(res, status, status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST', String(err));
     }
   });
 
   app.get('/api/projects/:id/files/:name/preview', async (req, res) => {
     try {
       const project = getProject(db, req.params.id);
-      const file = await readProjectFile(
-        PROJECTS_DIR,
-        req.params.id,
-        req.params.name,
-        project?.metadata,
-      );
+      const file = await readProjectFile(PROJECTS_DIR, req.params.id, req.params.name, project?.metadata);
       const preview = await buildDocumentPreview(file);
       res.json(preview);
     } catch (err) {
-      const status =
-        err && err.statusCode
-          ? err.statusCode
-          : err && err.code === 'ENOENT'
-            ? 404
-            : 400;
+      const status = err && err.statusCode ? err.statusCode : err && err.code === 'ENOENT' ? 404 : 400;
       sendApiError(
         res,
         status,
@@ -10036,21 +9664,11 @@ export async function startServer({
       const projectId = String(req.params[0] ?? '');
       const fileSplat = String(req.params[1] ?? '');
       const project = getProject(db, projectId);
-      const file = await readProjectFile(
-        PROJECTS_DIR,
-        projectId,
-        fileSplat,
-        project?.metadata,
-      );
+      const file = await readProjectFile(PROJECTS_DIR, projectId, fileSplat, project?.metadata);
       res.type(file.mime).send(file.buffer);
     } catch (err) {
       const status = err && err.code === 'ENOENT' ? 404 : 400;
-      sendApiError(
-        res,
-        status,
-        status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST',
-        String(err),
-      );
+      sendApiError(res, status, status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST', String(err));
     }
   });
 
@@ -10071,9 +9689,7 @@ export async function startServer({
         await ensureProject(PROJECTS_DIR, req.params.id, uploadProject?.metadata);
         if (req.file) {
           const buf = await fs.promises.readFile(req.file.path);
-          const desiredName = sanitizeName(
-            req.body?.name || req.file.originalname,
-          );
+          const desiredName = sanitizeName(req.body?.name || req.file.originalname);
           const meta = await writeProjectFile(
             PROJECTS_DIR,
             req.params.id,
@@ -10089,31 +9705,15 @@ export async function startServer({
         }
         const { name, content, encoding, artifactManifest } = req.body || {};
         if (typeof name !== 'string' || typeof content !== 'string') {
-          return sendApiError(
-            res,
-            400,
-            'BAD_REQUEST',
-            'name and content required',
-          );
+          return sendApiError(res, 400, 'BAD_REQUEST', 'name and content required');
         }
         if (artifactManifest !== undefined && artifactManifest !== null) {
-          const validated = validateArtifactManifestInput(
-            artifactManifest,
-            name,
-          );
+          const validated = validateArtifactManifestInput(artifactManifest, name);
           if (!validated.ok) {
-            return sendApiError(
-              res,
-              400,
-              'BAD_REQUEST',
-              `invalid artifactManifest: ${validated.error}`,
-            );
+            return sendApiError(res, 400, 'BAD_REQUEST', `invalid artifactManifest: ${validated.error}`);
           }
         }
-        const buf =
-          encoding === 'base64'
-            ? Buffer.from(content, 'base64')
-            : Buffer.from(content, 'utf8');
+        const buf = encoding === 'base64' ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf8');
         const meta = await writeProjectFile(
           PROJECTS_DIR,
           req.params.id,
@@ -10145,12 +9745,7 @@ export async function startServer({
       res.json(body);
     } catch (err) {
       const status = err && err.code === 'ENOENT' ? 404 : 400;
-      sendApiError(
-        res,
-        status,
-        status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST',
-        String(err),
-      );
+      sendApiError(res, status, status === 404 ? 'FILE_NOT_FOUND' : 'BAD_REQUEST', String(err));
     }
   });
 
@@ -10171,9 +9766,7 @@ export async function startServer({
       const cfg = await readMaskedConfig(PROJECT_ROOT);
       res.json(cfg);
     } catch (err) {
-      res
-        .status(500)
-        .json({ error: String(err && err.message ? err.message : err) });
+      res.status(500).json({ error: String(err && err.message ? err.message : err) });
     }
   });
 
@@ -10183,9 +9776,7 @@ export async function startServer({
       res.json(cfg);
     } catch (err) {
       const status = typeof err?.status === 'number' ? err.status : 400;
-      res
-        .status(status)
-        .json({ error: String(err && err.message ? err.message : err) });
+      res.status(status).json({ error: String(err && err.message ? err.message : err) });
     }
   });
 
@@ -10197,9 +9788,7 @@ export async function startServer({
       const config = await readAppConfig(RUNTIME_DATA_DIR);
       res.json({ config });
     } catch (err) {
-      res
-        .status(500)
-        .json({ error: String(err && err.message ? err.message : err) });
+      res.status(500).json({ error: String(err && err.message ? err.message : err) });
     }
   });
 
@@ -10212,9 +9801,7 @@ export async function startServer({
       orbitService.configure(config.orbit);
       res.json({ config });
     } catch (err) {
-      res
-        .status(500)
-        .json({ error: String(err && err.message ? err.message : err) });
+      res.status(500).json({ error: String(err && err.message ? err.message : err) });
     }
   });
 
@@ -10225,9 +9812,7 @@ export async function startServer({
     try {
       res.json(await orbitService.status());
     } catch (err) {
-      res
-        .status(500)
-        .json({ error: String(err && err.message ? err.message : err) });
+      res.status(500).json({ error: String(err && err.message ? err.message : err) });
     }
   });
 
@@ -10239,9 +9824,7 @@ export async function startServer({
       const locale = typeof req.body?.locale === 'string' ? req.body.locale : null;
       res.json(await orbitService.start('manual', { locale }));
     } catch (err) {
-      res
-        .status(500)
-        .json({ error: String(err && err.message ? err.message : err) });
+      res.status(500).json({ error: String(err && err.message ? err.message : err) });
     }
   });
 
@@ -10263,32 +9846,27 @@ export async function startServer({
       const child = openBrowser(parsed.toString());
       res.json({ ok: Boolean(child) });
     } catch (err) {
-      res
-        .status(500)
-        .json({ ok: false, error: String(err && err.message ? err.message : err) });
+      res.status(500).json({ ok: false, error: String(err && err.message ? err.message : err) });
     }
   });
 
-	  // Native OS folder picker dialog. Returns { path: string | null }.
-	  app.post('/api/dialog/open-folder', async (req, res) => {
-	    if (!isLocalSameOrigin(req, resolvedPort)) {
+  // Native OS folder picker dialog. Returns { path: string | null }.
+  app.post('/api/dialog/open-folder', async (req, res) => {
+    if (!isLocalSameOrigin(req, resolvedPort)) {
       return res.status(403).json({ error: 'cross-origin request rejected' });
     }
     try {
       const selected = await openNativeFolderDialog();
       res.json({ path: selected });
     } catch (err) {
-      res
-        .status(500)
-        .json({ error: String(err && err.message ? err.message : err) });
+      res.status(500).json({ error: String(err && err.message ? err.message : err) });
     }
   });
 
   app.post('/api/research/search', async (req, res) => {
     if (!isLocalSameOrigin(req, resolvedPort)) {
       return res.status(403).json({
-        error:
-          'cross-origin request rejected: research search is restricted to the local UI / CLI',
+        error: 'cross-origin request rejected: research search is restricted to the local UI / CLI',
       });
     }
 
@@ -10296,13 +9874,8 @@ export async function startServer({
       const result = await searchResearch({
         projectRoot: PROJECT_ROOT,
         query: req.body?.query,
-        maxSources:
-          typeof req.body?.maxSources === 'number'
-            ? req.body.maxSources
-            : undefined,
-        providers: Array.isArray(req.body?.providers)
-          ? req.body.providers
-          : undefined,
+        maxSources: typeof req.body?.maxSources === 'number' ? req.body.maxSources : undefined,
+        providers: Array.isArray(req.body?.providers) ? req.body.providers : undefined,
       });
       res.json(result);
     } catch (err) {
@@ -10329,9 +9902,7 @@ export async function startServer({
     if (!task) return res.status(404).json({ error: 'task not found' });
 
     const since = Number.isFinite(req.body?.since) ? Number(req.body.since) : 0;
-    const requestedTimeout = Number.isFinite(req.body?.timeoutMs)
-      ? Number(req.body.timeoutMs)
-      : 25_000;
+    const requestedTimeout = Number.isFinite(req.body?.timeoutMs) ? Number(req.body.timeoutMs) : 25_000;
     const timeoutMs = Math.min(Math.max(requestedTimeout, 0), 25_000);
 
     const respond = () => {
@@ -10339,10 +9910,7 @@ export async function startServer({
       res.json(mediaTaskSnapshot(task, since));
     };
 
-    if (
-      MEDIA_TERMINAL_STATUSES.has(task.status) ||
-      task.progress.length > since
-    ) {
+    if (MEDIA_TERMINAL_STATUSES.has(task.status) || task.progress.length > since) {
       return respond();
     }
 
@@ -10364,8 +9932,7 @@ export async function startServer({
       return res.status(403).json({ error: 'cross-origin request rejected' });
     }
     const projectId = req.params.id;
-    const includeDone =
-      req.query.includeDone === '1' || req.query.includeDone === 'true';
+    const includeDone = req.query.includeDone === '1' || req.query.includeDone === 'true';
     const tasks = listMediaTasksByProject(db, projectId, {
       includeTerminal: includeDone,
     }).map((t) => ({
@@ -10389,40 +9956,36 @@ export async function startServer({
   // Files land flat in the project folder; the response carries the same
   // metadata as listFiles so the client can stage them as ChatAttachments
   // without a separate refetch.
-  app.post(
-    '/api/projects/:id/upload',
-    handleProjectUpload,
-    async (req, res) => {
-      try {
-        const incoming = Array.isArray(req.files) ? req.files : [];
-        // Subfolder the upload targeted (sanitized, forward-slash, '' for root),
-        // stashed by the multer destination resolver. Prepend it so the client
-        // gets the file's true project-relative path, not just its basename.
-        const relDir = typeof (req as any)._uploadRelDir === 'string' ? (req as any)._uploadRelDir : '';
-        const out = [];
-        for (const f of incoming) {
-          try {
-            const stat = await fs.promises.stat(f.path);
-            const rel = relDir ? `${relDir}/${f.filename}` : f.filename;
-            out.push({
-              name: rel,
-              path: rel,
-              size: stat.size,
-              mtime: stat.mtimeMs,
-              originalName: f.originalname,
-            });
-          } catch {
-            // skip files that vanished mid-flight
-          }
+  app.post('/api/projects/:id/upload', handleProjectUpload, async (req, res) => {
+    try {
+      const incoming = Array.isArray(req.files) ? req.files : [];
+      // Subfolder the upload targeted (sanitized, forward-slash, '' for root),
+      // stashed by the multer destination resolver. Prepend it so the client
+      // gets the file's true project-relative path, not just its basename.
+      const relDir = typeof (req as any)._uploadRelDir === 'string' ? (req as any)._uploadRelDir : '';
+      const out = [];
+      for (const f of incoming) {
+        try {
+          const stat = await fs.promises.stat(f.path);
+          const rel = relDir ? `${relDir}/${f.filename}` : f.filename;
+          out.push({
+            name: rel,
+            path: rel,
+            size: stat.size,
+            mtime: stat.mtimeMs,
+            originalName: f.originalname,
+          });
+        } catch {
+          // skip files that vanished mid-flight
         }
-        /** @type {import('@open-design/contracts').UploadProjectFilesResponse} */
-        const body = { files: out };
-        res.json(body);
-      } catch (err) {
-        sendApiError(res, 500, 'INTERNAL_ERROR', 'upload failed');
       }
-    },
-  );
+      /** @type {import('@open-design/contracts').UploadProjectFilesResponse} */
+      const body = { files: out };
+      res.json(body);
+    } catch (err) {
+      sendApiError(res, 500, 'INTERNAL_ERROR', 'upload failed');
+    }
+  });
 
   // `design` already declared once above (after the chat-run service is
   // wired into the main daemon dependency graph). The garnet legacy block
@@ -10448,16 +10011,10 @@ export async function startServer({
     appliedPluginSnapshotId,
     mediaExecution,
   }) => {
-    const project =
-      typeof projectId === 'string' && projectId
-        ? getProject(db, projectId)
-        : null;
-    const effectiveSkillId =
-      typeof skillId === 'string' && skillId ? skillId : project?.skillId;
+    const project = typeof projectId === 'string' && projectId ? getProject(db, projectId) : null;
+    const effectiveSkillId = typeof skillId === 'string' && skillId ? skillId : project?.skillId;
     const effectiveDesignSystemId =
-      typeof designSystemId === 'string' && designSystemId
-        ? designSystemId
-        : project?.designSystemId;
+      typeof designSystemId === 'string' && designSystemId ? designSystemId : project?.designSystemId;
     const metadata = project?.metadata;
     let allSkillsPromise: ReturnType<typeof listAllSkillLikeEntries> | null = null;
     const loadAllSkills = async () => {
@@ -10469,9 +10026,7 @@ export async function startServer({
     // never persist on the project — we just append their bodies after the
     // primary skill so the agent sees one combined block this turn.
     const effectiveCanonicalSkillId =
-      typeof effectiveSkillId === 'string' && effectiveSkillId
-        ? resolveSkillId(effectiveSkillId)
-        : null;
+      typeof effectiveSkillId === 'string' && effectiveSkillId ? resolveSkillId(effectiveSkillId) : null;
     const adHocSkillIds = Array.isArray(skillIds)
       ? skillIds
           .map((s) => (typeof s === 'string' ? s.trim() : ''))
@@ -10510,10 +10065,7 @@ export async function startServer({
       if (!activeSkillDir) activeSkillDir = dir;
       if (!activeSkillDirs.includes(dir)) activeSkillDirs.push(dir);
     };
-    const mergeSkillCritiquePolicy = (
-      current: SkillCritiquePolicy,
-      next: SkillCritiquePolicy,
-    ): SkillCritiquePolicy => {
+    const mergeSkillCritiquePolicy = (current: SkillCritiquePolicy, next: SkillCritiquePolicy): SkillCritiquePolicy => {
       if (next === 'opt-out') return 'opt-out';
       if (next === 'required') return current === 'opt-out' ? current : 'required';
       if (next === 'opt-in') {
@@ -10532,20 +10084,14 @@ export async function startServer({
         skillName = skill.name;
         registerPrimarySkillMode(skill.mode);
         registerSkillDir(skill.dir);
-        skillCritiquePolicy = mergeSkillCritiquePolicy(
-          skillCritiquePolicy,
-          skill.critiquePolicy,
-        );
-        if (Array.isArray(skill.craftRequires))
-          skillCraftRequires = skill.craftRequires;
+        skillCritiquePolicy = mergeSkillCritiquePolicy(skillCritiquePolicy, skill.critiquePolicy);
+        if (Array.isArray(skill.craftRequires)) skillCraftRequires = skill.craftRequires;
       }
     }
     let composedSkillBlocks = '';
     if (adHocSkillIds.length > 0) {
       const allSkills = await loadAllSkills();
-      const seen = new Set(
-        effectiveCanonicalSkillId ? [String(effectiveCanonicalSkillId)] : [],
-      );
+      const seen = new Set(effectiveCanonicalSkillId ? [String(effectiveCanonicalSkillId)] : []);
       const blocks = [];
       const baseBody = skillBody && skillBody.trim().length > 0 ? skillBody : '';
       for (const id of adHocSkillIds) {
@@ -10561,26 +10107,20 @@ export async function startServer({
           registerPrimarySkillMode(extra.mode);
         }
         if (!critiqueSkillId || extra.critiquePolicy !== null) critiqueSkillId = canonicalId;
-        skillCritiquePolicy = mergeSkillCritiquePolicy(
-          skillCritiquePolicy,
-          extra.critiquePolicy,
-        );
+        skillCritiquePolicy = mergeSkillCritiquePolicy(skillCritiquePolicy, extra.critiquePolicy);
         if (Array.isArray(extra.craftRequires)) {
           for (const craft of extra.craftRequires) {
             if (!skillCraftRequires.includes(craft)) skillCraftRequires.push(craft);
           }
         }
-        blocks.push(
-          `\n\n---\n\n## Composed skill — ${extra.name || id}\n\n${(extra.body || '').trim()}`,
-        );
+        blocks.push(`\n\n---\n\n## Composed skill — ${extra.name || id}\n\n${(extra.body || '').trim()}`);
       }
       if (blocks.length > 0) {
         composedSkillBlocks = blocks.join('');
         skillBody = baseBody + composedSkillBlocks;
         if (!skillName) {
-          skillName = adHocSkillIds.length === 1
-            ? findSkillById(allSkills, adHocSkillIds[0])?.name ?? null
-            : 'composed';
+          skillName =
+            adHocSkillIds.length === 1 ? (findSkillById(allSkills, adHocSkillIds[0])?.name ?? null) : 'composed';
         }
       }
     }
@@ -10591,10 +10131,7 @@ export async function startServer({
     // skill. Without this override the agent loses the plugin's
     // template / token / layout rules and falls back to generic prompt
     // behaviour even though the user explicitly applied the plugin.
-    if (
-      typeof appliedPluginSnapshotId === 'string'
-      && appliedPluginSnapshotId.length > 0
-    ) {
+    if (typeof appliedPluginSnapshotId === 'string' && appliedPluginSnapshotId.length > 0) {
       try {
         const snap = getSnapshot(db, appliedPluginSnapshotId);
         if (snap?.pluginId) {
@@ -10611,9 +10148,7 @@ export async function startServer({
           }
         }
       } catch (err) {
-        console.warn(
-          `[plugins] pluginSkillBody load failed: ${err?.message ?? err}`,
-        );
+        console.warn(`[plugins] pluginSkillBody load failed: ${err?.message ?? err}`);
       }
     }
 
@@ -10675,13 +10210,12 @@ export async function startServer({
         summary = systems.find((s) => s.id === effectiveDesignSystemId);
       }
       const editingOwnDraftDesignSystem =
-        project?.metadata?.importedFrom === 'design-system'
-        && project.designSystemId === effectiveDesignSystemId;
+        project?.metadata?.importedFrom === 'design-system' && project.designSystemId === effectiveDesignSystemId;
       designSystemTitle = summary?.title;
       if (summary && (isProjectUsableDesignSystem(summary) || editingOwnDraftDesignSystem)) {
         const workspaceBody = await readDesignSystemWorkspaceTextFile(db, summary, 'DESIGN.md');
         const registryBody = await readAvailableDesignSystem(effectiveDesignSystemId);
-        designSystemBody = (workspaceBody ?? registryBody) ?? undefined;
+        designSystemBody = workspaceBody ?? registryBody ?? undefined;
         // Single seam: env gate + built-in→user-installed fallback chain
         // live together inside `resolveDesignSystemAssets` so the whole
         // server-side asset-resolution path can be tested end-to-end
@@ -10703,9 +10237,9 @@ export async function startServer({
     }
 
     const excludedCraft = new Set(designSystemCraftExemptions);
-    const requestedCraft = Array.from(
-      new Set([...skillCraftRequires, ...designSystemCraftApplies]),
-    ).filter((slug) => !excludedCraft.has(slug));
+    const requestedCraft = Array.from(new Set([...skillCraftRequires, ...designSystemCraftApplies])).filter(
+      (slug) => !excludedCraft.has(slug),
+    );
     if (requestedCraft.length > 0) {
       const loaded = await loadCraftSections(CRAFT_DIR, requestedCraft);
       if (loaded.body) {
@@ -10770,14 +10304,12 @@ export async function startServer({
       projectOverride: projectCritiqueOverride,
       envOverride: parseEnvEnabled(process.env.OD_CRITIQUE_ENABLED),
     });
-    const critiqueBrand = critiqueEnabledForRun
-      && typeof designSystemTitle === 'string'
-      && typeof designSystemBody === 'string'
-      ? { name: designSystemTitle, design_md: designSystemBody }
-      : undefined;
-    const critiqueSkill = critiqueEnabledForRun && typeof critiqueSkillId === 'string'
-      ? { id: critiqueSkillId }
-      : undefined;
+    const critiqueBrand =
+      critiqueEnabledForRun && typeof designSystemTitle === 'string' && typeof designSystemBody === 'string'
+        ? { name: designSystemTitle, design_md: designSystemBody }
+        : undefined;
+    const critiqueSkill =
+      critiqueEnabledForRun && typeof critiqueSkillId === 'string' ? { id: critiqueSkillId } : undefined;
     // Single-source-of-truth eligibility check. The composer downstream
     // appends <CRITIQUE_RUN> instructions only when this check passes, and
     // the spawn path routes runs through runOrchestrator(...) only when the
@@ -10796,15 +10328,16 @@ export async function startServer({
       skillModes: skillModes.size > 0 ? Array.from(skillModes) : undefined,
     });
     const isMediaSurface =
-      resolvedExclusiveSurface === 'image'
-      || resolvedExclusiveSurface === 'video'
-      || resolvedExclusiveSurface === 'audio';
+      resolvedExclusiveSurface === 'image' ||
+      resolvedExclusiveSurface === 'video' ||
+      resolvedExclusiveSurface === 'audio';
     const isPlainAdapter = (streamFormat ?? 'plain') === 'plain';
-    const critiqueShouldRun = critiqueEnabledForRun
-      && critiqueBrand !== undefined
-      && critiqueSkill !== undefined
-      && !isMediaSurface
-      && isPlainAdapter;
+    const critiqueShouldRun =
+      critiqueEnabledForRun &&
+      critiqueBrand !== undefined &&
+      critiqueSkill !== undefined &&
+      !isMediaSurface &&
+      isPlainAdapter;
     // Only thread the critique fields when the run is actually eligible;
     // otherwise the composer's own internal eligibility check (cfg.enabled
     // && brand && skill && !isMediaSurface) might still fire on
@@ -10812,17 +10345,12 @@ export async function startServer({
     // skips. Gating the threading itself keeps composer + orchestrator in
     // exact lockstep regardless of which side enforces eligibility.
     let pluginBlock;
-    if (
-      typeof appliedPluginSnapshotId === 'string'
-      && appliedPluginSnapshotId.length > 0
-    ) {
+    if (typeof appliedPluginSnapshotId === 'string' && appliedPluginSnapshotId.length > 0) {
       try {
         const snap = getSnapshot(db, appliedPluginSnapshotId);
         if (snap) pluginBlock = pluginPromptBlock(snap);
       } catch (err) {
-        console.warn(
-          `[plugins] pluginBlock build failed: ${err?.message ?? err}`,
-        );
+        console.warn(`[plugins] pluginBlock build failed: ${err?.message ?? err}`);
       }
     }
 
@@ -10836,9 +10364,9 @@ export async function startServer({
     let activeStageBlocks;
     const bundledAtomPromptsEnabled = process.env.OD_BUNDLED_ATOM_PROMPTS !== '0';
     if (
-      bundledAtomPromptsEnabled
-      && typeof appliedPluginSnapshotId === 'string'
-      && appliedPluginSnapshotId.length > 0
+      bundledAtomPromptsEnabled &&
+      typeof appliedPluginSnapshotId === 'string' &&
+      appliedPluginSnapshotId.length > 0
     ) {
       try {
         const snap = getSnapshot(db, appliedPluginSnapshotId);
@@ -10855,7 +10383,7 @@ export async function startServer({
           if (blocks.length > 0) activeStageBlocks = blocks;
         }
       } catch (err) {
-        console.warn(`[plugins] activeStageBlocks build failed: ${(err)?.message ?? err}`);
+        console.warn(`[plugins] activeStageBlocks build failed: ${err?.message ?? err}`);
       }
     }
 
@@ -10897,9 +10425,7 @@ export async function startServer({
       sessionMode: normalizeConversationSessionMode(sessionMode),
       mediaExecution,
       streamFormat,
-      connectedExternalMcp: Array.isArray(connectedExternalMcp)
-        ? connectedExternalMcp
-        : undefined,
+      connectedExternalMcp: Array.isArray(connectedExternalMcp) ? connectedExternalMcp : undefined,
       ...(pluginBlock ? { pluginBlock } : {}),
       ...(activeStageBlocks ? { activeStageBlocks } : {}),
       userInstructions,
@@ -10939,51 +10465,55 @@ export async function startServer({
     if (!snapshot?.pipeline?.stages?.length) return;
     const env = { maxIterations: readPluginEnvKnobs().maxDevloopIterations };
     const emitPipeline = (evt) => {
-      try { runs.emit(run, evt.kind, evt); } catch {/* ignore */}
+      try {
+        runs.emit(run, evt.kind, evt);
+      } catch {
+        /* ignore */
+      }
     };
     const emitGenui = (evt) => {
-      try { runs.emit(run, evt.kind, evt); } catch {/* ignore */}
+      try {
+        runs.emit(run, evt.kind, evt);
+      } catch {
+        /* ignore */
+      }
     };
-    const projectIdForRun = run.projectId
-      ?? snapshot.resolvedContext?.items?.[0]?.id
-      ?? 'project-unknown';
-    const runnerMode = process.env.OD_PIPELINE_RUNNER === 'stub'
-      ? 'stub'
-      : 'registry';
+    const projectIdForRun = run.projectId ?? snapshot.resolvedContext?.items?.[0]?.id ?? 'project-unknown';
+    const runnerMode = process.env.OD_PIPELINE_RUNNER === 'stub' ? 'stub' : 'registry';
     let runStage;
     if (runnerMode === 'stub') {
       runStage = ({ iteration }) => ({
         signals: {
-          'critique.score':  iteration >= 0 ? 4 : 0,
-          'preview.ok':      true,
-          'user.confirmed':  true,
+          'critique.score': iteration >= 0 ? 4 : 0,
+          'preview.ok': true,
+          'user.confirmed': true,
         },
       });
     } else {
       registerBuiltInAtomWorkers();
       runStage = async ({ stage, iteration, snapshot: stageSnapshot }) => {
         const outcome = await runStageWithRegistry({
-          db:             dbHandle,
-          runId:          run.id,
-          projectId:      projectIdForRun,
+          db: dbHandle,
+          runId: run.id,
+          projectId: projectIdForRun,
           conversationId: run.conversationId ?? null,
           stage,
           iteration,
-          snapshot:       stageSnapshot,
+          snapshot: stageSnapshot,
         });
         return {
-          signals:         outcome.signals,
+          signals: outcome.signals,
           critiqueSummary: outcome.critiqueSummary,
         };
       };
     }
     void runPipelineForRun({
       db: dbHandle,
-      runId:           run.id,
-      projectId:       projectIdForRun,
-      conversationId:  run.conversationId ?? null,
+      runId: run.id,
+      projectId: projectIdForRun,
+      conversationId: run.conversationId ?? null,
       snapshot,
-      pipeline:        snapshot.pipeline,
+      pipeline: snapshot.pipeline,
       env,
       runStage,
       emitPipeline,
@@ -10991,11 +10521,13 @@ export async function startServer({
     }).catch((err) => {
       try {
         runs.emit(run, 'pipeline_stage_failed', {
-          runId:      run.id,
+          runId: run.id,
           snapshotId: snapshot.snapshotId,
-          message:    String(err?.message ?? err),
+          message: String(err?.message ?? err),
         });
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     });
   };
 
@@ -11033,12 +10565,9 @@ export async function startServer({
       promptBuildStartAt: Date.now(),
     };
     if (typeof projectId === 'string' && projectId) run.projectId = projectId;
-    if (typeof conversationId === 'string' && conversationId)
-      run.conversationId = conversationId;
-    if (typeof assistantMessageId === 'string' && assistantMessageId)
-      run.assistantMessageId = assistantMessageId;
-    if (typeof clientRequestId === 'string' && clientRequestId)
-      run.clientRequestId = clientRequestId;
+    if (typeof conversationId === 'string' && conversationId) run.conversationId = conversationId;
+    if (typeof assistantMessageId === 'string' && assistantMessageId) run.assistantMessageId = assistantMessageId;
+    if (typeof clientRequestId === 'string' && clientRequestId) run.clientRequestId = clientRequestId;
     if (typeof agentId === 'string' && agentId) run.agentId = agentId;
     // Stash the original user prompt + per-turn config so the
     // langfuse-bridge report path can include them without reaching back
@@ -11049,31 +10578,18 @@ export async function startServer({
     if (typeof model === 'string' && model) run.model = model;
     if (typeof reasoning === 'string' && reasoning) run.reasoning = reasoning;
     if (typeof skillId === 'string' && skillId) run.skillId = skillId;
-    if (typeof designSystemId === 'string' && designSystemId)
-      run.designSystemId = designSystemId;
+    if (typeof designSystemId === 'string' && designSystemId) run.designSystemId = designSystemId;
     const conversationSession =
-      typeof conversationId === 'string' && conversationId
-        ? getConversation(db, conversationId)
-        : null;
+      typeof conversationId === 'string' && conversationId ? getConversation(db, conversationId) : null;
     const runSessionMode =
       sessionMode === 'chat' || sessionMode === 'design'
         ? normalizeConversationSessionMode(sessionMode)
         : normalizeConversationSessionMode(conversationSession?.sessionMode);
     const def = getAgentDef(agentId);
-    if (!def)
-      return design.runs.fail(
-        run,
-        'AGENT_UNAVAILABLE',
-        `unknown agent: ${agentId}`,
-      );
-    if (!def.bin)
-      return design.runs.fail(run, 'AGENT_UNAVAILABLE', 'agent has no binary');
-    const safeCommentAttachments =
-      normalizeCommentAttachments(commentAttachments);
-    if (
-      (typeof message !== 'string' || !message.trim()) &&
-      safeCommentAttachments.length === 0
-    ) {
+    if (!def) return design.runs.fail(run, 'AGENT_UNAVAILABLE', `unknown agent: ${agentId}`);
+    if (!def.bin) return design.runs.fail(run, 'AGENT_UNAVAILABLE', 'agent has no binary');
+    const safeCommentAttachments = normalizeCommentAttachments(commentAttachments);
+    if ((typeof message !== 'string' || !message.trim()) && safeCommentAttachments.length === 0) {
       return design.runs.fail(run, 'BAD_REQUEST', 'message required');
     }
     if (run.cancelRequested || design.runs.isTerminal(run.status)) return;
@@ -11086,11 +10602,7 @@ export async function startServer({
     // disk and a marker inside this turn's message is reflected in this
     // turn's prompt. Failures are swallowed — memory is best-effort and
     // must never block the agent run.
-    if (
-      (run.retryAttemptCount ?? 0) === 0 &&
-      typeof message === 'string' &&
-      message.trim().length > 0
-    ) {
+    if ((run.retryAttemptCount ?? 0) === 0 && typeof message === 'string' && message.trim().length > 0) {
       try {
         await extractFromMessage(RUNTIME_DATA_DIR, message);
       } catch (err) {
@@ -11132,35 +10644,22 @@ export async function startServer({
 
     // Sanitise supplied image paths: must live under UPLOAD_DIR and stay
     // below the prompt-image safety cap.
-    const { safeImages, oversizedImages, failedImages } =
-      resolveSafePromptImagePaths(imagePaths);
+    const { safeImages, oversizedImages, failedImages } = resolveSafePromptImagePaths(imagePaths);
     if (oversizedImages.length > 0) {
-      return design.runs.fail(
-        run,
-        'BAD_REQUEST',
-        'Image attachments must be 1 MB or smaller.',
-      );
+      return design.runs.fail(run, 'BAD_REQUEST', 'Image attachments must be 1 MB or smaller.');
     }
     if (failedImages.length > 0) {
-      return design.runs.fail(
-        run,
-        'INTERNAL_ERROR',
-        'Failed to read one or more image attachments.',
-      );
+      return design.runs.fail(run, 'INTERNAL_ERROR', 'Failed to read one or more image attachments.');
     }
     const amrStagedImages =
-      def.id === 'amr'
-        ? await stageAmrImagePaths(cwd ?? PROJECT_ROOT, safeImages, UPLOAD_DIR)
-        : safeImages;
+      def.id === 'amr' ? await stageAmrImagePaths(cwd ?? PROJECT_ROOT, safeImages, UPLOAD_DIR) : safeImages;
 
     // Project-scoped attachments: project-relative paths inside cwd. Each
     // is run through the same path-traversal guard the file CRUD endpoints
     // use, then existence-checked. Whatever survives shows up as an
     // explicit list at the bottom of the user message so the agent knows
     // to Read it.
-    const safeAttachments = cwd
-      ? resolveSafeProjectAttachments(cwd, attachments)
-      : [];
+    const safeAttachments = cwd ? resolveSafeProjectAttachments(cwd, attachments) : [];
 
     // Local code agents don't accept a separate "system" channel the way the
     // Messages API does — we fold the skill + design-system prompt into the
@@ -11168,24 +10667,20 @@ export async function startServer({
     // systemPrompt. We also stitch in the cwd hint so the agent knows
     // where its file tools should write, and the attachment list so it
     // doesn't have to guess what the user just dropped in.
-    const projectRecord =
-      typeof projectId === 'string' && projectId
-        ? getProject(db, projectId)
-        : null;
+    const projectRecord = typeof projectId === 'string' && projectId ? getProject(db, projectId) : null;
     const runContextPrompt = renderRunContextPrompt(context, projectRecord?.metadata);
     const linkedDirs = (() => {
       if (!Array.isArray(projectRecord?.metadata?.linkedDirs)) return [];
       const v = validateLinkedDirs(projectRecord.metadata.linkedDirs);
       return v.dirs ?? [];
     })();
-    const cwdHint = cwd
-      ? formatDesignFilesWorkspaceHint(cwd, existingProjectFiles, existingProjectFolders)
-      : '';
-    const linkedDirsHint = linkedDirs.length > 0
-      ? `\n\nLinked code folders (read-only reference code the user wants you to see):\n${
-          linkedDirs.map((d) => `- \`${d}\``).join('\n')
-        }`
-      : '';
+    const cwdHint = cwd ? formatDesignFilesWorkspaceHint(cwd, existingProjectFiles, existingProjectFolders) : '';
+    const linkedDirsHint =
+      linkedDirs.length > 0
+        ? `\n\nLinked code folders (read-only reference code the user wants you to see):\n${linkedDirs
+            .map((d) => `- \`${d}\``)
+            .join('\n')}`
+        : '';
     const attachmentHint = formatProjectAttachmentHint(safeAttachments);
     // Plan §3.A3 / spec §9: thread plugin context onto every tool token
     // so the connector execute route can re-validate the §5.3
@@ -11202,15 +10697,16 @@ export async function startServer({
         };
       }
     }
-    const toolTokenGrant = cwd && typeof projectId === 'string' && projectId
-      ? toolTokenRegistry.mint({
-          runId,
-          projectId,
-          allowedEndpoints: CHAT_TOOL_ENDPOINTS,
-          allowedOperations: CHAT_TOOL_OPERATIONS,
-          ...(pluginGrantContext ?? {}),
-        })
-      : null;
+    const toolTokenGrant =
+      cwd && typeof projectId === 'string' && projectId
+        ? toolTokenRegistry.mint({
+            runId,
+            projectId,
+            allowedEndpoints: CHAT_TOOL_ENDPOINTS,
+            allowedOperations: CHAT_TOOL_OPERATIONS,
+            ...(pluginGrantContext ?? {}),
+          })
+        : null;
     let toolTokenRevoked = false;
     const revokeToolToken = (reason) => {
       if (toolTokenRevoked || !toolTokenGrant) return;
@@ -11231,19 +10727,11 @@ export async function startServer({
       try {
         externalMcpConfig = await readMcpConfig(RUNTIME_DATA_DIR);
       } catch (err) {
-        console.warn(
-          '[mcp-config] read failed:',
-          err && err.message ? err.message : err,
-        );
+        console.warn('[mcp-config] read failed:', err && err.message ? err.message : err);
       }
     }
-    const runScopedMcpServers = Array.isArray(run?.toolBundle?.mcpServers)
-      ? run.toolBundle.mcpServers
-      : [];
-    const {
-      enabledServers: enabledExternalMcp,
-      persistedTokenServerIds,
-    } = resolveExternalMcpServersForRun({
+    const runScopedMcpServers = Array.isArray(run?.toolBundle?.mcpServers) ? run.toolBundle.mcpServers : [];
+    const { enabledServers: enabledExternalMcp, persistedTokenServerIds } = resolveExternalMcpServersForRun({
       persistedServers: externalMcpConfig.servers,
       runScopedServers: runScopedMcpServers,
       sandboxMode: SANDBOX_RUNTIME.enabled,
@@ -11262,35 +10750,20 @@ export async function startServer({
           let access = isTokenExpired(tok) ? null : tok.accessToken;
           if (isTokenExpired(tok) && tok.refreshToken) {
             try {
-              const refreshed = await refreshAndPersistToken(
-                RUNTIME_DATA_DIR,
-                serverId,
-                tok,
-              );
+              const refreshed = await refreshAndPersistToken(RUNTIME_DATA_DIR, serverId, tok);
               if (refreshed) access = refreshed.accessToken;
             } catch (err) {
-              console.warn(
-                '[mcp-oauth] refresh failed for',
-                serverId,
-                err && err.message ? err.message : err,
-              );
+              console.warn('[mcp-oauth] refresh failed for', serverId, err && err.message ? err.message : err);
             }
           }
           if (access) {
             oauthTokensForSpawn[serverId] = access;
           } else {
-            console.warn(
-              '[mcp-oauth] skipping expired token for',
-              serverId,
-              '— reconnect required',
-            );
+            console.warn('[mcp-oauth] skipping expired token for', serverId, '— reconnect required');
           }
         }
       } catch (err) {
-        console.warn(
-          '[mcp-tokens] read failed:',
-          err && err.message ? err.message : err,
-        );
+        console.warn('[mcp-tokens] read failed:', err && err.message ? err.message : err);
       }
     }
     const connectedExternalMcp = enabledExternalMcp
@@ -11302,23 +10775,22 @@ export async function startServer({
       activeSkillDirs,
       critiqueShouldRun,
       promptTelemetryParts,
-    } =
-      await composeDaemonSystemPrompt({
-        agentId,
-        projectId,
-        skillId,
-        skillIds,
-        designSystemId,
-        streamFormat: def?.streamFormat ?? 'plain',
-        locale,
-        sessionMode: runSessionMode,
-        connectedExternalMcp,
-        mediaExecution: run?.mediaExecution,
-        // Plan §3.M2 / §3.V1 — forward the run's snapshot id so the
-        // prompt composer can splice in `## Active stage` blocks.
-        // Default ON; set OD_BUNDLED_ATOM_PROMPTS=0 to opt out.
-        appliedPluginSnapshotId: run?.appliedPluginSnapshotId ?? null,
-      });
+    } = await composeDaemonSystemPrompt({
+      agentId,
+      projectId,
+      skillId,
+      skillIds,
+      designSystemId,
+      streamFormat: def?.streamFormat ?? 'plain',
+      locale,
+      sessionMode: runSessionMode,
+      connectedExternalMcp,
+      mediaExecution: run?.mediaExecution,
+      // Plan §3.M2 / §3.V1 — forward the run's snapshot id so the
+      // prompt composer can splice in `## Active stage` blocks.
+      // Default ON; set OD_BUNDLED_ATOM_PROMPTS=0 to opt out.
+      appliedPluginSnapshotId: run?.appliedPluginSnapshotId ?? null,
+    });
 
     // Make skill side files reachable through three layers, in order of
     // preference. The skill preamble emitted by `withSkillRootPreamble()`
@@ -11349,11 +10821,8 @@ export async function startServer({
     // filesystem.
     if (cwd && activeSkillDirs.length > 0) {
       for (const skillDir of activeSkillDirs) {
-        const result = await stageActiveSkill(
-          cwd,
-          skillCwdAliasSegment(skillDir),
-          skillDir,
-          (msg) => console.warn(msg),
+        const result = await stageActiveSkill(cwd, skillCwdAliasSegment(skillDir), skillDir, (msg) =>
+          console.warn(msg),
         );
         if (!result.staged) {
           console.warn(
@@ -11378,12 +10847,9 @@ export async function startServer({
       run?.mediaExecution,
     );
     if (codexGeneratedImagesDir) {
-      codexGeneratedImagesDir = validateCodexGeneratedImagesDir(
-        codexGeneratedImagesDir,
-        {
-          protectedDirs: [SKILLS_DIR, DESIGN_SYSTEMS_DIR, ...linkedDirs],
-        },
-      );
+      codexGeneratedImagesDir = validateCodexGeneratedImagesDir(codexGeneratedImagesDir, {
+        protectedDirs: [SKILLS_DIR, DESIGN_SYSTEMS_DIR, ...linkedDirs],
+      });
     }
     const extraAllowedDirs = resolveChatExtraAllowedDirs({
       agentId,
@@ -11399,23 +10865,24 @@ export async function startServer({
       extraAllowedDirs,
       mediaExecution: run?.mediaExecution,
     });
-    const researchCommandContract = resolveResearchCommandContract(
-      research,
-      message,
-    );
+    const researchCommandContract = resolveResearchCommandContract(research, message);
     // Resume-capable adapters continue their own upstream session so they
     // keep working memory across turns. Decide once per run; reuse for the
     // prompt-composition skipTranscript choice, the buildArgs flags, and the
     // create-turn persistence below.
-    const agentSupportsSessionResume =
-      def.resumesSessionViaCli === true || def.streamFormat === 'pi-rpc';
+    const agentSupportsSessionResume = def.resumesSessionViaCli === true || def.streamFormat === 'pi-rpc';
     const agentResumeCtx =
       agentSupportsSessionResume && run.conversationId
         ? resolveAgentResumeContext(db, {
             conversationId: run.conversationId,
             agentId: def.id,
           })
-        : { resumeSessionId: null as string | null, newSessionId: undefined as string | undefined, isResuming: false, storedStablePromptHash: null as string | null };
+        : {
+            resumeSessionId: null as string | null,
+            newSessionId: undefined as string | undefined,
+            isResuming: false,
+            storedStablePromptHash: null as string | null,
+          };
     const userRequestPrompt = composeChatUserRequestForAgent(
       message,
       currentPrompt,
@@ -11467,9 +10934,7 @@ export async function startServer({
     // instructions and request) — see server.ts:9920 composer notes.
     const ECHO_GUARD =
       '\n\n(Do not quote, restate, or echo the # Instructions block above in your reply. Begin your response with the answer to the # User request below.)';
-    const formAnswerMatch = FORM_ANSWERS_HEADER_RE.exec(
-      typeof currentPrompt === 'string' ? currentPrompt : '',
-    );
+    const formAnswerMatch = FORM_ANSWERS_HEADER_RE.exec(typeof currentPrompt === 'string' ? currentPrompt : '');
     const formIdForOverride = formAnswerMatch
       ? ((formAnswerMatch[1] || 'form').trim().replace(/[^\w.-]/g, '') || 'form').toLowerCase()
       : null;
@@ -11479,11 +10944,7 @@ export async function startServer({
         : formIdForOverride !== null
           ? FORM_ANSWERED_GENERIC_OVERRIDE
           : '';
-    const promptImagePaths = selectPromptImagePaths(
-      def.id,
-      safeImages,
-      amrStagedImages,
-    );
+    const promptImagePaths = selectPromptImagePaths(def.id, safeImages, amrStagedImages);
     const composed = [
       instructionPrompt
         ? `# Instructions (read first)\n\n${formOverride}${instructionPrompt}${cwdHint}${linkedDirsHint}${ECHO_GUARD}\n\n---\n`
@@ -11495,9 +10956,7 @@ export async function startServer({
               ? `# Instructions\n\n${formOverride}${ECHO_GUARD}\n\n---\n`
               : '',
       `# User request\n\n${userRequestPrompt}${attachmentHint}${commentHint}`,
-      promptImagePaths.length
-        ? `\n\n${promptImagePaths.map((p) => `@${p}`).join(' ')}`
-        : '',
+      promptImagePaths.length ? `\n\n${promptImagePaths.map((p) => `@${p}`).join(' ')}` : '',
     ].join('');
     run.promptTelemetry = buildPromptStackTelemetry({
       composedPrompt: composed,
@@ -11556,11 +11015,7 @@ export async function startServer({
     // ids the CLI's listing didn't surface yet.
     let safeModel = resolveModelForAgent(
       def,
-      typeof model === 'string'
-        ? isKnownModel(def, model)
-          ? model
-          : sanitizeCustomModel(model)
-        : null,
+      typeof model === 'string' ? (isKnownModel(def, model) ? model : sanitizeCustomModel(model)) : null,
     );
     const safeReasoning =
       typeof reasoning === 'string' && Array.isArray(def.reasoningOptions)
@@ -11590,10 +11045,7 @@ export async function startServer({
         typeof data.delta === 'string' &&
         clarifyingQuestionText.length < CLARIFYING_QUESTION_BUFFER_CAP
       ) {
-        clarifyingQuestionText = (clarifyingQuestionText + data.delta).slice(
-          0,
-          CLARIFYING_QUESTION_BUFFER_CAP,
-        );
+        clarifyingQuestionText = (clarifyingQuestionText + data.delta).slice(0, CLARIFYING_QUESTION_BUFFER_CAP);
       }
       persistRunEventToAssistantMessage(db, run, event, data);
       design.runs.emit(run, event, data);
@@ -11604,14 +11056,12 @@ export async function startServer({
         projectMetadata: projectRecord?.metadata,
       });
       const isDesignSystemRun =
-        runProjectKind === 'design_system' ||
-        (typeof designSystemId === 'string' && designSystemId.length > 0);
+        runProjectKind === 'design_system' || (typeof designSystemId === 'string' && designSystemId.length > 0);
       return {
         page_name: isDesignSystemRun ? 'design_system_project' : 'chat_panel',
         area: isDesignSystemRun ? 'design_system_generation' : 'chat_panel',
         project_id: typeof projectId === 'string' ? projectId : run.projectId,
-        conversation_id:
-          typeof conversationId === 'string' ? conversationId : run.conversationId ?? null,
+        conversation_id: typeof conversationId === 'string' ? conversationId : (run.conversationId ?? null),
         run_id: run.id,
         retry_of_run_id: run.id,
         retry_attempt_index: decision.retryAttemptIndex,
@@ -11641,11 +11091,7 @@ export async function startServer({
       };
       void startChatRun(chatBody, run).catch((err) => {
         const message = err instanceof Error ? err.message : String(err);
-        design.runs.emit(
-          run,
-          'error',
-          createSseErrorPayload('AGENT_EXECUTION_FAILED', message),
-        );
+        design.runs.emit(run, 'error', createSseErrorPayload('AGENT_EXECUTION_FAILED', message));
         // Route the retried-start failure through the same finalizer as child
         // close/error so it emits terminal retry telemetry (run_retry_finished
         // with retry_result: 'failed') and sets run.retryFinalResult, instead
@@ -11678,18 +11124,13 @@ export async function startServer({
             ? 'cancel_requested'
             : decision?.retrySuppressedReason
           : undefined;
-      const eventDecision =
-        attemptCount > 0
-          ? { ...decision, retryAttemptIndex: attemptCount }
-          : decision;
+      const eventDecision = attemptCount > 0 ? { ...decision, retryAttemptIndex: attemptCount } : decision;
       run.retryFinalResult = retryResult;
       run.retrySuppressedReason = retrySuppressedReason;
       design.runs.emit(run, 'run_retry_finished', {
         ...retryAnalyticsBase(eventDecision, failure, errorCode),
         retry_result: retryResult,
-        ...(retrySuppressedReason
-          ? { retry_suppressed_reason: retrySuppressedReason }
-          : {}),
+        ...(retrySuppressedReason ? { retry_suppressed_reason: retrySuppressedReason } : {}),
       });
     };
     const finishWithRetryDecision = (status, code = null, signal = null) => {
@@ -11786,50 +11227,31 @@ export async function startServer({
     // undefined fall through unchanged — the settings UI surfaces an
     // explicit "external MCP is not forwarded to <agent>" banner for them
     // so the previous silent-failure UX is gone.
-    if (
-      def.externalMcpInjection === 'claude-mcp-json' &&
-      isManagedProjectCwd(cwd, PROJECTS_DIR)
-    ) {
+    if (def.externalMcpInjection === 'claude-mcp-json' && isManagedProjectCwd(cwd, PROJECTS_DIR)) {
       {
         const target = path.join(cwd, '.mcp.json');
         if (enabledExternalMcp.length > 0) {
           try {
-            const claudeMcp = buildClaudeMcpJson(
-              enabledExternalMcp,
-              oauthTokensForSpawn,
-            );
+            const claudeMcp = buildClaudeMcpJson(enabledExternalMcp, oauthTokensForSpawn);
             if (claudeMcp) {
               await fs.promises.mkdir(path.dirname(target), { recursive: true });
-              await fs.promises.writeFile(
-                target,
-                JSON.stringify(claudeMcp, null, 2),
-                'utf8',
-              );
+              await fs.promises.writeFile(target, JSON.stringify(claudeMcp, null, 2), 'utf8');
             }
           } catch (err) {
-            console.warn(
-              '[mcp-config] failed to write project .mcp.json:',
-              err && err.message ? err.message : err,
-            );
+            console.warn('[mcp-config] failed to write project .mcp.json:', err && err.message ? err.message : err);
           }
         } else {
           try {
             await fs.promises.unlink(target);
           } catch (err) {
             if ((err && err.code) !== 'ENOENT') {
-              console.warn(
-                '[mcp-config] failed to remove stale .mcp.json:',
-                err && err.message ? err.message : err,
-              );
+              console.warn('[mcp-config] failed to remove stale .mcp.json:', err && err.message ? err.message : err);
             }
           }
         }
       }
     }
-    if (
-      enabledExternalMcp.length > 0 &&
-      def.externalMcpInjection === 'acp-merge'
-    ) {
+    if (enabledExternalMcp.length > 0 && def.externalMcpInjection === 'acp-merge') {
       const acpExternal = buildAcpMcpServers(enabledExternalMcp);
       mcpServers.push(...acpExternal);
     }
@@ -11843,20 +11265,11 @@ export async function startServer({
     // mcp section for this single invocation, which is exactly the kind
     // of surprise the previous silent-failure UX taught us to avoid.
     let opencodeConfigContent: string | null = null;
-    if (
-      def.externalMcpInjection === 'opencode-env-content' &&
-      enabledExternalMcp.length > 0
-    ) {
+    if (def.externalMcpInjection === 'opencode-env-content' && enabledExternalMcp.length > 0) {
       try {
-        opencodeConfigContent = buildOpenCodeMcpConfigContent(
-          enabledExternalMcp,
-          oauthTokensForSpawn,
-        );
+        opencodeConfigContent = buildOpenCodeMcpConfigContent(enabledExternalMcp, oauthTokensForSpawn);
       } catch (err) {
-        console.warn(
-          '[mcp-config] failed to build OPENCODE_CONFIG_CONTENT:',
-          err && err.message ? err.message : err,
-        );
+        console.warn('[mcp-config] failed to build OPENCODE_CONFIG_CONTENT:', err && err.message ? err.message : err);
       }
     }
 
@@ -11872,11 +11285,7 @@ export async function startServer({
       design.runs.emit(
         run,
         'error',
-        createSseErrorPayload(
-          promptBudgetError.code,
-          promptBudgetError.message,
-          { retryable: false },
-        ),
+        createSseErrorPayload(promptBudgetError.code, promptBudgetError.message, { retryable: false }),
       );
       return design.runs.finish(run, 'failed', 1, null);
     }
@@ -11909,14 +11318,13 @@ export async function startServer({
     // for signed-out users, and a `const` declared later in the same outer
     // function scope would hit a TDZ ReferenceError before initialization.
     const sendAmrAccountFailure = (failure) => {
-      send('error', createSseErrorPayload(
-        failure.code,
-        failure.message,
-        {
+      send(
+        'error',
+        createSseErrorPayload(failure.code, failure.message, {
           retryable: true,
           details: amrAccountFailureDetails(failure),
-        },
-      ));
+        }),
+      );
     };
 
     if (def.id === 'amr' && resolvedBin && agentLaunch.launchPath) {
@@ -11950,9 +11358,7 @@ export async function startServer({
         rememberLiveModels(def.id, liveModels);
       }
       liveModels = preferFreshLiveModels(liveModels, rememberedLiveModels);
-      const liveModelIds = new Set(
-        liveModels.map((candidate) => candidate?.id).filter(Boolean),
-      );
+      const liveModelIds = new Set(liveModels.map((candidate) => candidate?.id).filter(Boolean));
       if (liveModelIds.size === 0) {
         // An empty AMR catalog usually means the user is signed out — `vela
         // models` returns 401 and the catch above leaves `liveModels` empty.
@@ -11960,23 +11366,22 @@ export async function startServer({
         // affordance; otherwise the user sees a misleading "choose a model"
         // when the real fix is to sign in.
         if (def.id === 'amr') {
-          const loginStatus = readVelaLoginStatus(
-            modelProbeEnv ?? process.env,
-            configuredAgentEnv,
-          );
+          const loginStatus = readVelaLoginStatus(modelProbeEnv ?? process.env, configuredAgentEnv);
           if (!loginStatus.loggedIn) {
             sendAmrAccountFailure({
               code: 'AMR_AUTH_REQUIRED',
-              message:
-                'AMR sign-in is required. Sign in to AMR Cloud again, then retry this run.',
+              message: 'AMR sign-in is required. Sign in to AMR Cloud again, then retry this run.',
               action: 'relogin',
             });
             return design.runs.finish(run, 'failed', 1, null);
           }
         }
-        send('error', createAmrModelUnavailablePayload(safeModel, {
-          reason: 'model_catalog_unavailable',
-        }));
+        send(
+          'error',
+          createAmrModelUnavailablePayload(safeModel, {
+            reason: 'model_catalog_unavailable',
+          }),
+        );
         return design.runs.finish(run, 'failed', 1, null);
       }
       // `safeModel` was pre-resolved via the agent-wide cached model order,
@@ -11987,22 +11392,18 @@ export async function startServer({
       // since `/api/agents` last responded), fall back to `liveModels[0]` from
       // the fresh probe instead of rejecting their run as `AMR_MODEL_UNAVAILABLE`.
       const userAskedForDefault =
-        typeof model !== 'string' ||
-        !model.trim() ||
-        model.trim().toLowerCase() === 'default';
-      if (
-        !safeModel ||
-        safeModel === 'default' ||
-        (userAskedForDefault && !liveModelIds.has(safeModel))
-      ) {
+        typeof model !== 'string' || !model.trim() || model.trim().toLowerCase() === 'default';
+      if (!safeModel || safeModel === 'default' || (userAskedForDefault && !liveModelIds.has(safeModel))) {
         safeModel = liveModels[0]?.id ?? null;
         agentOptions.model = safeModel;
       }
       if (!safeModel || !liveModelIds.has(safeModel)) {
-        send('error', createAmrModelUnavailablePayload(
-          typeof model === 'string' && model.trim() ? model : safeModel,
-          { availableModels: [...liveModelIds] },
-        ));
+        send(
+          'error',
+          createAmrModelUnavailablePayload(typeof model === 'string' && model.trim() ? model : safeModel, {
+            availableModels: [...liveModelIds],
+          }),
+        );
         return design.runs.finish(run, 'failed', 1, null);
       }
     }
@@ -12037,10 +11438,7 @@ export async function startServer({
     // log to it via buildArgs, then read it in the empty-output guard
     // to disambiguate the silent-failure cause. Other adapters ignore
     // this field.
-    const agentLogFilePath =
-      def.id === 'antigravity'
-        ? path.join(os.tmpdir(), `od-agy-${run.id}.log`)
-        : undefined;
+    const agentLogFilePath = def.id === 'antigravity' ? path.join(os.tmpdir(), `od-agy-${run.id}.log`) : undefined;
 
     // Serialize antigravity spawns whose buildArgs writes a concrete
     // model into settings.json. Two concurrent runs with different
@@ -12051,32 +11449,24 @@ export async function startServer({
     // `antigravity.ts` for the chain implementation.
     let antigravityModelLockRelease: (() => void) | null = null;
     const antigravityConcreteModel =
-      def.id === 'antigravity'
-      && typeof agentOptions.model === 'string'
-      && agentOptions.model.length > 0
-      && agentOptions.model !== 'default'
+      def.id === 'antigravity' &&
+      typeof agentOptions.model === 'string' &&
+      agentOptions.model.length > 0 &&
+      agentOptions.model !== 'default'
         ? agentOptions.model
         : null;
     if (antigravityConcreteModel) {
-      const { acquireAntigravityModelLock } = await import(
-        './runtimes/defs/antigravity.js'
-      );
+      const { acquireAntigravityModelLock } = await import('./runtimes/defs/antigravity.js');
       antigravityModelLockRelease = await acquireAntigravityModelLock();
     }
 
-    const args = def.buildArgs(
-      composed,
-      safeImages,
-      extraAllowedDirs,
-      agentOptions,
-      {
-        cwd: effectiveCwd,
-        hasPriorAssistantTurn,
-        agentLogFilePath,
-        resumeSessionId: agentResumeCtx.resumeSessionId,
-        newSessionId: agentResumeCtx.newSessionId,
-      },
-    );
+    const args = def.buildArgs(composed, safeImages, extraAllowedDirs, agentOptions, {
+      cwd: effectiveCwd,
+      hasPriorAssistantTurn,
+      agentLogFilePath,
+      resumeSessionId: agentResumeCtx.resumeSessionId,
+      newSessionId: agentResumeCtx.newSessionId,
+    });
     // Second-pass budget check that knows about the Windows `.cmd` shim
     // wrap. The pre-buildArgs `checkPromptArgvBudget` only looks at the
     // raw composed prompt; on Windows an npm-installed adapter resolves
@@ -12087,20 +11477,12 @@ export async function startServer({
     // still expand past CreateProcess's 32_767-char cap. Fail fast with
     // the same `AGENT_PROMPT_TOO_LARGE` shape so the SSE error path
     // doesn't have to special-case it.
-    const cmdShimBudgetError = checkWindowsCmdShimCommandLineBudget(
-      def,
-      agentLaunch.launchPath ?? resolvedBin,
-      args,
-    );
+    const cmdShimBudgetError = checkWindowsCmdShimCommandLineBudget(def, agentLaunch.launchPath ?? resolvedBin, args);
     if (cmdShimBudgetError) {
       design.runs.emit(
         run,
         'error',
-        createSseErrorPayload(
-          cmdShimBudgetError.code,
-          cmdShimBudgetError.message,
-          { retryable: false },
-        ),
+        createSseErrorPayload(cmdShimBudgetError.code, cmdShimBudgetError.message, { retryable: false }),
       );
       return design.runs.finish(run, 'failed', 1, null);
     }
@@ -12123,11 +11505,7 @@ export async function startServer({
       design.runs.emit(
         run,
         'error',
-        createSseErrorPayload(
-          directExeBudgetError.code,
-          directExeBudgetError.message,
-          { retryable: false },
-        ),
+        createSseErrorPayload(directExeBudgetError.code, directExeBudgetError.message, { retryable: false }),
       );
       return design.runs.finish(run, 'failed', 1, null);
     }
@@ -12200,11 +11578,8 @@ export async function startServer({
         return `tool_use:${name}`;
       }
       if (type === 'text_delta' || type === 'thinking_delta') {
-        const text = typeof payload.delta === 'string'
-          ? payload.delta
-          : typeof payload.text === 'string'
-            ? payload.text
-            : '';
+        const text =
+          typeof payload.delta === 'string' ? payload.delta : typeof payload.text === 'string' ? payload.text : '';
         return `${type}:${text.length} chars`;
       }
       if (type === 'status') {
@@ -12266,11 +11641,7 @@ export async function startServer({
           since: run.createdAt,
         });
         if (logFailure) {
-          stallPayload = createSseErrorPayload(
-            logFailure.code,
-            logFailure.message,
-            { retryable: true },
-          );
+          stallPayload = createSseErrorPayload(logFailure.code, logFailure.message, { retryable: true });
         }
       }
       if (!stallPayload) {
@@ -12351,12 +11722,15 @@ export async function startServer({
     if (!resolvedBin || !agentLaunch.launchPath) {
       revokeToolToken('child_exit');
       unregisterChatAgentEventSink();
-      send('error', createSseErrorPayload(
-        'AGENT_UNAVAILABLE',
-        `Agent "${def.name}" (\`${def.bin}\`) is not installed or not on PATH. ` +
-          'Install it and refresh the agent list (GET /api/agents) before retrying.',
-        { retryable: true },
-      ));
+      send(
+        'error',
+        createSseErrorPayload(
+          'AGENT_UNAVAILABLE',
+          `Agent "${def.name}" (\`${def.bin}\`) is not installed or not on PATH. ` +
+            'Install it and refresh the agent list (GET /api/agents) before retrying.',
+          { retryable: true },
+        ),
+      );
       return design.runs.finish(run, 'failed', 1, null);
     }
     const agentSpawnEnv = spawnEnvForAgent(
@@ -12423,34 +11797,32 @@ export async function startServer({
     try {
       // Prompt delivery via stdin is now the universal default. This bypasses
       // both the cmd.exe 8KB limit and the CreateProcess 32KB limit.
-      const stdinMode =
-        def.promptViaStdin || def.streamFormat === 'acp-json-rpc'
-          ? 'pipe'
-          : 'ignore';
-      const env = applyAgentLaunchEnv({
-        ...agentSpawnEnv,
-        ...(mmdRouteLaunchEnv || {}),
-        ...odMediaEnv,
-        ...openDesignAmrTraceEnv({
-          agentId: def.id,
-          runId: run.id,
-          conversationId: run.conversationId,
-          runAttempt: run.retryAttemptCount ?? 0,
-        }),
-        // OpenCode external-MCP injection (issue #2142). Layered AFTER
-        // spawnEnvForAgent / odMediaEnv / configuredAgentEnv so the
-        // daemon-built MCP config wins over a stale value the user
-        // might have exported in their shell — that would let an
-        // outdated content string suppress the user's freshly-saved
-        // MCP servers, which is exactly the bug we are fixing.
-        // `opencodeConfigContent === null` means "no enabled servers";
-        // we deliberately leave the env unset in that case so the
-        // user's saved `~/.config/opencode/opencode.json` continues
-        // to apply as-is.
-        ...(opencodeConfigContent
-          ? { OPENCODE_CONFIG_CONTENT: opencodeConfigContent }
-          : {}),
-      }, agentLaunch);
+      const stdinMode = def.promptViaStdin || def.streamFormat === 'acp-json-rpc' ? 'pipe' : 'ignore';
+      const env = applyAgentLaunchEnv(
+        {
+          ...agentSpawnEnv,
+          ...(mmdRouteLaunchEnv || {}),
+          ...odMediaEnv,
+          ...openDesignAmrTraceEnv({
+            agentId: def.id,
+            runId: run.id,
+            conversationId: run.conversationId,
+            runAttempt: run.retryAttemptCount ?? 0,
+          }),
+          // OpenCode external-MCP injection (issue #2142). Layered AFTER
+          // spawnEnvForAgent / odMediaEnv / configuredAgentEnv so the
+          // daemon-built MCP config wins over a stale value the user
+          // might have exported in their shell — that would let an
+          // outdated content string suppress the user's freshly-saved
+          // MCP servers, which is exactly the bug we are fixing.
+          // `opencodeConfigContent === null` means "no enabled servers";
+          // we deliberately leave the env unset in that case so the
+          // user's saved `~/.config/opencode/opencode.json` continues
+          // to apply as-is.
+          ...(opencodeConfigContent ? { OPENCODE_CONFIG_CONTENT: opencodeConfigContent } : {}),
+        },
+        agentLaunch,
+      );
       spawnedAgentEnv = env;
       const invocation = createCommandInvocation({
         command: agentLaunch.launchPath,
@@ -12487,11 +11859,7 @@ export async function startServer({
       // The exit handler is the canonical fallback that releases the
       // lock no matter what (crashed agy, fast exit, etc.) so the
       // queue can never starve permanently.
-      if (
-        antigravityModelLockRelease
-        && antigravityConcreteModel
-        && agentLogFilePath
-      ) {
+      if (antigravityModelLockRelease && antigravityConcreteModel && agentLogFilePath) {
         const releaseOnce = (() => {
           let fired = false;
           return () => {
@@ -12501,14 +11869,8 @@ export async function startServer({
           };
         })();
         const watcherAbort = new AbortController();
-        const { waitForAgyToReadModel } = await import(
-          './runtimes/defs/antigravity.js'
-        );
-        void waitForAgyToReadModel(
-          agentLogFilePath,
-          antigravityConcreteModel,
-          { abortSignal: watcherAbort.signal },
-        )
+        const { waitForAgyToReadModel } = await import('./runtimes/defs/antigravity.js');
+        void waitForAgyToReadModel(agentLogFilePath, antigravityConcreteModel, { abortSignal: watcherAbort.signal })
           .then((found) => {
             // Only release on TRUE confirmation; a `false` return means
             // the watcher ran out of its polling window without seeing
@@ -12538,13 +11900,7 @@ export async function startServer({
           // reading stdin — the process exit/close handlers already route
           // the underlying failure to SSE via stderr, so swallow these here.
           if (err.code !== 'EPIPE' && err.code !== 'EOF' && err.message !== 'write EOF') {
-            send(
-              'error',
-              createSseErrorPayload(
-                'AGENT_EXECUTION_FAILED',
-                `stdin: ${err.message}`,
-              ),
-            );
+            send('error', createSseErrorPayload('AGENT_EXECUTION_FAILED', `stdin: ${err.message}`));
           }
         });
         writePromptToChildStdin = true;
@@ -12600,12 +11956,12 @@ export async function startServer({
               userMessage: userMsg,
               assistantMessage: captured,
             },
-              {
-                projectRoot: PROJECT_ROOT,
-                chatAgentId: typeof agentId === 'string' ? agentId : null,
-                chatModel: typeof safeModel === 'string' ? safeModel : null,
-              },
-            ),
+            {
+              projectRoot: PROJECT_ROOT,
+              chatAgentId: typeof agentId === 'string' ? agentId : null,
+              chatModel: typeof safeModel === 'string' ? safeModel : null,
+            },
+          ),
         )
         .catch((err) => console.warn('[memory-llm] background failed', err));
     });
@@ -12631,7 +11987,9 @@ export async function startServer({
       if (adapterStreamFormat !== 'plain') {
         if (!critiqueWarnedAdapters.has(adapterStreamFormat)) {
           critiqueWarnedAdapters.add(adapterStreamFormat);
-          console.warn(`[critique] adapter format=${adapterStreamFormat} is not plain-stream; skipping orchestrator and falling through to legacy generation`);
+          console.warn(
+            `[critique] adapter format=${adapterStreamFormat} is not plain-stream; skipping orchestrator and falling through to legacy generation`,
+          );
         }
       } else {
         const critiqueRunId = run.id;
@@ -12667,8 +12025,7 @@ export async function startServer({
         // and let the sink push the right channel name. The web's
         // `sseToPanelEvent` overwrites `type` from the channel name on the
         // way back into a PanelEvent, so this round-trip stays correct.
-        const critiqueProjectIdForBus =
-          typeof projectId === 'string' && projectId ? projectId : null;
+        const critiqueProjectIdForBus = typeof projectId === 'string' && projectId ? projectId : null;
         const critiqueBus = {
           emit: (e) => {
             // Two transports for every critique event: the run-scoped
@@ -12735,9 +12092,7 @@ export async function startServer({
             // the request skillId with a project-row fallback; pass it
             // through verbatim, and leave the orchestrator's own default
             // of 'unknown' for runs that genuinely have no skill assigned.
-            skill: typeof effectiveSkillId === 'string' && effectiveSkillId
-              ? effectiveSkillId
-              : undefined,
+            skill: typeof effectiveSkillId === 'string' && effectiveSkillId ? effectiveSkillId : undefined,
             cfg: critiqueCfg,
             db,
             bus: critiqueBus,
@@ -12751,8 +12106,7 @@ export async function startServer({
           // finalize as 'succeeded'; every other status (timed_out,
           // interrupted, degraded, failed, legacy) is a failure path so the
           // run reflects the real outcome instead of a misleading success.
-          const succeeded = orchestratorResult.status === 'shipped'
-            || orchestratorResult.status === 'below_threshold';
+          const succeeded = orchestratorResult.status === 'shipped' || orchestratorResult.status === 'below_threshold';
           if (run.cancelRequested) {
             design.runs.finish(run, 'canceled', 1, null);
           } else if (succeeded) {
@@ -12761,7 +12115,10 @@ export async function startServer({
             design.runs.finish(run, 'failed', 1, null);
           }
         } catch (err) {
-          send('error', createSseErrorPayload('AGENT_EXECUTION_FAILED', err instanceof Error ? err.message : String(err)));
+          send(
+            'error',
+            createSseErrorPayload('AGENT_EXECUTION_FAILED', err instanceof Error ? err.message : String(err)),
+          );
           design.runs.finish(run, 'failed', 1, null);
         } finally {
           critiqueRunRegistry.unregister(critiqueProjectKey, critiqueRunId);
@@ -12815,10 +12172,7 @@ export async function startServer({
     // making `time_to_first_token_ms` / `spawn_to_first_token_ms` under-report
     // TTFT for tool-first runs. `thinking_delta` stays in because it is the
     // first visible model activity the user perceives.
-    const FIRST_TOKEN_AGENT_EVENT_TYPES = new Set([
-      'text_delta',
-      'thinking_delta',
-    ]);
+    const FIRST_TOKEN_AGENT_EVENT_TYPES = new Set(['text_delta', 'thinking_delta']);
     const noteFirstTokenAt = (timestamp = Date.now()) => {
       if (run.analyticsTelemetry?.firstTokenAt) return;
       run.analyticsTelemetry = {
@@ -12920,11 +12274,12 @@ export async function startServer({
         clearInactivityWatchdog();
         const authFailure = classifyAgentAuthFailure(agentId, failureText);
         if (authFailure?.status === 'missing') {
-          send('error', createSseErrorPayload(
-            'AGENT_AUTH_REQUIRED',
-            authFailure.message ?? cursorAuthGuidance(),
-            { retryable: true },
-          ));
+          send(
+            'error',
+            createSseErrorPayload('AGENT_AUTH_REQUIRED', authFailure.message ?? cursorAuthGuidance(), {
+              retryable: true,
+            }),
+          );
           return;
         }
         // Recover the specific model-service failure class (auth / quota /
@@ -12933,16 +12288,22 @@ export async function startServer({
         // execution-failed bucket.
         const serviceCode = classifyAgentServiceFailure(failureText);
         if (serviceCode) {
-          send('error', createSseErrorPayload(serviceCode, agentStreamError, {
-            details: ev.raw ? { raw: ev.raw } : undefined,
-            retryable: true,
-          }));
+          send(
+            'error',
+            createSseErrorPayload(serviceCode, agentStreamError, {
+              details: ev.raw ? { raw: ev.raw } : undefined,
+              retryable: true,
+            }),
+          );
           return;
         }
-        send('error', createSseErrorPayload('AGENT_EXECUTION_FAILED', agentStreamError, {
-          details: ev.raw ? { raw: ev.raw } : undefined,
-          retryable: false,
-        }));
+        send(
+          'error',
+          createSseErrorPayload('AGENT_EXECUTION_FAILED', agentStreamError, {
+            details: ev.raw ? { raw: ev.raw } : undefined,
+            retryable: false,
+          }),
+        );
         return;
       }
       lastAgentEventPhase = summarizeAgentEventForInactivity(ev);
@@ -12970,18 +12331,15 @@ export async function startServer({
             agentStdoutTail,
             agentStderrTail,
           ].join('\n');
-          agentStreamError = rewriteKnownAgentStreamError(
-            agentId,
-            message,
-            failureText,
-          );
+          agentStreamError = rewriteKnownAgentStreamError(agentId, message, failureText);
           clearInactivityWatchdog();
           const serviceCode = classifyAgentServiceFailure(failureText);
-          send('error', createSseErrorPayload(
-            serviceCode ?? 'AGENT_EXECUTION_FAILED',
-            agentStreamError,
-            { retryable: serviceCode === 'AGENT_AUTH_REQUIRED' || serviceCode === 'RATE_LIMITED' },
-          ));
+          send(
+            'error',
+            createSseErrorPayload(serviceCode ?? 'AGENT_EXECUTION_FAILED', agentStreamError, {
+              retryable: serviceCode === 'AGENT_AUTH_REQUIRED' || serviceCode === 'RATE_LIMITED',
+            }),
+          );
           return;
         }
         lastAgentEventPhase = summarizeAgentEventForInactivity(ev);
@@ -13053,9 +12411,8 @@ export async function startServer({
         prompt: composed,
         cwd: effectiveCwd,
         model: safeModel,
-        parentSession: agentResumeCtx.isResuming && agentResumeCtx.resumeSessionId
-          ? agentResumeCtx.resumeSessionId
-          : undefined,
+        parentSession:
+          agentResumeCtx.isResuming && agentResumeCtx.resumeSessionId ? agentResumeCtx.resumeSessionId : undefined,
         send: (channel, payload) => {
           if (channel === 'agent') {
             sendAgentEvent(payload);
@@ -13070,11 +12427,7 @@ export async function startServer({
               clearAgentSession(db, run.conversationId, def.id);
             }
             clearInactivityWatchdog();
-            send('error', createSseErrorPayload(
-              'AGENT_EXECUTION_FAILED',
-              agentStreamError,
-              { retryable: false },
-            ));
+            send('error', createSseErrorPayload('AGENT_EXECUTION_FAILED', agentStreamError, { retryable: false }));
           } else {
             noteAgentActivity();
             send(channel, payload);
@@ -13129,10 +12482,7 @@ export async function startServer({
       // forwarded as a no-op `agent` SSE event. This also wires the
       // substantive-output tracking the close handler reads below.
       trackingSubstantiveOutput = true;
-      const handler = createJsonEventStreamHandler(
-        def.eventParser || def.id,
-        sendAgentEvent,
-      );
+      const handler = createJsonEventStreamHandler(def.eventParser || def.id, sendAgentEvent);
       child.stdout.on('data', (chunk) => handler.feed(chunk));
       child.on('close', () => handler.flush());
     } else if (def.id === 'antigravity') {
@@ -13187,355 +12537,319 @@ export async function startServer({
     });
     child.on('close', async (code, signal) => {
       try {
-      clearInactivityWatchdog();
-      if (watchdogRetryRestarted) {
-        // The inactivity watchdog already failed this attempt and the same-run
-        // retry restarted on a fresh child. Finalization and event-sink / run-
-        // handle ownership (keyed by the shared runId) now belong to the new
-        // attempt, so this stalled child's close must not re-run them — doing
-        // so would re-finalize the run and delete the new attempt's sink.
-        // Revoke only THIS attempt's tool token (idempotent, keyed by its own
-        // token string) and bail; the `finally` block still cleans up logs.
+        clearInactivityWatchdog();
+        if (watchdogRetryRestarted) {
+          // The inactivity watchdog already failed this attempt and the same-run
+          // retry restarted on a fresh child. Finalization and event-sink / run-
+          // handle ownership (keyed by the shared runId) now belong to the new
+          // attempt, so this stalled child's close must not re-run them — doing
+          // so would re-finalize the run and delete the new attempt's sink.
+          // Revoke only THIS attempt's tool token (idempotent, keyed by its own
+          // token string) and bail; the `finally` block still cleans up logs.
+          revokeToolToken('child_exit');
+          return;
+        }
         revokeToolToken('child_exit');
-        return;
-      }
-      revokeToolToken('child_exit');
-      unregisterChatAgentEventSink();
-      if (acpSession?.hasFatalError()) {
-        return finishWithRetryDecision('failed', code ?? 1, signal ?? null);
-      }
-      if (agentStreamError) {
-        return finishWithRetryDecision('failed', code ?? 1, signal ?? null);
-      }
-      if (
-        code !== 0 &&
-        !run.cancelRequested
-      ) {
-        if (def.id === 'amr') {
-          const amrFailure = classifyAmrAccountFailure(
-            `${agentStderrTail}\n${agentStdoutTail}`,
-          );
-          if (amrFailure) {
-            sendAmrAccountFailure(amrFailure);
+        unregisterChatAgentEventSink();
+        if (acpSession?.hasFatalError()) {
+          return finishWithRetryDecision('failed', code ?? 1, signal ?? null);
+        }
+        if (agentStreamError) {
+          return finishWithRetryDecision('failed', code ?? 1, signal ?? null);
+        }
+        if (code !== 0 && !run.cancelRequested) {
+          if (def.id === 'amr') {
+            const amrFailure = classifyAmrAccountFailure(`${agentStderrTail}\n${agentStdoutTail}`);
+            if (amrFailure) {
+              sendAmrAccountFailure(amrFailure);
+              return finishWithRetryDecision('failed', code ?? 1, signal ?? null);
+            }
+          }
+          const authFailure = classifyAgentAuthFailure(agentId, `${agentStderrTail}\n${agentStdoutTail}`);
+          if (authFailure?.status === 'missing') {
+            send(
+              'error',
+              createSseErrorPayload('AGENT_AUTH_REQUIRED', authFailure.message ?? cursorAuthGuidance(), {
+                retryable: true,
+              }),
+            );
             return finishWithRetryDecision('failed', code ?? 1, signal ?? null);
           }
         }
-        const authFailure = classifyAgentAuthFailure(
-          agentId,
-          `${agentStderrTail}\n${agentStdoutTail}`,
-        );
-        if (authFailure?.status === 'missing') {
-          send('error', createSseErrorPayload(
-            'AGENT_AUTH_REQUIRED',
-            authFailure.message ?? cursorAuthGuidance(),
-            { retryable: true },
-          ));
-          return finishWithRetryDecision('failed', code ?? 1, signal ?? null);
+        if (
+          code !== 0 &&
+          !run.cancelRequested &&
+          def.resumesSessionViaCli === true &&
+          agentResumeCtx.isResuming &&
+          run.conversationId &&
+          isClaudeResumeFailure(`${agentStderrTail}\n${agentStdoutTail}`)
+        ) {
+          // The stored session id no longer resolves (pruned / machine moved
+          // / ~/.claude cleared). Drop it so the next turn starts a fresh
+          // session seeded with the full transcript, and surface a retryable
+          // error rather than a confusing hard failure.
+          clearAgentSession(db, run.conversationId, def.id);
+          send(
+            'error',
+            createSseErrorPayload(
+              'AGENT_EXECUTION_FAILED',
+              'The previous Claude session could not be resumed (it may have expired). Resend your message to continue with a fresh session.',
+              { retryable: true },
+            ),
+          );
+          return design.runs.finish(run, 'failed', code ?? 1, signal ?? null);
         }
-      }
-      if (
-        code !== 0 &&
-        !run.cancelRequested &&
-        def.resumesSessionViaCli === true &&
-        agentResumeCtx.isResuming &&
-        run.conversationId &&
-        isClaudeResumeFailure(`${agentStderrTail}\n${agentStdoutTail}`)
-      ) {
-        // The stored session id no longer resolves (pruned / machine moved
-        // / ~/.claude cleared). Drop it so the next turn starts a fresh
-        // session seeded with the full transcript, and surface a retryable
-        // error rather than a confusing hard failure.
-        clearAgentSession(db, run.conversationId, def.id);
-        send('error', createSseErrorPayload(
-          'AGENT_EXECUTION_FAILED',
-          'The previous Claude session could not be resumed (it may have expired). Resend your message to continue with a fresh session.',
-          { retryable: true },
-        ));
-        return design.runs.finish(run, 'failed', code ?? 1, signal ?? null);
-      }
-      // Empty-output guard: a clean `code === 0` exit with no visible
-      // output means the run silently finished without producing anything.
-      // Surface an explicit failure so the chat shows a clear reason.
-      if (
-        code === 0 &&
-        !run.cancelRequested &&
-        trackingSubstantiveOutput &&
-        !agentProducedOutput
-      ) {
-        send('error', createSseErrorPayload(
-          'AGENT_EXECUTION_FAILED',
-          'Agent completed without producing any output. The model or provider may have returned an empty response — check the agent logs for upstream errors.',
-          { retryable: true },
-        ));
-        return finishWithRetryDecision('failed', code, signal);
-      }
-      if (
-        code === 0 &&
-        !run.cancelRequested &&
-        isPluginAuthoringRun(db, run) &&
-        !(await hasGeneratedPluginArtifacts(cwd)) &&
-        !emittedRenderableQuestionForm(clarifyingQuestionText)
-      ) {
-        send('error', createSseErrorPayload(
-          'AGENT_EXECUTION_FAILED',
-          'Plugin authoring ended before generating the required generated-plugin artifacts.',
-          { retryable: true },
-        ));
-        return finishWithRetryDecision('failed', code, signal);
-      }
-      // Plain-stream auth-failure guard: plain adapters (today
-      // antigravity, deepseek's TUI variants) may exit cleanly with
-      // visible stdout that's actually an auth prompt — agy prints
-      // "Authentication required. Please visit the URL to log in:
-      // <URL>" + "Error: authentication timed out." rather than
-      // failing with a non-zero exit. Without this guard the chat
-      // shows that raw prompt as the agent's "reply", and the user
-      // has no way to actually complete OAuth from inside the chat.
-      // Override the apparent success with a proper
-      // AGENT_AUTH_REQUIRED error carrying actionable guidance.
-      if (
-        code === 0 &&
-        !run.cancelRequested &&
-        !trackingSubstantiveOutput &&
-        childStdoutSeen
-      ) {
-        const authFailure = classifyAgentAuthFailure(
-          agentId,
-          `${agentStderrTail}\n${agentStdoutTail}`,
-        );
-        if (authFailure?.status === 'missing') {
-          send('error', createSseErrorPayload(
-            'AGENT_AUTH_REQUIRED',
-            authFailure.message ?? `${def.name} authentication required. Please re-authenticate and retry.`,
-            { retryable: true },
-          ));
+        // Empty-output guard: a clean `code === 0` exit with no visible
+        // output means the run silently finished without producing anything.
+        // Surface an explicit failure so the chat shows a clear reason.
+        if (code === 0 && !run.cancelRequested && trackingSubstantiveOutput && !agentProducedOutput) {
+          send(
+            'error',
+            createSseErrorPayload(
+              'AGENT_EXECUTION_FAILED',
+              'Agent completed without producing any output. The model or provider may have returned an empty response — check the agent logs for upstream errors.',
+              { retryable: true },
+            ),
+          );
+          return finishWithRetryDecision('failed', code, signal);
+        }
+        if (
+          code === 0 &&
+          !run.cancelRequested &&
+          isPluginAuthoringRun(db, run) &&
+          !(await hasGeneratedPluginArtifacts(cwd)) &&
+          !emittedRenderableQuestionForm(clarifyingQuestionText)
+        ) {
+          send(
+            'error',
+            createSseErrorPayload(
+              'AGENT_EXECUTION_FAILED',
+              'Plugin authoring ended before generating the required generated-plugin artifacts.',
+              { retryable: true },
+            ),
+          );
+          return finishWithRetryDecision('failed', code, signal);
+        }
+        // Plain-stream auth-failure guard: plain adapters (today
+        // antigravity, deepseek's TUI variants) may exit cleanly with
+        // visible stdout that's actually an auth prompt — agy prints
+        // "Authentication required. Please visit the URL to log in:
+        // <URL>" + "Error: authentication timed out." rather than
+        // failing with a non-zero exit. Without this guard the chat
+        // shows that raw prompt as the agent's "reply", and the user
+        // has no way to actually complete OAuth from inside the chat.
+        // Override the apparent success with a proper
+        // AGENT_AUTH_REQUIRED error carrying actionable guidance.
+        if (code === 0 && !run.cancelRequested && !trackingSubstantiveOutput && childStdoutSeen) {
+          const authFailure = classifyAgentAuthFailure(agentId, `${agentStderrTail}\n${agentStdoutTail}`);
+          if (authFailure?.status === 'missing') {
+            send(
+              'error',
+              createSseErrorPayload(
+                'AGENT_AUTH_REQUIRED',
+                authFailure.message ?? `${def.name} authentication required. Please re-authenticate and retry.`,
+                { retryable: true },
+              ),
+            );
+            return finishWithRetryDecision('failed', 0, signal);
+          }
+        }
+        // Plain-stream empty-output guard: plain agents send raw stdout
+        // chunks without structured event tracking. Detect auth failures
+        // and quota / upstream errors when exit 0 but no stdout was
+        // seen. agy in print mode is silent on stdout/stderr for both
+        // missing-auth AND quota-exhausted failures; the daemon piped
+        // agy's `--log-file` to `agentLogFilePath` precisely so this
+        // guard can grep the upstream error code (RESOURCE_EXHAUSTED 429
+        // for quota, "not logged into Antigravity" for auth) and route
+        // to the right user-facing guidance.
+        if (code === 0 && !run.cancelRequested && !trackingSubstantiveOutput && !childStdoutSeen) {
+          let combinedDetail = `${agentStderrTail}\n${agentStdoutTail}`;
+          if (def.id === 'antigravity' && agentLogFilePath) {
+            try {
+              const logContent = await fs.promises.readFile(agentLogFilePath, 'utf8');
+              // Keep the last 8 KB — quota / auth lines all land near the
+              // tail (after the spawn / model-config preamble).
+              combinedDetail = `${combinedDetail}\n${logContent.slice(-8192)}`;
+            } catch {
+              // Missing log file (agy didn't write it, mounted tmpfs is
+              // read-only, etc.) is fine — fall through to the generic
+              // empty-output message.
+            }
+          }
+          const authFailure = classifyAgentAuthFailure(agentId, combinedDetail);
+          const serviceFailure = !authFailure ? classifyAgentServiceFailure(combinedDetail) : null;
+          const isAntigravityQuota = def.id === 'antigravity' && serviceFailure === 'RATE_LIMITED';
+          // Antigravity-only fallback: if neither classifier matched but
+          // the run was silent, lean on the empirical observation that
+          // an empty agy print-mode exit almost always means
+          // missing-OAuth (the only other silent path is quota, which
+          // the log-file check above already caught).
+          const useAntigravityAuthFallback = !authFailure && !serviceFailure && def.id === 'antigravity';
+          const errorCode =
+            authFailure || useAntigravityAuthFallback
+              ? 'AGENT_AUTH_REQUIRED'
+              : isAntigravityQuota
+                ? 'RATE_LIMITED'
+                : 'AGENT_EXECUTION_FAILED';
+          const msg = authFailure
+            ? (authFailure.message ?? `${def.name} authentication expired. Please re-authenticate and retry.`)
+            : isAntigravityQuota
+              ? antigravityQuotaGuidance()
+              : useAntigravityAuthFallback
+                ? antigravityAuthGuidance()
+                : `${def.name} returned an empty response. This may indicate an expired session — try re-authenticating the agent.`;
+          send('error', createSseErrorPayload(errorCode, msg, { retryable: true }));
           return finishWithRetryDecision('failed', 0, signal);
         }
-      }
-      // Plain-stream empty-output guard: plain agents send raw stdout
-      // chunks without structured event tracking. Detect auth failures
-      // and quota / upstream errors when exit 0 but no stdout was
-      // seen. agy in print mode is silent on stdout/stderr for both
-      // missing-auth AND quota-exhausted failures; the daemon piped
-      // agy's `--log-file` to `agentLogFilePath` precisely so this
-      // guard can grep the upstream error code (RESOURCE_EXHAUSTED 429
-      // for quota, "not logged into Antigravity" for auth) and route
-      // to the right user-facing guidance.
-      if (
-        code === 0 &&
-        !run.cancelRequested &&
-        !trackingSubstantiveOutput &&
-        !childStdoutSeen
-      ) {
-        let combinedDetail = `${agentStderrTail}\n${agentStdoutTail}`;
-        if (def.id === 'antigravity' && agentLogFilePath) {
-          try {
-            const logContent = await fs.promises.readFile(agentLogFilePath, 'utf8');
-            // Keep the last 8 KB — quota / auth lines all land near the
-            // tail (after the spawn / model-config preamble).
-            combinedDetail = `${combinedDetail}\n${logContent.slice(-8192)}`;
-          } catch {
-            // Missing log file (agy didn't write it, mounted tmpfs is
-            // read-only, etc.) is fine — fall through to the generic
-            // empty-output message.
-          }
-        }
-        const authFailure = classifyAgentAuthFailure(agentId, combinedDetail);
-        const serviceFailure = !authFailure
-          ? classifyAgentServiceFailure(combinedDetail)
-          : null;
-        const isAntigravityQuota =
-          def.id === 'antigravity' && serviceFailure === 'RATE_LIMITED';
-        // Antigravity-only fallback: if neither classifier matched but
-        // the run was silent, lean on the empirical observation that
-        // an empty agy print-mode exit almost always means
-        // missing-OAuth (the only other silent path is quota, which
-        // the log-file check above already caught).
-        const useAntigravityAuthFallback =
-          !authFailure && !serviceFailure && def.id === 'antigravity';
-        const errorCode =
-          authFailure || useAntigravityAuthFallback
-            ? 'AGENT_AUTH_REQUIRED'
-            : isAntigravityQuota
-              ? 'RATE_LIMITED'
-              : 'AGENT_EXECUTION_FAILED';
-        const msg = authFailure
-          ? authFailure.message ?? `${def.name} authentication expired. Please re-authenticate and retry.`
-          : isAntigravityQuota
-            ? antigravityQuotaGuidance()
-            : useAntigravityAuthFallback
-              ? antigravityAuthGuidance()
-              : `${def.name} returned an empty response. This may indicate an expired session — try re-authenticating the agent.`;
-        send('error', createSseErrorPayload(
-          errorCode,
-          msg,
-          { retryable: true },
-        ));
-        return finishWithRetryDecision('failed', 0, signal);
-      }
-      // ACP agents that don't shut down on stdin.end() (e.g. Devin for
-      // Terminal) are forced to exit via SIGTERM from attachAcpSession after
-      // a clean prompt completion. Without an override, the chat run would
-      // be marked `failed` because `code === 0` fails (code is null on a
-      // signal exit). `completedSuccessfully()` reports whether the ACP
-      // session resolved without a fatal error or abort.
-      //
-      // Scope the override narrowly to the exact forced-shutdown shape this
-      // PR introduces: code is null AND signal is SIGTERM AND the ACP
-      // session reported clean completion. Any other post-response failure
-      // (non-zero exit code, SIGKILL, SIGSEGV, etc.) still propagates as
-      // `failed`, preserving the existing close-status behavior for genuine
-      // post-response process problems.
-      const acpCleanCompletion =
-        typeof acpSession?.completedSuccessfully === 'function' &&
-        acpSession.completedSuccessfully();
-      const runArtifactSideEffects = scanRunEventsForRetrySideEffects(run.events);
-      const status = classifyChatRunCloseStatus({
-        cancelRequested: !!run.cancelRequested,
-        code,
-        signal,
-        acpCleanCompletion,
-        artifactQuietShutdownRequested,
-        turnCompletedCleanly: !!run.turnCompletedCleanly,
-        artifactProducedThisRun:
-          runArtifactSideEffects.artifactWriteSeen ||
-          runArtifactSideEffects.liveArtifactSeen,
-      });
-      // Skip the close-handler failure emit when the run is already
-      // terminal: the inactivity watchdog (failForInactivity) finishes the
-      // run — sending its error and clearing run.clients/eventsLogStream —
-      // before SIGTERM, so re-emitting here would double-send the error and
-      // reopen the closed events-log stream. The run is finalized below
-      // regardless (finish() no-ops once terminal).
-      if (status === 'failed' && !design.runs.isTerminal(run.status)) {
-        const diagnostic = diagnoseClaudeCliFailure({
-          agentId: def.id,
-          exitCode: code,
+        // ACP agents that don't shut down on stdin.end() (e.g. Devin for
+        // Terminal) are forced to exit via SIGTERM from attachAcpSession after
+        // a clean prompt completion. Without an override, the chat run would
+        // be marked `failed` because `code === 0` fails (code is null on a
+        // signal exit). `completedSuccessfully()` reports whether the ACP
+        // session resolved without a fatal error or abort.
+        //
+        // Scope the override narrowly to the exact forced-shutdown shape this
+        // PR introduces: code is null AND signal is SIGTERM AND the ACP
+        // session reported clean completion. Any other post-response failure
+        // (non-zero exit code, SIGKILL, SIGSEGV, etc.) still propagates as
+        // `failed`, preserving the existing close-status behavior for genuine
+        // post-response process problems.
+        const acpCleanCompletion =
+          typeof acpSession?.completedSuccessfully === 'function' && acpSession.completedSuccessfully();
+        const runArtifactSideEffects = scanRunEventsForRetrySideEffects(run.events);
+        const status = classifyChatRunCloseStatus({
+          cancelRequested: !!run.cancelRequested,
+          code,
           signal,
-          stderrTail: agentStderrTail,
-          stdoutTail: agentStdoutTail,
-          env: spawnedAgentEnv,
-          resolvedBin: agentLaunch.selectedPath,
+          acpCleanCompletion,
+          artifactQuietShutdownRequested,
+          turnCompletedCleanly: !!run.turnCompletedCleanly,
+          artifactProducedThisRun: runArtifactSideEffects.artifactWriteSeen || runArtifactSideEffects.liveArtifactSeen,
         });
-        // A non-zero exit whose output reads as an auth / quota / upstream
-        // problem (typical of Claude Code, codex, …) gets the specific code
-        // rather than the generic execution-failed bucket; the human-readable
-        // message still prefers the richer CLI diagnostic when we have one.
-        const serviceCode = classifyAgentServiceFailure(
-          `${agentStderrTail}\n${agentStdoutTail}`,
-        );
-        if (diagnostic) {
-          send('error', createSseErrorPayload(
-            serviceCode ?? 'AGENT_EXECUTION_FAILED',
-            diagnostic.message,
-            { retryable: diagnostic.retryable, details: { detail: diagnostic.detail } },
-          ));
-        } else if (serviceCode) {
-          const detail = (agentStderrTail || agentStdoutTail || '').trim();
-          send('error', createSseErrorPayload(
-            serviceCode,
-            detail || 'The model service returned an error.',
-            { retryable: true },
-          ));
-        } else {
-          // OpenCode swallows provider failures in headless mode: a 429
-          // usage-limit is marked retryable and retried silently with
-          // nothing on stdout/stderr, so the run only dies via the
-          // inactivity watchdog and the checks above find no signal. The
-          // real reason is recorded only in OpenCode's own session log,
-          // so recover it before falling back to the generic rewrite.
-          // See issue #982.
-          const openCodeFailure =
-            def.id === 'opencode'
-              ? readOpenCodeServiceFailure(spawnedAgentEnv, { since: run.createdAt })
-              : null;
-          if (openCodeFailure) {
-            send('error', createSseErrorPayload(
-              openCodeFailure.code,
-              openCodeFailure.message,
-              { retryable: true },
-            ));
-          } else {
-            const rewritten = rewriteKnownAgentStreamError(
-              def.id,
-              (agentStderrTail || agentStdoutTail || '').trim(),
-              `${agentStderrTail}\n${agentStdoutTail}`,
+        // Skip the close-handler failure emit when the run is already
+        // terminal: the inactivity watchdog (failForInactivity) finishes the
+        // run — sending its error and clearing run.clients/eventsLogStream —
+        // before SIGTERM, so re-emitting here would double-send the error and
+        // reopen the closed events-log stream. The run is finalized below
+        // regardless (finish() no-ops once terminal).
+        if (status === 'failed' && !design.runs.isTerminal(run.status)) {
+          const diagnostic = diagnoseClaudeCliFailure({
+            agentId: def.id,
+            exitCode: code,
+            signal,
+            stderrTail: agentStderrTail,
+            stdoutTail: agentStdoutTail,
+            env: spawnedAgentEnv,
+            resolvedBin: agentLaunch.selectedPath,
+          });
+          // A non-zero exit whose output reads as an auth / quota / upstream
+          // problem (typical of Claude Code, codex, …) gets the specific code
+          // rather than the generic execution-failed bucket; the human-readable
+          // message still prefers the richer CLI diagnostic when we have one.
+          const serviceCode = classifyAgentServiceFailure(`${agentStderrTail}\n${agentStdoutTail}`);
+          if (diagnostic) {
+            send(
+              'error',
+              createSseErrorPayload(serviceCode ?? 'AGENT_EXECUTION_FAILED', diagnostic.message, {
+                retryable: diagnostic.retryable,
+                details: { detail: diagnostic.detail },
+              }),
             );
-            if (rewritten !== 'Agent stream error') {
-              send('error', createSseErrorPayload(
-                'AGENT_EXECUTION_FAILED',
-                rewritten,
-                { retryable: true },
-              ));
+          } else if (serviceCode) {
+            const detail = (agentStderrTail || agentStdoutTail || '').trim();
+            send(
+              'error',
+              createSseErrorPayload(serviceCode, detail || 'The model service returned an error.', { retryable: true }),
+            );
+          } else {
+            // OpenCode swallows provider failures in headless mode: a 429
+            // usage-limit is marked retryable and retried silently with
+            // nothing on stdout/stderr, so the run only dies via the
+            // inactivity watchdog and the checks above find no signal. The
+            // real reason is recorded only in OpenCode's own session log,
+            // so recover it before falling back to the generic rewrite.
+            // See issue #982.
+            const openCodeFailure =
+              def.id === 'opencode' ? readOpenCodeServiceFailure(spawnedAgentEnv, { since: run.createdAt }) : null;
+            if (openCodeFailure) {
+              send('error', createSseErrorPayload(openCodeFailure.code, openCodeFailure.message, { retryable: true }));
+            } else {
+              const rewritten = rewriteKnownAgentStreamError(
+                def.id,
+                (agentStderrTail || agentStdoutTail || '').trim(),
+                `${agentStderrTail}\n${agentStdoutTail}`,
+              );
+              if (rewritten !== 'Agent stream error') {
+                send('error', createSseErrorPayload('AGENT_EXECUTION_FAILED', rewritten, { retryable: true }));
+              }
             }
           }
         }
-      }
-      // Reconcile any HTML artifacts that were written during this run
-      // without a manifest sidecar (e.g. agent used write_file instead of
-      // create_artifact, or the run terminated between HTML write and
-      // sidecar write). Only files modified after the run started are
-      // touched — pre-existing HTML in imported-folder projects must not
-      // receive spurious manifests. Best-effort; must not block finalisation.
-      // See issue #2893.
-      if (run.projectId) {
-        (async () => {
-          try {
-            const project = getProject(db, run.projectId);
-            const files = await listFiles(PROJECTS_DIR, run.projectId, {
-              metadata: project?.metadata,
-            });
-            const dir = resolveProjectDir(PROJECTS_DIR, run.projectId, project?.metadata);
-            for (const f of files) {
-              const ext = f.name.slice(f.name.lastIndexOf('.')).toLowerCase();
-              if (ext !== '.html' && ext !== '.htm') continue;
-              try {
-                const filePath = path.join(dir, f.name);
-                const st = await fs.promises.stat(filePath);
-                if (!isRunTouchedProjectFile(st.mtimeMs, runStartTimeMs)) continue;
-                await reconcileHtmlArtifactManifest(
-                  PROJECTS_DIR,
-                  run.projectId,
-                  f.name,
-                  project?.metadata,
-                );
-              } catch { /* per-file best-effort */ }
+        // Reconcile any HTML artifacts that were written during this run
+        // without a manifest sidecar (e.g. agent used write_file instead of
+        // create_artifact, or the run terminated between HTML write and
+        // sidecar write). Only files modified after the run started are
+        // touched — pre-existing HTML in imported-folder projects must not
+        // receive spurious manifests. Best-effort; must not block finalisation.
+        // See issue #2893.
+        if (run.projectId) {
+          (async () => {
+            try {
+              const project = getProject(db, run.projectId);
+              const files = await listFiles(PROJECTS_DIR, run.projectId, {
+                metadata: project?.metadata,
+              });
+              const dir = resolveProjectDir(PROJECTS_DIR, run.projectId, project?.metadata);
+              for (const f of files) {
+                const ext = f.name.slice(f.name.lastIndexOf('.')).toLowerCase();
+                if (ext !== '.html' && ext !== '.htm') continue;
+                try {
+                  const filePath = path.join(dir, f.name);
+                  const st = await fs.promises.stat(filePath);
+                  if (!isRunTouchedProjectFile(st.mtimeMs, runStartTimeMs)) continue;
+                  await reconcileHtmlArtifactManifest(PROJECTS_DIR, run.projectId, f.name, project?.metadata);
+                } catch {
+                  /* per-file best-effort */
+                }
+              }
+            } catch {
+              /* project-level best-effort */
             }
-          } catch { /* project-level best-effort */ }
-        })();
-      }
-      // Flush buffered plain-text stdout (antigravity) that was not
-      // suppressed by the auth-prompt guard above. Send each chunk in
-      // order before finishing so the assistant text arrives before the
-      // run's `finished` event. Stamp first-token timing here — and only
-      // here — using the first chunk's arrival time, so the OAuth-prompt
-      // path (which returns before this flush) never records a TTFT for
-      // output the user never saw (PR #3412).
-      if (plaintextStdoutBuffer.length > 0 && firstBufferedStdoutAt !== null) {
-        noteFirstTokenAt(firstBufferedStdoutAt);
-      }
-      for (const chunk of plaintextStdoutBuffer) {
-        send('stdout', { chunk });
-      }
-      // Capture the pi session file path for conversational continuity.
-      // The session path is discovered by attachPiRpcSession when it
-      // processes agent_end; persist it under (conversationId, agentId) so
-      // another conversation in the same cwd cannot inherit this history.
-      if (acpSession && typeof acpSession.getLastSessionPath === 'function') {
-        const sessionPath = acpSession.getLastSessionPath();
-        if (status === 'succeeded' && def.streamFormat === 'pi-rpc') {
-          persistCapturedAgentSession(db, {
-            conversationId: run.conversationId,
-            agentId: def.id,
-            sessionId: sessionPath,
-            stablePromptHash: currentStableHash,
-          });
+          })();
         }
-      }
-      if (status === 'succeeded') {
-        persistDeliveredAgentSessionState();
-      }
-      finishWithRetryDecision(status, code, signal);
+        // Flush buffered plain-text stdout (antigravity) that was not
+        // suppressed by the auth-prompt guard above. Send each chunk in
+        // order before finishing so the assistant text arrives before the
+        // run's `finished` event. Stamp first-token timing here — and only
+        // here — using the first chunk's arrival time, so the OAuth-prompt
+        // path (which returns before this flush) never records a TTFT for
+        // output the user never saw (PR #3412).
+        if (plaintextStdoutBuffer.length > 0 && firstBufferedStdoutAt !== null) {
+          noteFirstTokenAt(firstBufferedStdoutAt);
+        }
+        for (const chunk of plaintextStdoutBuffer) {
+          send('stdout', { chunk });
+        }
+        // Capture the pi session file path for conversational continuity.
+        // The session path is discovered by attachPiRpcSession when it
+        // processes agent_end; persist it under (conversationId, agentId) so
+        // another conversation in the same cwd cannot inherit this history.
+        if (acpSession && typeof acpSession.getLastSessionPath === 'function') {
+          const sessionPath = acpSession.getLastSessionPath();
+          if (status === 'succeeded' && def.streamFormat === 'pi-rpc') {
+            persistCapturedAgentSession(db, {
+              conversationId: run.conversationId,
+              agentId: def.id,
+              sessionId: sessionPath,
+              stablePromptHash: currentStableHash,
+            });
+          }
+        }
+        if (status === 'succeeded') {
+          persistDeliveredAgentSessionState();
+        }
+        finishWithRetryDecision(status, code, signal);
       } finally {
         // Best-effort cleanup of the per-run agy log file on every close
         // path — successful, failed, cancelled, or non-zero exit — so
@@ -13598,13 +12912,7 @@ export async function startServer({
     });
   };
 
-  orbitService.setRunHandler(async ({
-    trigger,
-    startedAt,
-    prompt,
-    systemPrompt,
-    template,
-  }) => {
+  orbitService.setRunHandler(async ({ trigger, startedAt, prompt, systemPrompt, template }) => {
     // Each Orbit run gets its own project so the conversation, messages, and
     // live artifact are isolated. The handler does the synchronous prep here
     // (insert project/conversation/run rows, kick off the chat run) and
@@ -13614,9 +12922,7 @@ export async function startServer({
     // on the agent's final status (live artifact discovery, lastRun summary
     // metadata) lives inside the `completion` promise.
     const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
-    let agentId = typeof appConfig.agentId === 'string' && appConfig.agentId
-      ? appConfig.agentId
-      : null;
+    let agentId = typeof appConfig.agentId === 'string' && appConfig.agentId ? appConfig.agentId : null;
     if (!agentId) {
       const agents = await detectAgents(appConfig.agentCliEnv ?? {}).catch(() => []);
       agentId = agents.find((agent) => agent.available)?.id ?? null;
@@ -13629,9 +12935,7 @@ export async function startServer({
     const assistantMessageId = `orbit-assistant-${randomUUID()}`;
     const projectName = `Orbit · ${formatLocalProjectTimestamp(startedAt)}`;
 
-    const orbitDesignSystemId = template?.designSystemRequired === false
-      ? null
-      : appConfig.designSystemId ?? null;
+    const orbitDesignSystemId = template?.designSystemRequired === false ? null : (appConfig.designSystemId ?? null);
 
     insertProject(db, {
       id: projectId,
@@ -13677,11 +12981,8 @@ export async function startServer({
 
     if (template?.dir) {
       const cwd = await ensureProject(PROJECTS_DIR, projectId);
-      const result = await stageActiveSkill(
-        cwd,
-        skillCwdAliasSegment(template.dir),
-        template.dir,
-        (msg) => console.warn(msg),
+      const result = await stageActiveSkill(cwd, skillCwdAliasSegment(template.dir), template.dir, (msg) =>
+        console.warn(msg),
       );
       if (!result.staged) {
         console.warn(
@@ -13691,33 +12992,40 @@ export async function startServer({
     }
 
     const modelPrefs = appConfig.agentModels?.[agentId] ?? {};
-    design.runs.start(run, () => startChatRun({
-      agentId,
-      projectId,
-      conversationId: run.conversationId,
-      assistantMessageId: run.assistantMessageId,
-      clientRequestId: run.clientRequestId,
-      skillId: 'live-artifact',
-      designSystemId: orbitDesignSystemId,
-      model: modelPrefs.model ?? null,
-      reasoning: modelPrefs.reasoning ?? null,
-      message: prompt,
-      systemPrompt: [
-        renderOrbitTemplateSystemPrompt(template),
-        systemPrompt,
-        'You are Orbit, an autonomous activity-summary agent inside Open Design.',
-        'You must discover connectors and connector tools yourself through the OD CLI; the daemon has not chosen tools for you.',
-        'You must create and register a Live Artifact as the final deliverable. Do not merely describe what you would do.',
-        'Do not ask follow-up questions, do not emit <question-form>, and do not wait for user input. This run is unattended; pick reasonable defaults and complete the artifact.',
-        'Keep connector credentials and OD_TOOL_TOKEN private; never print or persist secrets.',
-      ].join('\n'),
-    }, run));
+    design.runs.start(run, () =>
+      startChatRun(
+        {
+          agentId,
+          projectId,
+          conversationId: run.conversationId,
+          assistantMessageId: run.assistantMessageId,
+          clientRequestId: run.clientRequestId,
+          skillId: 'live-artifact',
+          designSystemId: orbitDesignSystemId,
+          model: modelPrefs.model ?? null,
+          reasoning: modelPrefs.reasoning ?? null,
+          message: prompt,
+          systemPrompt: [
+            renderOrbitTemplateSystemPrompt(template),
+            systemPrompt,
+            'You are Orbit, an autonomous activity-summary agent inside Open Design.',
+            'You must discover connectors and connector tools yourself through the OD CLI; the daemon has not chosen tools for you.',
+            'You must create and register a Live Artifact as the final deliverable. Do not merely describe what you would do.',
+            'Do not ask follow-up questions, do not emit <question-form>, and do not wait for user input. This run is unattended; pick reasonable defaults and complete the artifact.',
+            'Keep connector credentials and OD_TOOL_TOKEN private; never print or persist secrets.',
+          ].join('\n'),
+        },
+        run,
+      ),
+    );
 
     const completion = (async () => {
       const finalStatus = await design.runs.wait(run);
-      db.prepare(
-        `UPDATE messages SET run_status = ?, ended_at = ? WHERE id = ?`,
-      ).run(finalStatus.status, Date.now(), assistantMessageId);
+      db.prepare(`UPDATE messages SET run_status = ?, ended_at = ? WHERE id = ?`).run(
+        finalStatus.status,
+        Date.now(),
+        assistantMessageId,
+      );
       const artifacts = await listLiveArtifacts({ projectsRoot: PROJECTS_DIR, projectId });
       const artifact = artifacts.find((candidate) => candidate.createdByRunId === run.id);
       const status = finalStatus.status === 'succeeded' && !artifact ? 'failed' : finalStatus.status;
@@ -13803,14 +13111,12 @@ export async function startServer({
       } catch (err) {
         return res.status(500).json({ error: String(err) });
       }
-      const explicitPlugin =
-        requestBody.pluginId || requestBody.appliedPluginSnapshotId;
+      const explicitPlugin = requestBody.pluginId || requestBody.appliedPluginSnapshotId;
       let runResolveBody = requestBody;
       if (!explicitPlugin) {
         const projectRow = getProject(db, requestBody.projectId);
         const hasPin =
-          typeof projectRow?.appliedPluginSnapshotId === 'string'
-          && projectRow.appliedPluginSnapshotId.length > 0;
+          typeof projectRow?.appliedPluginSnapshotId === 'string' && projectRow.appliedPluginSnapshotId.length > 0;
         if (!hasPin) {
           const fallbackPluginId = defaultScenarioPluginIdForProjectMetadata(projectRow?.metadata);
           if (fallbackPluginId && getInstalledPlugin(db, fallbackPluginId)) {
@@ -13822,9 +13128,7 @@ export async function startServer({
         db,
         body: runResolveBody,
         projectId: requestBody.projectId,
-        conversationId: typeof requestBody.conversationId === 'string'
-          ? requestBody.conversationId
-          : null,
+        conversationId: typeof requestBody.conversationId === 'string' ? requestBody.conversationId : null,
         registry: registryView,
         connectorProbe: buildConnectorProbe(connectorService),
       });
@@ -13873,13 +13177,9 @@ export async function startServer({
     if (typeof meta.agentId !== 'string' || !meta.agentId) {
       try {
         const appCfg = await readAppConfig(RUNTIME_DATA_DIR);
-        const cfgAgent = typeof appCfg.agentId === 'string' && appCfg.agentId
-          ? appCfg.agentId
-          : null;
+        const cfgAgent = typeof appCfg.agentId === 'string' && appCfg.agentId ? appCfg.agentId : null;
         const agents = await detectAgents(appCfg.agentCliEnv ?? {}).catch(() => []);
-        const cfgAgentAvailable = cfgAgent
-          ? agents.some((agent) => agent.id === cfgAgent && agent.available)
-          : false;
+        const cfgAgentAvailable = cfgAgent ? agents.some((agent) => agent.id === cfgAgent && agent.available) : false;
         if (cfgAgent && cfgAgentAvailable) {
           meta.agentId = cfgAgent;
         } else {
@@ -13894,10 +13194,7 @@ export async function startServer({
       toolBundle.bundle,
       typeof meta.agentId === 'string' ? getAgentDef(meta.agentId) : null,
       {
-        deliveryTarget: runToolBundleDeliveryTargetForProject(
-          meta.projectId,
-          runProject?.metadata,
-        ),
+        deliveryTarget: runToolBundleDeliveryTargetForProject(meta.projectId, runProject?.metadata),
       },
     );
     if (!toolBundleSupport.ok) {
@@ -13929,25 +13226,24 @@ export async function startServer({
         const convs = listConversations(db, meta.projectId);
         // listConversations is ordered for the UI by recent activity; this
         // fallback must bind to the seeded default conversation instead.
-        const defaultConv = Array.isArray(convs) && convs.length > 0
-          ? [...convs].sort((a, b) => {
-              const aCreated = Number(a?.createdAt);
-              const bCreated = Number(b?.createdAt);
-              if (Number.isFinite(aCreated) && Number.isFinite(bCreated) && aCreated !== bCreated) {
-                return aCreated - bCreated;
-              }
-              return String(a?.id ?? '').localeCompare(String(b?.id ?? ''));
-            })[0]
-          : null;
+        const defaultConv =
+          Array.isArray(convs) && convs.length > 0
+            ? [...convs].sort((a, b) => {
+                const aCreated = Number(a?.createdAt);
+                const bCreated = Number(b?.createdAt);
+                if (Number.isFinite(aCreated) && Number.isFinite(bCreated) && aCreated !== bCreated) {
+                  return aCreated - bCreated;
+                }
+                return String(a?.id ?? '').localeCompare(String(b?.id ?? ''));
+              })[0]
+            : null;
         if (defaultConv && typeof defaultConv.id === 'string' && defaultConv.id) {
           meta.conversationId = defaultConv.id;
           if (typeof meta.assistantMessageId !== 'string' || !meta.assistantMessageId) {
             meta.assistantMessageId = randomUUID();
           }
           const promptForUserMessage =
-            typeof meta.message === 'string' && meta.message.trim().length > 0
-              ? meta.message
-              : null;
+            typeof meta.message === 'string' && meta.message.trim().length > 0 ? meta.message : null;
           if (promptForUserMessage) {
             upsertMessage(db, defaultConv.id, {
               id: randomUUID(),
@@ -14057,9 +13353,7 @@ export async function startServer({
       //   - configure_availability: 'available' when the requested CLI is
       //     installed; 'unavailable' when it's known but not installed;
       //     'unknown' otherwise
-      const appCfgForAnalytics = await readAppConfig(RUNTIME_DATA_DIR).catch(
-        () => ({} as Record<string, unknown>),
-      );
+      const appCfgForAnalytics = await readAppConfig(RUNTIME_DATA_DIR).catch(() => ({}) as Record<string, unknown>);
       const detectedAgentsForAnalytics = await detectAgents(
         (appCfgForAnalytics as { agentCliEnv?: Record<string, unknown> }).agentCliEnv ?? {},
       ).catch(() => [] as Array<{ id: string; available: boolean }>);
@@ -14086,9 +13380,7 @@ export async function startServer({
           : typeof reqBody.message === 'string'
             ? reqBody.message
             : '';
-      const userQueryTokens = promptText.length > 0
-        ? Math.ceil(promptText.length / 4)
-        : 0;
+      const userQueryTokens = promptText.length > 0 ? Math.ceil(promptText.length / 4) : 0;
       // Optional analytics context the client may attach to a run.
       // Used to thread the DS run variant (`design_system_project` /
       // `design_system_generation` page+area, `project_kind=design_system`,
@@ -14096,16 +13388,12 @@ export async function startServer({
       // counts onto run_created / run_finished. Behavior never depends on
       // these; only PostHog props do.
       const analyticsHints =
-        (reqBody as { analyticsHints?: Record<string, unknown> | null }).analyticsHints
-          && typeof (reqBody as { analyticsHints?: unknown }).analyticsHints === 'object'
+        (reqBody as { analyticsHints?: Record<string, unknown> | null }).analyticsHints &&
+        typeof (reqBody as { analyticsHints?: unknown }).analyticsHints === 'object'
           ? ((reqBody as { analyticsHints?: Record<string, unknown> }).analyticsHints ?? {})
           : {};
-      const hintEntryFrom = typeof analyticsHints.entryFrom === 'string'
-        ? analyticsHints.entryFrom
-        : undefined;
-      const hintProjectKind = typeof analyticsHints.projectKind === 'string'
-        ? analyticsHints.projectKind
-        : null;
+      const hintEntryFrom = typeof analyticsHints.entryFrom === 'string' ? analyticsHints.entryFrom : undefined;
+      const hintProjectKind = typeof analyticsHints.projectKind === 'string' ? analyticsHints.projectKind : null;
       const requestProjectId = typeof reqBody.projectId === 'string' ? reqBody.projectId : null;
       const runProject = requestProjectId ? getProject(db, requestProjectId) : null;
       const runProjectKind = resolveRunProjectKindForAnalytics({
@@ -14113,15 +13401,14 @@ export async function startServer({
         projectMetadata: runProject?.metadata,
       });
       const dsRunContext =
-        analyticsHints.designSystemRunContext
-          && typeof analyticsHints.designSystemRunContext === 'object'
+        analyticsHints.designSystemRunContext && typeof analyticsHints.designSystemRunContext === 'object'
           ? (analyticsHints.designSystemRunContext as Record<string, unknown>)
           : {};
       const isDesignSystemRun =
-        runProjectKind === 'design_system'
-        || hintEntryFrom === 'design_system_create'
-        || hintEntryFrom === 'onboarding_design_system'
-        || hintEntryFrom === 'regenerate_from_review';
+        runProjectKind === 'design_system' ||
+        hintEntryFrom === 'design_system_create' ||
+        hintEntryFrom === 'onboarding_design_system' ||
+        hintEntryFrom === 'regenerate_from_review';
       // Only fields the current `/api/runs` create payload actually
       // sends. The v2 schema documents extended context props
       // (entry_from / project_kind / target_platforms / fidelity /
@@ -14137,15 +13424,11 @@ export async function startServer({
         area: isDesignSystemRun ? 'design_system_generation' : 'chat_composer',
         ...configureGlobals,
         project_id: requestProjectId,
-        conversation_id:
-          typeof reqBody.conversationId === 'string' ? reqBody.conversationId : null,
+        conversation_id: typeof reqBody.conversationId === 'string' ? reqBody.conversationId : null,
         run_id: run.id,
         project_kind: runProjectKind,
         ...(hintEntryFrom ? { entry_from: hintEntryFrom } : {}),
-        design_system_id:
-          typeof reqBody.designSystemId === 'string'
-            ? reqBody.designSystemId
-            : undefined,
+        design_system_id: typeof reqBody.designSystemId === 'string' ? reqBody.designSystemId : undefined,
         // `design_system_source` is required in the v2 contract
         // (RunCreatedProps / RunFinishedProps). The daemon doesn't see
         // whether the chosen design system was the workspace default,
@@ -14157,51 +13440,35 @@ export async function startServer({
         // this with the precise value. See PR #2285 review 2026-05-20
         // 04:35 for the rationale.
         design_system_source:
-          typeof reqBody.designSystemId === 'string' && reqBody.designSystemId
-            ? 'unknown'
-            : 'not_applicable',
-        ...(isDesignSystemRun ? {
-          ds_source_origin: typeof dsRunContext.origin === 'string'
-            ? dsRunContext.origin
-            : undefined,
-          source_count: typeof dsRunContext.sourceCount === 'number'
-            ? dsRunContext.sourceCount
-            : undefined,
-          has_brand_description: typeof dsRunContext.hasBrandDescription === 'boolean'
-            ? dsRunContext.hasBrandDescription
-            : undefined,
-          brand_description_length_bucket:
-            typeof dsRunContext.brandDescriptionLengthBucket === 'string'
-              ? dsRunContext.brandDescriptionLengthBucket
-              : undefined,
-          github_repo_count: typeof dsRunContext.githubRepoCount === 'number'
-            ? dsRunContext.githubRepoCount
-            : undefined,
-          local_folder_count: typeof dsRunContext.localFolderCount === 'number'
-            ? dsRunContext.localFolderCount
-            : undefined,
-          fig_file_count: typeof dsRunContext.figFileCount === 'number'
-            ? dsRunContext.figFileCount
-            : undefined,
-          asset_file_count: typeof dsRunContext.assetFileCount === 'number'
-            ? dsRunContext.assetFileCount
-            : undefined,
-        } : {}),
-        has_attachment: Array.isArray(reqBody.attachments)
-          ? (reqBody.attachments as unknown[]).length > 0
-          : false,
+          typeof reqBody.designSystemId === 'string' && reqBody.designSystemId ? 'unknown' : 'not_applicable',
+        ...(isDesignSystemRun
+          ? {
+              ds_source_origin: typeof dsRunContext.origin === 'string' ? dsRunContext.origin : undefined,
+              source_count: typeof dsRunContext.sourceCount === 'number' ? dsRunContext.sourceCount : undefined,
+              has_brand_description:
+                typeof dsRunContext.hasBrandDescription === 'boolean' ? dsRunContext.hasBrandDescription : undefined,
+              brand_description_length_bucket:
+                typeof dsRunContext.brandDescriptionLengthBucket === 'string'
+                  ? dsRunContext.brandDescriptionLengthBucket
+                  : undefined,
+              github_repo_count:
+                typeof dsRunContext.githubRepoCount === 'number' ? dsRunContext.githubRepoCount : undefined,
+              local_folder_count:
+                typeof dsRunContext.localFolderCount === 'number' ? dsRunContext.localFolderCount : undefined,
+              fig_file_count: typeof dsRunContext.figFileCount === 'number' ? dsRunContext.figFileCount : undefined,
+              asset_file_count:
+                typeof dsRunContext.assetFileCount === 'number' ? dsRunContext.assetFileCount : undefined,
+            }
+          : {}),
+        has_attachment: Array.isArray(reqBody.attachments) ? (reqBody.attachments as unknown[]).length > 0 : false,
         user_query_tokens: userQueryTokens,
         // `modelIdForTracking` buckets null/empty into `'default'` so the
         // PostHog `model_id` column always has an analysable value. The
         // user-picked model only lands here on `run_created` (the agent
         // hasn't initialised yet); `run_finished` below upgrades this to
         // the agent-reported model when available.
-        model_id: modelIdForTracking(
-          typeof reqBody.model === 'string' ? reqBody.model : null,
-        ),
-        agent_provider_id: agentIdToTracking(
-          typeof reqBody.agentId === 'string' ? reqBody.agentId : null,
-        ),
+        model_id: modelIdForTracking(typeof reqBody.model === 'string' ? reqBody.model : null),
+        agent_provider_id: agentIdToTracking(typeof reqBody.agentId === 'string' ? reqBody.agentId : null),
         skill_id: typeof reqBody.skillId === 'string' ? reqBody.skillId : null,
         mcp_id: null,
         token_count_source: userQueryTokens > 0 ? 'estimated' : 'unknown',
@@ -14213,170 +13480,162 @@ export async function startServer({
         properties: baseProps,
         insertId: runInsertId,
       });
-      design.runs.wait(run).then(async (status: {
-        status: string;
-        error?: string | null;
-        errorCode?: string | null;
-        exitCode?: number | null;
-        signal?: string | null;
-      }) => {
-        // Langfuse eligibility must be re-derived at completion time, not
-        // reused from a launch-time snapshot. A long-running run can have the
-        // user flip telemetry consent or the relay config mid-flight; the
-        // Langfuse sink (`reportRunCompletedFromDaemon`) re-reads app config
-        // when the run ends, so PostHog's `langfuse_expected` /
-        // `langfuse_delivery_status` / `langfuse_drop_reason` must read the
-        // same completion-time eligibility to stay aligned. See PR #3412
-        // review.
-        const appCfgAtFinish = await readAppConfig(RUNTIME_DATA_DIR).catch(
-          () => ({} as Record<string, unknown>),
-        );
-        const langfuseDeliveryForAnalytics = deriveLangfuseDeliveryState(
-          (appCfgAtFinish as { telemetry?: Record<string, unknown> }).telemetry ?? {},
-          readTelemetrySinkConfig(),
-        );
-        // `deriveRunErrorCode` is the invariant: when `result === 'failed'`
-        // it always returns a non-empty string so dashboards keyed on
-        // `error_code` never see a blank cell. Live in `run-result.ts`
-        // with unit coverage for the fall-through cases (ACP fatal,
-        // child close without error event, etc.).
-        const result = runResultFromStatus(status.status);
-        const errorCode = deriveRunErrorCode(status);
-        const failure = classifyRunFailure({
-          result,
-          status,
-          ...(errorCode ? { errorCode } : {}),
-          agentId: run.agentId,
-          events: run.events,
-        });
-        // ACP reports { type:'status', label:'model', model:<id> } after
-        // session/new; stream adapters report { type:'status',
-        // label:'initializing', model:<id> } at run start. The scan must
-        // not short-circuit on usage before reaching the model signal —
-        // see `scanRunEventsForFinishedProps` for the invariant.
-        const usageAnalytics = scanRunEventsForUsageAnalytics(
-          run.events,
-          reqBody.model,
-          userQueryTokens,
-        );
-        const analyticsCapturedAt = Date.now();
-        const timingAnalytics = summarizeRunTimingAnalytics({
-          runCreatedAt: run.createdAt,
-          runUpdatedAt: run.updatedAt,
-          analyticsCapturedAt,
-          telemetry: run.analyticsTelemetry,
-          events: run.events,
-        });
-        const diagnosticsAnalytics = summarizeRunDiagnosticsForAnalytics({
-          events: run.events,
-          exitCode: status.exitCode ?? null,
-          signal: status.signal ?? null,
-        });
-        const finishedModelId = hasExplicitRequestedModelForAnalytics(reqBody.model)
-          ? modelIdForTracking(reqBody.model)
-          : modelIdForTracking(usageAnalytics.agent_reported_model);
-        for (const [index, retryEvent] of runRetryEventsForAnalytics(run.events).entries()) {
-          design.analytics.capture({
-            eventName: retryEvent.event,
-            context: analyticsContext,
-            appVersion: design.getAppVersion(),
-            properties: retryEvent.data,
-            insertId: `${runInsertId}-${retryEvent.event}-${index}`,
-          });
-        }
-        design.analytics.capture({
-          eventName: 'run_finished',
-          context: analyticsContext,
-          appVersion: design.getAppVersion(),
-          properties: {
-            ...baseProps,
-            // `area` flips on run_finished: chat_panel runs publish
-            // under `chat_panel`, DS runs stay on
-            // `design_system_generation` to match the run_created shape.
-            area: isDesignSystemRun ? 'design_system_generation' : 'chat_panel',
-            result,
-            // `model_id` upgrades the request-side value with the
-            // agent-reported model on terminal state; see
-            // `finishedModelId` derivation above.
-            model_id: finishedModelId,
-            // Incremental count of `.html` paths the run produced or
-            // modified, deduped per file. Replaces the hard-coded `0`
-            // that masked the "did this run actually generate an
-            // artifact?" funnel on PostHog. See `run-artifacts.ts`
-            // for the dedup semantics; tested in
-            // `tests/run-artifacts.test.ts`.
-            artifact_count: countNewHtmlArtifacts(run.events),
-            // True when the run raised an AskUserQuestion clarification
-            // card. Clarification turns inherently produce no artifact, so
-            // the dashboard excludes them from the "run finished -> has
-            // artifact" funnel instead of counting them as failures. See
-            // `run-artifacts.ts`; tested in `tests/run-artifacts.test.ts`.
-            asked_user_question: runAskedUserQuestion(run.events),
-            retry_attempt_count: run.retryAttemptCount ?? 0,
-            retry_final_result: run.retryFinalResult ?? 'not_attempted',
-            ...(run.retrySuppressedReason
-              ? { retry_suppressed_reason: run.retrySuppressedReason }
-              : {}),
-            ...(isDesignSystemRun ? {
-              // DS runs land a `DESIGN.md` write when generation
-              // succeeded; the run-artifacts inspector reuses the
-              // same Write/Edit pairing it already does for HTML
-              // artifact counts, just keyed on `DESIGN.md`.
-              design_system_created: didRunCreateDesignSystemFile(run.events),
-              preview_module_count: countDesignSystemPreviewModules(run.events),
-              // `missing_font_count` defaults to 0 — the agent flow
-              // doesn't emit a structured "missing fonts" signal yet.
-              // Kept on the wire so the dashboard has the column from
-              // day one; can be sourced later from a font-audit hook.
-              missing_font_count: 0,
-            } : {}),
-            ...timingAnalytics,
-            ...diagnosticsAnalytics,
-            langfuse_trace_id: run.id,
-            ...langfuseDeliveryForAnalytics,
-            ...(errorCode ? { error_code: errorCode } : {}),
-            ...(failure ?? {}),
-            ...(usageAnalytics.input_tokens !== undefined
-              ? { input_tokens: usageAnalytics.input_tokens }
-              : {}),
-            ...(usageAnalytics.input_tokens_provider !== undefined
-              ? { input_tokens_provider: usageAnalytics.input_tokens_provider }
-              : {}),
-            ...(usageAnalytics.input_tokens_effective !== undefined
-              ? { input_tokens_effective: usageAnalytics.input_tokens_effective }
-              : {}),
-            ...(usageAnalytics.output_tokens !== undefined
-              ? { output_tokens: usageAnalytics.output_tokens }
-              : {}),
-            ...(usageAnalytics.total_tokens !== undefined
-              ? { total_tokens: usageAnalytics.total_tokens }
-              : {}),
-            ...(usageAnalytics.cache_read_input_tokens !== undefined
-              ? { cache_read_input_tokens: usageAnalytics.cache_read_input_tokens }
-              : {}),
-            ...(usageAnalytics.cache_creation_input_tokens !== undefined
-              ? {
-                  cache_creation_input_tokens:
-                    usageAnalytics.cache_creation_input_tokens,
-                }
-              : {}),
-            ...(usageAnalytics.uncached_input_tokens !== undefined
-              ? { uncached_input_tokens: usageAnalytics.uncached_input_tokens }
-              : {}),
-            ...(usageAnalytics.estimated_context_tokens !== undefined
-              ? { estimated_context_tokens: usageAnalytics.estimated_context_tokens }
-              : {}),
-            ...(usageAnalytics.cache_hit_ratio !== undefined
-              ? { cache_hit_ratio: usageAnalytics.cache_hit_ratio }
-              : {}),
-            cache_token_source: usageAnalytics.cache_token_source,
-            token_count_source: usageAnalytics.token_count_source,
+      design.runs
+        .wait(run)
+        .then(
+          async (status: {
+            status: string;
+            error?: string | null;
+            errorCode?: string | null;
+            exitCode?: number | null;
+            signal?: string | null;
+          }) => {
+            // Langfuse eligibility must be re-derived at completion time, not
+            // reused from a launch-time snapshot. A long-running run can have the
+            // user flip telemetry consent or the relay config mid-flight; the
+            // Langfuse sink (`reportRunCompletedFromDaemon`) re-reads app config
+            // when the run ends, so PostHog's `langfuse_expected` /
+            // `langfuse_delivery_status` / `langfuse_drop_reason` must read the
+            // same completion-time eligibility to stay aligned. See PR #3412
+            // review.
+            const appCfgAtFinish = await readAppConfig(RUNTIME_DATA_DIR).catch(() => ({}) as Record<string, unknown>);
+            const langfuseDeliveryForAnalytics = deriveLangfuseDeliveryState(
+              (appCfgAtFinish as { telemetry?: Record<string, unknown> }).telemetry ?? {},
+              readTelemetrySinkConfig(),
+            );
+            // `deriveRunErrorCode` is the invariant: when `result === 'failed'`
+            // it always returns a non-empty string so dashboards keyed on
+            // `error_code` never see a blank cell. Live in `run-result.ts`
+            // with unit coverage for the fall-through cases (ACP fatal,
+            // child close without error event, etc.).
+            const result = runResultFromStatus(status.status);
+            const errorCode = deriveRunErrorCode(status);
+            const failure = classifyRunFailure({
+              result,
+              status,
+              ...(errorCode ? { errorCode } : {}),
+              agentId: run.agentId,
+              events: run.events,
+            });
+            // ACP reports { type:'status', label:'model', model:<id> } after
+            // session/new; stream adapters report { type:'status',
+            // label:'initializing', model:<id> } at run start. The scan must
+            // not short-circuit on usage before reaching the model signal —
+            // see `scanRunEventsForFinishedProps` for the invariant.
+            const usageAnalytics = scanRunEventsForUsageAnalytics(run.events, reqBody.model, userQueryTokens);
+            const analyticsCapturedAt = Date.now();
+            const timingAnalytics = summarizeRunTimingAnalytics({
+              runCreatedAt: run.createdAt,
+              runUpdatedAt: run.updatedAt,
+              analyticsCapturedAt,
+              telemetry: run.analyticsTelemetry,
+              events: run.events,
+            });
+            const diagnosticsAnalytics = summarizeRunDiagnosticsForAnalytics({
+              events: run.events,
+              exitCode: status.exitCode ?? null,
+              signal: status.signal ?? null,
+            });
+            const finishedModelId = hasExplicitRequestedModelForAnalytics(reqBody.model)
+              ? modelIdForTracking(reqBody.model)
+              : modelIdForTracking(usageAnalytics.agent_reported_model);
+            for (const [index, retryEvent] of runRetryEventsForAnalytics(run.events).entries()) {
+              design.analytics.capture({
+                eventName: retryEvent.event,
+                context: analyticsContext,
+                appVersion: design.getAppVersion(),
+                properties: retryEvent.data,
+                insertId: `${runInsertId}-${retryEvent.event}-${index}`,
+              });
+            }
+            design.analytics.capture({
+              eventName: 'run_finished',
+              context: analyticsContext,
+              appVersion: design.getAppVersion(),
+              properties: {
+                ...baseProps,
+                // `area` flips on run_finished: chat_panel runs publish
+                // under `chat_panel`, DS runs stay on
+                // `design_system_generation` to match the run_created shape.
+                area: isDesignSystemRun ? 'design_system_generation' : 'chat_panel',
+                result,
+                // `model_id` upgrades the request-side value with the
+                // agent-reported model on terminal state; see
+                // `finishedModelId` derivation above.
+                model_id: finishedModelId,
+                // Incremental count of `.html` paths the run produced or
+                // modified, deduped per file. Replaces the hard-coded `0`
+                // that masked the "did this run actually generate an
+                // artifact?" funnel on PostHog. See `run-artifacts.ts`
+                // for the dedup semantics; tested in
+                // `tests/run-artifacts.test.ts`.
+                artifact_count: countNewHtmlArtifacts(run.events),
+                // True when the run raised an AskUserQuestion clarification
+                // card. Clarification turns inherently produce no artifact, so
+                // the dashboard excludes them from the "run finished -> has
+                // artifact" funnel instead of counting them as failures. See
+                // `run-artifacts.ts`; tested in `tests/run-artifacts.test.ts`.
+                asked_user_question: runAskedUserQuestion(run.events),
+                retry_attempt_count: run.retryAttemptCount ?? 0,
+                retry_final_result: run.retryFinalResult ?? 'not_attempted',
+                ...(run.retrySuppressedReason ? { retry_suppressed_reason: run.retrySuppressedReason } : {}),
+                ...(isDesignSystemRun
+                  ? {
+                      // DS runs land a `DESIGN.md` write when generation
+                      // succeeded; the run-artifacts inspector reuses the
+                      // same Write/Edit pairing it already does for HTML
+                      // artifact counts, just keyed on `DESIGN.md`.
+                      design_system_created: didRunCreateDesignSystemFile(run.events),
+                      preview_module_count: countDesignSystemPreviewModules(run.events),
+                      // `missing_font_count` defaults to 0 — the agent flow
+                      // doesn't emit a structured "missing fonts" signal yet.
+                      // Kept on the wire so the dashboard has the column from
+                      // day one; can be sourced later from a font-audit hook.
+                      missing_font_count: 0,
+                    }
+                  : {}),
+                ...timingAnalytics,
+                ...diagnosticsAnalytics,
+                langfuse_trace_id: run.id,
+                ...langfuseDeliveryForAnalytics,
+                ...(errorCode ? { error_code: errorCode } : {}),
+                ...(failure ?? {}),
+                ...(usageAnalytics.input_tokens !== undefined ? { input_tokens: usageAnalytics.input_tokens } : {}),
+                ...(usageAnalytics.input_tokens_provider !== undefined
+                  ? { input_tokens_provider: usageAnalytics.input_tokens_provider }
+                  : {}),
+                ...(usageAnalytics.input_tokens_effective !== undefined
+                  ? { input_tokens_effective: usageAnalytics.input_tokens_effective }
+                  : {}),
+                ...(usageAnalytics.output_tokens !== undefined ? { output_tokens: usageAnalytics.output_tokens } : {}),
+                ...(usageAnalytics.total_tokens !== undefined ? { total_tokens: usageAnalytics.total_tokens } : {}),
+                ...(usageAnalytics.cache_read_input_tokens !== undefined
+                  ? { cache_read_input_tokens: usageAnalytics.cache_read_input_tokens }
+                  : {}),
+                ...(usageAnalytics.cache_creation_input_tokens !== undefined
+                  ? {
+                      cache_creation_input_tokens: usageAnalytics.cache_creation_input_tokens,
+                    }
+                  : {}),
+                ...(usageAnalytics.uncached_input_tokens !== undefined
+                  ? { uncached_input_tokens: usageAnalytics.uncached_input_tokens }
+                  : {}),
+                ...(usageAnalytics.estimated_context_tokens !== undefined
+                  ? { estimated_context_tokens: usageAnalytics.estimated_context_tokens }
+                  : {}),
+                ...(usageAnalytics.cache_hit_ratio !== undefined
+                  ? { cache_hit_ratio: usageAnalytics.cache_hit_ratio }
+                  : {}),
+                cache_token_source: usageAnalytics.cache_token_source,
+                token_count_source: usageAnalytics.token_count_source,
+              },
+              insertId: `${runInsertId}-finish`,
+            });
           },
-          insertId: `${runInsertId}-finish`,
+        )
+        .catch(() => {
+          // wait() can't reject in current runs.ts impl, but guard anyway.
         });
-      }).catch(() => {
-        // wait() can't reject in current runs.ts impl, but guard anyway.
-      });
     }
   });
 
@@ -14439,7 +13698,7 @@ export async function startServer({
         );
         if (mapped) sse.send(mapped.kind, mapped, id);
       },
-      end:     () => sse.end(),
+      end: () => sse.end(),
       cleanup: () => sse.cleanup?.(),
     };
     run.clients.add(adapterClient);
@@ -14487,10 +13746,7 @@ export async function startServer({
       toolBundle.bundle,
       typeof requestBody.agentId === 'string' ? getAgentDef(requestBody.agentId) : null,
       {
-        deliveryTarget: runToolBundleDeliveryTargetForProject(
-          requestBody.projectId,
-          chatProject?.metadata,
-        ),
+        deliveryTarget: runToolBundleDeliveryTargetForProject(requestBody.projectId, chatProject?.metadata),
       },
     );
     if (!toolBundleSupport.ok) {
@@ -14510,8 +13766,8 @@ export async function startServer({
   // and dispatches into the same chat runner used by manual runs.
   routineService.setRunHandler(async ({ routine, trigger, startedAt, runId }) => {
     const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
-    let agentId = routine.agentId
-      || (typeof appConfig.agentId === 'string' && appConfig.agentId ? appConfig.agentId : null);
+    let agentId =
+      routine.agentId || (typeof appConfig.agentId === 'string' && appConfig.agentId ? appConfig.agentId : null);
     if (!agentId) {
       const agents = await detectAgents(appConfig.agentCliEnv ?? {}).catch(() => []);
       agentId = agents.find((agent) => agent.available)?.id ?? null;
@@ -14585,9 +13841,8 @@ export async function startServer({
 
     let conversationId = `routine-conv-${randomUUID()}`;
     let conversationCreatedEvent: ProjectConversationCreatedSsePayload | null = null;
-    const routineConversationTitle = () => routine.target.mode === 'reuse'
-      ? `${routine.name} · ${stamp}`
-      : projectName;
+    const routineConversationTitle = () =>
+      routine.target.mode === 'reuse' ? `${routine.name} · ${stamp}` : projectName;
     const createRoutineConversation = () => {
       if (createdConversationId) return;
       if (!projectId) createRoutineProject();
@@ -14625,9 +13880,10 @@ export async function startServer({
     const resolveRoutinePluginSnapshot = async () => {
       if (!primaryPluginId || resolvedRoutineSnapshot) return;
       const registry = await loadPluginRegistryView();
-      const projectSnapshotBefore = routine.target.mode === 'reuse'
-        ? getProject(db, routine.target.projectId)?.appliedPluginSnapshotId ?? null
-        : null;
+      const projectSnapshotBefore =
+        routine.target.mode === 'reuse'
+          ? (getProject(db, routine.target.projectId)?.appliedPluginSnapshotId ?? null)
+          : null;
       let resolved;
       try {
         resolved = resolvePluginSnapshot({
@@ -14726,23 +13982,28 @@ export async function startServer({
       // been accepted and preparation has completed, so failed setup does not
       // surface phantom conversations (#1361).
       if (conversationCreatedEvent) emitProjectEvent(projectId, conversationCreatedEvent);
-      design.runs.start(run, () => startChatRun({
-        agentId,
-        projectId,
-        conversationId: run.conversationId,
-        assistantMessageId: run.assistantMessageId,
-        clientRequestId: run.clientRequestId,
-        skillId: routineSkillId,
-        designSystemId: appConfig.designSystemId ?? null,
-        context: routineContext,
-        model: modelPrefs.model ?? null,
-        reasoning: modelPrefs.reasoning ?? null,
-        message: routine.prompt,
-        systemPrompt: [
-          `You are running an unattended scheduled routine named "${routine.name}".`,
-          'Do not ask follow-up questions, do not emit <question-form>, and do not wait for user input. Pick reasonable defaults and finish the task.',
-        ].join('\n'),
-      }, run));
+      design.runs.start(run, () =>
+        startChatRun(
+          {
+            agentId,
+            projectId,
+            conversationId: run.conversationId,
+            assistantMessageId: run.assistantMessageId,
+            clientRequestId: run.clientRequestId,
+            skillId: routineSkillId,
+            designSystemId: appConfig.designSystemId ?? null,
+            context: routineContext,
+            model: modelPrefs.model ?? null,
+            reasoning: modelPrefs.reasoning ?? null,
+            message: routine.prompt,
+            systemPrompt: [
+              `You are running an unattended scheduled routine named "${routine.name}".`,
+              'Do not ask follow-up questions, do not emit <question-form>, and do not wait for user input. Pick reasonable defaults and finish the task.',
+            ].join('\n'),
+          },
+          run,
+        ),
+      );
     };
 
     // Tear-down for the case where the durable routine_run row was never
@@ -14768,18 +14029,11 @@ export async function startServer({
         // `resolvePluginSnapshot()` left pinned on the project if it threw
         // partway through linking — see the comment on
         // `partiallyAppliedSnapshotId` above.
-        const snapshotIdToDiscard =
-          resolvedRoutineSnapshot?.ok
-            ? resolvedRoutineSnapshot.snapshotId
-            : partiallyAppliedSnapshotId;
+        const snapshotIdToDiscard = resolvedRoutineSnapshot?.ok
+          ? resolvedRoutineSnapshot.snapshotId
+          : partiallyAppliedSnapshotId;
         if (snapshotIdToDiscard) {
-          restoreProjectSnapshotLink(
-            db,
-            projectId,
-            snapshotIdToDiscard,
-            previousProjectSnapshotId,
-            run.id,
-          );
+          restoreProjectSnapshotLink(db, projectId, snapshotIdToDiscard, previousProjectSnapshotId, run.id);
         }
       }
       if (createdConversationId) {
@@ -14792,20 +14046,29 @@ export async function startServer({
 
     const completion = (async () => {
       const finalStatus = await design.runs.wait(run);
-      const failureError = finalStatus.status === 'failed'
-        ? (typeof finalStatus.error === 'string' && finalStatus.error.trim() ? finalStatus.error.trim() : null)
-        : null;
-      const failureErrorCode = finalStatus.status === 'failed'
-        ? (typeof finalStatus.errorCode === 'string' && finalStatus.errorCode.trim() ? finalStatus.errorCode.trim() : null)
-        : null;
+      const failureError =
+        finalStatus.status === 'failed'
+          ? typeof finalStatus.error === 'string' && finalStatus.error.trim()
+            ? finalStatus.error.trim()
+            : null
+          : null;
+      const failureErrorCode =
+        finalStatus.status === 'failed'
+          ? typeof finalStatus.errorCode === 'string' && finalStatus.errorCode.trim()
+            ? finalStatus.errorCode.trim()
+            : null
+          : null;
       if (failureError) {
         appendMessageStatusEvent(db, assistantMessageId, {
           label: 'error',
           detail: failureError,
         });
       }
-      db.prepare(`UPDATE messages SET run_status = ?, ended_at = ? WHERE id = ?`)
-        .run(finalStatus.status, Date.now(), assistantMessageId);
+      db.prepare(`UPDATE messages SET run_status = ?, ended_at = ? WHERE id = ?`).run(
+        finalStatus.status,
+        Date.now(),
+        assistantMessageId,
+      );
       let evolutionSummary = '';
       if (finalStatus.status === 'succeeded' && routineContext.connectorIds?.length) {
         try {
@@ -14909,7 +14172,6 @@ export async function startServer({
   // Restore the plugin-runs-must-go-through-daemon gate by adding it
   // to chat-routes.ts if needed.
 
-
   registerChatRoutes(app, {
     db,
     design,
@@ -14980,14 +14242,9 @@ export async function startServer({
         // a TCP listener it's always `AddressInfo` with a `.port` — the guard
         // is belt-and-braces so an unexpected null never silently produces a
         // `http://127.0.0.1:0` URL that callers would then try to fetch.
-        const boundPort =
-          address && typeof address === 'object' ? address.port : null;
+        const boundPort = address && typeof address === 'object' ? address.port : null;
         if (!boundPort) {
-          reject(
-            new Error(
-              `[od] daemon failed to resolve listening port (address=${JSON.stringify(address)})`,
-            ),
-          );
+          reject(new Error(`[od] daemon failed to resolve listening port (address=${JSON.stringify(address)})`));
           return;
         }
         resolvedPort = boundPort;
@@ -15037,10 +14294,7 @@ function sanitizeSlug(text) {
 function assembleExample(templateHtml, slidesHtml, title) {
   return templateHtml
     .replace('<!-- SLIDES_HERE -->', slidesHtml)
-    .replace(
-      /<title>.*?<\/title>/,
-      `<title>${title} | Open Design Example</title>`,
-    );
+    .replace(/<title>.*?<\/title>/, `<title>${title} | Open Design Example</title>`);
 }
 
 // Skill example HTML often references shipped images via relative paths

@@ -1,25 +1,30 @@
 #!/usr/bin/env node
 // @ts-nocheck
-import { runDaemonCliStartup, startDaemonRuntime } from './daemon-startup.js';
-import { runLiveArtifactsMcpServer } from './mcp-live-artifacts-server.js';
-import { runArtifactsCli } from './artifacts-cli.js';
-import { runProjectHandoff } from './handoff-cli.js';
-import { runConnectorsToolCli } from './tools-connectors-cli.js';
-import { runDesignSystemsToolCli } from './tools-design-systems-cli.js';
-import { DESIGN_SYSTEMS_USAGE, isDesignSystemsHelpArg } from './design-systems-cli-help.js';
-import { parseDesignSystemRenameArgs } from './design-system-rename-args.js';
-import { runLiveArtifactsToolCli } from './tools-live-artifacts-cli.js';
-import { splitResearchSubcommand } from './research/cli-args.js';
-import { resolveDaemonUrl } from './daemon-url.js';
-import { requestJsonIpc } from '@open-design/sidecar';
-import { SIDECAR_ENV, SIDECAR_MESSAGES } from '@open-design/sidecar-proto';
+import { runDaemonCliStartup, startDaemonRuntime } from "./daemon-startup.js";
+import { runLiveArtifactsMcpServer } from "./mcp-live-artifacts-server.js";
+import { runArtifactsCli } from "./artifacts-cli.js";
+import { runProjectHandoff } from "./handoff-cli.js";
+import { runConnectorsToolCli } from "./tools-connectors-cli.js";
+import { runDesignSystemsToolCli } from "./tools-design-systems-cli.js";
+import { DESIGN_SYSTEMS_USAGE, isDesignSystemsHelpArg } from "./design-systems-cli-help.js";
+import { parseDesignSystemRenameArgs } from "./design-system-rename-args.js";
+import { runLiveArtifactsToolCli } from "./tools-live-artifacts-cli.js";
+import { splitResearchSubcommand } from "./research/cli-args.js";
+import { resolveDaemonUrl } from "./daemon-url.js";
+import {
+  AUDIO_MODELS_BY_KIND,
+  IMAGE_MODELS,
+  VIDEO_MODELS
+} from "./media-models.js";
+import { requestJsonIpc } from "@open-design/sidecar";
+import { SIDECAR_ENV, SIDECAR_MESSAGES } from "@open-design/sidecar-proto";
 import {
   AGENT_SLUGS,
   isAgentSlug,
   planAgentInstall,
   applyJsonInstall,
-  removeJsonInstall,
-} from './mcp-agent-install.js';
+  removeJsonInstall
+} from "./mcp-agent-install.js";
 
 const argv = process.argv.slice(2);
 
@@ -46,116 +51,86 @@ const argv = process.argv.slice(2);
 // TDZ ("Cannot access 'MEDIA_GENERATE_STRING_FLAGS' before
 // initialization") and crash every `od media …` invocation.
 const MEDIA_GENERATE_STRING_FLAGS = new Set([
-  'project',
-  'surface',
-  'model',
-  'prompt',
-  'output',
-  'aspect',
-  'length',
-  'duration',
-  'prompt-influence',
-  'voice',
-  'audio-kind',
-  'composition-dir',
-  'image',
-  'daemon-url',
-  'language',
+  "project",
+  "surface",
+  "model",
+  "prompt",
+  "output",
+  "aspect",
+  "length",
+  "duration",
+  "prompt-influence",
+  "voice",
+  "audio-kind",
+  "composition-dir",
+  "image",
+  "daemon-url",
+  "language"
 ]);
-const MEDIA_GENERATE_BOOLEAN_FLAGS = new Set([
-  'help',
-  'h',
-  'loop',
-]);
+const MEDIA_GENERATE_BOOLEAN_FLAGS = new Set(["help", "h", "loop"]);
+const MEDIA_TEST_STRING_FLAGS = new Set(["provider", "api-key", "base-url", "model", "daemon-url"]);
+const MEDIA_TEST_BOOLEAN_FLAGS = new Set(["help", "h", "json"]);
+const MEDIA_MODELS_STRING_FLAGS = new Set(["surface", "audio-kind"]);
+const MEDIA_MODELS_BOOLEAN_FLAGS = new Set(["help", "h", "json"]);
 
-const MCP_STRING_FLAGS = new Set([
-  'daemon-url',
-]);
-const MCP_BOOLEAN_FLAGS = new Set([
-  'help',
-  'h',
-]);
+const MCP_STRING_FLAGS = new Set(["daemon-url"]);
+const MCP_BOOLEAN_FLAGS = new Set(["help", "h"]);
 
 // Hoisted next to MCP_*_FLAGS for the same TDZ reason as the MEDIA flags
 // above: `od mcp install <agent>` dispatches through SUBCOMMAND_MAP during
 // top-level module evaluation, and runMcpInstall references these `const`
 // Sets — defining them next to runMcpInstall lower in the file would hit
 // the TDZ.
-const MCP_INSTALL_STRING_FLAGS = new Set([
-  'daemon-url',
-  'name',
-]);
-const MCP_INSTALL_BOOLEAN_FLAGS = new Set([
-  'help',
-  'h',
-  'json',
-  'print',
-  'dry-run',
-  'uninstall',
-  'remove',
-]);
+const MCP_INSTALL_STRING_FLAGS = new Set(["daemon-url", "name"]);
+const MCP_INSTALL_BOOLEAN_FLAGS = new Set(["help", "h", "json", "print", "dry-run", "uninstall", "remove"]);
 
-const RESEARCH_SEARCH_STRING_FLAGS = new Set([
-  'query',
-  'max-sources',
-  'daemon-url',
-]);
-const RESEARCH_SEARCH_BOOLEAN_FLAGS = new Set([
-  'help',
-  'h',
-]);
+const RESEARCH_SEARCH_STRING_FLAGS = new Set(["query", "max-sources", "daemon-url"]);
+const RESEARCH_SEARCH_BOOLEAN_FLAGS = new Set(["help", "h"]);
 
 const PLUGIN_STRING_FLAGS = new Set([
-  'daemon-url',
-  'source',
-  'inputs',
-  'project',
-  'conversation',
-  'message',
-  'agent',
-  'model',
-  'snapshot-id',
-  'capabilities',
-  'grant-caps',
-  'before',
-  'trust',
-  'tag',
-  'policy',
-  'version',
-  'reason',
-  'catalog',
-  'host',
+  "daemon-url",
+  "source",
+  "inputs",
+  "project",
+  "conversation",
+  "message",
+  "agent",
+  "model",
+  "snapshot-id",
+  "capabilities",
+  "grant-caps",
+  "before",
+  "trust",
+  "tag",
+  "policy",
+  "version",
+  "reason",
+  "catalog",
+  "host"
 ]);
-const PLUGIN_BOOLEAN_FLAGS = new Set([
-  'help',
-  'h',
-  'json',
-  'revoke',
-  'follow',
-  'strict',
-]);
+const PLUGIN_BOOLEAN_FLAGS = new Set(["help", "h", "json", "revoke", "follow", "strict"]);
 
 const UI_STRING_FLAGS = new Set([
-  'daemon-url',
-  'run',
-  'project',
-  'value',
-  'value-json',
-  'plugin',
-  'snapshot-id',
-  'persist',
-  'kind',
+  "daemon-url",
+  "run",
+  "project",
+  "value",
+  "value-json",
+  "plugin",
+  "snapshot-id",
+  "persist",
+  "kind"
 ]);
 const UI_BOOLEAN_FLAGS = new Set([
-  'help',
-  'h',
-  'json',
-  'skip',
+  "help",
+  "h",
+  "json",
+  "skip",
   // Plan §6 Phase 2A.5 — `od ui show --schema` returns just the
   // surface's JSON Schema (or `null` when the surface declares
   // none). Lets a code agent inspect the contract before piping a
   // value back through `od ui respond --value-json`.
-  'schema',
+  "schema"
 ]);
 
 // Hoist flag set bindings consumed by handlers reachable through
@@ -164,92 +139,126 @@ const UI_BOOLEAN_FLAGS = new Set([
 // still in TDZ when the handler executes, so `od status` /
 // `od atoms list` / etc. would crash with `Cannot access X before
 // initialization`.
-const DAEMON_STRING_FLAGS = new Set([
-  'daemon-url', 'port', 'host',
-]);
-const DAEMON_BOOLEAN_FLAGS = new Set([
-  'help', 'h', 'json', 'headless', 'serve-web', 'no-open',
-]);
-const LIBRARY_STRING_FLAGS = new Set(['daemon-url', 'query', 'tag']);
-const LIBRARY_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
-const DIAGNOSTICS_STRING_FLAGS = new Set(['daemon-url', 'output']);
-const DIAGNOSTICS_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
-const CONFIG_STRING_FLAGS = new Set(['daemon-url', 'value', 'value-json']);
-const CONFIG_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
+const DAEMON_STRING_FLAGS = new Set(["daemon-url", "port", "host"]);
+const DAEMON_BOOLEAN_FLAGS = new Set(["help", "h", "json", "headless", "serve-web", "no-open"]);
+const LIBRARY_STRING_FLAGS = new Set(["daemon-url", "query", "tag"]);
+const LIBRARY_BOOLEAN_FLAGS = new Set(["help", "h", "json"]);
+const DIAGNOSTICS_STRING_FLAGS = new Set(["daemon-url", "output"]);
+const DIAGNOSTICS_BOOLEAN_FLAGS = new Set(["help", "h", "json"]);
+const CONFIG_STRING_FLAGS = new Set(["daemon-url", "value", "value-json"]);
+const CONFIG_BOOLEAN_FLAGS = new Set(["help", "h", "json"]);
 const PROJECT_STRING_FLAGS = new Set([
-  'daemon-url', 'name', 'skill', 'design-system', 'plugin', 'metadata-json',
-  'pending-prompt', 'project', 'conversation', 'message', 'prompt',
-  'prompt-file', 'path', 'dir', 'as',
-  'agent', 'model', 'snapshot-id', 'inputs', 'grant-caps', 'editor',
-  'title', 'against', 'seed-from', 'fork-after', 'mode',
+  "daemon-url",
+  "name",
+  "skill",
+  "design-system",
+  "plugin",
+  "metadata-json",
+  "pending-prompt",
+  "project",
+  "conversation",
+  "message",
+  "prompt",
+  "prompt-file",
+  "path",
+  "dir",
+  "as",
+  "agent",
+  "model",
+  "snapshot-id",
+  "inputs",
+  "grant-caps",
+  "editor",
+  "title",
+  "against",
+  "seed-from",
+  "fork-after",
+  "mode"
 ]);
-const PROJECT_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'follow']);
+const PROJECT_BOOLEAN_FLAGS = new Set(["help", "h", "json", "follow"]);
 // `od templates …` mirrors NewProjectPanel / ExamplesTab. Same surface,
 // same /api/templates store. The CLI form is the embeddability contract:
 // external agents (hermes-agent, openclaw, ...) can snapshot, list, or
 // remove user-saved project templates without going through the web UI.
-const TEMPLATES_STRING_FLAGS = new Set([
-  'daemon-url', 'name', 'description',
-]);
-const TEMPLATES_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
+const TEMPLATES_STRING_FLAGS = new Set(["daemon-url", "name", "description"]);
+const TEMPLATES_BOOLEAN_FLAGS = new Set(["help", "h", "json"]);
 // `od automation …` mirrors the Automations tab. Same surface, same
 // /api/routines store. The CLI form is the embeddability contract:
 // external agents (hermes-agent, openclaw, etc.) can drive Open Design
 // automations headlessly without going through the web UI.
 const AUTOMATION_STRING_FLAGS = new Set([
-  'daemon-url', 'name', 'prompt', 'prompt-file', 'schedule', 'target',
-  'project', 'skill', 'agent', 'limit', 'plugin', 'mcp', 'connector',
-  'status', 'reason', 'template', 'source-kind', 'source-ref', 'title',
-  'body', 'body-file', 'compression', 'sensitivity', 'account',
-  'candidate-sinks', 'memory-type',
+  "daemon-url",
+  "name",
+  "prompt",
+  "prompt-file",
+  "schedule",
+  "target",
+  "project",
+  "skill",
+  "agent",
+  "limit",
+  "plugin",
+  "mcp",
+  "connector",
+  "status",
+  "reason",
+  "template",
+  "source-kind",
+  "source-ref",
+  "title",
+  "body",
+  "body-file",
+  "compression",
+  "sensitivity",
+  "account",
+  "candidate-sinks",
+  "memory-type"
 ]);
-const AUTOMATION_BOOLEAN_FLAGS = new Set([
-  'help', 'h', 'json', 'disabled', 'enabled',
-]);
-const MEMORY_STRING_FLAGS = new Set([
-  'daemon-url', 'name', 'description', 'type', 'body', 'body-file',
-]);
-const MEMORY_BOOLEAN_FLAGS = new Set([
-  'help', 'h', 'json',
-]);
-const SHARE_STRING_FLAGS = new Set([
-  'daemon-url', 'url', 'title', 'text', 'copy-text', 'locale', 'platform',
-]);
-const SHARE_BOOLEAN_FLAGS = new Set([
-  'help', 'h', 'json',
-]);
+const AUTOMATION_BOOLEAN_FLAGS = new Set(["help", "h", "json", "disabled", "enabled"]);
+const MEMORY_STRING_FLAGS = new Set(["daemon-url", "name", "description", "type", "body", "body-file"]);
+const MEMORY_BOOLEAN_FLAGS = new Set(["help", "h", "json"]);
+const SHARE_STRING_FLAGS = new Set(["daemon-url", "url", "title", "text", "copy-text", "locale", "platform"]);
+const SHARE_BOOLEAN_FLAGS = new Set(["help", "h", "json"]);
+const WECHAT_STRING_FLAGS = new Set(["daemon-url"]);
+const WECHAT_BOOLEAN_FLAGS = new Set(["help", "h", "json"]);
 // Hoisted because `runAutomation` is reachable through the top-of-file
 // SUBCOMMAND_MAP dispatch, which runs during module evaluation —
 // any `const` declared further down would still be in TDZ when
 // `parseScheduleFlag` reads this map. Same reason the other dispatch-
 // touched constants live near the top.
 const AUTOMATION_WEEKDAY_TOKENS = {
-  sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
-  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6
 };
 const RECOVERABLE_EXIT_CODES = {
-  'daemon-not-running':       64,
-  'plugin-not-found':         65,
-  'snapshot-not-found':       65,
-  'capabilities-required':    66,
-  'missing-input':            67,
-  'project-not-found':        68,
-  'run-not-found':            69,
-  'provider-not-configured':  70,
-  'plugin-requires-daemon':   71,
-  'snapshot-stale':           72,
-  'genui-surface-awaiting':   73,
-  'desktop-auth-pending':     74,
-  'desktop-import-token-rejected': 75,
+  "daemon-not-running": 64,
+  "plugin-not-found": 65,
+  "snapshot-not-found": 65,
+  "capabilities-required": 66,
+  "missing-input": 67,
+  "project-not-found": 68,
+  "run-not-found": 69,
+  "provider-not-configured": 70,
+  "plugin-requires-daemon": 71,
+  "snapshot-stale": 72,
+  "genui-surface-awaiting": 73,
+  "desktop-auth-pending": 74,
+  "desktop-import-token-rejected": 75
 };
-const PLUGIN_LIST_FILTER_FLAGS = new Set([
-  ...PLUGIN_STRING_FLAGS,
-  'task-kind', 'mode', 'tag', 'trust',
-]);
-const PLUGIN_LIST_BOOLEAN_FLAGS = new Set([
-  ...PLUGIN_BOOLEAN_FLAGS,
-  'bundled', 'no-bundled',
-]);
+const PLUGIN_LIST_FILTER_FLAGS = new Set([...PLUGIN_STRING_FLAGS, "task-kind", "mode", "tag", "trust"]);
+const PLUGIN_LIST_BOOLEAN_FLAGS = new Set([...PLUGIN_BOOLEAN_FLAGS, "bundled", "no-bundled"]);
 
 const SUBCOMMAND_MAP = {
   artifacts: runArtifacts,
@@ -263,6 +272,8 @@ const SUBCOMMAND_MAP = {
   project: runProject,
   automation: runAutomation,
   automations: runAutomation,
+  wechat: runWechat,
+  weixin: runWechat,
   memory: runMemory,
   run: runRun,
   files: runFiles,
@@ -273,16 +284,16 @@ const SUBCOMMAND_MAP = {
   daemon: runDaemon,
   atoms: runAtoms,
   skills: runSkills,
-  'design-systems': runDesignSystems,
+  "design-systems": runDesignSystems,
   craft: runCraft,
   diagnostics: runDiagnostics,
   status: runStatus,
   version: runVersion,
   doctor: runDoctor,
-  config: runConfig,
+  config: runConfig
 };
 
-if (argv[0] === 'mcp' && argv[1] === 'live-artifacts') {
+if (argv[0] === "mcp" && argv[1] === "live-artifacts") {
   try {
     const { exitCode } = await runLiveArtifactsMcpServer();
     process.exit(exitCode);
@@ -293,7 +304,7 @@ if (argv[0] === 'mcp' && argv[1] === 'live-artifacts') {
   }
 }
 
-const first = argv.find((a) => !a.startsWith('-'));
+const first = argv.find((a) => !a.startsWith("-"));
 if (first && SUBCOMMAND_MAP[first]) {
   const idx = argv.indexOf(first);
   const rest = [...argv.slice(0, idx), ...argv.slice(idx + 1)];
@@ -301,7 +312,7 @@ if (first && SUBCOMMAND_MAP[first]) {
   process.exit(0);
 }
 
-if (argv[0] === 'tools' && argv[1] === 'live-artifacts') {
+if (argv[0] === "tools" && argv[1] === "live-artifacts") {
   runLiveArtifactsToolCli(argv.slice(2))
     .then(({ exitCode }) => {
       process.exitCode = exitCode;
@@ -311,7 +322,7 @@ if (argv[0] === 'tools' && argv[1] === 'live-artifacts') {
       process.stderr.write(`${JSON.stringify({ ok: false, error: { message } })}\n`);
       process.exitCode = 1;
     });
-} else if (argv[0] === 'tools' && argv[1] === 'connectors') {
+} else if (argv[0] === "tools" && argv[1] === "connectors") {
   runConnectorsToolCli(argv.slice(2))
     .then(({ exitCode }) => {
       process.exitCode = exitCode;
@@ -321,7 +332,7 @@ if (argv[0] === 'tools' && argv[1] === 'live-artifacts') {
       process.stderr.write(`${JSON.stringify({ ok: false, error: { message } })}\n`);
       process.exitCode = 1;
     });
-} else if (argv[0] === 'tools' && argv[1] === 'design-systems') {
+} else if (argv[0] === "tools" && argv[1] === "design-systems") {
   runDesignSystemsToolCli(argv.slice(2))
     .then(({ exitCode }) => {
       process.exitCode = exitCode;
@@ -357,6 +368,9 @@ function printRootHelp() {
 
   od research search --query <text> [--max-sources 5] [--daemon-url <url>]
       Run agent-callable Tavily research through the local daemon.
+
+  od wechat <status|connect|refresh|cancel> [--json] [--daemon-url <url>]
+      Bind WeChat status reads to an Open Design internal Agent such as OpenCode.
 
   od plugin <list|info|install|uninstall|apply|doctor|replay|trust> [args]
       Discover, install, and apply plugins through the local daemon.
@@ -398,6 +412,8 @@ function printRootHelp() {
       Generate a media artifact and write it into the active project.
       Designed to be invoked by a code agent - picks up OD_DAEMON_URL
       and OD_PROJECT_ID from the env that the daemon injected on spawn.
+  od media test <provider> [--json]
+      Validate a saved media provider key/base URL through the local daemon.
 
   od mcp [--daemon-url <url>]
       Run a stdio MCP server that proxies project tool calls to a
@@ -427,11 +443,11 @@ What the daemon does:
 
 async function runResearch(args) {
   const { sub, subArgs } = splitResearchSubcommand(args);
-  if (!sub || sub === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (!sub || sub === "help" || args.includes("--help") || args.includes("-h")) {
     printResearchHelp();
-    process.exit(sub === 'help' || args.includes('--help') || args.includes('-h') ? 0 : 2);
+    process.exit(sub === "help" || args.includes("--help") || args.includes("-h") ? 0 : 2);
   }
-  if (sub !== 'search') {
+  if (sub !== "search") {
     console.error(`unknown subcommand: od research ${sub}`);
     printResearchHelp();
     process.exit(2);
@@ -444,31 +460,30 @@ async function runResearchSearch(rawArgs) {
   try {
     flags = parseFlags(rawArgs, {
       string: RESEARCH_SEARCH_STRING_FLAGS,
-      boolean: RESEARCH_SEARCH_BOOLEAN_FLAGS,
+      boolean: RESEARCH_SEARCH_BOOLEAN_FLAGS
     });
   } catch (err) {
     console.error(err.message);
     printResearchHelp();
     process.exit(2);
   }
-  const query = typeof flags.query === 'string' ? flags.query.trim() : '';
+  const query = typeof flags.query === "string" ? flags.query.trim() : "";
   if (!query) {
-    console.error('--query required');
+    console.error("--query required");
     process.exit(2);
   }
   const daemonUrl = await cliDaemonUrl(flags);
-  const maxSources =
-    flags['max-sources'] == null ? undefined : Number(flags['max-sources']);
-  const url = `${daemonUrl.replace(/\/$/, '')}/api/research/search`;
+  const maxSources = flags["max-sources"] == null ? undefined : Number(flags["max-sources"]);
+  const url = `${daemonUrl.replace(/\/$/, "")}/api/research/search`;
   let resp;
   try {
     resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      method: "POST",
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
         query,
-        ...(Number.isFinite(maxSources) ? { maxSources } : {}),
-      }),
+        ...(Number.isFinite(maxSources) ? { maxSources } : {})
+      })
     });
   } catch (err) {
     surfaceFetchError(err, daemonUrl);
@@ -506,12 +521,12 @@ Flags:
 // ---------------------------------------------------------------------------
 
 async function runMedia(args) {
-  const sub = args.find((a) => !a.startsWith('-')) || '';
-  if (sub === 'help' || sub === '-h' || sub === '--help' || sub === '') {
+  const sub = args.find((a) => !a.startsWith("-")) || "";
+  if (sub === "help" || sub === "-h" || sub === "--help" || sub === "") {
     printMediaHelp();
     return;
   }
-  if (sub !== 'generate' && sub !== 'wait') {
+  if (sub !== "generate" && sub !== "wait" && sub !== "test" && sub !== "models") {
     console.error(`unknown subcommand: od media ${sub}`);
     printMediaHelp();
     process.exit(1);
@@ -519,8 +534,152 @@ async function runMedia(args) {
 
   const idx = args.indexOf(sub);
   const subArgs = [...args.slice(0, idx), ...args.slice(idx + 1)];
-  if (sub === 'wait') return runMediaWait(subArgs);
+  if (sub === "wait") return runMediaWait(subArgs);
+  if (sub === "test") return runMediaTest(subArgs);
+  if (sub === "models") return runMediaModels(subArgs);
   return runMediaGenerate(subArgs);
+}
+
+function mediaModelsForFlags(flags) {
+  const surface = typeof flags.surface === "string" ? flags.surface.trim() : "";
+  const audioKind = typeof flags["audio-kind"] === "string" ? flags["audio-kind"].trim() : "";
+  if (surface && !["image", "video", "audio"].includes(surface)) {
+    throw new Error("--surface must be one of: image | video | audio");
+  }
+  if (audioKind && !["music", "speech", "sfx"].includes(audioKind)) {
+    throw new Error("--audio-kind must be one of: music | speech | sfx");
+  }
+  if (surface === "image") return [{ surface: "image", models: IMAGE_MODELS }];
+  if (surface === "video") return [{ surface: "video", models: VIDEO_MODELS }];
+  if (surface === "audio") {
+    if (audioKind) return [{ surface: "audio", audioKind, models: AUDIO_MODELS_BY_KIND[audioKind] ?? [] }];
+    return Object.entries(AUDIO_MODELS_BY_KIND).map(([kind, models]) => ({
+      surface: "audio",
+      audioKind: kind,
+      models
+    }));
+  }
+  return [
+    { surface: "image", models: IMAGE_MODELS },
+    { surface: "video", models: VIDEO_MODELS },
+    ...Object.entries(AUDIO_MODELS_BY_KIND).map(([kind, models]) => ({
+      surface: "audio",
+      audioKind: kind,
+      models
+    }))
+  ];
+}
+
+async function runMediaModels(rawArgs) {
+  let flags;
+  try {
+    flags = parseFlags(rawArgs, {
+      string: MEDIA_MODELS_STRING_FLAGS,
+      boolean: MEDIA_MODELS_BOOLEAN_FLAGS
+    });
+  } catch (err) {
+    console.error(err.message);
+    printMediaHelp();
+    process.exit(2);
+  }
+  if (flags.help || flags.h) {
+    printMediaHelp();
+    return;
+  }
+
+  let groups;
+  try {
+    groups = mediaModelsForFlags(flags);
+  } catch (err) {
+    console.error(err.message);
+    process.exit(2);
+  }
+  const rows = groups.flatMap((group) =>
+    group.models.map((model) => ({
+      surface: group.surface,
+      ...(group.audioKind ? { audioKind: group.audioKind } : {}),
+      id: model.id,
+      label: model.label,
+      provider: model.provider,
+      caps: model.caps,
+      default: Boolean(model.default),
+      hint: model.hint
+    }))
+  );
+  if (flags.json) {
+    process.stdout.write(JSON.stringify({ models: rows }, null, 2) + "\n");
+    return;
+  }
+  for (const row of rows) {
+    const scope = row.audioKind ? `${row.surface}:${row.audioKind}` : row.surface;
+    const caps = Array.isArray(row.caps) && row.caps.length > 0 ? row.caps.join(",") : "-";
+    const suffix = row.default ? " default" : "";
+    const hint = row.hint ? ` — ${row.hint}` : "";
+    console.log(`${scope}\t${row.id}\t${row.provider ?? "-"}\t${caps}${suffix}${hint}`);
+  }
+}
+
+async function runMediaTest(rawArgs) {
+  let flags;
+  try {
+    flags = parseFlags(rawArgs, {
+      string: MEDIA_TEST_STRING_FLAGS,
+      boolean: MEDIA_TEST_BOOLEAN_FLAGS
+    });
+  } catch (err) {
+    console.error(err.message);
+    printMediaHelp();
+    process.exit(2);
+  }
+  if (flags.help || flags.h) {
+    printMediaHelp();
+    return;
+  }
+  const positional = rawArgs.filter(
+    (a) =>
+      !a.startsWith("-") &&
+      a !== flags.provider &&
+      a !== flags["api-key"] &&
+      a !== flags["base-url"] &&
+      a !== flags.model &&
+      a !== flags["daemon-url"]
+  );
+  const providerId = flags.provider || positional[0];
+  if (!providerId) {
+    console.error("usage: od media test <provider> [--base-url <url>] [--model <id>] [--api-key <key>] [--json]");
+    process.exit(2);
+  }
+  const daemonUrl = await cliDaemonUrl(flags);
+  const url = `${daemonUrl.replace(/\/$/, "")}/api/media/providers/${encodeURIComponent(providerId)}/test`;
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        apiKey: flags["api-key"],
+        baseUrl: flags["base-url"],
+        model: flags.model
+      })
+    });
+  } catch (err) {
+    surfaceFetchError(err, daemonUrl);
+    process.exit(3);
+  }
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    console.error(`daemon ${resp.status}: ${JSON.stringify(data)}`);
+    process.exit(4);
+  }
+  if (flags.json) {
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
+    process.exit(data.ok ? 0 : 5);
+  }
+  const status = data.ok ? "ok" : data.kind || "failed";
+  const count = typeof data.modelCount === "number" ? ` models=${data.modelCount}` : "";
+  const detail = data.detail ? ` detail=${data.detail}` : "";
+  console.log(`[media test] ${providerId}: ${status} (${data.latencyMs ?? 0}ms)${count}${detail}`);
+  process.exit(data.ok ? 0 : 5);
 }
 
 async function runMediaGenerate(rawArgs) {
@@ -528,7 +687,7 @@ async function runMediaGenerate(rawArgs) {
   try {
     flags = parseFlags(rawArgs, {
       string: MEDIA_GENERATE_STRING_FLAGS,
-      boolean: MEDIA_GENERATE_BOOLEAN_FLAGS,
+      boolean: MEDIA_GENERATE_BOOLEAN_FLAGS
     });
   } catch (err) {
     console.error(err.message);
@@ -541,18 +700,18 @@ async function runMediaGenerate(rawArgs) {
   const token = process.env.OD_TOOL_TOKEN;
   if (!projectId && !token) {
     console.error(
-      'project id required. Pass --project <id> or set OD_PROJECT_ID. The daemon injects this when it spawns the code agent.',
+      "project id required. Pass --project <id> or set OD_PROJECT_ID. The daemon injects this when it spawns the code agent."
     );
     process.exit(2);
   }
 
   const surface = flags.surface;
-  if (!surface || !['image', 'video', 'audio'].includes(surface)) {
-    console.error('--surface must be one of: image | video | audio');
+  if (!surface || !["image", "video", "audio"].includes(surface)) {
+    console.error("--surface must be one of: image | video | audio");
     process.exit(2);
   }
   if (!flags.model) {
-    console.error('--model required (see http://<daemon>/api/media/models)');
+    console.error("--model required (see http://<daemon>/api/media/models)");
     process.exit(2);
   }
 
@@ -563,28 +722,28 @@ async function runMediaGenerate(rawArgs) {
     output: flags.output,
     aspect: flags.aspect,
     voice: flags.voice,
-    audioKind: flags['audio-kind'],
-    compositionDir: flags['composition-dir'],
+    audioKind: flags["audio-kind"],
+    compositionDir: flags["composition-dir"],
     image: flags.image,
-    language: flags.language,
+    language: flags.language
   };
   if (flags.length != null) body.length = Number(flags.length);
   if (flags.duration != null) body.duration = Number(flags.duration);
-  if (flags['prompt-influence'] != null) body.promptInfluence = Number(flags['prompt-influence']);
+  if (flags["prompt-influence"] != null) body.promptInfluence = Number(flags["prompt-influence"]);
   if (flags.loop === true) body.loop = true;
 
   const url = token
-    ? `${daemonUrl.replace(/\/$/, '')}/api/tools/media/generate`
-    : `${daemonUrl.replace(/\/$/, '')}/api/projects/${encodeURIComponent(projectId)}/media/generate`;
+    ? `${daemonUrl.replace(/\/$/, "")}/api/tools/media/generate`
+    : `${daemonUrl.replace(/\/$/, "")}/api/projects/${encodeURIComponent(projectId)}/media/generate`;
   let resp;
   try {
     resp = await fetch(url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'content-type': 'application/json',
-        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {})
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(body)
     });
   } catch (err) {
     surfaceFetchError(err, daemonUrl);
@@ -598,27 +757,27 @@ async function runMediaGenerate(rawArgs) {
   const accepted = await resp.json();
   const { taskId } = accepted;
   if (!taskId) {
-    console.error('daemon did not return a taskId');
+    console.error("daemon did not return a taskId");
     process.exit(4);
   }
-  console.error(`task ${taskId} queued (${accepted.status || 'queued'})`);
+  console.error(`task ${taskId} queued (${accepted.status || "queued"})`);
   await pollUntilDoneOrBudget(daemonUrl, taskId, 0, {
-    stillRunningExitCode: 0,
+    stillRunningExitCode: 0
   });
 }
 
 async function runMediaWait(rawArgs) {
-  const taskId = rawArgs.find((a) => a && !a.startsWith('--'));
+  const taskId = rawArgs.find((a) => a && !a.startsWith("--"));
   if (!taskId) {
-    console.error('usage: od media wait <taskId> [--since <n>] [--daemon-url <url>]');
+    console.error("usage: od media wait <taskId> [--since <n>] [--daemon-url <url>]");
     process.exit(2);
   }
   const flagsOnly = rawArgs.filter((a) => a !== taskId);
   let flags;
   try {
     flags = parseFlags(flagsOnly, {
-      string: new Set(['since', 'daemon-url']),
-      boolean: new Set(['help', 'h']),
+      string: new Set(["since", "daemon-url"]),
+      boolean: new Set(["help", "h"])
     });
   } catch (err) {
     console.error(err.message);
@@ -626,21 +785,16 @@ async function runMediaWait(rawArgs) {
     process.exit(2);
   }
   const daemonUrl = await cliDaemonUrl(flags);
-  const since = Number.isFinite(Number(flags.since))
-    ? Number(flags.since)
-    : 0;
+  const since = Number.isFinite(Number(flags.since)) ? Number(flags.since) : 0;
   await pollUntilDoneOrBudget(daemonUrl, taskId, since, { totalBudgetMs: 120_000 });
 }
 
 async function pollUntilDoneOrBudget(daemonUrl, taskId, sinceStart, options = {}) {
-  const totalBudgetMs = typeof options.totalBudgetMs === 'number' ? options.totalBudgetMs : 25_000;
+  const totalBudgetMs = typeof options.totalBudgetMs === "number" ? options.totalBudgetMs : 25_000;
   const perCallTimeoutMs = 4_000;
-  const stillRunningExitCode =
-    typeof options.stillRunningExitCode === 'number'
-      ? options.stillRunningExitCode
-      : 2;
+  const stillRunningExitCode = typeof options.stillRunningExitCode === "number" ? options.stillRunningExitCode : 2;
   const startedAt = Date.now();
-  const url = `${daemonUrl.replace(/\/$/, '')}/api/media/tasks/${encodeURIComponent(taskId)}/wait`;
+  const url = `${daemonUrl.replace(/\/$/, "")}/api/media/tasks/${encodeURIComponent(taskId)}/wait`;
 
   let since = Number.isFinite(sinceStart) ? sinceStart : 0;
   let lastSnapshot = null;
@@ -651,9 +805,9 @@ async function pollUntilDoneOrBudget(daemonUrl, taskId, sinceStart, options = {}
     let resp;
     try {
       resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ since, timeoutMs: callTimeout }),
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ since, timeoutMs: callTimeout })
       });
     } catch (err) {
       surfaceFetchError(err, daemonUrl);
@@ -672,94 +826,80 @@ async function pollUntilDoneOrBudget(daemonUrl, taskId, sinceStart, options = {}
     try {
       snap = await resp.json();
     } catch {
-      console.error('daemon returned non-JSON for /wait');
+      console.error("daemon returned non-JSON for /wait");
       process.exit(4);
     }
     lastSnapshot = snap;
     if (Array.isArray(snap.progress)) {
       for (const line of snap.progress) {
-        process.stderr.write(line + '\n');
+        process.stderr.write(line + "\n");
         process.stdout.write(`# ${line}\n`);
       }
     }
-    if (typeof snap.nextSince === 'number') since = snap.nextSince;
+    if (typeof snap.nextSince === "number") since = snap.nextSince;
 
-    if (snap.status === 'done') {
+    if (snap.status === "done") {
       const file = snap.file || {};
       const warnings = Array.isArray(file.warnings) ? file.warnings : [];
       for (const w of warnings) {
-        if (typeof w === 'string' && w) console.error(`WARN: ${w}`);
+        if (typeof w === "string" && w) console.error(`WARN: ${w}`);
       }
       if (file.providerError) {
-        const provider = file.providerId || 'provider';
-        console.error(
-          `WARN: ${provider} call failed — wrote stub fallback (${file.size} bytes) to ${file.name}`,
-        );
+        const provider = file.providerId || "provider";
+        console.error(`WARN: ${provider} call failed — wrote stub fallback (${file.size} bytes) to ${file.name}`);
         console.error(`WARN: reason: ${file.providerError}`);
-        console.error(
-          'WARN: surface this verbatim to the user. Do NOT claim the stub is the final result.',
-        );
+        console.error("WARN: surface this verbatim to the user. Do NOT claim the stub is the final result.");
       }
-      process.stdout.write(JSON.stringify({ file }) + '\n');
+      process.stdout.write(JSON.stringify({ file }) + "\n");
       process.exit(file.providerError ? 5 : 0);
     }
-    if (snap.status === 'failed') {
-      const msg = snap.error?.message || 'task failed';
+    if (snap.status === "failed") {
+      const msg = snap.error?.message || "task failed";
       console.error(`task failed: ${msg}`);
-      process.stdout.write(
-        JSON.stringify({ taskId, status: 'failed', error: snap.error || {} }) + '\n',
-      );
+      process.stdout.write(JSON.stringify({ taskId, status: "failed", error: snap.error || {} }) + "\n");
       process.exit(snap.error?.status || 5);
     }
-    if (snap.status === 'interrupted') {
-      const msg = snap.error?.message || 'task interrupted';
+    if (snap.status === "interrupted") {
+      const msg = snap.error?.message || "task interrupted";
       console.error(`task interrupted: ${msg}`);
-      process.stdout.write(
-        JSON.stringify({ taskId, status: 'interrupted', error: snap.error || {} }) + '\n',
-      );
+      process.stdout.write(JSON.stringify({ taskId, status: "interrupted", error: snap.error || {} }) + "\n");
       process.exit(snap.error?.status || 5);
     }
   }
 
   const handoff = {
     taskId,
-    status: lastSnapshot?.status || 'running',
+    status: lastSnapshot?.status || "running",
     nextSince: since,
-    elapsed: Math.round((Date.now() - startedAt) / 1000),
+    elapsed: Math.round((Date.now() - startedAt) / 1000)
   };
-  process.stdout.write(JSON.stringify(handoff) + '\n');
+  process.stdout.write(JSON.stringify(handoff) + "\n");
   const stillRunningHint =
     stillRunningExitCode === 0
-      ? 'This is a successful queued/running handoff, not a failure.'
+      ? "This is a successful queued/running handoff, not a failure."
       : `exit code ${stillRunningExitCode} = still running.`;
   process.stderr.write(
     `task ${taskId} still running after ${handoff.elapsed}s. ` +
       `Run \`"$OD_NODE_BIN" "$OD_BIN" media wait ${taskId} --since ${since}\` to continue in an agent runtime ` +
-      `(${stillRunningHint}).\n`,
+      `(${stillRunningHint}).\n`
   );
   process.exit(stillRunningExitCode);
 }
 
 function surfaceFetchError(err, daemonUrl) {
-  const cause = err && typeof err === 'object' ? err.cause : null;
-  const code =
-    cause && typeof cause === 'object' && typeof cause.code === 'string'
-      ? cause.code
-      : null;
-  const causeMsg =
-    cause && typeof cause === 'object' && typeof cause.message === 'string'
-      ? cause.message
-      : '';
+  const cause = err && typeof err === "object" ? err.cause : null;
+  const code = cause && typeof cause === "object" && typeof cause.code === "string" ? cause.code : null;
+  const causeMsg = cause && typeof cause === "object" && typeof cause.message === "string" ? cause.message : "";
   let detail = err && err.message ? err.message : String(err);
-  if (code) detail = `${code}${causeMsg ? ` — ${causeMsg}` : ''}`;
+  if (code) detail = `${code}${causeMsg ? ` — ${causeMsg}` : ""}`;
   else if (causeMsg) detail = causeMsg;
   console.error(`failed to reach daemon at ${daemonUrl}: ${detail}`);
-  if (code === 'EPERM' || code === 'ENETUNREACH') {
+  if (code === "EPERM" || code === "ENETUNREACH") {
     console.error(
-      'hint: outbound connect was denied by a sandbox. If you launched ' +
-        'this command from a code agent, check the agent\'s sandbox / ' +
-        'network policy. The Open Design daemon itself is unaffected - it can be ' +
-        'reached from a regular shell.',
+      "hint: outbound connect was denied by a sandbox. If you launched " +
+        "this command from a code agent, check the agent's sandbox / " +
+        "network policy. The Open Design daemon itself is unaffected - it can be " +
+        "reached from a regular shell."
     );
   }
 }
@@ -776,16 +916,14 @@ function parseFlags(argv, opts = {}) {
   const out = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (!a || !a.startsWith('--')) {
+    if (!a || !a.startsWith("--")) {
       // Positional — let the caller decide what to do with it.
       continue;
     }
-    const eq = a.indexOf('=');
+    const eq = a.indexOf("=");
     const key = eq >= 0 ? a.slice(2, eq) : a.slice(2);
     if (knownFlags.size > 0 && !knownFlags.has(key)) {
-      throw new Error(
-        `unknown flag: --${key}. Run with --help for the list of accepted flags.`,
-      );
+      throw new Error(`unknown flag: --${key}. Run with --help for the list of accepted flags.`);
     }
     if (eq >= 0) {
       out[key] = a.slice(eq + 1);
@@ -805,7 +943,7 @@ function parseFlags(argv, opts = {}) {
       continue;
     }
     const next = argv[i + 1];
-    if (next != null && !next.startsWith('--')) {
+    if (next != null && !next.startsWith("--")) {
       out[key] = next;
       i++;
     } else {
@@ -820,11 +958,11 @@ function positionalArgs(argv, stringFlags = new Set()) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (!a) continue;
-    if (!a.startsWith('--')) {
+    if (!a.startsWith("--")) {
       out.push(a);
       continue;
     }
-    const eq = a.indexOf('=');
+    const eq = a.indexOf("=");
     const key = eq >= 0 ? a.slice(2, eq) : a.slice(2);
     if (eq < 0 && stringFlags.has(key)) i++;
   }
@@ -832,20 +970,23 @@ function positionalArgs(argv, stringFlags = new Set()) {
 }
 
 async function cliDaemonUrl(flags) {
-  return resolveDaemonUrl({ flagUrl: flags?.['daemon-url'] });
+  return resolveDaemonUrl({ flagUrl: flags?.["daemon-url"] });
 }
 
 async function cliDaemonBaseUrl(flags) {
-  return (await cliDaemonUrl(flags)).replace(/\/$/, '');
+  return (await cliDaemonUrl(flags)).replace(/\/$/, "");
 }
 
 function printMediaHelp() {
   console.log(`Usage: od media generate --surface <image|video|audio> --model <id> [opts]
        "$OD_NODE_BIN" "$OD_BIN" media generate --surface <image|video|audio> --model <id> [opts]
+       od media models [--surface image|video|audio] [--audio-kind music|speech|sfx] [--json]
+       od media test <provider> [--base-url <url>] [--model <id>] [--api-key <key>] [--json]
 
 Required:
   --surface  image | video | audio
-  --model    Model id from /api/media/models (e.g. gpt-image-2, seedance-2, suno-v5).
+  --model    Model id from \`od media models\` or /api/media/models
+             (e.g. gpt-image-2, doubao-seedance-1.5-pro, suno-v5).
   --project  Project id. Auto-resolved from OD_PROJECT_ID when invoked by the daemon.
 
 Common options:
@@ -870,6 +1011,15 @@ Common options:
                             it, and forwards it to the upstream API.
   --daemon-url <url>
 
+Validation:
+  od media models --surface video
+      Lists registered video model ids, providers, and capabilities.
+  od media test volcengine
+      Uses the saved provider key/base URL and performs a lightweight
+      auth/connectivity probe without generating media.
+  od media test minimax --api-key <key> --base-url <url>
+      Test a not-yet-saved key/base URL. Secrets are never echoed.
+
 Output: a single line of JSON: {"file": { name, size, kind, mime, ... }}
 
 Skills should call this and then reference the returned filename in their
@@ -882,14 +1032,14 @@ files folder so the FileViewer can preview them immediately.`);
 // ---------------------------------------------------------------------------
 
 async function runMcp(args) {
-  if (args[0] === 'install') {
+  if (args[0] === "install") {
     return runMcpInstall(args.slice(1));
   }
   let flags;
   try {
     flags = parseFlags(args, {
       string: MCP_STRING_FLAGS,
-      boolean: MCP_BOOLEAN_FLAGS,
+      boolean: MCP_BOOLEAN_FLAGS
     });
   } catch (err) {
     console.error(err.message);
@@ -903,7 +1053,7 @@ async function runMcp(args) {
 
   const daemonUrl = await cliDaemonUrl(flags);
 
-  const { runMcpStdio } = await import('./mcp.js');
+  const { runMcpStdio } = await import("./mcp.js");
   await runMcpStdio({ daemonUrl });
 }
 
@@ -950,7 +1100,7 @@ for tool calls to succeed.
 
 To register this server into a coding agent's own config automatically:
   od mcp install <agent> [--uninstall] [--print] [--json] [--daemon-url <url>]
-  Agents: ${AGENT_SLUGS.join(' ')}`);
+  Agents: ${AGENT_SLUGS.join(" ")}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -974,11 +1124,11 @@ async function resolveMcpLaunchSpec(flags) {
     const resp = await fetch(`${base}/api/mcp/install-info`);
     if (resp.ok) {
       const info = await resp.json();
-      if (info && typeof info.command === 'string' && Array.isArray(info.args)) {
+      if (info && typeof info.command === "string" && Array.isArray(info.args)) {
         return {
           command: info.command,
           args: info.args,
-          env: info.env && typeof info.env === 'object' ? info.env : {},
+          env: info.env && typeof info.env === "object" ? info.env : {}
         };
       }
     }
@@ -986,9 +1136,9 @@ async function resolveMcpLaunchSpec(flags) {
     // daemon not running / unreachable — fall through to the minimal spec
   }
   return {
-    command: 'od',
-    args: ['mcp', '--daemon-url', base],
-    env: {},
+    command: "od",
+    args: ["mcp", "--daemon-url", base],
+    env: {}
   };
 }
 
@@ -1009,7 +1159,7 @@ async function runMcpInstall(args) {
   try {
     flags = parseFlags(args, {
       string: MCP_INSTALL_STRING_FLAGS,
-      boolean: MCP_INSTALL_BOOLEAN_FLAGS,
+      boolean: MCP_INSTALL_BOOLEAN_FLAGS
     });
   } catch (err) {
     console.error(err.message);
@@ -1024,37 +1174,37 @@ async function runMcpInstall(args) {
   const slug = positionalArgs(args, MCP_INSTALL_STRING_FLAGS)[0];
   const useJson = Boolean(flags.json);
   if (!slug) {
-    console.error('missing agent slug');
+    console.error("missing agent slug");
     printMcpInstallHelp();
     process.exit(2);
   }
   if (!isAgentSlug(slug)) {
-    const msg = `unknown agent: ${slug} (expected one of: ${AGENT_SLUGS.join(' ')})`;
+    const msg = `unknown agent: ${slug} (expected one of: ${AGENT_SLUGS.join(" ")})`;
     emitInstallResult(useJson, { ok: false, agent: slug, message: msg });
     process.exit(2);
   }
 
   const uninstall = Boolean(flags.uninstall || flags.remove);
-  const dryRun = Boolean(flags.print || flags['dry-run']);
-  const serverName = flags.name || 'open-design';
+  const dryRun = Boolean(flags.print || flags["dry-run"]);
+  const serverName = flags.name || "open-design";
 
-  const os = await import('node:os');
+  const os = await import("node:os");
   const spec = await resolveMcpLaunchSpec(flags);
   const plan = planAgentInstall(slug, spec, {
     home: os.homedir(),
     platform: process.platform,
-    serverName,
+    serverName
   });
 
-  if (plan.kind === 'manual') {
+  if (plan.kind === "manual") {
     const result = {
       ok: false,
       agent: slug,
-      kind: 'manual',
+      kind: "manual",
       configPath: plan.configPath,
       format: plan.format,
       snippet: plan.snippet,
-      message: `${slug}: manual setup required. ${plan.reason}`,
+      message: `${slug}: manual setup required. ${plan.reason}`
     };
     if (useJson) {
       console.log(JSON.stringify(result));
@@ -1067,55 +1217,53 @@ async function runMcpInstall(args) {
     return;
   }
 
-  if (plan.kind === 'cli') {
+  if (plan.kind === "cli") {
     const argv = uninstall ? plan.removeArgv : plan.addArgv;
     if (dryRun) {
       emitInstallResult(useJson, {
         ok: true,
         agent: slug,
-        kind: 'cli',
-        command: `${plan.bin} ${argv.join(' ')}`,
-        message: `would run: ${plan.bin} ${argv.join(' ')}`,
+        kind: "cli",
+        command: `${plan.bin} ${argv.join(" ")}`,
+        message: `would run: ${plan.bin} ${argv.join(" ")}`
       });
       return;
     }
-    const { spawn } = await import('node:child_process');
+    const { spawn } = await import("node:child_process");
     const code = await new Promise((resolve) => {
-      const child = spawn(plan.bin, argv, { stdio: 'inherit' });
-      child.on('error', (err) => {
+      const child = spawn(plan.bin, argv, { stdio: "inherit" });
+      child.on("error", (err) => {
         console.error(`✗ failed to run ${plan.bin}: ${err.message}`);
         resolve(127);
       });
-      child.on('exit', (c) => resolve(c ?? 0));
+      child.on("exit", (c) => resolve(c ?? 0));
     });
     if (code !== 0) {
       emitInstallResult(useJson, {
         ok: false,
         agent: slug,
-        kind: 'cli',
-        message: `${plan.bin} exited with code ${code}`,
+        kind: "cli",
+        message: `${plan.bin} exited with code ${code}`
       });
       process.exit(code || 1);
     }
     emitInstallResult(useJson, {
       ok: true,
       agent: slug,
-      kind: 'cli',
-      message: uninstall
-        ? `removed ${serverName} from ${slug}`
-        : `installed ${serverName} into ${slug}`,
+      kind: "cli",
+      message: uninstall ? `removed ${serverName} from ${slug}` : `installed ${serverName} into ${slug}`
     });
     return;
   }
 
   // plan.kind === 'json'
-  const fs = await import('node:fs/promises');
-  const path = await import('node:path');
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
   let existing = null;
   try {
-    existing = await fs.readFile(plan.configPath, 'utf8');
+    existing = await fs.readFile(plan.configPath, "utf8");
   } catch (err) {
-    if (err && err.code !== 'ENOENT') throw err;
+    if (err && err.code !== "ENOENT") throw err;
   }
 
   if (uninstall) {
@@ -1124,9 +1272,9 @@ async function runMcpInstall(args) {
       emitInstallResult(useJson, {
         ok: true,
         agent: slug,
-        kind: 'json',
+        kind: "json",
         configPath: plan.configPath,
-        message: `${serverName} not present in ${plan.configPath} — nothing to remove`,
+        message: `${serverName} not present in ${plan.configPath} — nothing to remove`
       });
       return;
     }
@@ -1134,20 +1282,20 @@ async function runMcpInstall(args) {
       emitInstallResult(useJson, {
         ok: true,
         agent: slug,
-        kind: 'json',
+        kind: "json",
         configPath: plan.configPath,
         preview: next,
-        message: `would update ${plan.configPath}`,
+        message: `would update ${plan.configPath}`
       });
       return;
     }
-    await fs.writeFile(plan.configPath, next, 'utf8');
+    await fs.writeFile(plan.configPath, next, "utf8");
     emitInstallResult(useJson, {
       ok: true,
       agent: slug,
-      kind: 'json',
+      kind: "json",
       configPath: plan.configPath,
-      message: `removed ${serverName} from ${plan.configPath}`,
+      message: `removed ${serverName} from ${plan.configPath}`
     });
     return;
   }
@@ -1157,21 +1305,21 @@ async function runMcpInstall(args) {
     emitInstallResult(useJson, {
       ok: true,
       agent: slug,
-      kind: 'json',
+      kind: "json",
       configPath: plan.configPath,
       preview: next,
-      message: `would write ${plan.configPath}`,
+      message: `would write ${plan.configPath}`
     });
     return;
   }
   await fs.mkdir(path.dirname(plan.configPath), { recursive: true });
-  await fs.writeFile(plan.configPath, next, 'utf8');
+  await fs.writeFile(plan.configPath, next, "utf8");
   emitInstallResult(useJson, {
     ok: true,
     agent: slug,
-    kind: 'json',
+    kind: "json",
     configPath: plan.configPath,
-    message: `installed ${serverName} into ${plan.configPath}`,
+    message: `installed ${serverName} into ${plan.configPath}`
   });
 }
 
@@ -1181,7 +1329,7 @@ function printMcpInstallHelp() {
 Register Open Design's stdio MCP server into a coding agent's own config.
 
 Agents:
-  ${AGENT_SLUGS.join(' ')}
+  ${AGENT_SLUGS.join(" ")}
 
 Options:
   --uninstall, --remove   Remove the Open Design MCP server instead.
@@ -1208,7 +1356,7 @@ otherwise a minimal \`od mcp --daemon-url <url>\` command is used.`);
 function exitWithStructuredError({ code, message, data }) {
   const exit = RECOVERABLE_EXIT_CODES[code] ?? 1;
   const envelope = { error: { code, message, data: data ?? {} } };
-  process.stderr.write(JSON.stringify(envelope) + '\n');
+  process.stderr.write(JSON.stringify(envelope) + "\n");
   process.exit(exit);
 }
 
@@ -1224,84 +1372,116 @@ function exitWithStructuredError({ code, message, data }) {
 // structured envelope instead of collapsing to `HTTP <status>: `, which
 // would drop the only diagnostic the daemon actually returned to a
 // headless caller.
-async function structuredHttpFailure(resp, fallbackCode = 'daemon-not-running') {
+async function structuredHttpFailure(resp, fallbackCode = "daemon-not-running") {
   let parsed;
-  try { parsed = await resp.json(); } catch { parsed = {}; }
-  const errorObj =
-    typeof parsed?.error === 'string'
-      ? { message: parsed.error }
-      : parsed?.error;
+  try {
+    parsed = await resp.json();
+  } catch {
+    parsed = {};
+  }
+  const errorObj = typeof parsed?.error === "string" ? { message: parsed.error } : parsed?.error;
   const errCode = normalizeRecoverableErrorCode(errorObj?.code, errorObj?.message);
   if (errCode && errCode in RECOVERABLE_EXIT_CODES) {
     exitWithStructuredError({
-      code:    errCode,
+      code: errCode,
       message: errorObj?.message ?? `HTTP ${resp.status}`,
-      data:    structuredErrorData(errorObj),
+      data: structuredErrorData(errorObj)
     });
   }
   exitWithStructuredError({
-    code:    fallbackCode,
-    message: errorObj?.message ?? `HTTP ${resp.status}: ${await resp.text().catch(() => '')}`,
-    data:    structuredErrorData(errorObj),
+    code: fallbackCode,
+    message: errorObj?.message ?? `HTTP ${resp.status}: ${await resp.text().catch(() => "")}`,
+    data: structuredErrorData(errorObj)
   });
 }
 
 function normalizeRecoverableErrorCode(code, message) {
-  if (code === 'DESKTOP_AUTH_PENDING') return 'desktop-auth-pending';
-  if (code === 'FORBIDDEN' && /desktop import token rejected/i.test(String(message ?? ''))) {
-    return 'desktop-import-token-rejected';
+  if (code === "DESKTOP_AUTH_PENDING") return "desktop-auth-pending";
+  if (code === "FORBIDDEN" && /desktop import token rejected/i.test(String(message ?? ""))) {
+    return "desktop-import-token-rejected";
   }
   return code;
 }
 
 function structuredErrorData(error) {
-  if (!error || typeof error !== 'object') return undefined;
+  if (!error || typeof error !== "object") return undefined;
   const data = {};
-  if ('data' in error && error.data !== undefined) Object.assign(data, error.data);
-  if ('details' in error && error.details !== undefined) data.details = error.details;
-  if (typeof error.retryable === 'boolean') data.retryable = error.retryable;
+  if ("data" in error && error.data !== undefined) Object.assign(data, error.data);
+  if ("details" in error && error.details !== undefined) data.details = error.details;
+  if (typeof error.retryable === "boolean") data.retryable = error.retryable;
   return Object.keys(data).length > 0 ? data : undefined;
 }
 
 async function runPlugin(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     printPluginHelp();
     process.exit(args.length === 0 ? 2 : 0);
   }
   const sub = args[0];
   const rest = args.slice(1);
   switch (sub) {
-    case 'list':      return runPluginList(rest);
-    case 'search':    return runPluginSearch(rest);
-    case 'stats':     return runPluginStats(rest);
-    case 'sources':   return runPluginSources(rest);
-    case 'info':      return runPluginInfo(rest);
-    case 'manifest':  return runPluginManifest(rest);
-    case 'install':   return runPluginInstall(rest);
-    case 'upgrade':   return runPluginUpgrade(rest);
-    case 'uninstall': return runPluginUninstall(rest);
-    case 'apply':     return runPluginApply(rest);
-    case 'canon':     return runPluginCanon(rest);
-    case 'diff':      return runPluginDiff(rest);
-    case 'doctor':    return runPluginDoctor(rest);
-    case 'replay':    return runPluginReplay(rest);
-    case 'trust':     return runPluginTrust(rest);
-    case 'snapshots': return runPluginSnapshots(rest);
-    case 'simulate':  return runPluginSimulate(rest);
-    case 'verify':    return runPluginVerify(rest);
-    case 'events':    return runPluginEvents(rest);
-    case 'run':       return runPluginRun(rest);
-    case 'scaffold': return runPluginScaffold(rest);
-    case 'validate': return runPluginValidate(rest);
-    case 'pack':     return runPluginPack(rest);
-    case 'candidates': return runPluginCandidates(rest);
-    case 'login':    return runPluginLogin(rest);
-    case 'whoami':   return runPluginWhoami(rest);
-    case 'export':   return runPluginExport(rest);
-    case 'publish':  return runPluginPublish(rest);
-    case 'publish-repo': return runPluginPublishRepo(rest);
-    case 'open-design-pr': return runPluginOpenDesignPr(rest);
-    case 'yank':     return runPluginYank(rest);
+    case "list":
+      return runPluginList(rest);
+    case "search":
+      return runPluginSearch(rest);
+    case "stats":
+      return runPluginStats(rest);
+    case "sources":
+      return runPluginSources(rest);
+    case "info":
+      return runPluginInfo(rest);
+    case "manifest":
+      return runPluginManifest(rest);
+    case "install":
+      return runPluginInstall(rest);
+    case "upgrade":
+      return runPluginUpgrade(rest);
+    case "uninstall":
+      return runPluginUninstall(rest);
+    case "apply":
+      return runPluginApply(rest);
+    case "canon":
+      return runPluginCanon(rest);
+    case "diff":
+      return runPluginDiff(rest);
+    case "doctor":
+      return runPluginDoctor(rest);
+    case "replay":
+      return runPluginReplay(rest);
+    case "trust":
+      return runPluginTrust(rest);
+    case "snapshots":
+      return runPluginSnapshots(rest);
+    case "simulate":
+      return runPluginSimulate(rest);
+    case "verify":
+      return runPluginVerify(rest);
+    case "events":
+      return runPluginEvents(rest);
+    case "run":
+      return runPluginRun(rest);
+    case "scaffold":
+      return runPluginScaffold(rest);
+    case "validate":
+      return runPluginValidate(rest);
+    case "pack":
+      return runPluginPack(rest);
+    case "candidates":
+      return runPluginCandidates(rest);
+    case "login":
+      return runPluginLogin(rest);
+    case "whoami":
+      return runPluginWhoami(rest);
+    case "export":
+      return runPluginExport(rest);
+    case "publish":
+      return runPluginPublish(rest);
+    case "publish-repo":
+      return runPluginPublishRepo(rest);
+    case "open-design-pr":
+      return runPluginOpenDesignPr(rest);
+    case "yank":
+      return runPluginYank(rest);
     default:
       console.error(`unknown subcommand: od plugin ${sub}`);
       printPluginHelp();
@@ -1316,10 +1496,8 @@ async function runPlugin(args) {
 // agent can drop the scaffold into the current repo root.
 async function runPluginScaffold(rest) {
   const flags = parseFlags(rest, {
-    string: new Set([
-      'id', 'title', 'description', 'task-kind', 'mode', 'scenario', 'out',
-    ]),
-    boolean: new Set(['help', 'h', 'json', 'with-claude-plugin']),
+    string: new Set(["id", "title", "description", "task-kind", "mode", "scenario", "out"]),
+    boolean: new Set(["help", "h", "json", "with-claude-plugin"])
   });
   if (rest.length === 0 || flags.help || flags.h) {
     console.log(`Usage:
@@ -1331,32 +1509,26 @@ async function runPluginScaffold(rest) {
 Writes <out|cwd>/<id>/{SKILL.md,open-design.json,README.md}.`);
     process.exit(rest.length === 0 ? 2 : 0);
   }
-  const id = typeof flags.id === 'string' && flags.id.length > 0
-    ? flags.id
-    : rest.find((a) => !a.startsWith('-'));
+  const id = typeof flags.id === "string" && flags.id.length > 0 ? flags.id : rest.find((a) => !a.startsWith("-"));
   if (!id) {
-    console.error('Usage: od plugin scaffold --id <id>');
+    console.error("Usage: od plugin scaffold --id <id>");
     process.exit(2);
   }
-  const targetDir = typeof flags.out === 'string' && flags.out.length > 0
-    ? flags.out
-    : process.cwd();
-  const { scaffoldPlugin, ScaffoldError } = await import('./plugins/scaffold.js');
+  const targetDir = typeof flags.out === "string" && flags.out.length > 0 ? flags.out : process.cwd();
+  const { scaffoldPlugin, ScaffoldError } = await import("./plugins/scaffold.js");
   try {
     const input = {
       targetDir,
       id,
-      ...(flags.title       ? { title: flags.title }             : {}),
+      ...(flags.title ? { title: flags.title } : {}),
       ...(flags.description ? { description: flags.description } : {}),
-      ...(flags['task-kind']
-        ? { taskKind: flags['task-kind'] }
-        : {}),
-      ...(flags.mode        ? { mode: flags.mode }               : {}),
-      ...(flags.scenario    ? { scenario: flags.scenario }       : {}),
-      withClaudePlugin: Boolean(flags['with-claude-plugin']),
+      ...(flags["task-kind"] ? { taskKind: flags["task-kind"] } : {}),
+      ...(flags.mode ? { mode: flags.mode } : {}),
+      ...(flags.scenario ? { scenario: flags.scenario } : {}),
+      withClaudePlugin: Boolean(flags["with-claude-plugin"])
     };
     const result = await scaffoldPlugin(input);
-    if (flags.json) return process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    if (flags.json) return process.stdout.write(JSON.stringify(result, null, 2) + "\n");
     console.log(`[scaffold] ${result.folder}`);
     for (const file of result.files) console.log(`  ${file}`);
     console.log(`\nNext: od plugin install ${result.folder}`);
@@ -1377,10 +1549,10 @@ Writes <out|cwd>/<id>/{SKILL.md,open-design.json,README.md}.`);
 // when --no-daemon is set or the daemon is unreachable.
 async function runPluginValidate(rest) {
   const flags = parseFlags(rest, {
-    string:  new Set(['daemon-url']),
-    boolean: new Set(['help', 'h', 'json', 'no-daemon']),
+    string: new Set(["daemon-url"]),
+    boolean: new Set(["help", "h", "json", "no-daemon"])
   });
-  if (flags.help || flags.h || rest.length === 0 || rest[0]?.startsWith('-')) {
+  if (flags.help || flags.h || rest.length === 0 || rest[0]?.startsWith("-")) {
     console.log(`Usage:
   od plugin validate <folder> [--json] [--no-daemon] [--daemon-url <url>]
 
@@ -1400,22 +1572,22 @@ Exit codes:
   // offline too — emits warnings instead of errors for refs we
   // can't resolve.
   let registry;
-  if (!flags['no-daemon']) {
-    const base = (await libraryDaemonUrl(flags)).replace(/\/$/, '');
+  if (!flags["no-daemon"]) {
+    const base = (await libraryDaemonUrl(flags)).replace(/\/$/, "");
     try {
       const [skillsResp, dsResp, atomsResp] = await Promise.all([
         fetch(`${base}/api/skills`).catch(() => null),
         fetch(`${base}/api/design-systems`).catch(() => null),
-        fetch(`${base}/api/atoms`).catch(() => null),
+        fetch(`${base}/api/atoms`).catch(() => null)
       ]);
       const skills = (skillsResp?.ok ? (await skillsResp.json())?.skills : []) ?? [];
       const designSystems = (dsResp?.ok ? (await dsResp.json())?.designSystems : []) ?? [];
       const atoms = (atomsResp?.ok ? (await atomsResp.json())?.atoms : []) ?? [];
       registry = {
-        skills:        skills.map((s) => ({ id: s.id, title: s.name ?? s.title, description: s.description })),
+        skills: skills.map((s) => ({ id: s.id, title: s.name ?? s.title, description: s.description })),
         designSystems: designSystems.map((d) => ({ id: d.id, title: d.title })),
-        craft:         [],
-        atoms:         atoms.map((a) => ({ id: a.id, label: a.label })),
+        craft: [],
+        atoms: atoms.map((a) => ({ id: a.id, label: a.label }))
       };
     } catch {
       registry = undefined;
@@ -1424,31 +1596,37 @@ Exit codes:
 
   let result;
   try {
-    const { validatePluginFolder, flattenValidationDiagnostics } = await import('./plugins/validate.js');
+    const { validatePluginFolder, flattenValidationDiagnostics } = await import("./plugins/validate.js");
     result = await validatePluginFolder({ folder, ...(registry ? { registry } : {}) });
     if (flags.json) {
       const flat = flattenValidationDiagnostics(result);
-      process.stdout.write(JSON.stringify({
-        ok:      result.ok,
-        folder:  result.folder,
-        ...(result.doctor ? { freshDigest: result.doctor.freshDigest, pluginId: result.doctor.pluginId } : {}),
-        diagnostics: flat,
-      }, null, 2) + '\n');
+      process.stdout.write(
+        JSON.stringify(
+          {
+            ok: result.ok,
+            folder: result.folder,
+            ...(result.doctor ? { freshDigest: result.doctor.freshDigest, pluginId: result.doctor.pluginId } : {}),
+            diagnostics: flat
+          },
+          null,
+          2
+        ) + "\n"
+      );
     } else {
       console.log(`[validate] folder: ${result.folder}`);
       if (result.doctor) {
         console.log(`[validate] pluginId: ${result.doctor.pluginId}`);
         console.log(`[validate] freshDigest: ${result.doctor.freshDigest.slice(0, 12)}\u2026`);
       }
-      const diagnostics = (await import('./plugins/validate.js')).flattenValidationDiagnostics(result);
-      const errors = diagnostics.filter((d) => d.severity === 'error');
-      const warnings = diagnostics.filter((d) => d.severity === 'warning');
-      const infos = diagnostics.filter((d) => d.severity === 'info');
-      for (const d of errors)   console.error(`  [error]   ${d.code}: ${d.message}`);
-      for (const d of warnings) console.warn (`  [warning] ${d.code}: ${d.message}`);
-      for (const d of infos)    console.log  (`  [info]    ${d.code}: ${d.message}`);
+      const diagnostics = (await import("./plugins/validate.js")).flattenValidationDiagnostics(result);
+      const errors = diagnostics.filter((d) => d.severity === "error");
+      const warnings = diagnostics.filter((d) => d.severity === "warning");
+      const infos = diagnostics.filter((d) => d.severity === "info");
+      for (const d of errors) console.error(`  [error]   ${d.code}: ${d.message}`);
+      for (const d of warnings) console.warn(`  [warning] ${d.code}: ${d.message}`);
+      for (const d of infos) console.log(`  [info]    ${d.code}: ${d.message}`);
       if (errors.length === 0 && warnings.length === 0 && infos.length === 0) {
-        console.log('[validate] no issues');
+        console.log("[validate] no issues");
       }
       console.log(`[validate] ok=${result.ok}`);
     }
@@ -1466,10 +1644,10 @@ Exit codes:
 // version when the manifest exposes a version, otherwise folder-base.
 async function runPluginPack(rest) {
   const flags = parseFlags(rest, {
-    string:  new Set(['out']),
-    boolean: new Set(['help', 'h', 'json']),
+    string: new Set(["out"]),
+    boolean: new Set(["help", "h", "json"])
   });
-  if (flags.help || flags.h || rest.length === 0 || rest[0]?.startsWith('-')) {
+  if (flags.help || flags.h || rest.length === 0 || rest[0]?.startsWith("-")) {
     console.log(`Usage:
   od plugin pack <folder> [--out <path>] [--json]
 
@@ -1493,17 +1671,17 @@ Exit codes:
   }
   const folder = rest[0];
   try {
-    const { packPlugin, PackPluginError } = await import('./plugins/pack.js');
+    const { packPlugin, PackPluginError } = await import("./plugins/pack.js");
     let result;
     try {
       result = await packPlugin({
         folder,
-        ...(typeof flags.out === 'string' ? { out: flags.out } : {}),
+        ...(typeof flags.out === "string" ? { out: flags.out } : {})
       });
     } catch (err) {
       if (err instanceof PackPluginError) {
         if (flags.json) {
-          process.stdout.write(JSON.stringify({ ok: false, error: err.message }, null, 2) + '\n');
+          process.stdout.write(JSON.stringify({ ok: false, error: err.message }, null, 2) + "\n");
         } else {
           console.error(`[pack] ${err.message}`);
         }
@@ -1512,18 +1690,24 @@ Exit codes:
       throw err;
     }
     if (flags.json) {
-      process.stdout.write(JSON.stringify({
-        ok:            true,
-        outPath:       result.outPath,
-        bytes:         result.bytes,
-        fileCount:     result.files.length,
-        pluginId:      result.pluginId,
-        pluginVersion: result.pluginVersion,
-      }, null, 2) + '\n');
+      process.stdout.write(
+        JSON.stringify(
+          {
+            ok: true,
+            outPath: result.outPath,
+            bytes: result.bytes,
+            fileCount: result.files.length,
+            pluginId: result.pluginId,
+            pluginVersion: result.pluginVersion
+          },
+          null,
+          2
+        ) + "\n"
+      );
     } else {
       const idStr = result.pluginVersion
-        ? `${result.pluginId ?? 'plugin'}@${result.pluginVersion}`
-        : result.pluginId ?? 'plugin';
+        ? `${result.pluginId ?? "plugin"}@${result.pluginVersion}`
+        : (result.pluginId ?? "plugin");
       console.log(`[pack] packed ${idStr}`);
       console.log(`[pack] out:    ${result.outPath}`);
       console.log(`[pack] files:  ${result.files.length}`);
@@ -1538,8 +1722,8 @@ Exit codes:
 
 async function runPluginLogin(rest) {
   const flags = parseFlags(rest, {
-    string: new Set(['host']),
-    boolean: new Set(['help', 'h']),
+    string: new Set(["host"]),
+    boolean: new Set(["help", "h"])
   });
   if (flags.help || flags.h) {
     console.log(`Usage:
@@ -1548,20 +1732,20 @@ async function runPluginLogin(rest) {
 Wraps GitHub CLI auth for Open Design registry publishing. The token stays in gh.`);
     return;
   }
-  const host = typeof flags.host === 'string' ? flags.host : 'github.com';
-  const version = await execGhBuffered(['--version'], { timeout: 10_000 });
+  const host = typeof flags.host === "string" ? flags.host : "github.com";
+  const version = await execGhBuffered(["--version"], { timeout: 10_000 });
   if (!version.ok) {
-    console.error('[plugin login] GitHub CLI is required. Install gh from https://cli.github.com/ and retry.');
+    console.error("[plugin login] GitHub CLI is required. Install gh from https://cli.github.com/ and retry.");
     process.exit(1);
   }
-  const result = await spawnGhPassthrough(['auth', 'login', '--hostname', host, '--web']);
+  const result = await spawnGhPassthrough(["auth", "login", "--hostname", host, "--web"]);
   process.exit(result.code ?? 0);
 }
 
 async function runPluginWhoami(rest) {
   const flags = parseFlags(rest, {
-    string: new Set(['host']),
-    boolean: new Set(['help', 'h', 'json']),
+    string: new Set(["host"]),
+    boolean: new Set(["help", "h", "json"])
   });
   if (flags.help || flags.h) {
     console.log(`Usage:
@@ -1570,29 +1754,35 @@ async function runPluginWhoami(rest) {
 Shows the GitHub account gh will use for Open Design registry publishing.`);
     return;
   }
-  const host = typeof flags.host === 'string' ? flags.host : 'github.com';
-  const auth = await execGhBuffered(['auth', 'status', '--hostname', host], { timeout: 10_000 });
+  const host = typeof flags.host === "string" ? flags.host : "github.com";
+  const auth = await execGhBuffered(["auth", "status", "--hostname", host], { timeout: 10_000 });
   if (!auth.ok) {
     if (flags.json) {
-      process.stdout.write(JSON.stringify({
-        ok: false,
-        host,
-        message: 'GitHub CLI is not authenticated for this host.',
-        log: auth.stderr || auth.stdout,
-      }, null, 2) + '\n');
+      process.stdout.write(
+        JSON.stringify(
+          {
+            ok: false,
+            host,
+            message: "GitHub CLI is not authenticated for this host.",
+            log: auth.stderr || auth.stdout
+          },
+          null,
+          2
+        ) + "\n"
+      );
       return;
     }
     console.error(`[plugin whoami] gh is not authenticated for ${host}. Run: od plugin login --host ${host}`);
     if (auth.stderr || auth.stdout) console.error(auth.stderr || auth.stdout);
     process.exit(1);
   }
-  const user = await execGhBuffered(['api', 'user', '--hostname', host], { timeout: 10_000 });
-  let login = '';
-  let name = '';
+  const user = await execGhBuffered(["api", "user", "--hostname", host], { timeout: 10_000 });
+  let login = "";
+  let name = "";
   try {
-    const parsed = JSON.parse(user.stdout || '{}');
-    login = typeof parsed.login === 'string' ? parsed.login : '';
-    name = typeof parsed.name === 'string' ? parsed.name : '';
+    const parsed = JSON.parse(user.stdout || "{}");
+    login = typeof parsed.login === "string" ? parsed.login : "";
+    name = typeof parsed.name === "string" ? parsed.name : "";
   } catch {
     // Keep the auth status useful even if gh api output is unavailable.
   }
@@ -1601,81 +1791,86 @@ Shows the GitHub account gh will use for Open Design registry publishing.`);
     host,
     login,
     name,
-    auth: auth.stderr || auth.stdout,
+    auth: auth.stderr || auth.stdout
   };
   if (flags.json) {
-    process.stdout.write(JSON.stringify(payload, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(payload, null, 2) + "\n");
   } else {
-    console.log(`[plugin whoami] ${login || 'authenticated'}${name ? ` (${name})` : ''} @ ${host}`);
+    console.log(`[plugin whoami] ${login || "authenticated"}${name ? ` (${name})` : ""} @ ${host}`);
   }
 }
 
 async function execFileBuffered(command, args, opts = {}) {
-  const { execFile } = await import('node:child_process');
+  const { execFile } = await import("node:child_process");
   return new Promise((resolve) => {
-    execFile(command, args, {
-      timeout: 30_000,
-      maxBuffer: 1024 * 1024,
-      ...opts,
-    }, (error, stdout, stderr) => {
-      resolve({
-        ok: !error,
-        code: error?.code,
-        stdout: String(stdout ?? '').trim(),
-        stderr: String(stderr ?? '').trim(),
-        error,
-      });
-    });
+    execFile(
+      command,
+      args,
+      {
+        timeout: 30_000,
+        maxBuffer: 1024 * 1024,
+        ...opts
+      },
+      (error, stdout, stderr) => {
+        resolve({
+          ok: !error,
+          code: error?.code,
+          stdout: String(stdout ?? "").trim(),
+          stderr: String(stderr ?? "").trim(),
+          error
+        });
+      }
+    );
   });
 }
 
 function quotePosixShellArg(value) {
-  const text = String(value ?? '');
+  const text = String(value ?? "");
   return `'${text.replace(/'/g, `'\\''`)}'`;
 }
 
 function buildGhShellCommand(args) {
-  return ['gh', ...args].map(quotePosixShellArg).join(' ');
+  return ["gh", ...args].map(quotePosixShellArg).join(" ");
 }
 
 function buildLoginShellCommand(innerCommand) {
-  return `export PATH=${quotePosixShellArg(process.env.PATH ?? '')}; ${innerCommand}`;
+  return `export PATH=${quotePosixShellArg(process.env.PATH ?? "")}; ${innerCommand}`;
 }
 
 async function execGhBuffered(args, opts = {}) {
-  if (process.platform === 'win32') return execFileBuffered('gh', args, opts);
-  const shell = process.env.SHELL && process.env.SHELL.trim() ? process.env.SHELL.trim() : '/bin/zsh';
-  return execFileBuffered(shell, ['-c', buildLoginShellCommand(buildGhShellCommand(args))], {
+  if (process.platform === "win32") return execFileBuffered("gh", args, opts);
+  const shell = process.env.SHELL && process.env.SHELL.trim() ? process.env.SHELL.trim() : "/bin/zsh";
+  return execFileBuffered(shell, ["-c", buildLoginShellCommand(buildGhShellCommand(args))], {
     env: process.env,
-    ...opts,
+    ...opts
   });
 }
 
 async function spawnPassthrough(command, args, opts = {}) {
-  const { spawn } = await import('node:child_process');
+  const { spawn } = await import("node:child_process");
   return await new Promise((resolve) => {
-    const child = spawn(command, args, { stdio: 'inherit', ...opts });
-    child.on('error', (error) => resolve({ code: 1, error }));
-    child.on('close', (code) => resolve({ code }));
+    const child = spawn(command, args, { stdio: "inherit", ...opts });
+    child.on("error", (error) => resolve({ code: 1, error }));
+    child.on("close", (code) => resolve({ code }));
   });
 }
 
 async function spawnGhPassthrough(args) {
-  if (process.platform === 'win32') return spawnPassthrough('gh', args);
-  const shell = process.env.SHELL && process.env.SHELL.trim() ? process.env.SHELL.trim() : '/bin/zsh';
-  return spawnPassthrough(shell, ['-c', buildLoginShellCommand(buildGhShellCommand(args))], {
-    env: process.env,
+  if (process.platform === "win32") return spawnPassthrough("gh", args);
+  const shell = process.env.SHELL && process.env.SHELL.trim() ? process.env.SHELL.trim() : "/bin/zsh";
+  return spawnPassthrough(shell, ["-c", buildLoginShellCommand(buildGhShellCommand(args))], {
+    env: process.env
   });
 }
 
 function inferGithubHost(target) {
-  if (!target || target === 'github.com') return 'github.com';
+  if (!target || target === "github.com") return "github.com";
   try {
     const parsed = new URL(target);
-    return parsed.hostname || 'github.com';
+    return parsed.hostname || "github.com";
   } catch {
     // Marketplace ids are not URLs; v1 GitHub-backed auth defaults to github.com.
-    return 'github.com';
+    return "github.com";
   }
 }
 
@@ -1686,8 +1881,8 @@ function inferGithubHost(target) {
 // targets: 'od', 'claude-plugin', 'agent-skill'.
 async function runPluginExport(rest) {
   const flags = parseFlags(rest, {
-    string: new Set(['daemon-url', 'as', 'out', 'snapshot-id', 'project']),
-    boolean: new Set(['help', 'h', 'json']),
+    string: new Set(["daemon-url", "as", "out", "snapshot-id", "project"]),
+    boolean: new Set(["help", "h", "json"])
   });
   if (rest.length === 0 || flags.help || flags.h) {
     console.log(`Usage:
@@ -1699,37 +1894,35 @@ endpoint so the running daemon's installed_plugins / applied_plugin_snapshots
 view is the single source of truth.`);
     process.exit(rest.length === 0 ? 2 : 0);
   }
-  const positional = rest.find((a) => !a.startsWith('-'));
+  const positional = rest.find((a) => !a.startsWith("-"));
   const projectId = flags.project ?? positional ?? null;
-  const snapshotId = typeof flags['snapshot-id'] === 'string' ? flags['snapshot-id'] : null;
+  const snapshotId = typeof flags["snapshot-id"] === "string" ? flags["snapshot-id"] : null;
   if (!projectId && !snapshotId) {
-    console.error('Usage: od plugin export <projectId> --as <target> --out <dir>');
+    console.error("Usage: od plugin export <projectId> --as <target> --out <dir>");
     process.exit(2);
   }
-  const target = String(flags.as ?? 'od');
-  if (target !== 'od' && target !== 'claude-plugin' && target !== 'agent-skill') {
+  const target = String(flags.as ?? "od");
+  if (target !== "od" && target !== "claude-plugin" && target !== "agent-skill") {
     console.error(`--as must be one of: od, claude-plugin, agent-skill (got "${target}")`);
     process.exit(2);
   }
-  const out = typeof flags.out === 'string' && flags.out.length > 0
-    ? flags.out
-    : process.cwd();
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
+  const out = typeof flags.out === "string" && flags.out.length > 0 ? flags.out : process.cwd();
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
   const resp = await fetch(`${base}/api/applied-plugins/export`, {
-    method:  'POST',
-    headers: { 'content-type': 'application/json' },
-    body:    JSON.stringify({
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
       ...(snapshotId ? { snapshotId } : { projectId }),
       target,
-      outDir: out,
-    }),
+      outDir: out
+    })
   });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
     console.error(`POST /api/applied-plugins/export failed: ${resp.status} ${JSON.stringify(data)}`);
     process.exit(1);
   }
-  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
   console.log(`[export] ${data.folder} (snapshot ${data.snapshotId})`);
   for (const f of data.files ?? []) console.log(`  ${f}`);
 }
@@ -1738,7 +1931,7 @@ view is the single source of truth.`);
 // refresh / remove / trust. The Phase 3 follow-up wires
 // `od plugin install <name>` resolution through these catalogs.
 async function runMarketplace(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od marketplace add     <url> [--trust trusted|restricted]   Register a federated catalog.
   od marketplace list                                         List registered marketplaces.
@@ -1760,36 +1953,38 @@ Common options:
   const sub = args[0];
   const rest = args.slice(1);
   const flags = parseFlags(rest, { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
   switch (sub) {
-    case 'list': {
+    case "list": {
       const resp = await fetch(`${base}/api/marketplaces`);
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) return structuredHttpFailure(resp);
       if (flags.json) {
-        process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+        process.stdout.write(JSON.stringify(data, null, 2) + "\n");
         return;
       }
       const rows = data?.marketplaces ?? [];
       if (rows.length === 0) {
-        console.log('No marketplaces registered. Run `od marketplace add <url>`.');
+        console.log("No marketplaces registered. Run `od marketplace add <url>`.");
         return;
       }
       for (const m of rows) {
-        console.log(`${m.id}  version=${m.version ?? 'unknown'}  spec=${m.specVersion ?? 'unknown'}  trust=${m.trust}  url=${m.url}`);
+        console.log(
+          `${m.id}  version=${m.version ?? "unknown"}  spec=${m.specVersion ?? "unknown"}  trust=${m.trust}  url=${m.url}`
+        );
       }
       return;
     }
-    case 'search': {
+    case "search": {
       // Plan §3.H4 / spec §12 — marketplace catalog query. Walks
       // every configured marketplace's plugins[] entry and matches
       // by substring on name + description + tags.
-      const query = (rest.find((a) => !a.startsWith('-')) ?? '').toLowerCase();
+      const query = (rest.find((a) => !a.startsWith("-")) ?? "").toLowerCase();
       if (!query) {
         console.error('Usage: od marketplace search "<query>" [--tag <tag>]');
         process.exit(2);
       }
-      const tag = typeof flags.tag === 'string' ? flags.tag.toLowerCase() : null;
+      const tag = typeof flags.tag === "string" ? flags.tag.toLowerCase() : null;
       const resp = await fetch(`${base}/api/marketplaces`);
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
@@ -1797,27 +1992,25 @@ Common options:
       for (const mp of data?.marketplaces ?? []) {
         const plugins = mp.manifest?.plugins ?? [];
         for (const p of plugins) {
-          const haystack = [
-            p.name ?? '',
-            p.description ?? '',
-            ...(Array.isArray(p.tags) ? p.tags : []),
-          ].join(' ').toLowerCase();
+          const haystack = [p.name ?? "", p.description ?? "", ...(Array.isArray(p.tags) ? p.tags : [])]
+            .join(" ")
+            .toLowerCase();
           if (!haystack.includes(query)) continue;
           if (tag && !(Array.isArray(p.tags) && p.tags.map((t) => t.toLowerCase()).includes(tag))) continue;
           matches.push({
-            marketplaceId:  mp.id,
+            marketplaceId: mp.id,
             marketplaceUrl: mp.url,
             marketplaceVersion: mp.version,
-            name:           p.name,
-            version:        p.version,
-            source:         p.source,
-            description:    p.description ?? '',
-            tags:           p.tags ?? [],
+            name: p.name,
+            version: p.version,
+            source: p.source,
+            description: p.description ?? "",
+            tags: p.tags ?? []
           });
         }
       }
       if (flags.json) {
-        process.stdout.write(JSON.stringify({ matches }, null, 2) + '\n');
+        process.stdout.write(JSON.stringify({ matches }, null, 2) + "\n");
         return;
       }
       if (matches.length === 0) {
@@ -1825,14 +2018,16 @@ Common options:
         return;
       }
       for (const m of matches) {
-        console.log(`${m.name}@${m.version}\t${m.source}\t${m.marketplaceId}@${m.marketplaceVersion}\t${m.description}`);
+        console.log(
+          `${m.name}@${m.version}\t${m.source}\t${m.marketplaceId}@${m.marketplaceVersion}\t${m.description}`
+        );
       }
       return;
     }
-    case 'plugins': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "plugins": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
-        console.error('Usage: od marketplace plugins <id> [--json]');
+        console.error("Usage: od marketplace plugins <id> [--json]");
         process.exit(2);
       }
       const resp = await fetch(`${base}/api/marketplaces/${encodeURIComponent(id)}/plugins`);
@@ -1843,7 +2038,7 @@ Common options:
       }
       const plugins = Array.isArray(data?.plugins) ? data.plugins : [];
       if (flags.json) {
-        process.stdout.write(JSON.stringify({ marketplaceId: id, plugins }, null, 2) + '\n');
+        process.stdout.write(JSON.stringify({ marketplaceId: id, plugins }, null, 2) + "\n");
         return;
       }
       if (plugins.length === 0) {
@@ -1851,13 +2046,13 @@ Common options:
         return;
       }
       for (const p of plugins) {
-        console.log(`${p.name}@${p.version}\t${p.source}\t${p.description ?? ''}`);
+        console.log(`${p.name}@${p.version}\t${p.source}\t${p.description ?? ""}`);
       }
       return;
     }
-    case 'doctor': {
+    case "doctor": {
       const strict = flags.strict === true;
-      const id = rest.find((a) => !a.startsWith('-'));
+      const id = rest.find((a) => !a.startsWith("-"));
       const resp = id
         ? await fetch(`${base}/api/marketplaces/${encodeURIComponent(id)}`)
         : await fetch(`${base}/api/marketplaces`);
@@ -1867,54 +2062,58 @@ Common options:
         process.exit(1);
       }
       const rows = id ? [data] : (data?.marketplaces ?? []);
-      const { doctorMarketplace } = await import('./plugins/marketplace-doctor.js');
+      const { doctorMarketplace } = await import("./plugins/marketplace-doctor.js");
       const reports = [];
       for (const row of rows) {
-        reports.push(await doctorMarketplace({
-          id: row.id,
-          trust: row.trust,
-          manifest: row.manifest,
-          strict,
-        }));
+        reports.push(
+          await doctorMarketplace({
+            id: row.id,
+            trust: row.trust,
+            manifest: row.manifest,
+            strict
+          })
+        );
       }
       const ok = reports.every((report) => report.ok);
       if (flags.json) {
-        process.stdout.write(JSON.stringify({ ok, reports }, null, 2) + '\n');
+        process.stdout.write(JSON.stringify({ ok, reports }, null, 2) + "\n");
       } else {
         for (const report of reports) {
-          console.log(`[marketplace doctor] ${report.backendId}: ${report.ok ? 'ok' : 'issues'} (${report.entriesChecked} entries)`);
+          console.log(
+            `[marketplace doctor] ${report.backendId}: ${report.ok ? "ok" : "issues"} (${report.entriesChecked} entries)`
+          );
           for (const issue of report.issues) {
-            console.log(`  [${issue.severity}] ${issue.code}${issue.pluginName ? ` ${issue.pluginName}` : ''}: ${issue.message}`);
+            console.log(
+              `  [${issue.severity}] ${issue.code}${issue.pluginName ? ` ${issue.pluginName}` : ""}: ${issue.message}`
+            );
           }
         }
       }
       process.exit(ok ? 0 : 1);
     }
-    case 'login': {
-      const target = rest.find((a) => !a.startsWith('-'));
-      const host = typeof flags.host === 'string'
-        ? flags.host
-        : inferGithubHost(target ?? 'github.com');
-      const version = await execFileBuffered('gh', ['--version'], { timeout: 10_000 });
+    case "login": {
+      const target = rest.find((a) => !a.startsWith("-"));
+      const host = typeof flags.host === "string" ? flags.host : inferGithubHost(target ?? "github.com");
+      const version = await execFileBuffered("gh", ["--version"], { timeout: 10_000 });
       if (!version.ok) {
-        console.error('[marketplace login] GitHub CLI is required. Install gh from https://cli.github.com/ and retry.');
+        console.error("[marketplace login] GitHub CLI is required. Install gh from https://cli.github.com/ and retry.");
         process.exit(1);
       }
       console.log(`[marketplace login] authenticating gh for ${host}. Tokens stay in gh, not Open Design.`);
-      const result = await spawnPassthrough('gh', ['auth', 'login', '--hostname', host, '--web']);
+      const result = await spawnPassthrough("gh", ["auth", "login", "--hostname", host, "--web"]);
       process.exit(result.code ?? 0);
     }
-    case 'add': {
-      const url = rest.find((a) => !a.startsWith('-'));
+    case "add": {
+      const url = rest.find((a) => !a.startsWith("-"));
       if (!url) {
-        console.error('Usage: od marketplace add <url> [--trust trusted|restricted]');
+        console.error("Usage: od marketplace add <url> [--trust trusted|restricted]");
         process.exit(2);
       }
-      const trust = flags.trust ?? 'restricted';
+      const trust = flags.trust ?? "restricted";
       const resp = await fetch(`${base}/api/marketplaces`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ url, trust }),
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url, trust })
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
@@ -1924,38 +2123,41 @@ Common options:
       console.log(`[marketplace] added ${data.id} (${data.url}) trust=${data.trust}`);
       return;
     }
-    case 'info':
-    case 'refresh':
-    case 'remove':
-    case 'trust': {
-      const id = rest.find((a) => !a.startsWith('-')
-        && a !== flags.trust);
+    case "info":
+    case "refresh":
+    case "remove":
+    case "trust": {
+      const id = rest.find((a) => !a.startsWith("-") && a !== flags.trust);
       if (!id) {
         console.error(`Usage: od marketplace ${sub} <id>`);
         process.exit(2);
       }
       let url;
-      let method = 'GET';
+      let method = "GET";
       let body;
-      if (sub === 'info')         url = `${base}/api/marketplaces/${encodeURIComponent(id)}`;
-      else if (sub === 'refresh') { url = `${base}/api/marketplaces/${encodeURIComponent(id)}/refresh`; method = 'POST'; }
-      else if (sub === 'remove')  { url = `${base}/api/marketplaces/${encodeURIComponent(id)}`; method = 'DELETE'; }
-      else if (sub === 'trust') {
-        const trust = flags.trust ?? 'trusted';
+      if (sub === "info") url = `${base}/api/marketplaces/${encodeURIComponent(id)}`;
+      else if (sub === "refresh") {
+        url = `${base}/api/marketplaces/${encodeURIComponent(id)}/refresh`;
+        method = "POST";
+      } else if (sub === "remove") {
+        url = `${base}/api/marketplaces/${encodeURIComponent(id)}`;
+        method = "DELETE";
+      } else if (sub === "trust") {
+        const trust = flags.trust ?? "trusted";
         url = `${base}/api/marketplaces/${encodeURIComponent(id)}/trust`;
-        method = 'POST';
+        method = "POST";
         body = JSON.stringify({ trust });
       }
       const resp = await fetch(url, {
         method,
-        ...(body ? { headers: { 'content-type': 'application/json' }, body } : {}),
+        ...(body ? { headers: { "content-type": "application/json" }, body } : {})
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
         console.error(`${sub} failed: ${resp.status} ${JSON.stringify(data)}`);
         process.exit(1);
       }
-      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       return;
     }
     default:
@@ -1971,7 +2173,7 @@ Common options:
 //     (and optionally older-than-cutoff unreferenced) rows.
 async function runPluginSnapshots(args) {
   const sub = args[0];
-  if (!sub || sub === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (!sub || sub === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od plugin snapshots list  [--project <id>]               List applied plugin snapshots.
   od plugin snapshots show  <snapshotId> [--json]          Print one snapshot's full contents.
@@ -1980,12 +2182,12 @@ async function runPluginSnapshots(args) {
     process.exit(args.length === 0 ? 2 : 0);
   }
   const flags = parseFlags(args.slice(1), { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
-  if (sub === 'show') {
-    const positional = args.slice(1).filter((a) => !a.startsWith('-'));
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
+  if (sub === "show") {
+    const positional = args.slice(1).filter((a) => !a.startsWith("-"));
     const id = positional[0];
     if (!id) {
-      console.error('Usage: od plugin snapshots show <snapshotId>');
+      console.error("Usage: od plugin snapshots show <snapshotId>");
       process.exit(2);
     }
     const url = `${base}/api/applied-plugins/${encodeURIComponent(id)}`;
@@ -1999,59 +2201,65 @@ async function runPluginSnapshots(args) {
       process.exit(1);
     }
     const data = await resp.json();
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     return;
   }
-  if (sub === 'diff') {
-    const positional = args.slice(1).filter((a) => !a.startsWith('-'));
+  if (sub === "diff") {
+    const positional = args.slice(1).filter((a) => !a.startsWith("-"));
     if (positional.length < 2) {
-      console.error('Usage: od plugin snapshots diff <id-a> <id-b>');
+      console.error("Usage: od plugin snapshots diff <id-a> <id-b>");
       process.exit(2);
     }
     const [idA, idB] = positional;
     const [respA, respB] = await Promise.all([
       fetch(`${base}/api/applied-plugins/${encodeURIComponent(idA)}`),
-      fetch(`${base}/api/applied-plugins/${encodeURIComponent(idB)}`),
+      fetch(`${base}/api/applied-plugins/${encodeURIComponent(idB)}`)
     ]);
-    if (respA.status === 404) { console.error(`snapshot ${idA} not found`); process.exit(72); }
-    if (respB.status === 404) { console.error(`snapshot ${idB} not found`); process.exit(72); }
+    if (respA.status === 404) {
+      console.error(`snapshot ${idA} not found`);
+      process.exit(72);
+    }
+    if (respB.status === 404) {
+      console.error(`snapshot ${idB} not found`);
+      process.exit(72);
+    }
     if (!respA.ok || !respB.ok) {
       console.error(`fetch failed: ${respA.status} / ${respB.status}`);
       process.exit(1);
     }
     const a = await respA.json();
     const b = await respB.json();
-    const { diffSnapshots } = await import('./plugins/snapshot-diff.js');
+    const { diffSnapshots } = await import("./plugins/snapshot-diff.js");
     const report = diffSnapshots({ a, b });
     if (flags.json) {
-      process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
       return;
     }
     const digestNote = report.digestEqual
-      ? '\u2713 manifestSourceDigest equal (e2e-2 invariant holds)'
-      : '\u2717 manifestSourceDigest DIFFERS (replay would diverge)';
+      ? "\u2713 manifestSourceDigest equal (e2e-2 invariant holds)"
+      : "\u2717 manifestSourceDigest DIFFERS (replay would diverge)";
     console.log(`[snapshots diff] ${idA} \u2194 ${idB}`);
     console.log(`  ${digestNote}`);
     console.log(`  ${report.added} added, ${report.removed} removed, ${report.changed} changed`);
     if (report.entries.length === 0) {
-      console.log('  (no field-level differences)');
+      console.log("  (no field-level differences)");
       return;
     }
     for (const e of report.entries) {
-      const tag = e.kind === 'added' ? '+' : e.kind === 'removed' ? '-' : '~';
+      const tag = e.kind === "added" ? "+" : e.kind === "removed" ? "-" : "~";
       if (e.summary) {
         console.log(`  ${tag} ${e.field}  (${e.summary})`);
-      } else if (e.kind === 'changed') {
-        console.log(`  ${tag} ${e.field}: ${e.before ?? ''} \u2192 ${e.after ?? ''}`);
-      } else if (e.kind === 'added') {
-        console.log(`  ${tag} ${e.field}: ${e.after ?? ''}`);
+      } else if (e.kind === "changed") {
+        console.log(`  ${tag} ${e.field}: ${e.before ?? ""} \u2192 ${e.after ?? ""}`);
+      } else if (e.kind === "added") {
+        console.log(`  ${tag} ${e.field}: ${e.after ?? ""}`);
       } else {
-        console.log(`  ${tag} ${e.field}: ${e.before ?? ''}`);
+        console.log(`  ${tag} ${e.field}: ${e.before ?? ""}`);
       }
     }
     return;
   }
-  if (sub === 'list') {
+  if (sub === "list") {
     const url = flags.project
       ? `${base}/api/projects/${encodeURIComponent(flags.project)}/applied-plugins`
       : `${base}/api/applied-plugins`;
@@ -2061,16 +2269,16 @@ async function runPluginSnapshots(args) {
       process.exit(1);
     }
     const data = await resp.json();
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     return;
   }
-  if (sub === 'prune') {
+  if (sub === "prune") {
     const url = `${base}/api/applied-plugins/prune`;
     const before = flags.before ? Number(flags.before) : undefined;
     const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(before ? { before } : {}),
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(before ? { before } : {})
     });
     if (!resp.ok) {
       console.error(`POST ${url} failed: ${resp.status} ${await resp.text()}`);
@@ -2078,7 +2286,7 @@ async function runPluginSnapshots(args) {
     }
     const data = await resp.json();
     if (flags.json) {
-      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       return;
     }
     console.log(`[snapshots] pruned ${data.removed ?? 0} snapshot(s)`);
@@ -2093,36 +2301,45 @@ async function runPluginSnapshots(args) {
 // can drive the apply→start→follow loop without two hops.
 async function runPluginRun(rest) {
   const flags = parseFlags(rest, { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const id = rest.find((a) => !a.startsWith('-')
-    && a !== flags['daemon-url']
-    && a !== flags.source
-    && a !== flags.inputs
-    && a !== flags.project
-    && a !== flags.conversation
-    && a !== flags.message
-    && a !== flags.agent
-    && a !== flags.model
-    && a !== flags['snapshot-id']
-    && a !== flags.capabilities
-    && a !== flags['grant-caps']);
+  const id = rest.find(
+    (a) =>
+      !a.startsWith("-") &&
+      a !== flags["daemon-url"] &&
+      a !== flags.source &&
+      a !== flags.inputs &&
+      a !== flags.project &&
+      a !== flags.conversation &&
+      a !== flags.message &&
+      a !== flags.agent &&
+      a !== flags.model &&
+      a !== flags["snapshot-id"] &&
+      a !== flags.capabilities &&
+      a !== flags["grant-caps"]
+  );
   if (!id) {
-    console.error('Usage: od plugin run <id> --project <projectId> [--inputs <json>] [--agent <id>] [--message "<text>"] [--grant-caps a,b] [--follow]');
+    console.error(
+      'Usage: od plugin run <id> --project <projectId> [--inputs <json>] [--agent <id>] [--message "<text>"] [--grant-caps a,b] [--follow]'
+    );
     process.exit(2);
   }
   if (!flags.project) {
-    console.error('--project <projectId> is required (Phase 1.5 will add the auto-create wrapper)');
+    console.error("--project <projectId> is required (Phase 1.5 will add the auto-create wrapper)");
     process.exit(2);
   }
-  const inputs = flags.inputs ? safeParseJson(flags.inputs) ?? {} : {};
-  const grantCaps = typeof flags['grant-caps'] === 'string' && flags['grant-caps'].length > 0
-    ? flags['grant-caps'].split(',').map((c) => c.trim()).filter(Boolean)
-    : [];
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
+  const inputs = flags.inputs ? (safeParseJson(flags.inputs) ?? {}) : {};
+  const grantCaps =
+    typeof flags["grant-caps"] === "string" && flags["grant-caps"].length > 0
+      ? flags["grant-caps"]
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean)
+      : [];
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
   // 1. Apply (returns ApplyResult + manifestSourceDigest).
   const applyResp = await fetch(`${base}/api/plugins/${encodeURIComponent(id)}/apply`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ inputs, grantCaps, projectId: flags.project }),
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ inputs, grantCaps, projectId: flags.project })
   });
   const applyData = await applyResp.json().catch(() => ({}));
   if (!applyResp.ok) {
@@ -2132,37 +2349,41 @@ async function runPluginRun(rest) {
   // 2. Start the run with pluginId so the daemon resolver pins the
   //    snapshot to the run object.
   const runResp = await fetch(`${base}/api/runs`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    method: "POST",
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      projectId:        flags.project,
-      pluginId:         id,
-      pluginInputs:     inputs,
+      projectId: flags.project,
+      pluginId: id,
+      pluginInputs: inputs,
       grantCaps,
       ...(flags.conversation ? { conversationId: flags.conversation } : {}),
       ...(flags.message ? { message: flags.message } : {}),
       ...(flags.agent ? { agentId: flags.agent } : {}),
       ...(flags.model ? { model: flags.model } : {}),
-      ...(flags['snapshot-id'] ? { appliedPluginSnapshotId: flags['snapshot-id'] } : {}),
-    }),
+      ...(flags["snapshot-id"] ? { appliedPluginSnapshotId: flags["snapshot-id"] } : {})
+    })
   });
   const runData = await runResp.json().catch(() => ({}));
   if (!runResp.ok) {
-    if (runResp.status === 409 && runData?.error?.code === 'capabilities-required') {
-      const missing = (runData.error.data?.missing ?? []).join(',');
+    if (runResp.status === 409 && runData?.error?.code === "capabilities-required") {
+      const missing = (runData.error.data?.missing ?? []).join(",");
       console.error(`[run] capabilities required: ${missing}`);
-      console.error(`[run] retry with --grant-caps ${missing} or run \`od plugin trust ${id} --capabilities ${missing}\``);
+      console.error(
+        `[run] retry with --grant-caps ${missing} or run \`od plugin trust ${id} --capabilities ${missing}\``
+      );
       process.exit(66);
     }
     console.error(`run failed: ${runResp.status} ${JSON.stringify(runData)}`);
     process.exit(1);
   }
   if (flags.json) {
-    process.stdout.write(JSON.stringify({ apply: applyData, run: runData }, null, 2) + '\n');
+    process.stdout.write(JSON.stringify({ apply: applyData, run: runData }, null, 2) + "\n");
     if (flags.follow) await streamRunEvents(base, runData.runId);
     return;
   }
-  console.log(`[run] started run ${runData.runId} (snapshot ${runData.appliedPluginSnapshotId ?? applyData?.appliedPlugin?.snapshotId ?? 'n/a'})`);
+  console.log(
+    `[run] started run ${runData.runId} (snapshot ${runData.appliedPluginSnapshotId ?? applyData?.appliedPlugin?.snapshotId ?? "n/a"})`
+  );
   if (flags.follow) {
     await streamRunEvents(base, runData.runId);
   }
@@ -2177,8 +2398,8 @@ async function pluginDaemonUrl(flags) {
 // keeps the parseFlags() argv consumer happy.
 async function runPluginList(rest) {
   const flags = parseFlags(rest, {
-    string:  PLUGIN_LIST_FILTER_FLAGS,
-    boolean: PLUGIN_LIST_BOOLEAN_FLAGS,
+    string: PLUGIN_LIST_FILTER_FLAGS,
+    boolean: PLUGIN_LIST_BOOLEAN_FLAGS
   });
   if (flags.help || flags.h) {
     console.log(`Usage:
@@ -2200,16 +2421,16 @@ Lists installed plugins. Filters AND together: --task-kind=code-migration
   }
   const data = await fetchPluginList(flags);
   const filtered = await applyPluginFilters(data?.plugins ?? [], flags);
-  emitPluginList({ entries: filtered, json: !!flags.json, emptyMessage: 'No plugins matched the filter.' });
+  emitPluginList({ entries: filtered, json: !!flags.json, emptyMessage: "No plugins matched the filter." });
 }
 
 // Plan §3.Y1 — `od plugin search <query>`.
 async function runPluginSearch(rest) {
   const flags = parseFlags(rest, {
-    string:  PLUGIN_LIST_FILTER_FLAGS,
-    boolean: PLUGIN_LIST_BOOLEAN_FLAGS,
+    string: PLUGIN_LIST_FILTER_FLAGS,
+    boolean: PLUGIN_LIST_BOOLEAN_FLAGS
   });
-  const positional = rest.filter((a) => !a.startsWith('-'));
+  const positional = rest.filter((a) => !a.startsWith("-"));
   const query = positional[0];
   if (flags.help || flags.h || !query) {
     console.log(`Usage:
@@ -2226,9 +2447,9 @@ flags as 'od plugin list'.`);
   const filtered = await applyPluginFilters(data?.plugins ?? [], flags, query);
   emitPluginList({
     entries: filtered,
-    json:    !!flags.json,
+    json: !!flags.json,
     emptyMessage: `No installed plugins matched "${query}".`,
-    showRank: true,
+    showRank: true
   });
 }
 
@@ -2238,8 +2459,8 @@ flags as 'od plugin list'.`);
 // formatter.
 async function runPluginStats(rest) {
   const flags = parseFlags(rest, {
-    string:  PLUGIN_STRING_FLAGS,
-    boolean: PLUGIN_BOOLEAN_FLAGS,
+    string: PLUGIN_STRING_FLAGS,
+    boolean: PLUGIN_BOOLEAN_FLAGS
   });
   if (flags.help || flags.h) {
     console.log(`Usage:
@@ -2254,7 +2475,7 @@ Prints an at-a-glance plugin + snapshot inventory:
   - Oldest / newest applied snapshot timestamps.`);
     process.exit(0);
   }
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
   const url = `${base}/api/plugins/stats`;
   const resp = await fetch(url);
   if (!resp.ok) {
@@ -2263,16 +2484,16 @@ Prints an at-a-glance plugin + snapshot inventory:
   }
   const data = await resp.json();
   if (flags.json) {
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     return;
   }
   const p = data?.plugins ?? {};
   const s = data?.snapshots ?? {};
   const lastInstalled = formatTimestamp(p.lastInstalledAt);
-  const lastUpdated   = formatTimestamp(p.lastUpdatedAt);
+  const lastUpdated = formatTimestamp(p.lastUpdatedAt);
   const oldestApplied = formatTimestamp(s.oldestAppliedAt);
   const newestApplied = formatTimestamp(s.newestAppliedAt);
-  console.log('# Plugins');
+  console.log("# Plugins");
   console.log(`  total:            ${p.total ?? 0}`);
   console.log(`  bundled:          ${p.bundled ?? 0}`);
   console.log(`  third-party:      ${p.thirdParty ?? 0}`);
@@ -2282,8 +2503,8 @@ Prints an at-a-glance plugin + snapshot inventory:
   console.log(`  by taskKind:      ${formatCounts(p.byTaskKind)}`);
   console.log(`  last installed:   ${lastInstalled}`);
   console.log(`  last updated:     ${lastUpdated}`);
-  console.log('');
-  console.log('# Snapshots');
+  console.log("");
+  console.log("# Snapshots");
   console.log(`  total:            ${s.total ?? 0}`);
   console.log(`  by status:        ${formatCounts(s.byStatus)}`);
   console.log(`  with project:     ${s.withProject ?? 0}`);
@@ -2293,19 +2514,23 @@ Prints an at-a-glance plugin + snapshot inventory:
 }
 
 function formatCounts(counts) {
-  if (!counts || typeof counts !== 'object') return '(none)';
+  if (!counts || typeof counts !== "object") return "(none)";
   const entries = Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
-  if (entries.length === 0) return '(none)';
-  return entries.map(([k, v]) => `${k}=${v}`).join(', ');
+  if (entries.length === 0) return "(none)";
+  return entries.map(([k, v]) => `${k}=${v}`).join(", ");
 }
 
 function formatTimestamp(ts) {
-  if (typeof ts !== 'number' || !Number.isFinite(ts)) return '(none)';
-  try { return new Date(ts).toISOString(); } catch { return String(ts); }
+  if (typeof ts !== "number" || !Number.isFinite(ts)) return "(none)";
+  try {
+    return new Date(ts).toISOString();
+  } catch {
+    return String(ts);
+  }
 }
 
 async function fetchPluginList(flags) {
-  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, '')}/api/plugins`;
+  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, "")}/api/plugins`;
   const resp = await fetch(url);
   if (!resp.ok) {
     console.error(`GET /api/plugins failed: ${resp.status} ${await resp.text()}`);
@@ -2317,66 +2542,69 @@ async function fetchPluginList(flags) {
 
 async function applyPluginFilters(plugins, flags, query) {
   if (!Array.isArray(plugins) || plugins.length === 0) return [];
-  const { searchInstalledPlugins } = await import('./plugins/search.js');
-  const trustFlag = typeof flags.trust === 'string' ? flags.trust : undefined;
-  const taskKind  = typeof flags['task-kind'] === 'string' ? flags['task-kind'] : undefined;
-  const mode      = typeof flags.mode === 'string' ? flags.mode : undefined;
-  const tag       = typeof flags.tag === 'string'  ? flags.tag  : undefined;
+  const { searchInstalledPlugins } = await import("./plugins/search.js");
+  const trustFlag = typeof flags.trust === "string" ? flags.trust : undefined;
+  const taskKind = typeof flags["task-kind"] === "string" ? flags["task-kind"] : undefined;
+  const mode = typeof flags.mode === "string" ? flags.mode : undefined;
+  const tag = typeof flags.tag === "string" ? flags.tag : undefined;
   let bundled;
-  if (flags.bundled === true)         bundled = true;
-  if (flags['no-bundled'] === true)   bundled = false;
+  if (flags.bundled === true) bundled = true;
+  if (flags["no-bundled"] === true) bundled = false;
   const result = searchInstalledPlugins({
     plugins,
-    ...(typeof query === 'string' && query.trim() ? { query } : {}),
+    ...(typeof query === "string" && query.trim() ? { query } : {}),
     ...(taskKind ? { taskKind } : {}),
-    ...(mode     ? { mode } : {}),
-    ...(tag      ? { tag } : {}),
-    ...(trustFlag === 'trusted' || trustFlag === 'restricted' || trustFlag === 'bundled' ? { trust: trustFlag } : {}),
-    ...(typeof bundled === 'boolean' ? { bundled } : {}),
+    ...(mode ? { mode } : {}),
+    ...(tag ? { tag } : {}),
+    ...(trustFlag === "trusted" || trustFlag === "restricted" || trustFlag === "bundled" ? { trust: trustFlag } : {}),
+    ...(typeof bundled === "boolean" ? { bundled } : {})
   });
   return result.entries;
 }
 
 function emitPluginList({ entries, json, emptyMessage, showRank }) {
   if (json) {
-    process.stdout.write(JSON.stringify({
-      total: entries.length,
-      plugins: entries.map((e) => ({
-        ...e.plugin,
-        ...(showRank ? { matched: e.matched, rank: e.rank } : {}),
-      })),
-    }, null, 2) + '\n');
+    process.stdout.write(
+      JSON.stringify(
+        {
+          total: entries.length,
+          plugins: entries.map((e) => ({
+            ...e.plugin,
+            ...(showRank ? { matched: e.matched, rank: e.rank } : {})
+          }))
+        },
+        null,
+        2
+      ) + "\n"
+    );
     return;
   }
   if (entries.length === 0) {
-    console.log(emptyMessage ?? 'No plugins matched.');
+    console.log(emptyMessage ?? "No plugins matched.");
     return;
   }
   for (const entry of entries) {
     const p = entry.plugin;
-    const tail = showRank && entry.matched.length > 0
-      ? `  matched=[${entry.matched.join(',')}]`
-      : '';
+    const tail = showRank && entry.matched.length > 0 ? `  matched=[${entry.matched.join(",")}]` : "";
     console.log(`${p.id}@${p.version}  trust=${p.trust}  source=${p.sourceKind}  title="${p.title}"${tail}`);
   }
 }
 
 async function runPluginInfo(rest) {
   const flags = parseFlags(rest, { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const id = rest.find((a) => !a.startsWith('--')
-    && a !== flags['daemon-url']
-    && a !== flags.source
-    && a !== flags.version);
+  const id = rest.find(
+    (a) => !a.startsWith("--") && a !== flags["daemon-url"] && a !== flags.source && a !== flags.version
+  );
   if (!id) {
-    console.error('Usage: od plugin info <id-or-marketplace-name> [--version <version|tag|range>] [--json]');
+    console.error("Usage: od plugin info <id-or-marketplace-name> [--version <version|tag|range>] [--json]");
     process.exit(2);
   }
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
   const url = `${base}/api/plugins/${encodeURIComponent(id)}`;
   const resp = await fetch(url);
   if (resp.ok && !flags.version) {
     const data = await resp.json();
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     return;
   }
   const mpResp = await fetch(`${base}/api/marketplaces`);
@@ -2384,10 +2612,10 @@ async function runPluginInfo(rest) {
     const mpData = await mpResp.json().catch(() => ({}));
     const resolved = resolveMarketplacePluginFromList(
       mpData?.marketplaces ?? [],
-      flags.version ? `${id}@${flags.version}` : id,
+      flags.version ? `${id}@${flags.version}` : id
     );
     if (resolved) {
-      process.stdout.write(JSON.stringify({ marketplace: resolved }, null, 2) + '\n');
+      process.stdout.write(JSON.stringify({ marketplace: resolved }, null, 2) + "\n");
       return;
     }
   }
@@ -2396,7 +2624,7 @@ async function runPluginInfo(rest) {
     process.exit(1);
   }
   const data = await resp.json();
-  process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+  process.stdout.write(JSON.stringify(data, null, 2) + "\n");
 }
 
 function resolveMarketplacePluginFromList(marketplaces, specifier) {
@@ -2404,7 +2632,7 @@ function resolveMarketplacePluginFromList(marketplaces, specifier) {
   const target = parsed.name.toLowerCase();
   for (const marketplace of marketplaces) {
     for (const entry of marketplace?.manifest?.plugins ?? []) {
-      if (String(entry.name ?? '').toLowerCase() !== target) continue;
+      if (String(entry.name ?? "").toLowerCase() !== target) continue;
       const version = resolveCliEntryVersion(entry, parsed.range);
       if (!version) return null;
       return {
@@ -2416,7 +2644,7 @@ function resolveMarketplacePluginFromList(marketplaces, specifier) {
         ref: version.ref,
         integrity: version.integrity,
         manifestDigest: version.manifestDigest,
-        entry,
+        entry
       };
     }
   }
@@ -2424,9 +2652,9 @@ function resolveMarketplacePluginFromList(marketplaces, specifier) {
 }
 
 function parseCliPluginSpecifier(input) {
-  const trimmed = String(input ?? '').trim();
-  const slash = trimmed.indexOf('/');
-  const at = trimmed.lastIndexOf('@');
+  const trimmed = String(input ?? "").trim();
+  const slash = trimmed.indexOf("/");
+  const at = trimmed.lastIndexOf("@");
   if (slash > 0 && at > slash + 1) {
     return { name: trimmed.slice(0, at), range: trimmed.slice(at + 1) };
   }
@@ -2436,9 +2664,8 @@ function parseCliPluginSpecifier(input) {
 function resolveCliEntryVersion(entry, range) {
   if (entry?.yanked) return null;
   const versions = Array.isArray(entry?.versions) ? entry.versions : [];
-  const target = range && range !== 'latest'
-    ? (entry?.distTags?.[range] ?? range)
-    : (entry?.distTags?.latest ?? entry?.version);
+  const target =
+    range && range !== "latest" ? (entry?.distTags?.[range] ?? range) : (entry?.distTags?.latest ?? entry?.version);
   const version = versions.find((item) => item.version === target) ?? null;
   if (version?.yanked) return null;
   return {
@@ -2446,7 +2673,8 @@ function resolveCliEntryVersion(entry, range) {
     source: version?.source ?? entry?.source,
     ref: version?.ref ?? entry?.ref,
     integrity: version?.integrity ?? version?.dist?.integrity ?? entry?.integrity ?? entry?.dist?.integrity,
-    manifestDigest: version?.manifestDigest ?? version?.dist?.manifestDigest ?? entry?.manifestDigest ?? entry?.dist?.manifestDigest,
+    manifestDigest:
+      version?.manifestDigest ?? version?.dist?.manifestDigest ?? entry?.manifestDigest ?? entry?.dist?.manifestDigest
   };
 }
 
@@ -2457,12 +2685,12 @@ function resolveCliEntryVersion(entry, range) {
 // fsPath / installedAt etc).
 async function runPluginManifest(rest) {
   const flags = parseFlags(rest, { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const id = rest.find((a) => !a.startsWith('--') && a !== flags['daemon-url'] && a !== flags.source);
+  const id = rest.find((a) => !a.startsWith("--") && a !== flags["daemon-url"] && a !== flags.source);
   if (!id) {
-    console.error('Usage: od plugin manifest <id>');
+    console.error("Usage: od plugin manifest <id>");
     process.exit(2);
   }
-  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, '')}/api/plugins/${encodeURIComponent(id)}`;
+  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, "")}/api/plugins/${encodeURIComponent(id)}`;
   const resp = await fetch(url);
   if (resp.status === 404) {
     console.error(`plugin ${id} not found`);
@@ -2477,7 +2705,7 @@ async function runPluginManifest(rest) {
     console.error(`plugin ${id} has no recorded manifest (registry row is incomplete)`);
     process.exit(1);
   }
-  process.stdout.write(JSON.stringify(data.manifest, null, 2) + '\n');
+  process.stdout.write(JSON.stringify(data.manifest, null, 2) + "\n");
 }
 
 // Plan §3.MM2 — `od plugin sources`. Lists every distinct install
@@ -2487,7 +2715,7 @@ async function runPluginManifest(rest) {
 // authors comparing their fork to its upstream installs.
 async function runPluginSources(rest) {
   const flags = parseFlags(rest, { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, '')}/api/plugins`;
+  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, "")}/api/plugins`;
   const resp = await fetch(url);
   if (!resp.ok) {
     console.error(`GET /api/plugins failed: ${resp.status} ${await resp.text()}`);
@@ -2497,8 +2725,13 @@ async function runPluginSources(rest) {
   const plugins = Array.isArray(data?.plugins) ? data.plugins : [];
   const buckets = new Map();
   for (const p of plugins) {
-    const key = `${p.sourceKind ?? 'unknown'}\t${p.source ?? '(none)'}`;
-    const entry = buckets.get(key) ?? { sourceKind: p.sourceKind ?? 'unknown', source: p.source ?? '(none)', count: 0, plugins: [] };
+    const key = `${p.sourceKind ?? "unknown"}\t${p.source ?? "(none)"}`;
+    const entry = buckets.get(key) ?? {
+      sourceKind: p.sourceKind ?? "unknown",
+      source: p.source ?? "(none)",
+      count: 0,
+      plugins: []
+    };
     entry.count += 1;
     entry.plugins.push({ id: p.id, version: p.version });
     buckets.set(key, entry);
@@ -2509,11 +2742,11 @@ async function runPluginSources(rest) {
     return a.source.localeCompare(b.source);
   });
   if (flags.json) {
-    process.stdout.write(JSON.stringify({ total: plugins.length, sources: rows }, null, 2) + '\n');
+    process.stdout.write(JSON.stringify({ total: plugins.length, sources: rows }, null, 2) + "\n");
     return;
   }
   if (rows.length === 0) {
-    console.log('No plugins installed.');
+    console.log("No plugins installed.");
     return;
   }
   console.log(`# Plugin install sources (total: ${plugins.length})`);
@@ -2527,20 +2760,22 @@ async function runPluginSources(rest) {
 
 async function runPluginInstall(rest) {
   const flags = parseFlags(rest, { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const source = typeof flags.source === 'string' ? flags.source : rest.find((a) => !a.startsWith('-'));
+  const source = typeof flags.source === "string" ? flags.source : rest.find((a) => !a.startsWith("-"));
   if (!source) {
-    console.error('Usage: od plugin install <source-or-name>\n' +
-      '       od plugin install ./local-folder\n' +
-      '       od plugin install github:owner/repo[@ref][/subpath]\n' +
-      '       od plugin install https://example.com/plugin.tar.gz\n' +
-      '       od plugin install <name>[@version|tag|range]  # resolves through configured marketplaces');
+    console.error(
+      "Usage: od plugin install <source-or-name>\n" +
+        "       od plugin install ./local-folder\n" +
+        "       od plugin install github:owner/repo[@ref][/subpath]\n" +
+        "       od plugin install https://example.com/plugin.tar.gz\n" +
+        "       od plugin install <name>[@version|tag|range]  # resolves through configured marketplaces"
+    );
     process.exit(2);
   }
-  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, '')}/api/plugins/install`;
+  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, "")}/api/plugins/install`;
   const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-    body: JSON.stringify({ source }),
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "text/event-stream" },
+    body: JSON.stringify({ source })
   });
   if (!resp.ok || !resp.body) {
     console.error(`POST /api/plugins/install failed: ${resp.status} ${await resp.text()}`);
@@ -2548,7 +2783,7 @@ async function runPluginInstall(rest) {
   }
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
   let exitCode = 0;
   const events = [];
   let finalEvent = null;
@@ -2556,36 +2791,43 @@ async function runPluginInstall(rest) {
     const { value, done } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    const blocks = buffer.split('\n\n');
-    buffer = blocks.pop() ?? '';
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() ?? "";
     for (const block of blocks) {
-      const lines = block.split('\n');
-      const eventLine = lines.find((l) => l.startsWith('event: '));
-      const dataLine  = lines.find((l) => l.startsWith('data: '));
-      const event = eventLine ? eventLine.slice('event: '.length) : 'message';
-      const data = dataLine ? safeParseJson(dataLine.slice('data: '.length)) : null;
+      const lines = block.split("\n");
+      const eventLine = lines.find((l) => l.startsWith("event: "));
+      const dataLine = lines.find((l) => l.startsWith("data: "));
+      const event = eventLine ? eventLine.slice("event: ".length) : "message";
+      const data = dataLine ? safeParseJson(dataLine.slice("data: ".length)) : null;
       events.push({ event, data });
-      if (event === 'progress') {
-        if (!flags.json) console.log(`[install] ${data?.phase ?? '...'}: ${data?.message ?? ''}`);
-      } else if (event === 'success') {
+      if (event === "progress") {
+        if (!flags.json) console.log(`[install] ${data?.phase ?? "..."}: ${data?.message ?? ""}`);
+      } else if (event === "success") {
         finalEvent = data;
-        if (!flags.json) console.log(`[install] ok — ${data?.plugin?.id}@${data?.plugin?.version} (trust=${data?.plugin?.trust})`);
+        if (!flags.json)
+          console.log(`[install] ok — ${data?.plugin?.id}@${data?.plugin?.version} (trust=${data?.plugin?.trust})`);
         if (!flags.json && Array.isArray(data?.warnings) && data.warnings.length > 0) {
           for (const w of data.warnings) console.log(`[install] warn: ${w}`);
         }
-      } else if (event === 'error') {
+      } else if (event === "error") {
         finalEvent = data;
-        if (!flags.json) console.error(`[install] error: ${data?.message ?? 'unknown'}`);
+        if (!flags.json) console.error(`[install] error: ${data?.message ?? "unknown"}`);
         exitCode = 1;
       }
     }
   }
   if (flags.json) {
-    process.stdout.write(JSON.stringify({
-      ok: exitCode === 0,
-      result: finalEvent,
-      events,
-    }, null, 2) + '\n');
+    process.stdout.write(
+      JSON.stringify(
+        {
+          ok: exitCode === 0,
+          result: finalEvent,
+          events
+        },
+        null,
+        2
+      ) + "\n"
+    );
   }
   process.exit(exitCode);
 }
@@ -2599,7 +2841,7 @@ async function runPluginInstall(rest) {
 // backlog and exits when the daemon closes the stream.
 async function runPluginEvents(rest) {
   const sub = rest[0];
-  if (!sub || sub === 'help' || rest.includes('--help') || rest.includes('-h')) {
+  if (!sub || sub === "help" || rest.includes("--help") || rest.includes("-h")) {
     console.log(`Usage:
   od plugin events tail     [-f] [--since <id>] [--kind <k>] [--plugin-id <id>] [--json]
   od plugin events snapshot [--since <id>] [--kind <k>] [--plugin-id <id>] [--json]
@@ -2623,15 +2865,14 @@ Lifecycle vocabulary:
     process.exit(sub ? 0 : 2);
   }
   const flags = parseFlags(rest.slice(1), {
-    string:  new Set([...PLUGIN_STRING_FLAGS, 'since', 'kind', 'plugin-id']),
-    boolean: new Set([...PLUGIN_BOOLEAN_FLAGS, 'f', 'follow']),
+    string: new Set([...PLUGIN_STRING_FLAGS, "since", "kind", "plugin-id"]),
+    boolean: new Set([...PLUGIN_BOOLEAN_FLAGS, "f", "follow"])
   });
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
-  const since = typeof flags.since === 'string' ? Number(flags.since) : 0;
-  const kindFilter = typeof flags.kind === 'string' && flags.kind.length > 0 ? flags.kind : null;
-  const pluginIdFilter = typeof flags['plugin-id'] === 'string' && flags['plugin-id'].length > 0
-    ? flags['plugin-id']
-    : null;
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
+  const since = typeof flags.since === "string" ? Number(flags.since) : 0;
+  const kindFilter = typeof flags.kind === "string" && flags.kind.length > 0 ? flags.kind : null;
+  const pluginIdFilter =
+    typeof flags["plugin-id"] === "string" && flags["plugin-id"].length > 0 ? flags["plugin-id"] : null;
   const matches = (ev) => {
     if (!ev) return false;
     if (kindFilter && ev.kind !== kindFilter) return false;
@@ -2639,8 +2880,8 @@ Lifecycle vocabulary:
     return true;
   };
 
-  if (sub === 'snapshot') {
-    const url = `${base}/api/plugins/events/snapshot${Number.isFinite(since) && since > 0 ? `?since=${since}` : ''}`;
+  if (sub === "snapshot") {
+    const url = `${base}/api/plugins/events/snapshot${Number.isFinite(since) && since > 0 ? `?since=${since}` : ""}`;
     const resp = await fetch(url);
     if (!resp.ok) {
       console.error(`GET ${url} failed: ${resp.status} ${await resp.text()}`);
@@ -2649,48 +2890,53 @@ Lifecycle vocabulary:
     const data = await resp.json();
     const events = (Array.isArray(data?.events) ? data.events : []).filter(matches);
     if (flags.json) {
-      process.stdout.write(JSON.stringify({ events, count: events.length, generatedAt: data?.generatedAt }, null, 2) + '\n');
+      process.stdout.write(
+        JSON.stringify({ events, count: events.length, generatedAt: data?.generatedAt }, null, 2) + "\n"
+      );
       return;
     }
     if (events.length === 0) {
-      console.log('[events snapshot] no events match filter');
+      console.log("[events snapshot] no events match filter");
       return;
     }
     for (const ev of events) {
-      const ts = ev.at ? new Date(ev.at).toISOString() : '?';
-      const detailKeys = ev.details ? Object.keys(ev.details).slice(0, 3).join(',') : '';
-      console.log(`#${ev.id}  ${ts}  ${ev.kind}  pluginId=${ev.pluginId || '-'}` +
-        (detailKeys ? `  details=${detailKeys}` : ''));
+      const ts = ev.at ? new Date(ev.at).toISOString() : "?";
+      const detailKeys = ev.details ? Object.keys(ev.details).slice(0, 3).join(",") : "";
+      console.log(
+        `#${ev.id}  ${ts}  ${ev.kind}  pluginId=${ev.pluginId || "-"}` + (detailKeys ? `  details=${detailKeys}` : "")
+      );
     }
     return;
   }
 
-  if (sub === 'purge') {
+  if (sub === "purge") {
     // Refuse to run without an explicit --confirm so 'od plugin
     // events purge' alone never drops audit data accidentally.
     const purgeFlags = parseFlags(rest.slice(1), {
-      string:  new Set(['daemon-url']),
-      boolean: new Set(['help', 'h', 'json', 'confirm']),
+      string: new Set(["daemon-url"]),
+      boolean: new Set(["help", "h", "json", "confirm"])
     });
     if (!purgeFlags.confirm) {
-      console.error('[events purge] refusing without --confirm. This drops every event in the in-memory buffer.');
+      console.error("[events purge] refusing without --confirm. This drops every event in the in-memory buffer.");
       process.exit(2);
     }
-    const resp = await fetch(`${base}/api/plugins/events/purge`, { method: 'POST' });
+    const resp = await fetch(`${base}/api/plugins/events/purge`, { method: "POST" });
     if (!resp.ok) {
       console.error(`POST /api/plugins/events/purge failed: ${resp.status} ${await resp.text()}`);
       process.exit(1);
     }
     const data = await resp.json();
     if (purgeFlags.json) {
-      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     } else {
-      console.log(`[events purge] dropped ${data.purged ?? 0} event${(data.purged ?? 0) === 1 ? '' : 's'} (id range: ${data.firstId ?? '(none)'} \u2192 ${data.lastId ?? '(none)'}; preNextId=${data.preNextId})`);
+      console.log(
+        `[events purge] dropped ${data.purged ?? 0} event${(data.purged ?? 0) === 1 ? "" : "s"} (id range: ${data.firstId ?? "(none)"} \u2192 ${data.lastId ?? "(none)"}; preNextId=${data.preNextId})`
+      );
     }
     return;
   }
 
-  if (sub === 'stats') {
+  if (sub === "stats") {
     const resp = await fetch(`${base}/api/plugins/events/stats`);
     if (!resp.ok) {
       console.error(`GET /api/plugins/events/stats failed: ${resp.status} ${await resp.text()}`);
@@ -2698,46 +2944,48 @@ Lifecycle vocabulary:
     }
     const data = await resp.json();
     if (flags.json) {
-      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       return;
     }
     const s = data?.stats ?? {};
-    console.log('# Plugin events');
+    console.log("# Plugin events");
     console.log(`  total:           ${s.total ?? 0}`);
     console.log(`  by kind:         ${formatCounts(s.byKind)}`);
     console.log(`  by pluginId:     ${formatCounts(s.byPluginId)}`);
     console.log(`  oldest at:       ${formatTimestamp(s.oldestAt)}`);
     console.log(`  newest at:       ${formatTimestamp(s.newestAt)}`);
-    console.log(`  id range:        ${s.firstId ?? '(none)'} \u2192 ${s.lastId ?? '(none)'}`);
+    console.log(`  id range:        ${s.firstId ?? "(none)"} \u2192 ${s.lastId ?? "(none)"}`);
     return;
   }
 
-  if (sub !== 'tail') {
+  if (sub !== "tail") {
     console.error(`unknown subcommand: od plugin events ${sub}`);
     process.exit(2);
   }
   const follow = flags.f === true || flags.follow === true;
-  const url = `${base}/api/plugins/events${Number.isFinite(since) && since > 0 ? `?since=${since}` : ''}`;
-  const resp = await fetch(url, { headers: { accept: 'text/event-stream' } });
+  const url = `${base}/api/plugins/events${Number.isFinite(since) && since > 0 ? `?since=${since}` : ""}`;
+  const resp = await fetch(url, { headers: { accept: "text/event-stream" } });
   if (!resp.ok || !resp.body) {
     console.error(`GET ${url} failed: ${resp.status} ${await resp.text()}`);
     process.exit(1);
   }
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
   const renderEvent = (channel, data) => {
     if (!matches(data)) return;
     if (flags.json) {
-      process.stdout.write(JSON.stringify({ channel, ...data }) + '\n');
+      process.stdout.write(JSON.stringify({ channel, ...data }) + "\n");
       return;
     }
-    const ts = data?.at ? new Date(data.at).toISOString() : '?';
-    const id = data?.id ?? '?';
-    const tag = channel === 'backlog' ? '[bk]' : '[ev]';
-    const detailKeys = data?.details ? Object.keys(data.details).slice(0, 3).join(',') : '';
-    console.log(`${tag} #${id}  ${ts}  ${data?.kind ?? '?'}  pluginId=${data?.pluginId ?? '-'}` +
-      (detailKeys ? `  details=${detailKeys}` : ''));
+    const ts = data?.at ? new Date(data.at).toISOString() : "?";
+    const id = data?.id ?? "?";
+    const tag = channel === "backlog" ? "[bk]" : "[ev]";
+    const detailKeys = data?.details ? Object.keys(data.details).slice(0, 3).join(",") : "";
+    console.log(
+      `${tag} #${id}  ${ts}  ${data?.kind ?? "?"}  pluginId=${data?.pluginId ?? "-"}` +
+        (detailKeys ? `  details=${detailKeys}` : "")
+    );
   };
   // Read until the daemon closes the stream OR --follow keeps it open
   // forever. Without --follow we still let the daemon drain the
@@ -2753,7 +3001,11 @@ Lifecycle vocabulary:
     const idleTimer = setInterval(() => {
       if (Date.now() - lastChunkAt > idleMs) {
         clearInterval(idleTimer);
-        try { reader.cancel(); } catch { /* ignore */ }
+        try {
+          reader.cancel();
+        } catch {
+          /* ignore */
+        }
       }
     }, 100);
     try {
@@ -2762,14 +3014,18 @@ Lifecycle vocabulary:
         if (done) break;
         lastChunkAt = Date.now();
         buffer += decoder.decode(value, { stream: true });
-        const blocks = buffer.split('\n\n');
-        buffer = blocks.pop() ?? '';
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() ?? "";
         for (const block of blocks) {
-          const lines = block.split('\n');
-          const ev = lines.find((l) => l.startsWith('event: '))?.slice('event: '.length) ?? 'message';
-          const dat = lines.find((l) => l.startsWith('data: '))?.slice('data: '.length);
+          const lines = block.split("\n");
+          const ev = lines.find((l) => l.startsWith("event: "))?.slice("event: ".length) ?? "message";
+          const dat = lines.find((l) => l.startsWith("data: "))?.slice("data: ".length);
           if (!dat) continue;
-          try { renderEvent(ev, JSON.parse(dat)); } catch { /* ignore */ }
+          try {
+            renderEvent(ev, JSON.parse(dat));
+          } catch {
+            /* ignore */
+          }
         }
       }
     } finally {
@@ -2782,14 +3038,18 @@ Lifecycle vocabulary:
     const { value, done } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    const blocks = buffer.split('\n\n');
-    buffer = blocks.pop() ?? '';
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() ?? "";
     for (const block of blocks) {
-      const lines = block.split('\n');
-      const ev = lines.find((l) => l.startsWith('event: '))?.slice('event: '.length) ?? 'message';
-      const dat = lines.find((l) => l.startsWith('data: '))?.slice('data: '.length);
+      const lines = block.split("\n");
+      const ev = lines.find((l) => l.startsWith("event: "))?.slice("event: ".length) ?? "message";
+      const dat = lines.find((l) => l.startsWith("data: "))?.slice("data: ".length);
       if (!dat) continue;
-      try { renderEvent(ev, JSON.parse(dat)); } catch { /* ignore */ }
+      try {
+        renderEvent(ev, JSON.parse(dat));
+      } catch {
+        /* ignore */
+      }
     }
   }
 }
@@ -2808,10 +3068,10 @@ Lifecycle vocabulary:
 // check; useful as a one-liner CI check for a plugin's repo.
 async function runPluginVerify(rest) {
   const flags = parseFlags(rest, {
-    string:  new Set([...PLUGIN_STRING_FLAGS, 'config']),
-    boolean: PLUGIN_BOOLEAN_FLAGS,
+    string: new Set([...PLUGIN_STRING_FLAGS, "config"]),
+    boolean: PLUGIN_BOOLEAN_FLAGS
   });
-  const positional = rest.filter((a) => !a.startsWith('-'));
+  const positional = rest.filter((a) => !a.startsWith("-"));
   const id = positional[0];
   if (flags.help || flags.h || !id) {
     console.log(`Usage:
@@ -2847,7 +3107,7 @@ Exit codes:
   2  CLI usage error / plugin not found / config malformed`);
     process.exit(id ? 0 : 2);
   }
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
 
   // 1. Resolve the plugin record (fsPath + manifest).
   const pluginResp = await fetch(`${base}/api/plugins/${encodeURIComponent(id)}`);
@@ -2862,19 +3122,22 @@ Exit codes:
   const plugin = await pluginResp.json();
 
   // 2. Load .od-verify.json from --config or <fsPath>/.od-verify.json.
-  const fs = await import('node:fs/promises');
-  const path = await import('node:path');
-  const configPath = typeof flags.config === 'string'
-    ? path.resolve(flags.config)
-    : (typeof plugin?.fsPath === 'string' ? path.join(plugin.fsPath, '.od-verify.json') : null);
-  let config = { enabled: ['doctor', 'simulate', 'canon'] };
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
+  const configPath =
+    typeof flags.config === "string"
+      ? path.resolve(flags.config)
+      : typeof plugin?.fsPath === "string"
+        ? path.join(plugin.fsPath, ".od-verify.json")
+        : null;
+  let config = { enabled: ["doctor", "simulate", "canon"] };
   if (configPath) {
     try {
-      const raw = await fs.readFile(configPath, 'utf8');
+      const raw = await fs.readFile(configPath, "utf8");
       config = JSON.parse(raw);
     } catch (err) {
       const e = err;
-      if (e?.code !== 'ENOENT') {
+      if (e?.code !== "ENOENT") {
         console.error(`[verify] cannot read config ${configPath}: ${e?.message ?? e}`);
         process.exit(2);
       }
@@ -2884,10 +3147,13 @@ Exit codes:
   }
 
   // 3. doctor (when enabled)
-  const enabledSet = new Set((config.enabled ?? ['doctor', 'simulate', 'canon']).filter((c) =>
-    c === 'doctor' || c === 'simulate' || c === 'canon'));
+  const enabledSet = new Set(
+    (config.enabled ?? ["doctor", "simulate", "canon"]).filter(
+      (c) => c === "doctor" || c === "simulate" || c === "canon"
+    )
+  );
   let doctorReport = null;
-  if (enabledSet.has('doctor')) {
+  if (enabledSet.has("doctor")) {
     const doctorResp = await fetch(`${base}/api/plugins/${encodeURIComponent(id)}/doctor`);
     if (doctorResp.ok) {
       doctorReport = await doctorResp.json();
@@ -2896,16 +3162,16 @@ Exit codes:
 
   // 4. simulate (when enabled)
   let simulateReport = null;
-  if (enabledSet.has('simulate')) {
+  if (enabledSet.has("simulate")) {
     const pipeline = plugin?.manifest?.od?.pipeline;
     if (pipeline && Array.isArray(pipeline.stages) && pipeline.stages.length > 0) {
-      const { simulatePipeline } = await import('./plugins/simulate.js');
+      const { simulatePipeline } = await import("./plugins/simulate.js");
       simulateReport = simulatePipeline({
         pipeline,
         signals: config.simulate?.signals ?? {},
-        ...(typeof config.simulate?.iterationCap === 'number' && config.simulate.iterationCap > 0
+        ...(typeof config.simulate?.iterationCap === "number" && config.simulate.iterationCap > 0
           ? { iterationCap: config.simulate.iterationCap }
-          : {}),
+          : {})
       });
     }
   }
@@ -2913,22 +3179,24 @@ Exit codes:
   // 5. canon (when enabled + fixture supplied)
   let canonActual = null;
   let canonExpected = null;
-  if (enabledSet.has('canon') && config.canon?.snapshotId && config.canon?.fixturePath) {
+  if (enabledSet.has("canon") && config.canon?.snapshotId && config.canon?.fixturePath) {
     const fixturePath = path.resolve(
-      typeof flags.config === 'string'
+      typeof flags.config === "string"
         ? path.dirname(path.resolve(flags.config))
-        : (typeof plugin?.fsPath === 'string' ? plugin.fsPath : process.cwd()),
-      config.canon.fixturePath,
+        : typeof plugin?.fsPath === "string"
+          ? plugin.fsPath
+          : process.cwd(),
+      config.canon.fixturePath
     );
     try {
-      canonExpected = await fs.readFile(fixturePath, 'utf8');
+      canonExpected = await fs.readFile(fixturePath, "utf8");
     } catch {
       canonExpected = null;
     }
     if (canonExpected !== null) {
       const canonResp = await fetch(
         `${base}/api/applied-plugins/${encodeURIComponent(config.canon.snapshotId)}/canon`,
-        { headers: { accept: 'text/plain' } },
+        { headers: { accept: "text/plain" } }
       );
       if (canonResp.ok) {
         canonActual = await canonResp.text();
@@ -2937,28 +3205,26 @@ Exit codes:
   }
 
   // 6. Aggregate.
-  const { verifyPlugin } = await import('./plugins/verify.js');
+  const { verifyPlugin } = await import("./plugins/verify.js");
   const report = verifyPlugin({
     config: {
       enabled: [...enabledSet],
-      ...(config.strict   === true     ? { strict:   true }      : {}),
-      ...(config.simulate              ? { simulate: config.simulate } : {}),
-      ...(config.canon                 ? { canon:    config.canon    } : {}),
+      ...(config.strict === true ? { strict: true } : {}),
+      ...(config.simulate ? { simulate: config.simulate } : {}),
+      ...(config.canon ? { canon: config.canon } : {})
     },
-    ...(doctorReport   ? { doctor:        doctorReport } : {}),
-    ...(simulateReport ? { simulate:      simulateReport } : {}),
-    ...(canonActual    ? { canon:         canonActual } : {}),
-    ...(canonExpected  ? { canonExpected: canonExpected } : {}),
+    ...(doctorReport ? { doctor: doctorReport } : {}),
+    ...(simulateReport ? { simulate: simulateReport } : {}),
+    ...(canonActual ? { canon: canonActual } : {}),
+    ...(canonExpected ? { canonExpected: canonExpected } : {})
   });
   if (flags.json) {
-    process.stdout.write(JSON.stringify({ pluginId: id, ...report }, null, 2) + '\n');
+    process.stdout.write(JSON.stringify({ pluginId: id, ...report }, null, 2) + "\n");
   } else {
-    console.log(`[verify] plugin ${id} \u2014 ${report.passed ? 'PASSED' : 'FAILED'}`);
+    console.log(`[verify] plugin ${id} \u2014 ${report.passed ? "PASSED" : "FAILED"}`);
     for (const o of report.outcomes) {
-      const tag = o.status === 'passed' ? '\u2713'
-                : o.status === 'failed' ? '\u2717'
-                : o.status === 'skipped' ? '-'
-                : '!';
+      const tag =
+        o.status === "passed" ? "\u2713" : o.status === "failed" ? "\u2717" : o.status === "skipped" ? "-" : "!";
       console.log(`  ${tag} ${o.summary}`);
     }
   }
@@ -2978,10 +3244,10 @@ Exit codes:
 // tests.passing); unknown keys surface as warnings.
 async function runPluginSimulate(rest) {
   const flags = parseFlags(rest, {
-    string:  new Set([...PLUGIN_STRING_FLAGS, 's', 'cap']),
-    boolean: PLUGIN_BOOLEAN_FLAGS,
+    string: new Set([...PLUGIN_STRING_FLAGS, "s", "cap"]),
+    boolean: PLUGIN_BOOLEAN_FLAGS
   });
-  const positional = rest.filter((a) => !a.startsWith('-'));
+  const positional = rest.filter((a) => !a.startsWith("-"));
   const id = positional[0];
   if (flags.help || flags.h || !id) {
     console.log(`Usage:
@@ -3013,13 +3279,13 @@ Closed signal vocabulary:
   // Collect every -s value (parseFlags returns the last only).
   const sValues = [];
   for (let i = 0; i < rest.length; i++) {
-    if ((rest[i] === '-s' || rest[i] === '--signal') && typeof rest[i + 1] === 'string') {
+    if ((rest[i] === "-s" || rest[i] === "--signal") && typeof rest[i + 1] === "string") {
       sValues.push(rest[i + 1]);
     }
   }
   // Fetch the plugin from the daemon so we get the resolved
   // manifest (including pipeline).
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
   const resp = await fetch(`${base}/api/plugins/${encodeURIComponent(id)}`);
   if (resp.status === 404) {
     console.error(`plugin ${id} not found`);
@@ -3033,40 +3299,45 @@ Closed signal vocabulary:
   const pipeline = plugin?.manifest?.od?.pipeline;
   if (!pipeline || !Array.isArray(pipeline.stages) || pipeline.stages.length === 0) {
     if (flags.json) {
-      process.stdout.write(JSON.stringify({ outcome: 'no-pipeline', stages: [] }, null, 2) + '\n');
+      process.stdout.write(JSON.stringify({ outcome: "no-pipeline", stages: [] }, null, 2) + "\n");
     } else {
       console.log(`[simulate] plugin ${id} has no od.pipeline (or it is empty); nothing to walk.`);
     }
     return;
   }
-  const { simulatePipeline, parseSignalKv } = await import('./plugins/simulate.js');
+  const { simulatePipeline, parseSignalKv } = await import("./plugins/simulate.js");
   const parsedSignals = parseSignalKv(sValues);
   for (const w of parsedSignals.warnings) console.warn(`[simulate] warn: ${w}`);
-  const cap = typeof flags.cap === 'string' ? Number(flags.cap) : undefined;
+  const cap = typeof flags.cap === "string" ? Number(flags.cap) : undefined;
   const result = simulatePipeline({
     pipeline,
     signals: parsedSignals.signals,
-    ...(Number.isFinite(cap) && cap > 0 ? { iterationCap: cap } : {}),
+    ...(Number.isFinite(cap) && cap > 0 ? { iterationCap: cap } : {})
   });
   if (flags.json) {
-    process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
     return;
   }
   console.log(`[simulate] plugin ${id} \u2014 outcome: ${result.outcome}, totalIterations: ${result.totalIterations}`);
   for (const stage of result.stages) {
-    const tag = stage.outcome === 'converged' ? '\u2713'
-              : stage.outcome === 'cap'         ? '\u2717'
-              : stage.outcome === 'unparsable'  ? '!'
-              :                                   '\u2014';
-    const reason = stage.reason ? `  (${stage.reason})` : '';
-    const matched = stage.matched && stage.matched.length > 0
-      ? `  matched=[${stage.matched.map((c) => `${c.signal}${c.op}${c.value}`).join(' && ')}]`
-      : '';
+    const tag =
+      stage.outcome === "converged"
+        ? "\u2713"
+        : stage.outcome === "cap"
+          ? "\u2717"
+          : stage.outcome === "unparsable"
+            ? "!"
+            : "\u2014";
+    const reason = stage.reason ? `  (${stage.reason})` : "";
+    const matched =
+      stage.matched && stage.matched.length > 0
+        ? `  matched=[${stage.matched.map((c) => `${c.signal}${c.op}${c.value}`).join(" && ")}]`
+        : "";
     console.log(`  ${tag} ${stage.stageId}: ${stage.outcome} (${stage.iterations} iter)${reason}${matched}`);
   }
   // Exit non-zero on cap-hit / unparsable so CI can wire this
   // into a pipeline check easily.
-  if (result.outcome === 'cap-hit' || result.outcome === 'unparsable') process.exit(4);
+  if (result.outcome === "cap-hit" || result.outcome === "unparsable") process.exit(4);
 }
 
 // Plan §3.CC1 / §3.DD2 — `od plugin canon <snapshotId>`. Prints the
@@ -3081,10 +3352,10 @@ Closed signal vocabulary:
 // equality without writing a new test harness.
 async function runPluginCanon(rest) {
   const flags = parseFlags(rest, {
-    string:  new Set([...PLUGIN_STRING_FLAGS, 'check']),
-    boolean: PLUGIN_BOOLEAN_FLAGS,
+    string: new Set([...PLUGIN_STRING_FLAGS, "check"]),
+    boolean: PLUGIN_BOOLEAN_FLAGS
   });
-  const positional = rest.filter((a) => !a.startsWith('-'));
+  const positional = rest.filter((a) => !a.startsWith("-"));
   const id = positional[0];
   if (flags.help || flags.h || !id) {
     console.log(`Usage:
@@ -3101,12 +3372,12 @@ exits 4 on mismatch. Useful for committing renderPluginBlock()
 fixtures into a plugin's own tests/.`);
     process.exit(id ? 0 : 2);
   }
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
   const url = `${base}/api/applied-plugins/${encodeURIComponent(id)}/canon`;
-  const checkPath = typeof flags.check === 'string' ? flags.check : null;
+  const checkPath = typeof flags.check === "string" ? flags.check : null;
   // --check always wants the raw text output; force text/plain.
   const wantsText = !flags.json || checkPath !== null;
-  const headers = { accept: wantsText ? 'text/plain' : 'application/json' };
+  const headers = { accept: wantsText ? "text/plain" : "application/json" };
   const resp = await fetch(url, { headers });
   if (resp.status === 404) {
     console.error(`snapshot ${id} not found`);
@@ -3117,10 +3388,10 @@ fixtures into a plugin's own tests/.`);
     process.exit(1);
   }
   if (checkPath) {
-    const fs = await import('node:fs/promises');
+    const fs = await import("node:fs/promises");
     let expected;
     try {
-      expected = await fs.readFile(checkPath, 'utf8');
+      expected = await fs.readFile(checkPath, "utf8");
     } catch (err) {
       console.error(`[canon --check] cannot read ${checkPath}: ${err?.message ?? err}`);
       process.exit(2);
@@ -3135,26 +3406,26 @@ fixtures into a plugin's own tests/.`);
     console.error(`[canon --check] \u2717 mismatch with ${checkPath}`);
     console.error(`  expected length: ${expected.length} bytes`);
     console.error(`  actual length:   ${actual.length} bytes`);
-    const expectedLines = expected.split('\n');
-    const actualLines   = actual.split('\n');
+    const expectedLines = expected.split("\n");
+    const actualLines = actual.split("\n");
     const limit = Math.min(Math.max(expectedLines.length, actualLines.length), 40);
     for (let i = 0; i < limit; i++) {
       if (expectedLines[i] !== actualLines[i]) {
         console.error(`  line ${i + 1}:`);
         if (expectedLines[i] !== undefined) console.error(`    - ${expectedLines[i]}`);
-        if (actualLines[i]   !== undefined) console.error(`    + ${actualLines[i]}`);
+        if (actualLines[i] !== undefined) console.error(`    + ${actualLines[i]}`);
       }
     }
     process.exit(4);
   }
   if (flags.json) {
     const data = await resp.json();
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     return;
   }
   const body = await resp.text();
   process.stdout.write(body);
-  if (!body.endsWith('\n')) process.stdout.write('\n');
+  if (!body.endsWith("\n")) process.stdout.write("\n");
 }
 
 // Plan §3.AA1 — `od plugin diff <a> <b>`. Compares two installed
@@ -3162,7 +3433,7 @@ fixtures into a plugin's own tests/.`);
 // debugging replay invariance + reviewing version bumps.
 async function runPluginDiff(rest) {
   const flags = parseFlags(rest, { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const positional = rest.filter((a) => !a.startsWith('-'));
+  const positional = rest.filter((a) => !a.startsWith("-"));
   if (flags.help || flags.h || positional.length < 2) {
     console.log(`Usage:
   od plugin diff <id-a> <id-b> [--json]
@@ -3173,10 +3444,10 @@ into 'added' / 'removed' / 'changed' with one line per field.`);
     process.exit(positional.length < 2 ? 2 : 0);
   }
   const [idA, idB] = positional;
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
   const [respA, respB] = await Promise.all([
     fetch(`${base}/api/plugins/${encodeURIComponent(idA)}`),
-    fetch(`${base}/api/plugins/${encodeURIComponent(idB)}`),
+    fetch(`${base}/api/plugins/${encodeURIComponent(idB)}`)
   ]);
   if (!respA.ok) {
     console.error(`GET /api/plugins/${idA} failed: ${respA.status}`);
@@ -3188,57 +3459,61 @@ into 'added' / 'removed' / 'changed' with one line per field.`);
   }
   const a = await respA.json();
   const b = await respB.json();
-  const { diffPlugins } = await import('./plugins/diff.js');
+  const { diffPlugins } = await import("./plugins/diff.js");
   const report = diffPlugins({ a, b });
   if (flags.json) {
-    process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(report, null, 2) + "\n");
     return;
   }
   if (report.entries.length === 0) {
     console.log(`[diff] ${idA} and ${idB} are equivalent on every recorded field.`);
     return;
   }
-  console.log(`[diff] ${idA} \u2194 ${idB} — ${report.added} added, ${report.removed} removed, ${report.changed} changed`);
+  console.log(
+    `[diff] ${idA} \u2194 ${idB} — ${report.added} added, ${report.removed} removed, ${report.changed} changed`
+  );
   for (const e of report.entries) {
-    const tag = e.kind === 'added'   ? '+'
-              : e.kind === 'removed' ? '-'
-              : '~';
+    const tag = e.kind === "added" ? "+" : e.kind === "removed" ? "-" : "~";
     if (e.summary) {
       console.log(`  ${tag} ${e.field}  (${e.summary})`);
-    } else if (e.kind === 'changed') {
-      console.log(`  ${tag} ${e.field}: ${e.before ?? ''} \u2192 ${e.after ?? ''}`);
-    } else if (e.kind === 'added') {
-      console.log(`  ${tag} ${e.field}: ${e.after ?? ''}`);
+    } else if (e.kind === "changed") {
+      console.log(`  ${tag} ${e.field}: ${e.before ?? ""} \u2192 ${e.after ?? ""}`);
+    } else if (e.kind === "added") {
+      console.log(`  ${tag} ${e.field}: ${e.after ?? ""}`);
     } else {
-      console.log(`  ${tag} ${e.field}: ${e.before ?? ''}`);
+      console.log(`  ${tag} ${e.field}: ${e.before ?? ""}`);
     }
   }
 }
 
 async function runPluginUpgrade(rest) {
   const flags = parseFlags(rest, { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const id = rest.find((a) => !a.startsWith('-') && a !== flags['daemon-url'] && a !== flags.source);
+  const id = rest.find((a) => !a.startsWith("-") && a !== flags["daemon-url"] && a !== flags.source);
   if (!id) {
-    console.error('Usage: od plugin upgrade <id> [--policy latest|pinned] [--json]');
+    console.error("Usage: od plugin upgrade <id> [--policy latest|pinned] [--json]");
     process.exit(2);
   }
-  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, '')}/api/plugins/${encodeURIComponent(id)}/upgrade`;
+  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, "")}/api/plugins/${encodeURIComponent(id)}/upgrade`;
   const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "text/event-stream" },
     body: JSON.stringify({
-      policy: flags.policy === 'pinned' ? 'pinned' : 'latest',
-    }),
+      policy: flags.policy === "pinned" ? "pinned" : "latest"
+    })
   });
   if (!resp.ok || !resp.body) {
-    let msg = '';
-    try { msg = await resp.text(); } catch { msg = ''; }
+    let msg = "";
+    try {
+      msg = await resp.text();
+    } catch {
+      msg = "";
+    }
     console.error(`POST /api/plugins/${id}/upgrade failed: ${resp.status} ${msg}`);
     process.exit(1);
   }
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
   let exitCode = 0;
   const events = [];
   let finalEvent = null;
@@ -3246,84 +3521,100 @@ async function runPluginUpgrade(rest) {
     const { value, done } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    const blocks = buffer.split('\n\n');
-    buffer = blocks.pop() ?? '';
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() ?? "";
     for (const block of blocks) {
-      const lines = block.split('\n');
-      const eventLine = lines.find((l) => l.startsWith('event: '));
-      const dataLine  = lines.find((l) => l.startsWith('data: '));
-      const event = eventLine ? eventLine.slice('event: '.length) : 'message';
-      const data = dataLine ? safeParseJson(dataLine.slice('data: '.length)) : null;
+      const lines = block.split("\n");
+      const eventLine = lines.find((l) => l.startsWith("event: "));
+      const dataLine = lines.find((l) => l.startsWith("data: "));
+      const event = eventLine ? eventLine.slice("event: ".length) : "message";
+      const data = dataLine ? safeParseJson(dataLine.slice("data: ".length)) : null;
       events.push({ event, data });
-      if (event === 'progress') {
-        if (!flags.json) console.log(`[upgrade] ${data?.phase ?? '...'}: ${data?.message ?? ''}`);
-      } else if (event === 'success') {
+      if (event === "progress") {
+        if (!flags.json) console.log(`[upgrade] ${data?.phase ?? "..."}: ${data?.message ?? ""}`);
+      } else if (event === "success") {
         finalEvent = data;
-        if (!flags.json) console.log(`[upgrade] ok — ${data?.plugin?.id}@${data?.plugin?.version} (trust=${data?.plugin?.trust})`);
+        if (!flags.json)
+          console.log(`[upgrade] ok — ${data?.plugin?.id}@${data?.plugin?.version} (trust=${data?.plugin?.trust})`);
         if (!flags.json && Array.isArray(data?.warnings) && data.warnings.length > 0) {
           for (const w of data.warnings) console.log(`[upgrade] warn: ${w}`);
         }
-      } else if (event === 'error') {
+      } else if (event === "error") {
         finalEvent = data;
-        if (!flags.json) console.error(`[upgrade] error: ${data?.message ?? 'unknown'}`);
+        if (!flags.json) console.error(`[upgrade] error: ${data?.message ?? "unknown"}`);
         exitCode = 1;
       }
     }
   }
   if (flags.json) {
-    process.stdout.write(JSON.stringify({
-      ok: exitCode === 0,
-      policy: flags.policy === 'pinned' ? 'pinned' : 'latest',
-      result: finalEvent,
-      events,
-    }, null, 2) + '\n');
+    process.stdout.write(
+      JSON.stringify(
+        {
+          ok: exitCode === 0,
+          policy: flags.policy === "pinned" ? "pinned" : "latest",
+          result: finalEvent,
+          events
+        },
+        null,
+        2
+      ) + "\n"
+    );
   }
   process.exit(exitCode);
 }
 
 async function runPluginUninstall(rest) {
   const flags = parseFlags(rest, { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const id = rest.find((a) => !a.startsWith('-') && a !== flags['daemon-url'] && a !== flags.source);
+  const id = rest.find((a) => !a.startsWith("-") && a !== flags["daemon-url"] && a !== flags.source);
   if (!id) {
-    console.error('Usage: od plugin uninstall <id>');
+    console.error("Usage: od plugin uninstall <id>");
     process.exit(2);
   }
-  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, '')}/api/plugins/${encodeURIComponent(id)}/uninstall`;
-  const resp = await fetch(url, { method: 'POST' });
+  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, "")}/api/plugins/${encodeURIComponent(id)}/uninstall`;
+  const resp = await fetch(url, { method: "POST" });
   if (!resp.ok) {
     console.error(`POST /api/plugins/${id}/uninstall failed: ${resp.status} ${await resp.text()}`);
     process.exit(1);
   }
   const data = await resp.json();
-  console.log(`[uninstall] ${data?.removedFolder ? 'ok' : 'no-op'}${data?.warning ? ` (warning: ${data.warning})` : ''}`);
+  console.log(
+    `[uninstall] ${data?.removedFolder ? "ok" : "no-op"}${data?.warning ? ` (warning: ${data.warning})` : ""}`
+  );
 }
 
 async function runPluginApply(rest) {
   const flags = parseFlags(rest, { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const id = rest.find((a) => !a.startsWith('-')
-    && a !== flags['daemon-url']
-    && a !== flags.source
-    && a !== flags.inputs
-    && a !== flags.project
-    && a !== flags['grant-caps']);
+  const id = rest.find(
+    (a) =>
+      !a.startsWith("-") &&
+      a !== flags["daemon-url"] &&
+      a !== flags.source &&
+      a !== flags.inputs &&
+      a !== flags.project &&
+      a !== flags["grant-caps"]
+  );
   if (!id) {
-    console.error('Usage: od plugin apply <id> [--inputs <json>] [--input k=v ...] [--project <id>] [--grant-caps a,b]');
+    console.error(
+      "Usage: od plugin apply <id> [--inputs <json>] [--input k=v ...] [--project <id>] [--grant-caps a,b]"
+    );
     process.exit(2);
   }
   // Plan §3.B2: support both --inputs <json> and repeated --input k=v
   // forms so a code agent can build the inputs map without a JSON
   // shell-escape dance.
   let inputs = {};
-  if (typeof flags.inputs === 'string' && flags.inputs.trim().length > 0) {
-    try { inputs = JSON.parse(flags.inputs); } catch (err) {
+  if (typeof flags.inputs === "string" && flags.inputs.trim().length > 0) {
+    try {
+      inputs = JSON.parse(flags.inputs);
+    } catch (err) {
       console.error(`--inputs must be valid JSON: ${err.message}`);
       process.exit(2);
     }
   }
   for (let i = 0; i < rest.length; i++) {
-    if (rest[i] === '--input' && typeof rest[i + 1] === 'string') {
+    if (rest[i] === "--input" && typeof rest[i + 1] === "string") {
       const kv = rest[i + 1];
-      const eq = kv.indexOf('=');
+      const eq = kv.indexOf("=");
       if (eq > 0) {
         const k = kv.slice(0, eq);
         const v = kv.slice(eq + 1);
@@ -3332,42 +3623,48 @@ async function runPluginApply(rest) {
       i += 1;
     }
   }
-  const grantCaps = typeof flags['grant-caps'] === 'string' && flags['grant-caps'].length > 0
-    ? flags['grant-caps'].split(',').map((c) => c.trim()).filter(Boolean)
-    : [];
-  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, '')}/api/plugins/${encodeURIComponent(id)}/apply`;
+  const grantCaps =
+    typeof flags["grant-caps"] === "string" && flags["grant-caps"].length > 0
+      ? flags["grant-caps"]
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean)
+      : [];
+  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, "")}/api/plugins/${encodeURIComponent(id)}/apply`;
   let resp;
   try {
     resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ inputs, projectId: flags.project, grantCaps }),
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ inputs, projectId: flags.project, grantCaps })
     });
   } catch (err) {
     return exitWithStructuredError({
-      code: 'daemon-not-running',
-      message: `Cannot reach daemon at ${await pluginDaemonUrl(flags)}: ${err?.message ?? err}`,
+      code: "daemon-not-running",
+      message: `Cannot reach daemon at ${await pluginDaemonUrl(flags)}: ${err?.message ?? err}`
     });
   }
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
     if (resp.status === 422 && Array.isArray(data?.fields)) {
       return exitWithStructuredError({
-        code: 'missing-input',
-        message: `Plugin "${id}" is missing required inputs: ${data.fields.join(', ')}`,
-        data: { pluginId: id, missing: data.fields },
+        code: "missing-input",
+        message: `Plugin "${id}" is missing required inputs: ${data.fields.join(", ")}`,
+        data: { pluginId: id, missing: data.fields }
       });
     }
     return structuredHttpFailure(resp);
   }
   if (flags.json) {
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     return;
   }
   const snap = data?.appliedPlugin;
   if (snap) {
     console.log(`[apply] ${snap.pluginId}@${snap.pluginVersion} digest=${snap.manifestSourceDigest.slice(0, 12)}…`);
-    console.log(`[apply] context: ${(data.contextItems ?? []).map((c) => `${c.kind}:${c.id ?? c.name ?? c.path}`).join(', ')}`);
+    console.log(
+      `[apply] context: ${(data.contextItems ?? []).map((c) => `${c.kind}:${c.id ?? c.name ?? c.path}`).join(", ")}`
+    );
     if (Array.isArray(data.warnings) && data.warnings.length > 0) {
       for (const w of data.warnings) console.log(`[apply] warn: ${w}`);
     }
@@ -3377,8 +3674,8 @@ async function runPluginApply(rest) {
 }
 
 function coerceCliValue(raw) {
-  if (raw === 'true') return true;
-  if (raw === 'false') return false;
+  if (raw === "true") return true;
+  if (raw === "false") return false;
   if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
   return raw;
 }
@@ -3387,8 +3684,8 @@ async function runPluginCandidates(rest) {
   const sub = rest[0];
   const args = rest.slice(1);
   const flags = parseFlags(args, {
-    string: new Set(['daemon-url', 'project', 'action']),
-    boolean: new Set(['help', 'h', 'json', 'include-dismissed']),
+    string: new Set(["daemon-url", "project", "action"]),
+    boolean: new Set(["help", "h", "json", "include-dismissed"])
   });
   if (!sub || flags.help || flags.h) {
     console.log(`Usage:
@@ -3399,45 +3696,48 @@ async function runPluginCandidates(rest) {
 Lists and formalizes persisted skill-to-plugin candidates.`);
     process.exit(!sub ? 2 : 0);
   }
-  const projectId = typeof flags.project === 'string' && flags.project.length > 0 ? flags.project : '';
+  const projectId = typeof flags.project === "string" && flags.project.length > 0 ? flags.project : "";
   if (!projectId) {
-    console.error('--project <projectId> is required');
+    console.error("--project <projectId> is required");
     process.exit(2);
   }
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
-  if (sub === 'list') {
-    const qs = flags['include-dismissed'] ? '?includeDismissed=true' : '';
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
+  if (sub === "list") {
+    const qs = flags["include-dismissed"] ? "?includeDismissed=true" : "";
     const resp = await fetch(`${base}/api/projects/${encodeURIComponent(projectId)}/plugin-candidates${qs}`);
     const data = await resp.json().catch(() => null);
     if (!resp.ok) {
       console.error(`GET plugin candidates failed: ${resp.status} ${JSON.stringify(data)}`);
       process.exit(1);
     }
-    if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
     if (candidates.length === 0) {
-      console.log('No plugin candidates.');
+      console.log("No plugin candidates.");
       return;
     }
     for (const candidate of candidates) {
-      console.log(`${candidate.id}\t${candidate.status}\t${candidate.title}\t${candidate.draftPath ?? ''}`);
+      console.log(`${candidate.id}\t${candidate.status}\t${candidate.title}\t${candidate.draftPath ?? ""}`);
     }
     return;
   }
-  const candidateId = args.find((a) => !a.startsWith('-') && a !== flags.project && a !== flags.action);
+  const candidateId = args.find((a) => !a.startsWith("-") && a !== flags.project && a !== flags.action);
   if (!candidateId) {
     console.error(`candidate id is required for ${sub}`);
     process.exit(2);
   }
-  if (sub === 'draft') {
-    const resp = await fetch(`${base}/api/projects/${encodeURIComponent(projectId)}/plugin-candidates/${encodeURIComponent(candidateId)}/draft`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    });
+  if (sub === "draft") {
+    const resp = await fetch(
+      `${base}/api/projects/${encodeURIComponent(projectId)}/plugin-candidates/${encodeURIComponent(candidateId)}/draft`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}"
+      }
+    );
     const data = await resp.json().catch(() => null);
     if (flags.json) {
-      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     } else if (resp.ok) {
       console.log(`[candidate] draft: ${data.draftPath}`);
       console.log(`[candidate] validation ok=${data.validation?.ok}`);
@@ -3446,14 +3746,17 @@ Lists and formalizes persisted skill-to-plugin candidates.`);
     }
     process.exit(resp.ok ? 0 : resp.status === 422 ? 4 : 1);
   }
-  if (sub === 'dismiss') {
-    const resp = await fetch(`${base}/api/projects/${encodeURIComponent(projectId)}/plugin-candidates/${encodeURIComponent(candidateId)}/dismiss`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    });
+  if (sub === "dismiss") {
+    const resp = await fetch(
+      `${base}/api/projects/${encodeURIComponent(projectId)}/plugin-candidates/${encodeURIComponent(candidateId)}/dismiss`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}"
+      }
+    );
     const data = await resp.json().catch(() => null);
-    if (flags.json) process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    if (flags.json) process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     else if (resp.ok) console.log(`[candidate] dismissed ${candidateId}`);
     else console.error(`[candidate] dismiss failed: ${data?.message ?? JSON.stringify(data)}`);
     process.exit(resp.ok ? 0 : 1);
@@ -3472,8 +3775,8 @@ Lists and formalizes persisted skill-to-plugin candidates.`);
 // always under the author's control.
 async function runPluginPublish(rest) {
   const flags = parseFlags(rest, {
-    string: new Set(['daemon-url', 'to', 'snapshot-id', 'repo', 'catalog']),
-    boolean: new Set(['help', 'h', 'json', 'open']),
+    string: new Set(["daemon-url", "to", "snapshot-id", "repo", "catalog"]),
+    boolean: new Set(["help", "h", "json", "open"])
   });
   if (rest.length === 0 || flags.help || flags.h) {
     console.log(`Usage:
@@ -3486,24 +3789,23 @@ Pass --open to auto-launch the system browser. Use --snapshot-id to
 publish from a frozen run snapshot rather than the live installed copy.`);
     process.exit(rest.length === 0 ? 2 : 0);
   }
-  const id = rest.find((a) => !a.startsWith('-')
-    && a !== flags.to
-    && a !== flags.repo
-    && a !== flags['snapshot-id']);
-  const target = String(flags.to ?? '');
+  const id = rest.find((a) => !a.startsWith("-") && a !== flags.to && a !== flags.repo && a !== flags["snapshot-id"]);
+  const target = String(flags.to ?? "");
   if (!id) {
-    console.error('Usage: od plugin publish <pluginId> --to <catalog>');
+    console.error("Usage: od plugin publish <pluginId> --to <catalog>");
     process.exit(2);
   }
   if (!target) {
-    console.error('--to <catalog> is required (one of: open-design, anthropics-skills, awesome-agent-skills, clawhub, skills-sh)');
+    console.error(
+      "--to <catalog> is required (one of: open-design, anthropics-skills, awesome-agent-skills, clawhub, skills-sh)"
+    );
     process.exit(2);
   }
-  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await pluginDaemonUrl(flags)).replace(/\/$/, "");
   // Pull the plugin metadata from the daemon. We do this through the
   // existing /api/plugins/:id endpoint so the CLI never needs a direct
   // SQLite handle; everything stays loopback-mediated.
-  let meta = { pluginId: id, pluginVersion: '0.0.0' };
+  let meta = { pluginId: id, pluginVersion: "0.0.0" };
   try {
     const resp = await fetch(`${base}/api/plugins/${encodeURIComponent(id)}`);
     if (resp.ok) {
@@ -3515,20 +3817,16 @@ publish from a frozen run snapshot rather than the live installed copy.`);
       // real value the author wrote. Mirror `plugins/marketplaces.ts:298,328`
       // and prefer the manifest version when the stored row reads as the
       // pre-handshake sentinel. Closes #1765.
-      const storedVersion = typeof row.version === 'string' && row.version.length > 0
-        ? row.version
-        : null;
-      const manifestVersion = typeof row.manifest?.version === 'string' && row.manifest.version.length > 0
-        ? row.manifest.version
-        : null;
-      const resolvedVersion = (storedVersion && storedVersion !== '0.0.0')
-        ? storedVersion
-        : (manifestVersion ?? storedVersion ?? '0.0.0');
+      const storedVersion = typeof row.version === "string" && row.version.length > 0 ? row.version : null;
+      const manifestVersion =
+        typeof row.manifest?.version === "string" && row.manifest.version.length > 0 ? row.manifest.version : null;
+      const resolvedVersion =
+        storedVersion && storedVersion !== "0.0.0" ? storedVersion : (manifestVersion ?? storedVersion ?? "0.0.0");
       meta = {
-        pluginId:          row.id ?? id,
-        pluginVersion:     resolvedVersion,
-        ...(row.title              ? { pluginTitle: row.title }                       : {}),
-        ...(row.manifest?.description ? { pluginDescription: row.manifest.description } : {}),
+        pluginId: row.id ?? id,
+        pluginVersion: resolvedVersion,
+        ...(row.title ? { pluginTitle: row.title } : {}),
+        ...(row.manifest?.description ? { pluginDescription: row.manifest.description } : {})
       };
     }
   } catch {
@@ -3536,31 +3834,31 @@ publish from a frozen run snapshot rather than the live installed copy.`);
     // a link from the user's flags so the author doesn't need a daemon
     // to publish.
   }
-  if (typeof flags.repo === 'string' && flags.repo.length > 0) {
+  if (typeof flags.repo === "string" && flags.repo.length > 0) {
     meta.repoUrl = flags.repo;
   }
-  if (target === 'marketplace-json') {
-    if (typeof flags.catalog !== 'string' || flags.catalog.length === 0) {
-      console.error('--catalog <path> is required for --to marketplace-json');
+  if (target === "marketplace-json") {
+    if (typeof flags.catalog !== "string" || flags.catalog.length === 0) {
+      console.error("--catalog <path> is required for --to marketplace-json");
       process.exit(2);
     }
     if (!meta.repoUrl) {
-      console.error('--repo <github-url> is required for --to marketplace-json so the source can be reproduced');
+      console.error("--repo <github-url> is required for --to marketplace-json so the source can be reproduced");
       process.exit(2);
     }
     const outcome = await publishToMarketplaceJson({
       catalogPath: flags.catalog,
-      meta,
+      meta
     });
     if (flags.json) {
-      process.stdout.write(JSON.stringify(outcome, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(outcome, null, 2) + "\n");
     } else {
       console.log(`[publish] updated ${outcome.catalogPath}`);
       console.log(`[publish] ${outcome.entry.name}@${outcome.entry.version} -> ${outcome.entry.source}`);
     }
     return;
   }
-  const { buildPublishLink, PublishError } = await import('./plugins/publish.js');
+  const { buildPublishLink, PublishError } = await import("./plugins/publish.js");
   let link;
   try {
     link = buildPublishLink({ catalog: target, meta });
@@ -3572,26 +3870,24 @@ publish from a frozen run snapshot rather than the live installed copy.`);
     throw err;
   }
   if (flags.json) {
-    process.stdout.write(JSON.stringify(link, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(link, null, 2) + "\n");
   } else {
     console.log(`[publish] ${link.catalogLabel}`);
     console.log(link.url);
-    console.log('---');
+    console.log("---");
     console.log(link.prBody);
   }
   if (flags.open) {
-    const opener = process.platform === 'darwin' ? 'open'
-      : process.platform === 'win32' ? 'start'
-      : 'xdg-open';
-    const { spawn } = await import('node:child_process');
-    spawn(opener, [link.url], { detached: true, stdio: 'ignore' }).unref();
+    const opener = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
+    const { spawn } = await import("node:child_process");
+    spawn(opener, [link.url], { detached: true, stdio: "ignore" }).unref();
   }
 }
 
 async function runPluginPublishRepo(rest) {
   const flags = parseFlags(rest, {
-    string: new Set(['host', 'owner']),
-    boolean: new Set(['help', 'h', 'json', 'dry-run']),
+    string: new Set(["host", "owner"]),
+    boolean: new Set(["help", "h", "json", "dry-run"])
   });
   if (rest.length === 0 || flags.help || flags.h) {
     console.log(`Usage:
@@ -3603,26 +3899,22 @@ target from --owner, a trusted manifest owner, local gh auth status, then the
 GitHub API as a last resort. It never publishes to placeholder owners.`);
     process.exit(rest.length === 0 ? 2 : 0);
   }
-  const folder = rest.find((a) => !a.startsWith('-') && a !== flags.host && a !== flags.owner);
+  const folder = rest.find((a) => !a.startsWith("-") && a !== flags.host && a !== flags.owner);
   if (!folder) {
-    console.error('Usage: od plugin publish-repo <folder>');
+    console.error("Usage: od plugin publish-repo <folder>");
     process.exit(2);
   }
 
-  const [{ resolve, join }, { readFile, writeFile, stat, mkdtemp, readdir, rm, mkdir, cp }, { pathToFileURL }, os] = await Promise.all([
-    import('node:path'),
-    import('node:fs/promises'),
-    import('node:url'),
-    import('node:os'),
-  ]);
+  const [{ resolve, join }, { readFile, writeFile, stat, mkdtemp, readdir, rm, mkdir, cp }, { pathToFileURL }, os] =
+    await Promise.all([import("node:path"), import("node:fs/promises"), import("node:url"), import("node:os")]);
   const absFolder = resolve(process.cwd(), folder);
-  const manifestPath = resolve(absFolder, 'open-design.json');
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-  const host = typeof flags.host === 'string' ? flags.host : 'github.com';
-  const target = await resolvePluginGithubTarget({ host, owner: flags.owner, manifest, purpose: 'publish-repo' });
+  const manifestPath = resolve(absFolder, "open-design.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const host = typeof flags.host === "string" ? flags.host : "github.com";
+  const target = await resolvePluginGithubTarget({ host, owner: flags.owner, manifest, purpose: "publish-repo" });
   const normalized = normalizeManifestRepoForOwner(manifest, target.owner);
-  if (normalized.changed && !flags['dry-run']) {
-    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  if (normalized.changed && !flags["dry-run"]) {
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
     await pluginCliValidateFolder(absFolder);
   }
 
@@ -3633,9 +3925,9 @@ GitHub API as a last resort. It never publishes to placeholder owners.`);
   }
   const steps = [];
   const run = async (label, command, args, opts = {}) => {
-    steps.push({ label, command: [command, ...args].join(' ') });
-    if (flags['dry-run']) return { ok: true, stdout: '', stderr: '' };
-    const result = await (command === 'gh'
+    steps.push({ label, command: [command, ...args].join(" ") });
+    if (flags["dry-run"]) return { ok: true, stdout: "", stderr: "" };
+    const result = await (command === "gh"
       ? execGhBuffered(args, { cwd: opts.cwd ?? absFolder, timeout: opts.timeout ?? 120_000 })
       : execFileBuffered(command, args, { cwd: opts.cwd ?? absFolder, timeout: opts.timeout ?? 120_000 }));
     steps[steps.length - 1].ok = result.ok;
@@ -3644,7 +3936,7 @@ GitHub API as a last resort. It never publishes to placeholder owners.`);
     if (!result.ok) {
       emitPluginWorkflowResult(flags, {
         ok: false,
-        action: 'publish-repo',
+        action: "publish-repo",
         folder: absFolder,
         repoUrl: normalized.repoUrl,
         login: target.login,
@@ -3652,7 +3944,7 @@ GitHub API as a last resort. It never publishes to placeholder owners.`);
         ownerSource: target.ownerSource,
         apiRateLimited: target.apiRateLimited,
         steps,
-        error: { label, stdout: result.stdout, stderr: result.stderr, code: result.code },
+        error: { label, stdout: result.stdout, stderr: result.stderr, code: result.code }
       });
       process.exit(1);
     }
@@ -3660,16 +3952,22 @@ GitHub API as a last resort. It never publishes to placeholder owners.`);
   };
 
   let exists = false;
-  const view = flags['dry-run']
-    ? { ok: false, stderr: 'dry-run' }
-    : await execGhBuffered(['repo', 'view', repo.fullName], { cwd: absFolder, timeout: 30_000 });
-  steps.push({ label: 'check repo', command: `gh repo view ${repo.fullName}`, ok: view.ok, stdout: view.stdout, stderr: view.stderr });
+  const view = flags["dry-run"]
+    ? { ok: false, stderr: "dry-run" }
+    : await execGhBuffered(["repo", "view", repo.fullName], { cwd: absFolder, timeout: 30_000 });
+  steps.push({
+    label: "check repo",
+    command: `gh repo view ${repo.fullName}`,
+    ok: view.ok,
+    stdout: view.stdout,
+    stderr: view.stderr
+  });
   if (view.ok) {
     exists = true;
-  } else if (!flags['dry-run'] && !isRepoNotFound(view)) {
+  } else if (!flags["dry-run"] && !isRepoNotFound(view)) {
     emitPluginWorkflowResult(flags, {
       ok: false,
-      action: 'publish-repo',
+      action: "publish-repo",
       folder: absFolder,
       repoUrl: normalized.repoUrl,
       login: target.login,
@@ -3677,67 +3975,84 @@ GitHub API as a last resort. It never publishes to placeholder owners.`);
       ownerSource: target.ownerSource,
       apiRateLimited: target.apiRateLimited,
       steps,
-      error: { label: 'check repo', stdout: view.stdout, stderr: view.stderr, code: view.code },
+      error: { label: "check repo", stdout: view.stdout, stderr: view.stderr, code: view.code }
     });
     process.exit(1);
   }
 
   let workdir = absFolder;
   let cleanupDir = null;
-  if (exists && !flags['dry-run']) {
-    cleanupDir = await mkdtemp(join(os.tmpdir(), 'od-plugin-publish-sync-'));
+  if (exists && !flags["dry-run"]) {
+    cleanupDir = await mkdtemp(join(os.tmpdir(), "od-plugin-publish-sync-"));
     workdir = join(cleanupDir, repo.name);
-    await run('clone repo', 'gh', ['repo', 'clone', repo.fullName, workdir], { cwd: cleanupDir, timeout: 240_000 });
+    await run("clone repo", "gh", ["repo", "clone", repo.fullName, workdir], { cwd: cleanupDir, timeout: 240_000 });
     for (const entry of await readdir(workdir)) {
-      if (entry === '.git') continue;
+      if (entry === ".git") continue;
       await rm(join(workdir, entry), { recursive: true, force: true });
     }
     await mkdir(workdir, { recursive: true });
     for (const entry of await readdir(absFolder)) {
-      if (entry === '.git') continue;
+      if (entry === ".git") continue;
       await cp(join(absFolder, entry), join(workdir, entry), { recursive: true, force: true });
     }
-  } else if (!flags['dry-run']) {
+  } else if (!flags["dry-run"]) {
     let hasGit = false;
-    try { await stat(resolve(absFolder, '.git')); hasGit = true; } catch {}
-    if (!hasGit) await run('git init', 'git', ['init']);
+    try {
+      await stat(resolve(absFolder, ".git"));
+      hasGit = true;
+    } catch {}
+    if (!hasGit) await run("git init", "git", ["init"]);
   }
 
-  await run('git add', 'git', ['add', '-A'], { cwd: workdir });
-  const status = flags['dry-run']
-    ? { stdout: 'dry-run' }
-    : await execFileBuffered('git', ['status', '--porcelain'], { cwd: workdir });
+  await run("git add", "git", ["add", "-A"], { cwd: workdir });
+  const status = flags["dry-run"]
+    ? { stdout: "dry-run" }
+    : await execFileBuffered("git", ["status", "--porcelain"], { cwd: workdir });
   if (status.stdout.trim().length > 0 || !exists) {
     const commitMessage = exists
-      ? `Update: ${manifest.name} v${manifest.version ?? '0.0.0'}`
-      : `Initial commit: ${manifest.name} v${manifest.version ?? '0.0.0'}`;
-    await run('git commit', 'git', ['commit', '-m', commitMessage], { cwd: workdir });
+      ? `Update: ${manifest.name} v${manifest.version ?? "0.0.0"}`
+      : `Initial commit: ${manifest.name} v${manifest.version ?? "0.0.0"}`;
+    await run("git commit", "git", ["commit", "-m", commitMessage], { cwd: workdir });
   }
-  const tag = `v${manifest.version ?? '0.0.0'}`;
-  if (!flags['dry-run']) {
-    const localTag = await execFileBuffered('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], { cwd: workdir });
-    if (!localTag.ok) await run('git tag', 'git', ['tag', tag], { cwd: workdir });
+  const tag = `v${manifest.version ?? "0.0.0"}`;
+  if (!flags["dry-run"]) {
+    const localTag = await execFileBuffered("git", ["rev-parse", "-q", "--verify", `refs/tags/${tag}`], {
+      cwd: workdir
+    });
+    if (!localTag.ok) await run("git tag", "git", ["tag", tag], { cwd: workdir });
   }
 
   if (exists) {
-    await run('git push', 'git', ['push', 'origin', 'HEAD'], { cwd: workdir });
+    await run("git push", "git", ["push", "origin", "HEAD"], { cwd: workdir });
   } else {
-    await run('gh repo create', 'gh', [
-      'repo', 'create', repo.fullName, '--public', '--source', '.', '--push',
-      '--description', String(manifest.description ?? ''),
-    ], { cwd: workdir });
+    await run(
+      "gh repo create",
+      "gh",
+      [
+        "repo",
+        "create",
+        repo.fullName,
+        "--public",
+        "--source",
+        ".",
+        "--push",
+        "--description",
+        String(manifest.description ?? "")
+      ],
+      { cwd: workdir }
+    );
   }
-  await run('git push tags', 'git', ['push', '--tags'], { cwd: workdir });
-  const verify = flags['dry-run']
+  await run("git push tags", "git", ["push", "--tags"], { cwd: workdir });
+  const verify = flags["dry-run"]
     ? { ok: true, stdout: JSON.stringify({ nameWithOwner: repo.fullName, url: normalized.repoUrl }) }
-    : await run('verify repo', 'gh', ['repo', 'view', repo.fullName, '--json', 'url,nameWithOwner'], { cwd: workdir });
+    : await run("verify repo", "gh", ["repo", "view", repo.fullName, "--json", "url,nameWithOwner"], { cwd: workdir });
   const parsedVerify = safeJson(verify.stdout);
-  if (cleanupDir && !flags['dry-run']) {
+  if (cleanupDir && !flags["dry-run"]) {
     await rm(cleanupDir, { recursive: true, force: true }).catch(() => undefined);
   }
   emitPluginWorkflowResult(flags, {
     ok: true,
-    action: 'publish-repo',
+    action: "publish-repo",
     folder: absFolder,
     login: target.login,
     owner: target.owner,
@@ -3746,14 +4061,14 @@ GitHub API as a last resort. It never publishes to placeholder owners.`);
     repoUrl: parsedVerify?.url ?? normalized.repoUrl,
     manifestRewritten: normalized.changed,
     manifestPath: pathToFileURL(manifestPath).pathname,
-    steps,
+    steps
   });
 }
 
 async function runPluginOpenDesignPr(rest) {
   const flags = parseFlags(rest, {
-    string: new Set(['host', 'owner']),
-    boolean: new Set(['help', 'h', 'json', 'dry-run']),
+    string: new Set(["host", "owner"]),
+    boolean: new Set(["help", "h", "json", "dry-run"])
   });
   if (rest.length === 0 || flags.help || flags.h) {
     console.log(`Usage:
@@ -3763,35 +4078,35 @@ Copies a local plugin folder into plugins/community/<name>/ on the author's
 fork of nexu-io/open-design, pushes a branch, and opens the PR form with --web.`);
     process.exit(rest.length === 0 ? 2 : 0);
   }
-  const folder = rest.find((a) => !a.startsWith('-') && a !== flags.host && a !== flags.owner);
+  const folder = rest.find((a) => !a.startsWith("-") && a !== flags.host && a !== flags.owner);
   if (!folder) {
-    console.error('Usage: od plugin open-design-pr <folder>');
+    console.error("Usage: od plugin open-design-pr <folder>");
     process.exit(2);
   }
   const [{ resolve, join }, fsp, os] = await Promise.all([
-    import('node:path'),
-    import('node:fs/promises'),
-    import('node:os'),
+    import("node:path"),
+    import("node:fs/promises"),
+    import("node:os")
   ]);
   const absFolder = resolve(process.cwd(), folder);
-  const manifestPath = resolve(absFolder, 'open-design.json');
-  const manifest = JSON.parse(await fsp.readFile(manifestPath, 'utf8'));
-  const host = typeof flags.host === 'string' ? flags.host : 'github.com';
-  const target = await resolvePluginGithubTarget({ host, owner: flags.owner, manifest, purpose: 'open-design-pr' });
-  const name = String(manifest.name ?? '').trim();
+  const manifestPath = resolve(absFolder, "open-design.json");
+  const manifest = JSON.parse(await fsp.readFile(manifestPath, "utf8"));
+  const host = typeof flags.host === "string" ? flags.host : "github.com";
+  const target = await resolvePluginGithubTarget({ host, owner: flags.owner, manifest, purpose: "open-design-pr" });
+  const name = String(manifest.name ?? "").trim();
   if (!name) {
-    console.error('[open-design-pr] manifest.name is required');
+    console.error("[open-design-pr] manifest.name is required");
     process.exit(2);
   }
   const title = String(manifest.title ?? name).trim();
   const branch = `plugin/${name}-${Math.floor(Date.now() / 1000)}`;
-  const tmpRoot = await fsp.mkdtemp(join(os.tmpdir(), 'od-open-design-pr-'));
-  const checkout = join(tmpRoot, 'open-design');
+  const tmpRoot = await fsp.mkdtemp(join(os.tmpdir(), "od-open-design-pr-"));
+  const checkout = join(tmpRoot, "open-design");
   const steps = [];
   const run = async (label, command, args, opts = {}) => {
-    steps.push({ label, command: [command, ...args].join(' ') });
-    if (flags['dry-run']) return { ok: true, stdout: '', stderr: '' };
-    const result = await (command === 'gh'
+    steps.push({ label, command: [command, ...args].join(" ") });
+    if (flags["dry-run"]) return { ok: true, stdout: "", stderr: "" };
+    const result = await (command === "gh"
       ? execGhBuffered(args, { cwd: opts.cwd ?? process.cwd(), timeout: opts.timeout ?? 180_000 })
       : execFileBuffered(command, args, { cwd: opts.cwd ?? process.cwd(), timeout: opts.timeout ?? 180_000 }));
     steps[steps.length - 1].ok = result.ok;
@@ -3800,7 +4115,7 @@ fork of nexu-io/open-design, pushes a branch, and opens the PR form with --web.`
     if (!result.ok && !opts.tolerate?.(result)) {
       emitPluginWorkflowResult(flags, {
         ok: false,
-        action: 'open-design-pr',
+        action: "open-design-pr",
         folder: absFolder,
         login: target.login,
         owner: target.owner,
@@ -3808,56 +4123,81 @@ fork of nexu-io/open-design, pushes a branch, and opens the PR form with --web.`
         apiRateLimited: target.apiRateLimited,
         branch,
         steps,
-        error: { label, stdout: result.stdout, stderr: result.stderr, code: result.code },
+        error: { label, stdout: result.stdout, stderr: result.stderr, code: result.code }
       });
       process.exit(1);
     }
     return result;
   };
 
-  await run('fork', 'gh', ['repo', 'fork', 'nexu-io/open-design'], {
-    tolerate: (r) => /already exists|existing fork/i.test(`${r.stdout}\n${r.stderr}`),
+  await run("fork", "gh", ["repo", "fork", "nexu-io/open-design"], {
+    tolerate: (r) => /already exists|existing fork/i.test(`${r.stdout}\n${r.stderr}`)
   });
-  await run('clone fork', 'git', [
-    'clone',
-    '--depth', '1',
-    '--single-branch',
-    '--branch', 'main',
-    '--filter=blob:none',
-    '--sparse',
-    `https://github.com/${target.owner}/open-design.git`,
-    checkout,
-  ], { timeout: 240_000 });
-  await run('sparse checkout', 'git', ['sparse-checkout', 'set', 'plugins/community'], { cwd: checkout });
-  await run('checkout branch', 'git', ['checkout', '-b', branch], { cwd: checkout });
-  const dest = join(checkout, 'plugins', 'community', name);
-  if (!flags['dry-run']) {
+  await run(
+    "clone fork",
+    "git",
+    [
+      "clone",
+      "--depth",
+      "1",
+      "--single-branch",
+      "--branch",
+      "main",
+      "--filter=blob:none",
+      "--sparse",
+      `https://github.com/${target.owner}/open-design.git`,
+      checkout
+    ],
+    { timeout: 240_000 }
+  );
+  await run("sparse checkout", "git", ["sparse-checkout", "set", "plugins/community"], { cwd: checkout });
+  await run("checkout branch", "git", ["checkout", "-b", branch], { cwd: checkout });
+  const dest = join(checkout, "plugins", "community", name);
+  if (!flags["dry-run"]) {
     await fsp.rm(dest, { recursive: true, force: true });
     await fsp.mkdir(dest, { recursive: true });
-    await fsp.cp(absFolder, dest, { recursive: true, force: true, filter: (src) => !src.includes(`${absFolder}/.git`) });
+    await fsp.cp(absFolder, dest, {
+      recursive: true,
+      force: true,
+      filter: (src) => !src.includes(`${absFolder}/.git`)
+    });
   }
-  await run('git add', 'git', ['add', `plugins/community/${name}`], { cwd: checkout });
-  await run('git commit', 'git', ['commit', '-m', `Add ${title} plugin`], { cwd: checkout });
-  await run('git push branch', 'git', ['push', '-u', 'origin', branch], { cwd: checkout });
+  await run("git add", "git", ["add", `plugins/community/${name}`], { cwd: checkout });
+  await run("git commit", "git", ["commit", "-m", `Add ${title} plugin`], { cwd: checkout });
+  await run("git push branch", "git", ["push", "-u", "origin", branch], { cwd: checkout });
   const body = [
     `Add ${title} (${name}) plugin.`,
-    '',
-    `Version: ${manifest.version ?? '0.0.0'}`,
-    manifest.description ? `Description: ${manifest.description}` : '',
-  ].filter(Boolean).join('\n');
-  const pr = await run('open PR form', 'gh', [
-    'pr', 'create',
-    '--repo', 'nexu-io/open-design',
-    '--head', `${target.owner}:${branch}`,
-    '--base', 'main',
-    '--title', `Add ${title} plugin`,
-    '--body', body,
-    '--web',
-  ], { cwd: checkout });
-  const prUrl = extractFirstUrl(pr.stdout || pr.stderr) ?? `https://github.com/${target.owner}/open-design/pull/new/${branch}`;
+    "",
+    `Version: ${manifest.version ?? "0.0.0"}`,
+    manifest.description ? `Description: ${manifest.description}` : ""
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const pr = await run(
+    "open PR form",
+    "gh",
+    [
+      "pr",
+      "create",
+      "--repo",
+      "nexu-io/open-design",
+      "--head",
+      `${target.owner}:${branch}`,
+      "--base",
+      "main",
+      "--title",
+      `Add ${title} plugin`,
+      "--body",
+      body,
+      "--web"
+    ],
+    { cwd: checkout }
+  );
+  const prUrl =
+    extractFirstUrl(pr.stdout || pr.stderr) ?? `https://github.com/${target.owner}/open-design/pull/new/${branch}`;
   emitPluginWorkflowResult(flags, {
     ok: true,
-    action: 'open-design-pr',
+    action: "open-design-pr",
     folder: absFolder,
     login: target.login,
     owner: target.owner,
@@ -3866,22 +4206,19 @@ fork of nexu-io/open-design, pushes a branch, and opens the PR form with --web.`
     branch,
     prUrl,
     checkout,
-    steps,
+    steps
   });
 }
 
 async function publishToMarketplaceJson({ catalogPath, meta }) {
-  const [{ dirname, resolve }, { mkdir, readFile, writeFile }, { PublishError, upsertMarketplaceJsonEntry }] = await Promise.all([
-    import('node:path'),
-    import('node:fs/promises'),
-    import('./plugins/publish.js'),
-  ]);
+  const [{ dirname, resolve }, { mkdir, readFile, writeFile }, { PublishError, upsertMarketplaceJsonEntry }] =
+    await Promise.all([import("node:path"), import("node:fs/promises"), import("./plugins/publish.js")]);
   const resolvedPath = resolve(process.cwd(), catalogPath);
   let existing = null;
   try {
-    existing = JSON.parse(await readFile(resolvedPath, 'utf8'));
+    existing = JSON.parse(await readFile(resolvedPath, "utf8"));
   } catch (err) {
-    if (err?.code !== 'ENOENT') {
+    if (err?.code !== "ENOENT") {
       throw err;
     }
   }
@@ -3896,7 +4233,7 @@ async function publishToMarketplaceJson({ catalogPath, meta }) {
     throw err;
   }
   await mkdir(dirname(resolvedPath), { recursive: true });
-  await writeFile(resolvedPath, `${JSON.stringify(outcome.manifest, null, 2)}\n`, 'utf8');
+  await writeFile(resolvedPath, `${JSON.stringify(outcome.manifest, null, 2)}\n`, "utf8");
   return {
     catalogPath: resolvedPath,
     inserted: outcome.inserted,
@@ -3904,30 +4241,33 @@ async function publishToMarketplaceJson({ catalogPath, meta }) {
     manifest: {
       name: outcome.manifest.name,
       version: outcome.manifest.version,
-      plugins: outcome.manifest.plugins.length,
-    },
+      plugins: outcome.manifest.plugins.length
+    }
   };
 }
 
-async function resolvePluginGithubTarget({ host = 'github.com', owner, manifest, purpose }) {
-  const version = await execGhBuffered(['--version'], { timeout: 10_000 });
+async function resolvePluginGithubTarget({ host = "github.com", owner, manifest, purpose }) {
+  const version = await execGhBuffered(["--version"], { timeout: 10_000 });
   if (!version.ok) {
-    console.error('[plugin github] GitHub CLI is required. Install gh from https://cli.github.com/ and retry.');
+    console.error("[plugin github] GitHub CLI is required. Install gh from https://cli.github.com/ and retry.");
     process.exit(1);
   }
-  let status = await execGhBuffered(['auth', 'status', '--hostname', host, '--active'], { timeout: 10_000 });
+  let status = await execGhBuffered(["auth", "status", "--hostname", host, "--active"], { timeout: 10_000 });
   if (!status.ok && /unknown flag: --active/i.test(`${status.stdout}\n${status.stderr}`)) {
-    status = await execGhBuffered(['auth', 'status', '--hostname', host], { timeout: 10_000 });
+    status = await execGhBuffered(["auth", "status", "--hostname", host], { timeout: 10_000 });
   }
   if (!status.ok) {
     console.error(`[plugin github] gh is not authenticated for ${host}.`);
     if (status.stderr || status.stdout) console.error(status.stderr || status.stdout);
-    console.error('Run: gh auth login -h github.com -s repo,workflow');
+    console.error("Run: gh auth login -h github.com -s repo,workflow");
     process.exit(1);
   }
-  const manifestRepo = parseGithubRepoUrl(typeof manifest?.plugin?.repo === 'string' ? manifest.plugin.repo.trim() : '');
-  const trustedManifestOwner = purpose === 'publish-repo' && manifestRepo && !isPlaceholderRepoOwner(manifestRepo.owner) ? manifestRepo.owner : '';
-  const explicitOwner = typeof owner === 'string' ? owner.trim() : '';
+  const manifestRepo = parseGithubRepoUrl(
+    typeof manifest?.plugin?.repo === "string" ? manifest.plugin.repo.trim() : ""
+  );
+  const trustedManifestOwner =
+    purpose === "publish-repo" && manifestRepo && !isPlaceholderRepoOwner(manifestRepo.owner) ? manifestRepo.owner : "";
+  const explicitOwner = typeof owner === "string" ? owner.trim() : "";
   if (explicitOwner && isPlaceholderRepoOwner(explicitOwner)) {
     console.error(`[plugin github] refusing placeholder owner "${explicitOwner}". Pass a real GitHub login or org.`);
     process.exit(2);
@@ -3935,15 +4275,15 @@ async function resolvePluginGithubTarget({ host = 'github.com', owner, manifest,
   const statusLogin = parseGhAuthStatusLogin(status.stderr || status.stdout);
   let login = statusLogin;
   let resolvedOwner = explicitOwner || trustedManifestOwner || statusLogin;
-  let source = explicitOwner ? '--owner' : trustedManifestOwner ? 'plugin.repo' : statusLogin ? 'gh auth status' : '';
+  let source = explicitOwner ? "--owner" : trustedManifestOwner ? "plugin.repo" : statusLogin ? "gh auth status" : "";
   let apiError = null;
   if (!resolvedOwner || !login) {
-    const user = await execGhBuffered(['api', 'user', '--hostname', host, '--jq', '.login'], { timeout: 20_000 });
+    const user = await execGhBuffered(["api", "user", "--hostname", host, "--jq", ".login"], { timeout: 20_000 });
     if (user.ok && user.stdout.trim()) {
       login = user.stdout.trim();
       if (!resolvedOwner) {
         resolvedOwner = login;
-        source = 'gh api user';
+        source = "gh api user";
       }
     } else {
       apiError = user;
@@ -3953,19 +4293,23 @@ async function resolvePluginGithubTarget({ host = 'github.com', owner, manifest,
     console.error(`[plugin github] could not resolve the GitHub owner for ${purpose}.`);
     if (apiError?.stderr || apiError?.stdout) console.error(apiError.stderr || apiError.stdout);
     if (apiError && isGhApiRateLimit(apiError)) {
-      const ownerHint = purpose === 'open-design-pr' ? '<github-login-or-fork-owner>' : '<github-login-or-org>';
-      console.error(`GitHub API is rate limited. Re-run with --owner ${ownerHint}, or authenticate/refresh gh and retry.`);
+      const ownerHint = purpose === "open-design-pr" ? "<github-login-or-fork-owner>" : "<github-login-or-org>";
+      console.error(
+        `GitHub API is rate limited. Re-run with --owner ${ownerHint}, or authenticate/refresh gh and retry.`
+      );
     } else {
-      console.error('Run: gh auth refresh -h github.com -s repo,workflow');
-      console.error('Or:  gh auth login -h github.com -s repo,workflow');
-      console.error(purpose === 'open-design-pr'
-        ? 'If the fork owner differs from your auth login, pass --owner <github-login-or-fork-owner>.'
-        : 'If this is an org-owned plugin, pass --owner <github-org>.');
+      console.error("Run: gh auth refresh -h github.com -s repo,workflow");
+      console.error("Or:  gh auth login -h github.com -s repo,workflow");
+      console.error(
+        purpose === "open-design-pr"
+          ? "If the fork owner differs from your auth login, pass --owner <github-login-or-fork-owner>."
+          : "If this is an org-owned plugin, pass --owner <github-org>."
+      );
     }
     process.exit(1);
   }
   if (apiError && isGhApiRateLimit(apiError)) {
-    console.warn('[plugin github] GitHub API is rate limited; continuing with the owner resolved locally.');
+    console.warn("[plugin github] GitHub API is rate limited; continuing with the owner resolved locally.");
   }
   if (isPlaceholderRepoOwner(resolvedOwner)) {
     console.error(`[plugin github] refusing placeholder owner "${resolvedOwner}". Pass --owner <github-login-or-org>.`);
@@ -3978,60 +4322,64 @@ async function resolvePluginGithubTarget({ host = 'github.com', owner, manifest,
     ownerSource: source,
     apiRateLimited: Boolean(apiError && isGhApiRateLimit(apiError)),
     version: version.stdout,
-    status: status.stderr || status.stdout,
+    status: status.stderr || status.stdout
   };
 }
 
 function parseGhAuthStatusLogin(output) {
-  const text = String(output ?? '');
+  const text = String(output ?? "");
   const activeAccount = /Logged in to [^\s]+ account ([^\s()]+)/i.exec(text);
   if (activeAccount?.[1]) return activeAccount[1].trim();
   const tokenAccount = /Token account:\s*([^\s()]+)/i.exec(text);
   if (tokenAccount?.[1]) return tokenAccount[1].trim();
-  return '';
+  return "";
 }
 
 function isGhApiRateLimit(result) {
-  const text = `${result?.stdout ?? ''}\n${result?.stderr ?? ''}`;
+  const text = `${result?.stdout ?? ""}\n${result?.stderr ?? ""}`;
   return /rate limit exceeded|authenticated requests get a higher rate limit/i.test(text);
 }
 
 function normalizeManifestRepoForOwner(manifest, owner) {
-  const name = String(manifest?.name ?? '').trim();
+  const name = String(manifest?.name ?? "").trim();
   if (!name) {
-    console.error('[plugin repo] manifest.name is required');
+    console.error("[plugin repo] manifest.name is required");
     process.exit(2);
   }
-  const rawRepo = typeof manifest?.plugin?.repo === 'string' ? manifest.plugin.repo.trim() : '';
+  const rawRepo = typeof manifest?.plugin?.repo === "string" ? manifest.plugin.repo.trim() : "";
   const parsed = parseGithubRepoUrl(rawRepo);
   const placeholder = parsed ? isPlaceholderRepoOwner(parsed.owner) : false;
-  const shouldRewrite = !parsed || placeholder || parsed.name.toLowerCase() !== name.toLowerCase() || parsed.owner.toLowerCase() !== owner.toLowerCase();
+  const shouldRewrite =
+    !parsed ||
+    placeholder ||
+    parsed.name.toLowerCase() !== name.toLowerCase() ||
+    parsed.owner.toLowerCase() !== owner.toLowerCase();
   const repoUrl = shouldRewrite ? `https://github.com/${owner}/${name}` : parsed.url;
   if (shouldRewrite) {
-    if (!manifest.plugin || typeof manifest.plugin !== 'object') manifest.plugin = {};
+    if (!manifest.plugin || typeof manifest.plugin !== "object") manifest.plugin = {};
     manifest.plugin.repo = repoUrl;
     manifest.homepage = repoUrl;
-    if (!manifest.author || typeof manifest.author !== 'object') manifest.author = {};
+    if (!manifest.author || typeof manifest.author !== "object") manifest.author = {};
     manifest.author.url = `https://github.com/${owner}`;
   }
   return {
     changed: shouldRewrite,
     repoUrl,
-    previousRepoUrl: rawRepo || null,
+    previousRepoUrl: rawRepo || null
   };
 }
 
 function parseGithubRepoUrl(raw) {
-  if (!raw || typeof raw !== 'string') return null;
-  const trimmed = raw.trim().replace(/\.git$/i, '');
-  let owner = '';
-  let name = '';
+  if (!raw || typeof raw !== "string") return null;
+  const trimmed = raw.trim().replace(/\.git$/i, "");
+  let owner = "";
+  let name = "";
   try {
     const url = new URL(trimmed);
     if (!/^github\.com$/i.test(url.hostname)) return null;
-    const parts = url.pathname.split('/').filter(Boolean);
-    owner = parts[0] ?? '';
-    name = parts[1] ?? '';
+    const parts = url.pathname.split("/").filter(Boolean);
+    owner = parts[0] ?? "";
+    name = parts[1] ?? "";
   } catch {
     const match = /^([^/\s]+)\/([^/\s]+)$/.exec(trimmed);
     if (!match) return null;
@@ -4043,25 +4391,27 @@ function parseGithubRepoUrl(raw) {
     owner,
     name,
     fullName: `${owner}/${name}`,
-    url: `https://github.com/${owner}/${name}`,
+    url: `https://github.com/${owner}/${name}`
   };
 }
 
 function isPlaceholderRepoOwner(owner) {
-  return /^(open-design-user|<vendor>|vendor|example-user|your-org|your-username|owner|user|username)$/i.test(String(owner ?? '').trim());
+  return /^(open-design-user|<vendor>|vendor|example-user|your-org|your-username|owner|user|username)$/i.test(
+    String(owner ?? "").trim()
+  );
 }
 
 function isRepoNotFound(result) {
-  const text = `${result?.stdout ?? ''}\n${result?.stderr ?? ''}`;
+  const text = `${result?.stdout ?? ""}\n${result?.stderr ?? ""}`;
   return /could not resolve to a repository|not found|repository not found/i.test(text);
 }
 
 async function pluginCliValidateFolder(folder) {
-  const result = await execFileBuffered(process.execPath, [process.argv[1], 'plugin', 'validate', folder], {
-    timeout: 120_000,
+  const result = await execFileBuffered(process.execPath, [process.argv[1], "plugin", "validate", folder], {
+    timeout: 120_000
   });
   if (!result.ok) {
-    console.error('[plugin validate] failed after manifest normalization');
+    console.error("[plugin validate] failed after manifest normalization");
     if (result.stdout) console.error(result.stdout);
     if (result.stderr) console.error(result.stderr);
     process.exit(1);
@@ -4071,25 +4421,29 @@ async function pluginCliValidateFolder(folder) {
 
 function emitPluginWorkflowResult(flags, payload) {
   if (flags.json) {
-    process.stdout.write(JSON.stringify(payload, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(payload, null, 2) + "\n");
     return;
   }
   if (!payload.ok) {
-    console.error(`[${payload.action}] failed${payload.error?.label ? ` at ${payload.error.label}` : ''}`);
+    console.error(`[${payload.action}] failed${payload.error?.label ? ` at ${payload.error.label}` : ""}`);
     if (payload.error?.stderr) console.error(payload.error.stderr);
     if (payload.error?.stdout) console.error(payload.error.stdout);
     return;
   }
-  if (payload.action === 'publish-repo') {
+  if (payload.action === "publish-repo") {
     console.log(`Plugin published: ${payload.repoUrl}`);
     if (payload.ownerSource) console.log(`[publish-repo] owner resolved from ${payload.ownerSource}: ${payload.owner}`);
-    if (payload.apiRateLimited) console.log('[publish-repo] GitHub API was rate limited; continued with the locally resolved owner.');
-    if (payload.manifestRewritten) console.log('[publish-repo] manifest repo fields were normalized before publishing.');
+    if (payload.apiRateLimited)
+      console.log("[publish-repo] GitHub API was rate limited; continued with the locally resolved owner.");
+    if (payload.manifestRewritten)
+      console.log("[publish-repo] manifest repo fields were normalized before publishing.");
     return;
   }
-  if (payload.action === 'open-design-pr') {
-    if (payload.ownerSource) console.log(`[open-design-pr] owner resolved from ${payload.ownerSource}: ${payload.owner}`);
-    if (payload.apiRateLimited) console.log('[open-design-pr] GitHub API was rate limited; continued with the locally resolved owner.');
+  if (payload.action === "open-design-pr") {
+    if (payload.ownerSource)
+      console.log(`[open-design-pr] owner resolved from ${payload.ownerSource}: ${payload.owner}`);
+    if (payload.apiRateLimited)
+      console.log("[open-design-pr] GitHub API was rate limited; continued with the locally resolved owner.");
     console.log(`Open this URL and click Create to file the PR: ${payload.prUrl}`);
     return;
   }
@@ -4097,18 +4451,22 @@ function emitPluginWorkflowResult(flags, payload) {
 }
 
 function safeJson(raw) {
-  try { return JSON.parse(raw); } catch { return null; }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 function extractFirstUrl(text) {
-  const match = /https?:\/\/\S+/i.exec(String(text ?? ''));
-  return match ? match[0].replace(/[)\].,]+$/, '') : null;
+  const match = /https?:\/\/\S+/i.exec(String(text ?? ""));
+  return match ? match[0].replace(/[)\].,]+$/, "") : null;
 }
 
 async function runPluginYank(rest) {
   const flags = parseFlags(rest, {
-    string: new Set(['daemon-url', 'reason', 'to']),
-    boolean: new Set(['help', 'h', 'json', 'open']),
+    string: new Set(["daemon-url", "reason", "to"]),
+    boolean: new Set(["help", "h", "json", "open"])
   });
   if (rest.length === 0 || flags.help || flags.h) {
     console.log(`Usage:
@@ -4118,63 +4476,65 @@ Yanking never deletes metadata or bytes. It opens the registry review flow that
 marks a version unresolvable for new installs while preserving lockfile replay.`);
     process.exit(rest.length === 0 ? 2 : 0);
   }
-  const spec = rest.find((a) => !a.startsWith('-') && a !== flags.reason && a !== flags.to);
-  const reason = typeof flags.reason === 'string' ? flags.reason.trim() : '';
+  const spec = rest.find((a) => !a.startsWith("-") && a !== flags.reason && a !== flags.to);
+  const reason = typeof flags.reason === "string" ? flags.reason.trim() : "";
   const parsed = parseCliPluginSpecifier(spec);
   if (!parsed.name || !parsed.range) {
     console.error('Usage: od plugin yank <vendor/plugin-name>@<version> --reason "<why>"');
     process.exit(2);
   }
   if (!reason) {
-    console.error('--reason is required for yanking');
+    console.error("--reason is required for yanking");
     process.exit(2);
   }
-  const target = flags.to ?? 'open-design';
-  if (target !== 'open-design') {
-    console.error('Only --to open-design is supported in this v1 GitHub-backed yank flow.');
+  const target = flags.to ?? "open-design";
+  if (target !== "open-design") {
+    console.error("Only --to open-design is supported in this v1 GitHub-backed yank flow.");
     process.exit(2);
   }
   const title = `Yank ${parsed.name}@${parsed.range}`;
   const body = [
     `## Yank ${parsed.name}@${parsed.range}`,
-    '',
+    "",
     `Reason: ${reason}`,
-    '',
-    'Expected registry patch:',
-    '',
-    '```json',
-    JSON.stringify({
-      name: parsed.name,
-      version: parsed.range,
-      yanked: true,
-      yankReason: reason,
-    }, null, 2),
-    '```',
-    '',
-    'Generated by `od plugin yank`.',
-  ].join('\n');
+    "",
+    "Expected registry patch:",
+    "",
+    "```json",
+    JSON.stringify(
+      {
+        name: parsed.name,
+        version: parsed.range,
+        yanked: true,
+        yankReason: reason
+      },
+      null,
+      2
+    ),
+    "```",
+    "",
+    "Generated by `od plugin yank`."
+  ].join("\n");
   const params = new URLSearchParams({ title, body });
   const payload = {
-    catalog: 'open-design',
+    catalog: "open-design",
     name: parsed.name,
     version: parsed.range,
     reason,
     url: `https://github.com/nexu-io/open-design/issues/new?${params.toString()}`,
-    body,
+    body
   };
   if (flags.json) {
-    process.stdout.write(JSON.stringify(payload, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(payload, null, 2) + "\n");
   } else {
     console.log(`[yank] ${payload.url}`);
-    console.log('---');
+    console.log("---");
     console.log(body);
   }
   if (flags.open) {
-    const opener = process.platform === 'darwin' ? 'open'
-      : process.platform === 'win32' ? 'start'
-      : 'xdg-open';
-    const { spawn } = await import('node:child_process');
-    spawn(opener, [payload.url], { detached: true, stdio: 'ignore' }).unref();
+    const opener = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
+    const { spawn } = await import("node:child_process");
+    spawn(opener, [payload.url], { detached: true, stdio: "ignore" }).unref();
   }
 }
 
@@ -4183,45 +4543,49 @@ async function runPluginDoctor(rest) {
   // opt into 'no warnings allowed' mode without parsing the issue
   // list manually.
   const flags = parseFlags(rest, {
-    string:  PLUGIN_STRING_FLAGS,
-    boolean: new Set([...PLUGIN_BOOLEAN_FLAGS, 'strict']),
+    string: PLUGIN_STRING_FLAGS,
+    boolean: new Set([...PLUGIN_BOOLEAN_FLAGS, "strict"])
   });
-  const id = rest.find((a) => !a.startsWith('-') && a !== flags['daemon-url'] && a !== flags.source);
+  const id = rest.find((a) => !a.startsWith("-") && a !== flags["daemon-url"] && a !== flags.source);
   if (!id) {
-    console.error('Usage: od plugin doctor <id> [--strict] [--json]');
+    console.error("Usage: od plugin doctor <id> [--strict] [--json]");
     process.exit(2);
   }
-  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, '')}/api/plugins/${encodeURIComponent(id)}/doctor`;
-  const resp = await fetch(url, { method: 'POST' });
+  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, "")}/api/plugins/${encodeURIComponent(id)}/doctor`;
+  const resp = await fetch(url, { method: "POST" });
   if (!resp.ok) {
     console.error(`POST /api/plugins/${id}/doctor failed: ${resp.status} ${await resp.text()}`);
     process.exit(1);
   }
   const data = await resp.json();
   const issues = Array.isArray(data?.issues) ? data.issues : [];
-  const warnings = issues.filter((i) => i?.severity === 'warning');
+  const warnings = issues.filter((i) => i?.severity === "warning");
   const strict = flags.strict === true;
   // Strict mode: a clean issue list is still required, but the
   // pass/fail bit also fails on any warning.
   const passed = data.ok && (!strict || warnings.length === 0);
   if (flags.json) {
-    process.stdout.write(JSON.stringify({ ...data, strict, passed }, null, 2) + '\n');
+    process.stdout.write(JSON.stringify({ ...data, strict, passed }, null, 2) + "\n");
   } else {
     if (passed && issues.length === 0) {
       console.log(`[doctor] ${data.pluginId} ok (digest ${data.freshDigest.slice(0, 12)}…)`);
     } else {
-      const tier = !data.ok ? 'errors' : (strict && warnings.length > 0) ? 'warnings (--strict)' : 'warnings';
+      const tier = !data.ok ? "errors" : strict && warnings.length > 0 ? "warnings (--strict)" : "warnings";
       console.log(`[doctor] ${data.pluginId} ${tier}:`);
       for (const issue of issues) {
         console.log(`  [${issue.severity}] ${issue.code}: ${issue.message}`);
       }
     }
   }
-  process.exit(passed ? 0 : (data.ok ? 4 : 1));
+  process.exit(passed ? 0 : data.ok ? 4 : 1);
 }
 
 function safeParseJson(s) {
-  try { return JSON.parse(s); } catch { return null; }
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
 }
 
 // `od plugin replay <runId> --snapshot-id <id>` — re-emit the immutable
@@ -4233,27 +4597,32 @@ function safeParseJson(s) {
 // into a one-shot wrapper.
 async function runPluginReplay(rest) {
   const flags = parseFlags(rest, { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const runId = rest.find((a) => !a.startsWith('-')
-    && a !== flags['daemon-url']
-    && a !== flags.source
-    && a !== flags.inputs
-    && a !== flags.project
-    && a !== flags['snapshot-id']
-    && a !== flags.capabilities);
+  const runId = rest.find(
+    (a) =>
+      !a.startsWith("-") &&
+      a !== flags["daemon-url"] &&
+      a !== flags.source &&
+      a !== flags.inputs &&
+      a !== flags.project &&
+      a !== flags["snapshot-id"] &&
+      a !== flags.capabilities
+  );
   if (!runId) {
-    console.error('Usage: od plugin replay <runId> --snapshot-id <id>');
+    console.error("Usage: od plugin replay <runId> --snapshot-id <id>");
     process.exit(2);
   }
-  const snapshotId = flags['snapshot-id'];
+  const snapshotId = flags["snapshot-id"];
   if (!snapshotId) {
-    console.error('--snapshot-id is required (runs are in-memory in Phase 2A; pass the snapshot id returned by od plugin apply)');
+    console.error(
+      "--snapshot-id is required (runs are in-memory in Phase 2A; pass the snapshot id returned by od plugin apply)"
+    );
     process.exit(2);
   }
-  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, '')}/api/runs/${encodeURIComponent(runId)}/replay`;
+  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, "")}/api/runs/${encodeURIComponent(runId)}/replay`;
   const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ snapshotId }),
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ snapshotId })
   });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
@@ -4261,12 +4630,19 @@ async function runPluginReplay(rest) {
     process.exit(1);
   }
   if (flags.json) {
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     return;
   }
-  console.log(`[replay] ${data.rerun?.pluginId}@${data.rerun?.pluginVersion} digest=${(data.rerun?.manifestSourceDigest ?? '').slice(0, 12)}…`);
+  console.log(
+    `[replay] ${data.rerun?.pluginId}@${data.rerun?.pluginVersion} digest=${(data.rerun?.manifestSourceDigest ?? "").slice(0, 12)}…`
+  );
   console.log(`[replay] inputs: ${JSON.stringify(data.rerun?.inputs ?? {})}`);
-  console.log('[replay] re-apply via: od plugin apply ' + data.rerun?.pluginId + ' --inputs ' + JSON.stringify(JSON.stringify(data.rerun?.inputs ?? {})));
+  console.log(
+    "[replay] re-apply via: od plugin apply " +
+      data.rerun?.pluginId +
+      " --inputs " +
+      JSON.stringify(JSON.stringify(data.rerun?.inputs ?? {}))
+  );
 }
 
 // `od plugin trust <id> --capabilities <comma-sep>` — flip a plugin's
@@ -4276,36 +4652,40 @@ async function runPluginReplay(rest) {
 // exit-2 usage failures.
 async function runPluginTrust(rest) {
   const flags = parseFlags(rest, { string: PLUGIN_STRING_FLAGS, boolean: PLUGIN_BOOLEAN_FLAGS });
-  const id = rest.find((a) => !a.startsWith('-')
-    && a !== flags['daemon-url']
-    && a !== flags.source
-    && a !== flags.inputs
-    && a !== flags.project
-    && a !== flags['snapshot-id']
-    && a !== flags.capabilities);
+  const id = rest.find(
+    (a) =>
+      !a.startsWith("-") &&
+      a !== flags["daemon-url"] &&
+      a !== flags.source &&
+      a !== flags.inputs &&
+      a !== flags.project &&
+      a !== flags["snapshot-id"] &&
+      a !== flags.capabilities
+  );
   if (!id) {
-    console.error('Usage: od plugin trust <id> --capabilities connector:figma,connector:notion [--revoke]');
+    console.error("Usage: od plugin trust <id> --capabilities connector:figma,connector:notion [--revoke]");
     process.exit(2);
   }
-  const capsCsv = typeof flags.capabilities === 'string' ? flags.capabilities : '';
-  const caps = capsCsv.split(',').map((c) => c.trim()).filter(Boolean);
+  const capsCsv = typeof flags.capabilities === "string" ? flags.capabilities : "";
+  const caps = capsCsv
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
   if (caps.length === 0) {
-    console.error('--capabilities is required (comma-separated, e.g. connector:figma,fs:read)');
+    console.error("--capabilities is required (comma-separated, e.g. connector:figma,fs:read)");
     process.exit(2);
   }
-  const action = flags.revoke ? 'revoke' : 'grant';
-  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, '')}/api/plugins/${encodeURIComponent(id)}/trust`;
+  const action = flags.revoke ? "revoke" : "grant";
+  const url = `${(await pluginDaemonUrl(flags)).replace(/\/$/, "")}/api/plugins/${encodeURIComponent(id)}/trust`;
   const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ capabilities: caps, action }),
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ capabilities: caps, action })
   });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
-    if (resp.status === 400 && data?.error?.code === 'invalid-capability') {
-      const rej = (data.error.data?.rejected ?? [])
-        .map((r) => `${r.capability} (${r.reason})`)
-        .join(', ');
+    if (resp.status === 400 && data?.error?.code === "invalid-capability") {
+      const rej = (data.error.data?.rejected ?? []).map((r) => `${r.capability} (${r.reason})`).join(", ");
       console.error(`[trust] invalid capabilities: ${rej}`);
       process.exit(2);
     }
@@ -4313,11 +4693,11 @@ async function runPluginTrust(rest) {
     process.exit(1);
   }
   if (flags.json) {
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     return;
   }
-  console.log(`[trust] ${action === 'grant' ? 'granted' : 'revoked'} on ${id}: ${caps.join(', ')}`);
-  console.log(`[trust] now: ${(data.capabilitiesGranted ?? []).join(', ')}`);
+  console.log(`[trust] ${action === "grant" ? "granted" : "revoked"} on ${id}: ${caps.join(", ")}`);
+  console.log(`[trust] now: ${(data.capabilitiesGranted ?? []).join(", ")}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -4325,18 +4705,23 @@ async function runPluginTrust(rest) {
 // ---------------------------------------------------------------------------
 
 async function runUi(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     printUiHelp();
     process.exit(args.length === 0 ? 2 : 0);
   }
   const sub = args[0];
   const rest = args.slice(1);
   switch (sub) {
-    case 'list':    return runUiList(rest);
-    case 'show':    return runUiShow(rest);
-    case 'respond': return runUiRespond(rest);
-    case 'revoke':  return runUiRevoke(rest);
-    case 'prefill': return runUiPrefill(rest);
+    case "list":
+      return runUiList(rest);
+    case "show":
+      return runUiShow(rest);
+    case "respond":
+      return runUiRespond(rest);
+    case "revoke":
+      return runUiRevoke(rest);
+    case "prefill":
+      return runUiPrefill(rest);
     default:
       console.error(`unknown subcommand: od ui ${sub}`);
       printUiHelp();
@@ -4350,12 +4735,12 @@ async function uiDaemonUrl(flags) {
 
 async function runUiList(rest) {
   const flags = parseFlags(rest, { string: UI_STRING_FLAGS, boolean: UI_BOOLEAN_FLAGS });
-  const base = (await uiDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await uiDaemonUrl(flags)).replace(/\/$/, "");
   let url;
   if (flags.run) url = `${base}/api/runs/${encodeURIComponent(flags.run)}/genui`;
   else if (flags.project) url = `${base}/api/projects/${encodeURIComponent(flags.project)}/genui`;
   else {
-    console.error('Usage: od ui list --run <runId> | --project <projectId>');
+    console.error("Usage: od ui list --run <runId> | --project <projectId>");
     process.exit(2);
   }
   const resp = await fetch(url);
@@ -4365,12 +4750,12 @@ async function runUiList(rest) {
   }
   const data = await resp.json();
   if (flags.json) {
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     return;
   }
   const surfaces = Array.isArray(data?.surfaces) ? data.surfaces : [];
   if (surfaces.length === 0) {
-    console.log('No GenUI surfaces.');
+    console.log("No GenUI surfaces.");
     return;
   }
   for (const s of surfaces) {
@@ -4380,23 +4765,26 @@ async function runUiList(rest) {
 
 async function runUiShow(rest) {
   const flags = parseFlags(rest, { string: UI_STRING_FLAGS, boolean: UI_BOOLEAN_FLAGS });
-  const positional = rest.filter((a) => !a.startsWith('-')
-    && a !== flags['daemon-url']
-    && a !== flags.run
-    && a !== flags.project
-    && a !== flags.value
-    && a !== flags['value-json']
-    && a !== flags.plugin
-    && a !== flags['snapshot-id']
-    && a !== flags.persist
-    && a !== flags.kind);
+  const positional = rest.filter(
+    (a) =>
+      !a.startsWith("-") &&
+      a !== flags["daemon-url"] &&
+      a !== flags.run &&
+      a !== flags.project &&
+      a !== flags.value &&
+      a !== flags["value-json"] &&
+      a !== flags.plugin &&
+      a !== flags["snapshot-id"] &&
+      a !== flags.persist &&
+      a !== flags.kind
+  );
   const runId = flags.run ?? positional[0];
-  const surfaceId = flags['snapshot-id'] ? null : positional[flags.run ? 0 : 1];
+  const surfaceId = flags["snapshot-id"] ? null : positional[flags.run ? 0 : 1];
   if (!runId || !surfaceId) {
-    console.error('Usage: od ui show --run <runId> <surfaceId>');
+    console.error("Usage: od ui show --run <runId> <surfaceId>");
     process.exit(2);
   }
-  const url = `${(await uiDaemonUrl(flags)).replace(/\/$/, '')}/api/runs/${encodeURIComponent(runId)}/genui/${encodeURIComponent(surfaceId)}`;
+  const url = `${(await uiDaemonUrl(flags)).replace(/\/$/, "")}/api/runs/${encodeURIComponent(runId)}/genui/${encodeURIComponent(surfaceId)}`;
   const resp = await fetch(url);
   if (!resp.ok) {
     console.error(`GET ${url} failed: ${resp.status} ${await resp.text()}`);
@@ -4408,28 +4796,31 @@ async function runUiShow(rest) {
   // `od ui respond --value-json "$(...)"` in headless / agent flows.
   if (flags.schema) {
     const schema = data?.spec?.schema ?? null;
-    process.stdout.write(JSON.stringify(schema, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(schema, null, 2) + "\n");
     return;
   }
-  process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+  process.stdout.write(JSON.stringify(data, null, 2) + "\n");
 }
 
 async function runUiRespond(rest) {
   const flags = parseFlags(rest, { string: UI_STRING_FLAGS, boolean: UI_BOOLEAN_FLAGS });
-  const positional = rest.filter((a) => !a.startsWith('-')
-    && a !== flags['daemon-url']
-    && a !== flags.run
-    && a !== flags.project
-    && a !== flags.value
-    && a !== flags['value-json']
-    && a !== flags.plugin
-    && a !== flags['snapshot-id']
-    && a !== flags.persist
-    && a !== flags.kind);
+  const positional = rest.filter(
+    (a) =>
+      !a.startsWith("-") &&
+      a !== flags["daemon-url"] &&
+      a !== flags.run &&
+      a !== flags.project &&
+      a !== flags.value &&
+      a !== flags["value-json"] &&
+      a !== flags.plugin &&
+      a !== flags["snapshot-id"] &&
+      a !== flags.persist &&
+      a !== flags.kind
+  );
   const runId = flags.run ?? positional[0];
   const surfaceId = positional[flags.run ? 0 : 1];
   if (!runId || !surfaceId) {
-    console.error('Usage: od ui respond --run <runId> <surfaceId> [--value <text> | --value-json <json> | --skip]');
+    console.error("Usage: od ui respond --run <runId> <surfaceId> [--value <text> | --value-json <json> | --skip]");
     process.exit(2);
   }
   let value = null;
@@ -4438,19 +4829,21 @@ async function runUiRespond(rest) {
     // `resolved` state with `respondedBy: 'auto'`. Phase 2A keeps the
     // semantics simple; spec §10.3.4 onTimeout='skip' lands in Phase 4.
     value = null;
-  } else if (typeof flags['value-json'] === 'string') {
-    try { value = JSON.parse(flags['value-json']); } catch (err) {
+  } else if (typeof flags["value-json"] === "string") {
+    try {
+      value = JSON.parse(flags["value-json"]);
+    } catch (err) {
       console.error(`--value-json must be valid JSON: ${err.message}`);
       process.exit(2);
     }
-  } else if (typeof flags.value === 'string') {
+  } else if (typeof flags.value === "string") {
     value = flags.value;
   }
-  const url = `${(await uiDaemonUrl(flags)).replace(/\/$/, '')}/api/runs/${encodeURIComponent(runId)}/genui/${encodeURIComponent(surfaceId)}/respond`;
+  const url = `${(await uiDaemonUrl(flags)).replace(/\/$/, "")}/api/runs/${encodeURIComponent(runId)}/genui/${encodeURIComponent(surfaceId)}/respond`;
   const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ value, respondedBy: 'user' }),
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ value, respondedBy: "user" })
   });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
@@ -4458,7 +4851,7 @@ async function runUiRespond(rest) {
     process.exit(1);
   }
   if (flags.json) {
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
   } else {
     console.log(`[ui] ${surfaceId} resolved (rowId=${data?.surface?.id})`);
   }
@@ -4466,31 +4859,34 @@ async function runUiRespond(rest) {
 
 async function runUiRevoke(rest) {
   const flags = parseFlags(rest, { string: UI_STRING_FLAGS, boolean: UI_BOOLEAN_FLAGS });
-  const positional = rest.filter((a) => !a.startsWith('-')
-    && a !== flags['daemon-url']
-    && a !== flags.run
-    && a !== flags.project
-    && a !== flags.value
-    && a !== flags['value-json']
-    && a !== flags.plugin
-    && a !== flags['snapshot-id']
-    && a !== flags.persist
-    && a !== flags.kind);
+  const positional = rest.filter(
+    (a) =>
+      !a.startsWith("-") &&
+      a !== flags["daemon-url"] &&
+      a !== flags.run &&
+      a !== flags.project &&
+      a !== flags.value &&
+      a !== flags["value-json"] &&
+      a !== flags.plugin &&
+      a !== flags["snapshot-id"] &&
+      a !== flags.persist &&
+      a !== flags.kind
+  );
   const projectId = flags.project ?? positional[0];
   const surfaceId = positional[flags.project ? 0 : 1];
   if (!projectId || !surfaceId) {
-    console.error('Usage: od ui revoke --project <projectId> <surfaceId>');
+    console.error("Usage: od ui revoke --project <projectId> <surfaceId>");
     process.exit(2);
   }
-  const url = `${(await uiDaemonUrl(flags)).replace(/\/$/, '')}/api/projects/${encodeURIComponent(projectId)}/genui/${encodeURIComponent(surfaceId)}/revoke`;
-  const resp = await fetch(url, { method: 'POST' });
+  const url = `${(await uiDaemonUrl(flags)).replace(/\/$/, "")}/api/projects/${encodeURIComponent(projectId)}/genui/${encodeURIComponent(surfaceId)}/revoke`;
+  const resp = await fetch(url, { method: "POST" });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
     console.error(`POST ${url} failed: ${resp.status} ${JSON.stringify(data)}`);
     process.exit(1);
   }
   if (flags.json) {
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
   } else {
     console.log(`[ui] revoked ${data.invalidated} row(s)`);
   }
@@ -4498,43 +4894,50 @@ async function runUiRevoke(rest) {
 
 async function runUiPrefill(rest) {
   const flags = parseFlags(rest, { string: UI_STRING_FLAGS, boolean: UI_BOOLEAN_FLAGS });
-  const positional = rest.filter((a) => !a.startsWith('-')
-    && a !== flags['daemon-url']
-    && a !== flags.run
-    && a !== flags.project
-    && a !== flags.value
-    && a !== flags['value-json']
-    && a !== flags.plugin
-    && a !== flags['snapshot-id']
-    && a !== flags.persist
-    && a !== flags.kind);
+  const positional = rest.filter(
+    (a) =>
+      !a.startsWith("-") &&
+      a !== flags["daemon-url"] &&
+      a !== flags.run &&
+      a !== flags.project &&
+      a !== flags.value &&
+      a !== flags["value-json"] &&
+      a !== flags.plugin &&
+      a !== flags["snapshot-id"] &&
+      a !== flags.persist &&
+      a !== flags.kind
+  );
   const projectId = flags.project ?? positional[0];
   const surfaceId = positional[flags.project ? 0 : 1];
-  const snapshotId = flags['snapshot-id'];
+  const snapshotId = flags["snapshot-id"];
   if (!projectId || !surfaceId || !snapshotId) {
-    console.error('Usage: od ui prefill --project <projectId> --snapshot-id <id> <surfaceId> [--value <text> | --value-json <json>] [--persist run|conversation|project] [--kind form|choice|confirmation|oauth-prompt]');
+    console.error(
+      "Usage: od ui prefill --project <projectId> --snapshot-id <id> <surfaceId> [--value <text> | --value-json <json>] [--persist run|conversation|project] [--kind form|choice|confirmation|oauth-prompt]"
+    );
     process.exit(2);
   }
   let value = null;
-  if (typeof flags['value-json'] === 'string') {
-    try { value = JSON.parse(flags['value-json']); } catch (err) {
+  if (typeof flags["value-json"] === "string") {
+    try {
+      value = JSON.parse(flags["value-json"]);
+    } catch (err) {
       console.error(`--value-json must be valid JSON: ${err.message}`);
       process.exit(2);
     }
-  } else if (typeof flags.value === 'string') {
+  } else if (typeof flags.value === "string") {
     value = flags.value;
   }
-  const url = `${(await uiDaemonUrl(flags)).replace(/\/$/, '')}/api/projects/${encodeURIComponent(projectId)}/genui/prefill`;
+  const url = `${(await uiDaemonUrl(flags)).replace(/\/$/, "")}/api/projects/${encodeURIComponent(projectId)}/genui/prefill`;
   const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    method: "POST",
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({
       snapshotId,
       surfaceId,
-      kind:    flags.kind ?? 'confirmation',
-      persist: flags.persist ?? 'project',
-      value,
-    }),
+      kind: flags.kind ?? "confirmation",
+      persist: flags.persist ?? "project",
+      value
+    })
   });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
@@ -4542,7 +4945,7 @@ async function runUiPrefill(rest) {
     process.exit(1);
   }
   if (flags.json) {
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
   } else {
     console.log(`[ui] prefilled ${surfaceId} (rowId=${data?.surface?.id})`);
   }
@@ -4647,55 +5050,53 @@ Common options:
 }
 
 async function runShare(args) {
-  const wantsHelp = args.length === 0
-    || args[0] === 'help'
-    || args.includes('--help')
-    || args.includes('-h');
+  const wantsHelp = args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h");
   if (wantsHelp) {
     printShareUsage();
     process.exit(args.length === 0 ? 2 : 0);
   }
 
-  const sub = args[0] && !args[0].startsWith('-') ? args[0] : 'open-design';
+  const sub = args[0] && !args[0].startsWith("-") ? args[0] : "open-design";
   const rest = sub === args[0] ? args.slice(1) : args;
   const flags = parseFlags(rest, {
     string: SHARE_STRING_FLAGS,
-    boolean: SHARE_BOOLEAN_FLAGS,
+    boolean: SHARE_BOOLEAN_FLAGS
   });
-  const base = (await cliDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await cliDaemonUrl(flags)).replace(/\/$/, "");
   const positional = positionalArgs(rest, SHARE_STRING_FLAGS);
   const url = flags.url ?? positional[0];
-  const body = sub === 'url'
-    ? {
-        kind: 'project-html',
-        url,
-        title: flags.title,
-        text: flags.text,
-        copyText: flags['copy-text'],
-        locale: flags.locale,
-      }
-    : {
-        kind: 'open-design-repo',
-        title: flags.title,
-        text: flags.text,
-        copyText: flags['copy-text'],
-        locale: flags.locale,
-      };
+  const body =
+    sub === "url"
+      ? {
+          kind: "project-html",
+          url,
+          title: flags.title,
+          text: flags.text,
+          copyText: flags["copy-text"],
+          locale: flags.locale
+        }
+      : {
+          kind: "open-design-repo",
+          title: flags.title,
+          text: flags.text,
+          copyText: flags["copy-text"],
+          locale: flags.locale
+        };
 
-  if (sub !== 'open-design' && sub !== 'url') {
+  if (sub !== "open-design" && sub !== "url") {
     console.error(`unknown share target: ${sub}`);
     printShareUsage();
     process.exit(2);
   }
-  if (body.kind === 'project-html' && !body.url) {
-    console.error('Usage: od share url --url <https-url>');
+  if (body.kind === "project-html" && !body.url) {
+    console.error("Usage: od share url --url <https-url>");
     process.exit(2);
   }
 
   const resp = await fetch(`${base}/api/social-share`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body)
   });
   if (!resp.ok) return structuredHttpFailure(resp);
   const data = await resp.json();
@@ -4705,7 +5106,7 @@ async function runShare(args) {
       console.error(`unknown platform: ${flags.platform}`);
       process.exit(2);
     }
-    if (flags.json) return process.stdout.write(JSON.stringify(target, null, 2) + '\n');
+    if (flags.json) return process.stdout.write(JSON.stringify(target, null, 2) + "\n");
     if (target.shareUrl) {
       console.log(target.shareUrl);
       return;
@@ -4714,27 +5115,27 @@ async function runShare(args) {
     if (target.entryUrl) console.log(target.entryUrl);
     return;
   }
-  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
   console.log(data.copyText);
   for (const target of data.platforms ?? []) {
-    console.log(`${target.platform}\t${target.shareUrl ?? target.entryUrl ?? '-'}`);
+    console.log(`${target.platform}\t${target.shareUrl ?? target.entryUrl ?? "-"}`);
   }
 }
 
 function normalizeChatSessionModeFlag(value) {
   if (value == null) return undefined;
   const mode = String(value).trim().toLowerCase();
-  if (mode === 'design' || mode === 'chat') return mode;
-  console.error('--mode must be one of: design, chat');
+  if (mode === "design" || mode === "chat") return mode;
+  console.error("--mode must be one of: design, chat");
   process.exit(2);
 }
 
 function safeReadJsonFile(p) {
   try {
-    const fs = (require ? require('node:fs') : null);
+    const fs = require ? require("node:fs") : null;
     if (!fs) return null;
-    if (p === '-') return JSON.parse(fs.readFileSync(0, 'utf8'));
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
+    if (p === "-") return JSON.parse(fs.readFileSync(0, "utf8"));
+    return JSON.parse(fs.readFileSync(p, "utf8"));
   } catch {
     return null;
   }
@@ -4744,12 +5145,12 @@ function collectCliPositionals(argv, stringFlags = new Set()) {
   const out = [];
   for (let i = 0; i < argv.length; i++) {
     const value = argv[i];
-    if (value === '--') {
+    if (value === "--") {
       out.push(...argv.slice(i + 1));
       break;
     }
-    if (typeof value === 'string' && value.startsWith('--')) {
-      const eq = value.indexOf('=');
+    if (typeof value === "string" && value.startsWith("--")) {
+      const eq = value.indexOf("=");
       const key = eq >= 0 ? value.slice(2, eq) : value.slice(2);
       if (eq < 0 && stringFlags.has(key)) i++;
       continue;
@@ -4760,30 +5161,26 @@ function collectCliPositionals(argv, stringFlags = new Set()) {
 }
 
 async function resolveFolderPathForCli(rawPath) {
-  const path = await import('node:path');
-  const os = await import('node:os');
-  const raw = typeof rawPath === 'string' && rawPath.trim().length > 0
-    ? rawPath.trim()
-    : (process.env.INIT_CWD || process.cwd());
-  const expanded = raw === '~'
-    ? os.homedir()
-    : raw.startsWith(`~${path.sep}`)
-      ? path.join(os.homedir(), raw.slice(2))
-      : raw;
+  const path = await import("node:path");
+  const os = await import("node:os");
+  const raw =
+    typeof rawPath === "string" && rawPath.trim().length > 0 ? rawPath.trim() : process.env.INIT_CWD || process.cwd();
+  const expanded =
+    raw === "~" ? os.homedir() : raw.startsWith(`~${path.sep}`) ? path.join(os.homedir(), raw.slice(2)) : raw;
   return path.resolve(expanded);
 }
 
 async function basenameForCli(folderPath) {
-  const path = await import('node:path');
-  return path.basename(folderPath) || 'Imported project';
+  const path = await import("node:path");
+  return path.basename(folderPath) || "Imported project";
 }
 
 async function readRunMessageFromFlags(flags, fallback = null) {
-  if (typeof flags.message === 'string' && flags.message.length > 0) {
+  if (typeof flags.message === "string" && flags.message.length > 0) {
     return flags.message;
   }
   const prompt = await readPromptFromFlags(flags);
-  if (typeof prompt === 'string' && prompt.length > 0) return prompt;
+  if (typeof prompt === "string" && prompt.length > 0) return prompt;
   return fallback;
 }
 
@@ -4791,9 +5188,9 @@ async function postJsonToDaemon(base, route, body, headers = {}) {
   let resp;
   try {
     resp = await fetch(`${base}${route}`, {
-      method:  'POST',
-      headers: { 'content-type': 'application/json', ...headers },
-      body:    JSON.stringify(body),
+      method: "POST",
+      headers: { "content-type": "application/json", ...headers },
+      body: JSON.stringify(body)
     });
   } catch (err) {
     surfaceFetchError(err, base);
@@ -4804,9 +5201,9 @@ async function postJsonToDaemon(base, route, body, headers = {}) {
     const errCode = data?.error?.code;
     if (errCode && errCode in RECOVERABLE_EXIT_CODES) {
       return exitWithStructuredError({
-        code:    errCode,
+        code: errCode,
         message: data.error.message ?? `HTTP ${resp.status}`,
-        data:    data.error.data,
+        data: data.error.data
       });
     }
     console.error(`POST ${route} failed: ${resp.status} ${JSON.stringify(data)}`);
@@ -4819,13 +5216,13 @@ async function postImportFolderToDaemon(base, body, baseDir) {
   const headers = {};
   const importToken = await mintCliImportToken(baseDir);
   if (importToken != null) {
-    headers['x-od-desktop-import-token'] = importToken;
+    headers["x-od-desktop-import-token"] = importToken;
   }
-  return postJsonToDaemon(base, '/api/import/folder', body, headers);
+  return postJsonToDaemon(base, "/api/import/folder", body, headers);
 }
 
 async function runProject(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od project create [--name "<title>"] [--skill <id>] [--design-system <id>]
                     [--plugin <id>] [--inputs <json>] [--metadata-json <path|->]
@@ -4857,187 +5254,189 @@ Common options:
   // parser below so a malformed `od project handoff` invocation
   // (`--unknown`, `--max-tokens` with no value) hits handoff-cli's
   // machine-readable fail() path instead of throwing out of parseFlags.
-  if (sub === 'handoff') {
+  if (sub === "handoff") {
     const { exitCode } = await runProjectHandoff(rest);
     if (exitCode !== 0) process.exit(exitCode);
     return;
   }
   const flags = parseFlags(rest, { string: PROJECT_STRING_FLAGS, boolean: PROJECT_BOOLEAN_FLAGS });
-  const base = (await projectDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await projectDaemonUrl(flags)).replace(/\/$/, "");
   switch (sub) {
-    case 'list': {
+    case "list": {
       const resp = await fetch(`${base}/api/projects`);
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       const projects = data?.projects ?? [];
       if (projects.length === 0) {
         console.log('No projects. Create one with `od project create --name "..."`.');
         return;
       }
-      for (const p of projects) console.log(`${p.id}\t${p.name}\t${p.skillId ?? '-'}`);
+      for (const p of projects) console.log(`${p.id}\t${p.name}\t${p.skillId ?? "-"}`);
       return;
     }
-    case 'info': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "info": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
-        console.error('Usage: od project info <id>');
+        console.error("Usage: od project info <id>");
         process.exit(2);
       }
       const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}`);
-      if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
+      if (!resp.ok) return structuredHttpFailure(resp, "project-not-found");
       const data = await resp.json();
-      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       return;
     }
-    case 'create': {
-      const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
-        ? crypto.randomUUID()
-        : Math.random().toString(36).slice(2);
-      const name = typeof flags.name === 'string' && flags.name.length > 0
-        ? flags.name
-        : 'Untitled project';
+    case "create": {
+      const id =
+        typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+      const name = typeof flags.name === "string" && flags.name.length > 0 ? flags.name : "Untitled project";
       const body = {
         id,
         name,
-        skillId:        flags.skill ?? null,
-        designSystemId: flags['design-system'] ?? null,
+        skillId: flags.skill ?? null,
+        designSystemId: flags["design-system"] ?? null
       };
       const conversationMode = normalizeChatSessionModeFlag(flags.mode);
       if (conversationMode) body.conversationMode = conversationMode;
-      if (flags['pending-prompt']) body.pendingPrompt = flags['pending-prompt'];
-      if (flags['metadata-json']) {
-        const mj = safeReadJsonFile(flags['metadata-json']);
-        if (mj && typeof mj === 'object') body.metadata = mj;
+      if (flags["pending-prompt"]) body.pendingPrompt = flags["pending-prompt"];
+      if (flags["metadata-json"]) {
+        const mj = safeReadJsonFile(flags["metadata-json"]);
+        if (mj && typeof mj === "object") body.metadata = mj;
       }
       if (flags.plugin) body.pluginId = flags.plugin;
       if (flags.inputs) {
-        try { body.pluginInputs = JSON.parse(flags.inputs); } catch (err) {
+        try {
+          body.pluginInputs = JSON.parse(flags.inputs);
+        } catch (err) {
           console.error(`--inputs must be valid JSON: ${err.message}`);
           process.exit(2);
         }
       }
-      if (flags['grant-caps']) {
-        body.grantCaps = String(flags['grant-caps']).split(',').map((c) => c.trim()).filter(Boolean);
+      if (flags["grant-caps"]) {
+        body.grantCaps = String(flags["grant-caps"])
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean);
       }
       const resp = await fetch(`${base}/api/projects`, {
-        method:  'POST',
-        headers: { 'content-type': 'application/json' },
-        body:    JSON.stringify(body),
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body)
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        if (resp.status === 409 && data?.error?.code === 'capabilities-required') {
+        if (resp.status === 409 && data?.error?.code === "capabilities-required") {
           return exitWithStructuredError({
-            code:    'capabilities-required',
+            code: "capabilities-required",
             message: data.error.message,
-            data:    data.error.data,
+            data: data.error.data
           });
         }
         console.error(`POST /api/projects failed: ${resp.status} ${JSON.stringify(data)}`);
         process.exit(1);
       }
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       console.log(`[project] created ${data.project?.id ?? id} (conversation ${data.conversationId})`);
       return;
     }
-    case 'import': {
+    case "import": {
       const [baseDir] = positionalArgs(rest, PROJECT_STRING_FLAGS);
-      const importBaseDir = typeof baseDir === 'string' ? baseDir.trim() : '';
+      const importBaseDir = typeof baseDir === "string" ? baseDir.trim() : "";
       if (!importBaseDir) {
         console.error('Usage: od project import <baseDir> [--name "<title>"]');
         process.exit(2);
       }
       const body = { baseDir: importBaseDir };
-      if (typeof flags.name === 'string' && flags.name.length > 0) body.name = flags.name;
-      if (typeof flags.skill === 'string' && flags.skill.length > 0) body.skillId = flags.skill;
-      if (typeof flags['design-system'] === 'string' && flags['design-system'].length > 0) {
-        body.designSystemId = flags['design-system'];
+      if (typeof flags.name === "string" && flags.name.length > 0) body.name = flags.name;
+      if (typeof flags.skill === "string" && flags.skill.length > 0) body.skillId = flags.skill;
+      if (typeof flags["design-system"] === "string" && flags["design-system"].length > 0) {
+        body.designSystemId = flags["design-system"];
       }
-      const headers = { 'content-type': 'application/json' };
+      const headers = { "content-type": "application/json" };
       const importToken = await mintCliImportToken(importBaseDir);
       if (importToken != null) {
-        headers['x-od-desktop-import-token'] = importToken;
+        headers["x-od-desktop-import-token"] = importToken;
       }
       const resp = await fetch(`${base}/api/import/folder`, {
-        method:  'POST',
+        method: "POST",
         headers,
-        body:    JSON.stringify(body),
+        body: JSON.stringify(body)
       });
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
-      console.log(`[project] imported ${data.project?.id ?? '-'} (conversation ${data.conversationId ?? '-'})`);
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
+      console.log(`[project] imported ${data.project?.id ?? "-"} (conversation ${data.conversationId ?? "-"})`);
       return;
     }
-    case 'import-folder': {
+    case "import-folder": {
       const parts = collectCliPositionals(rest, PROJECT_STRING_FLAGS);
       const folderArg = flags.path ?? flags.dir ?? parts[0];
       if (!folderArg) {
-        console.error('Usage: od project import-folder <path> [--skill <id>] [--design-system <id>]');
+        console.error("Usage: od project import-folder <path> [--skill <id>] [--design-system <id>]");
         process.exit(2);
       }
       const folderPath = await resolveFolderPathForCli(folderArg);
       const body = {
-        baseDir:        folderPath,
-        name:           typeof flags.name === 'string' && flags.name.length > 0
-          ? flags.name
-          : await basenameForCli(folderPath),
-        skillId:        flags.skill ?? null,
-        designSystemId: flags['design-system'] ?? null,
+        baseDir: folderPath,
+        name: typeof flags.name === "string" && flags.name.length > 0 ? flags.name : await basenameForCli(folderPath),
+        skillId: flags.skill ?? null,
+        designSystemId: flags["design-system"] ?? null
       };
       const data = await postImportFolderToDaemon(base, body, folderPath);
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
-      console.log(`[project] imported ${data.project?.id ?? '-'} from ${folderPath} (conversation ${data.conversationId ?? '-'})`);
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
+      console.log(
+        `[project] imported ${data.project?.id ?? "-"} from ${folderPath} (conversation ${data.conversationId ?? "-"})`
+      );
       return;
     }
-    case 'delete': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "delete": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
-        console.error('Usage: od project delete <id>');
+        console.error("Usage: od project delete <id>");
         process.exit(2);
       }
-      const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
-      if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
+      const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!resp.ok) return structuredHttpFailure(resp, "project-not-found");
       console.log(`[project] deleted ${id}`);
       return;
     }
-    case 'editors': {
+    case "editors": {
       const resp = await fetch(`${base}/api/editors`);
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       const editors = data?.editors ?? [];
       for (const ed of editors) {
-        const status = ed.available ? 'available' : 'missing';
+        const status = ed.available ? "available" : "missing";
         console.log(`${ed.id}\t${ed.label}\t${status}`);
       }
       return;
     }
-    case 'open-in': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "open-in": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
-        console.error('Usage: od project open-in <id> --editor <slug>');
+        console.error("Usage: od project open-in <id> --editor <slug>");
         process.exit(2);
       }
-      const editor = typeof flags.editor === 'string' ? flags.editor : '';
+      const editor = typeof flags.editor === "string" ? flags.editor : "";
       if (!editor) {
-        console.error('--editor <slug> is required. Run `od project editors` to list options.');
+        console.error("--editor <slug> is required. Run `od project editors` to list options.");
         process.exit(2);
       }
       const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/open-in`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ editorId: editor }),
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ editorId: editor })
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        if (flags.json) process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+        if (flags.json) process.stdout.write(JSON.stringify(data, null, 2) + "\n");
         else console.error(`POST /api/projects/${id}/open-in failed: ${resp.status} ${JSON.stringify(data)}`);
         process.exit(1);
       }
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
-      console.log(`[project] opened ${id} in ${editor} (${data.path ?? ''})`);
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
+      console.log(`[project] opened ${id} in ${editor} (${data.path ?? ""})`);
       return;
     }
     default:
@@ -5047,7 +5446,7 @@ Common options:
 }
 
 async function runRun(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od run start --project <projectId> [--conversation <id>] [--message "<text>"]
                [--plugin <id>] [--inputs <json>] [--grant-caps a,b]
@@ -5067,87 +5466,87 @@ Common options:
   const sub = args[0];
   const rest = args.slice(1);
   const flags = parseFlags(rest, { string: PROJECT_STRING_FLAGS, boolean: PROJECT_BOOLEAN_FLAGS });
-  const base = (await projectDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await projectDaemonUrl(flags)).replace(/\/$/, "");
   switch (sub) {
-    case 'list': {
+    case "list": {
       const url = flags.project
         ? `${base}/api/runs?projectId=${encodeURIComponent(flags.project)}`
         : `${base}/api/runs`;
       const resp = await fetch(url);
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       const runs = data?.runs ?? [];
       for (const r of runs) {
-        console.log(`${r.id}\t${r.status}\tproject=${r.projectId ?? '-'}\tplugin=${r.pluginId ?? '-'}`);
+        console.log(`${r.id}\t${r.status}\tproject=${r.projectId ?? "-"}\tplugin=${r.pluginId ?? "-"}`);
       }
       return;
     }
-    case 'info': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "info": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
-        console.error('Usage: od run info <runId>');
+        console.error("Usage: od run info <runId>");
         process.exit(2);
       }
       const resp = await fetch(`${base}/api/runs/${encodeURIComponent(id)}`);
-      if (!resp.ok) return structuredHttpFailure(resp, 'run-not-found');
+      if (!resp.ok) return structuredHttpFailure(resp, "run-not-found");
       const data = await resp.json();
-      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       return;
     }
-    case 'cancel': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "cancel": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
-        console.error('Usage: od run cancel <runId>');
+        console.error("Usage: od run cancel <runId>");
         process.exit(2);
       }
-      const resp = await fetch(`${base}/api/runs/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
-      if (!resp.ok) return structuredHttpFailure(resp, 'run-not-found');
+      const resp = await fetch(`${base}/api/runs/${encodeURIComponent(id)}/cancel`, { method: "POST" });
+      if (!resp.ok) return structuredHttpFailure(resp, "run-not-found");
       console.log(`[run] cancelled ${id}`);
       return;
     }
-    case 'watch': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "watch": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
-        console.error('Usage: od run watch <runId>');
+        console.error("Usage: od run watch <runId>");
         process.exit(2);
       }
       await streamRunEvents(base, id);
       return;
     }
-    case 'redesign': {
+    case "redesign": {
       const parts = collectCliPositionals(rest, PROJECT_STRING_FLAGS);
-      const promptFromArgs = parts.join(' ').trim();
+      const promptFromArgs = parts.join(" ").trim();
       const defaultMessage =
-        'Use the redesign-existing-projects skill. Audit the current UI first, then redesign it to premium quality without breaking functionality. Preserve the existing product structure, routes, and behavior.';
-      const message = await readRunMessageFromFlags(
-        flags,
-        promptFromArgs || defaultMessage,
-      );
-      const skillId = flags.skill ?? 'redesign-existing-projects';
-      const designSystemId = flags['design-system'] ?? 'default';
+        "Use the redesign-existing-projects skill. Audit the current UI first, then redesign it to premium quality without breaking functionality. Preserve the existing product structure, routes, and behavior.";
+      const message = await readRunMessageFromFlags(flags, promptFromArgs || defaultMessage);
+      const skillId = flags.skill ?? "redesign-existing-projects";
+      const designSystemId = flags["design-system"] ?? "default";
       let projectId = flags.project;
       let conversationId = flags.conversation;
       let imported = null;
 
       if (!projectId) {
         const folderPath = await resolveFolderPathForCli(flags.path ?? flags.dir);
-        imported = await postImportFolderToDaemon(base, {
-          baseDir:        folderPath,
-          name:           typeof flags.name === 'string' && flags.name.length > 0
-            ? flags.name
-            : await basenameForCli(folderPath),
-          skillId,
-          designSystemId,
-        }, folderPath);
+        imported = await postImportFolderToDaemon(
+          base,
+          {
+            baseDir: folderPath,
+            name:
+              typeof flags.name === "string" && flags.name.length > 0 ? flags.name : await basenameForCli(folderPath),
+            skillId,
+            designSystemId
+          },
+          folderPath
+        );
         projectId = imported.project?.id;
         conversationId = conversationId ?? imported.conversationId;
         if (!projectId) {
-          console.error('POST /api/import/folder did not return project.id');
+          console.error("POST /api/import/folder did not return project.id");
           process.exit(1);
         }
         if (!flags.json || flags.follow) {
-          console.log(`[project] imported ${projectId} from ${folderPath} (conversation ${conversationId ?? '-'})`);
+          console.log(`[project] imported ${projectId} from ${folderPath} (conversation ${conversationId ?? "-"})`);
         }
       }
 
@@ -5158,23 +5557,29 @@ Common options:
         skillId,
         designSystemId,
         ...(flags.agent ? { agentId: flags.agent } : {}),
-        ...(flags.model ? { model: flags.model } : {}),
+        ...(flags.model ? { model: flags.model } : {})
       };
-      const data = await postJsonToDaemon(base, '/api/runs', body);
+      const data = await postJsonToDaemon(base, "/api/runs", body);
       if (flags.json && !flags.follow) {
-        return process.stdout.write(JSON.stringify({
-          ...data,
-          project: imported?.project ?? null,
-          conversationId: conversationId ?? null,
-        }, null, 2) + '\n');
+        return process.stdout.write(
+          JSON.stringify(
+            {
+              ...data,
+              project: imported?.project ?? null,
+              conversationId: conversationId ?? null
+            },
+            null,
+            2
+          ) + "\n"
+        );
       }
       console.log(`[run] started ${data.runId}`);
       if (flags.follow) await streamRunEvents(base, data.runId);
       return;
     }
-    case 'start': {
+    case "start": {
       if (!flags.project) {
-        console.error('--project <projectId> is required');
+        console.error("--project <projectId> is required");
         process.exit(2);
       }
       const body = { projectId: flags.project };
@@ -5183,45 +5588,50 @@ Common options:
       if (message) body.message = message;
       if (flags.plugin) body.pluginId = flags.plugin;
       if (flags.skill) body.skillId = flags.skill;
-      if (flags['design-system']) body.designSystemId = flags['design-system'];
+      if (flags["design-system"]) body.designSystemId = flags["design-system"];
       if (flags.agent) body.agentId = flags.agent;
       if (flags.model) body.model = flags.model;
       if (flags.inputs) {
-        try { body.pluginInputs = JSON.parse(flags.inputs); } catch (err) {
+        try {
+          body.pluginInputs = JSON.parse(flags.inputs);
+        } catch (err) {
           console.error(`--inputs must be valid JSON: ${err.message}`);
           process.exit(2);
         }
       }
-      if (flags['grant-caps']) {
-        body.grantCaps = String(flags['grant-caps']).split(',').map((c) => c.trim()).filter(Boolean);
+      if (flags["grant-caps"]) {
+        body.grantCaps = String(flags["grant-caps"])
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean);
       }
-      if (flags['snapshot-id']) body.appliedPluginSnapshotId = flags['snapshot-id'];
+      if (flags["snapshot-id"]) body.appliedPluginSnapshotId = flags["snapshot-id"];
       const resp = await fetch(`${base}/api/runs`, {
-        method:  'POST',
-        headers: { 'content-type': 'application/json' },
-        body:    JSON.stringify(body),
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body)
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        if (resp.status === 409 && data?.error?.code === 'capabilities-required') {
+        if (resp.status === 409 && data?.error?.code === "capabilities-required") {
           return exitWithStructuredError({
-            code:    'capabilities-required',
+            code: "capabilities-required",
             message: data.error.message,
-            data:    data.error.data,
+            data: data.error.data
           });
         }
-        if (resp.status === 422 && data?.error?.code === 'missing-input') {
+        if (resp.status === 422 && data?.error?.code === "missing-input") {
           return exitWithStructuredError({
-            code:    'missing-input',
+            code: "missing-input",
             message: data.error.message,
-            data:    data.error.data,
+            data: data.error.data
           });
         }
         console.error(`POST /api/runs failed: ${resp.status} ${JSON.stringify(data)}`);
         process.exit(1);
       }
       if (flags.json && !flags.follow) {
-        return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+        return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       }
       console.log(`[run] started ${data.runId}`);
       if (flags.follow) await streamRunEvents(base, data.runId);
@@ -5238,7 +5648,7 @@ Common options:
 // without needing an SSE library.
 async function streamRunEvents(base, runId) {
   const resp = await fetch(`${base}/api/runs/${encodeURIComponent(runId)}/events`, {
-    headers: { accept: 'text/event-stream' },
+    headers: { accept: "text/event-stream" }
   });
   if (!resp.ok || !resp.body) {
     console.error(`run watch failed: ${resp.status}`);
@@ -5246,23 +5656,27 @@ async function streamRunEvents(base, runId) {
   }
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    const blocks = buffer.split('\n\n');
-    buffer = blocks.pop() ?? '';
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() ?? "";
     for (const block of blocks) {
-      const lines = block.split('\n');
-      const eventLine = lines.find((l) => l.startsWith('event: '));
-      const dataLine  = lines.find((l) => l.startsWith('data: '));
-      const event = eventLine ? eventLine.slice('event: '.length) : 'message';
-      const dataRaw = dataLine ? dataLine.slice('data: '.length) : '';
+      const lines = block.split("\n");
+      const eventLine = lines.find((l) => l.startsWith("event: "));
+      const dataLine = lines.find((l) => l.startsWith("data: "));
+      const event = eventLine ? eventLine.slice("event: ".length) : "message";
+      const dataRaw = dataLine ? dataLine.slice("data: ".length) : "";
       let parsed;
-      try { parsed = JSON.parse(dataRaw); } catch { parsed = dataRaw; }
-      process.stdout.write(JSON.stringify({ event, data: parsed }) + '\n');
-      if (event === 'end') {
+      try {
+        parsed = JSON.parse(dataRaw);
+      } catch {
+        parsed = dataRaw;
+      }
+      process.stdout.write(JSON.stringify({ event, data: parsed }) + "\n");
+      if (event === "end") {
         return;
       }
     }
@@ -5276,7 +5690,7 @@ async function streamRunEvents(base, runId) {
 // stdin is a TTY we flip it into raw mode so the remote shell sees per-key
 // bytes (ctrl-c, arrows, tab) instead of line-buffered input.
 async function runShell(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od shell --project <projectId> [--shell <path>] [--json]
                                   Open an interactive shell in the project's
@@ -5290,30 +5704,27 @@ Common options:
   }
   const flags = parseFlags(args, { string: PROJECT_STRING_FLAGS, boolean: PROJECT_BOOLEAN_FLAGS });
   if (!flags.project) {
-    console.error('--project <projectId> is required');
+    console.error("--project <projectId> is required");
     process.exit(2);
   }
-  const base = (await projectDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await projectDaemonUrl(flags)).replace(/\/$/, "");
   const body = {};
   if (flags.shell) body.shell = flags.shell;
   if (process.stdout.columns) body.cols = process.stdout.columns;
   if (process.stdout.rows) body.rows = process.stdout.rows;
-  const createResp = await fetch(
-    `${base}/api/projects/${encodeURIComponent(flags.project)}/terminals`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    },
-  );
-  if (!createResp.ok) return structuredHttpFailure(createResp, 'project-not-found');
+  const createResp = await fetch(`${base}/api/projects/${encodeURIComponent(flags.project)}/terminals`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if (!createResp.ok) return structuredHttpFailure(createResp, "project-not-found");
   const created = await createResp.json();
   if (flags.json) {
-    return process.stdout.write(JSON.stringify(created, null, 2) + '\n');
+    return process.stdout.write(JSON.stringify(created, null, 2) + "\n");
   }
   const terminalId = created?.terminal?.id;
   if (!terminalId) {
-    console.error('terminal create returned no id');
+    console.error("terminal create returned no id");
     process.exit(1);
   }
   await attachTerminal(base, flags.project, terminalId);
@@ -5330,59 +5741,67 @@ async function attachTerminal(base, projectId, terminalId) {
 
   const onInput = (chunk) => {
     fetch(`${termPath}/stdin`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ data: chunk.toString('utf8') }),
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ data: chunk.toString("utf8") })
     }).catch(() => {});
   };
-  process.stdin.on('data', onInput);
+  process.stdin.on("data", onInput);
 
   const onResize = () => {
     fetch(`${termPath}/resize`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ cols: process.stdout.columns, rows: process.stdout.rows }),
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cols: process.stdout.columns, rows: process.stdout.rows })
     }).catch(() => {});
   };
-  process.stdout.on('resize', onResize);
+  process.stdout.on("resize", onResize);
 
   const restore = () => {
-    process.stdin.off('data', onInput);
-    process.stdout.off('resize', onResize);
+    process.stdin.off("data", onInput);
+    process.stdout.off("resize", onResize);
     if (isRawTty) {
-      try { process.stdin.setRawMode(false); } catch { /* ignore */ }
+      try {
+        process.stdin.setRawMode(false);
+      } catch {
+        /* ignore */
+      }
     }
     process.stdin.pause();
   };
 
   try {
-    const resp = await fetch(`${termPath}/stream`, { headers: { accept: 'text/event-stream' } });
+    const resp = await fetch(`${termPath}/stream`, { headers: { accept: "text/event-stream" } });
     if (!resp.ok || !resp.body) {
       console.error(`shell attach failed: ${resp.status}`);
       process.exit(1);
     }
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '';
+    let buffer = "";
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      const blocks = buffer.split('\n\n');
-      buffer = blocks.pop() ?? '';
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop() ?? "";
       for (const block of blocks) {
-        const lines = block.split('\n');
-        const eventLine = lines.find((l) => l.startsWith('event: '));
-        const dataLine = lines.find((l) => l.startsWith('data: '));
-        const event = eventLine ? eventLine.slice('event: '.length) : 'message';
-        const dataRaw = dataLine ? dataLine.slice('data: '.length) : '';
+        const lines = block.split("\n");
+        const eventLine = lines.find((l) => l.startsWith("event: "));
+        const dataLine = lines.find((l) => l.startsWith("data: "));
+        const event = eventLine ? eventLine.slice("event: ".length) : "message";
+        const dataRaw = dataLine ? dataLine.slice("data: ".length) : "";
         let parsed;
-        try { parsed = JSON.parse(dataRaw); } catch { parsed = dataRaw; }
-        if (event === 'data' && parsed && typeof parsed.data === 'string') {
+        try {
+          parsed = JSON.parse(dataRaw);
+        } catch {
+          parsed = dataRaw;
+        }
+        if (event === "data" && parsed && typeof parsed.data === "string") {
           process.stdout.write(parsed.data);
-        } else if (event === 'exit') {
+        } else if (event === "exit") {
           restore();
-          process.exit(typeof parsed?.code === 'number' ? parsed.code : 0);
+          process.exit(typeof parsed?.code === "number" ? parsed.code : 0);
         }
       }
     }
@@ -5392,7 +5811,7 @@ async function attachTerminal(base, projectId, terminalId) {
 }
 
 async function runFiles(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od files list   <projectId>                  List files in a project.
   od files read   <projectId> <relpath>        Stream file bytes to stdout.
@@ -5412,73 +5831,72 @@ Common options:
   const sub = args[0];
   const rest = args.slice(1);
   const flags = parseFlags(rest, { string: PROJECT_STRING_FLAGS, boolean: PROJECT_BOOLEAN_FLAGS });
-  const base = (await projectDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await projectDaemonUrl(flags)).replace(/\/$/, "");
   switch (sub) {
-    case 'list': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "list": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
-        console.error('Usage: od files list <projectId>');
+        console.error("Usage: od files list <projectId>");
         process.exit(2);
       }
       const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/files`);
-      if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
+      if (!resp.ok) return structuredHttpFailure(resp, "project-not-found");
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       const files = Array.isArray(data?.files) ? data.files : [];
       for (const f of files) console.log(`${f.size}\t${f.name ?? f.path}`);
       return;
     }
-    case 'read': {
-      const positional = rest.filter((a) => !a.startsWith('-'));
+    case "read": {
+      const positional = rest.filter((a) => !a.startsWith("-"));
       const [id, rel] = positional;
       if (!id || !rel) {
-        console.error('Usage: od files read <projectId> <relpath>');
+        console.error("Usage: od files read <projectId> <relpath>");
         process.exit(2);
       }
-      const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/files/${rel.split('/').map(encodeURIComponent).join('/')}`);
-      if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
+      const resp = await fetch(
+        `${base}/api/projects/${encodeURIComponent(id)}/files/${rel.split("/").map(encodeURIComponent).join("/")}`
+      );
+      if (!resp.ok) return structuredHttpFailure(resp, "project-not-found");
       const buf = Buffer.from(await resp.arrayBuffer());
       process.stdout.write(buf);
       return;
     }
-    case 'upload': {
-      const positional = rest.filter((a) => !a.startsWith('-')
-        && a !== flags.as);
+    case "upload": {
+      const positional = rest.filter((a) => !a.startsWith("-") && a !== flags.as);
       const [id, localPath] = positional;
       if (!id || !localPath) {
-        console.error('Usage: od files upload <projectId> <localpath> [--as <relpath>]');
+        console.error("Usage: od files upload <projectId> <localpath> [--as <relpath>]");
         process.exit(2);
       }
-      const fs = require('node:fs');
-      const path = require('node:path');
+      const fs = require("node:fs");
+      const path = require("node:path");
       const buf = fs.readFileSync(localPath);
-      const desiredName = typeof flags.as === 'string' && flags.as.length > 0
-        ? flags.as
-        : path.basename(localPath);
+      const desiredName = typeof flags.as === "string" && flags.as.length > 0 ? flags.as : path.basename(localPath);
       const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/files`, {
-        method:  'POST',
-        headers: { 'content-type': 'application/json' },
-        body:    JSON.stringify({
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
           name: desiredName,
-          content: buf.toString('base64'),
-          encoding: 'base64',
-        }),
+          content: buf.toString("base64"),
+          encoding: "base64"
+        })
       });
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       console.log(`[files] uploaded ${data?.file?.name ?? desiredName}`);
       return;
     }
-    case 'write': {
-      const positional = rest.filter((a) => !a.startsWith('-'));
+    case "write": {
+      const positional = rest.filter((a) => !a.startsWith("-"));
       const [id, rel] = positional;
       if (!id || !rel) {
-        console.error('Usage: od files write <projectId> <relpath> [< stdin]');
+        console.error("Usage: od files write <projectId> <relpath> [< stdin]");
         process.exit(2);
       }
       // Read stdin synchronously into a buffer.
-      const fs = require('node:fs');
+      const fs = require("node:fs");
       let chunks = [];
       try {
         const stdin = fs.readFileSync(0);
@@ -5489,47 +5907,47 @@ Common options:
       }
       const body = Buffer.concat(chunks);
       const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/files`, {
-        method:  'POST',
-        headers: { 'content-type': 'application/json' },
-        body:    JSON.stringify({
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
           name: rel,
-          content: body.toString('utf8'),
-          encoding: 'utf8',
-        }),
+          content: body.toString("utf8"),
+          encoding: "utf8"
+        })
       });
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       console.log(`[files] wrote ${data?.file?.name ?? rel}`);
       return;
     }
-    case 'delete': {
-      const positional = rest.filter((a) => !a.startsWith('-'));
+    case "delete": {
+      const positional = rest.filter((a) => !a.startsWith("-"));
       const [id, name] = positional;
       if (!id || !name) {
-        console.error('Usage: od files delete <projectId> <name>');
+        console.error("Usage: od files delete <projectId> <name>");
         process.exit(2);
       }
-      const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/files/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/files/${encodeURIComponent(name)}`, {
+        method: "DELETE"
+      });
       if (!resp.ok) return structuredHttpFailure(resp);
       console.log(`[files] deleted ${name}`);
       return;
     }
-    case 'diff': {
+    case "diff": {
       const positional = positionalArgs(rest, PROJECT_STRING_FLAGS);
       const [id, relA, relB] = positional;
-      const against = typeof flags.against === 'string' ? flags.against : null;
+      const against = typeof flags.against === "string" ? flags.against : null;
       if (!id || !relA || (!relB && !against) || (relB && against)) {
-        console.error('Usage: od files diff <projectId> <relpathA> [<relpathB> | --against -]');
+        console.error("Usage: od files diff <projectId> <relpathA> [<relpathB> | --against -]");
         process.exit(2);
       }
       const left = await fetchProjectFileText(base, id, relA);
       const rightLabel = against ?? relB;
-      const right = against === '-'
-        ? await readStdinUtf8()
-        : await fetchProjectFileText(base, id, rightLabel);
+      const right = against === "-" ? await readStdinUtf8() : await fetchProjectFileText(base, id, rightLabel);
       const diff = createUnifiedDiff(`a/${relA}`, `b/${rightLabel}`, left, right);
-      if (flags.json) return process.stdout.write(JSON.stringify({ diff }, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify({ diff }, null, 2) + "\n");
       process.stdout.write(diff);
       return;
     }
@@ -5540,68 +5958,58 @@ Common options:
 }
 
 function encodeProjectRelpath(rel) {
-  return String(rel).split('/').map(encodeURIComponent).join('/');
+  return String(rel).split("/").map(encodeURIComponent).join("/");
 }
 
 async function fetchProjectFileText(base, id, rel) {
-  const resp = await fetch(
-    `${base}/api/projects/${encodeURIComponent(id)}/files/${encodeProjectRelpath(rel)}`,
-  );
-  if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
+  const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/files/${encodeProjectRelpath(rel)}`);
+  if (!resp.ok) return structuredHttpFailure(resp, "project-not-found");
   const buf = Buffer.from(await resp.arrayBuffer());
-  return buf.toString('utf8');
+  return buf.toString("utf8");
 }
 
 async function readStdinUtf8() {
-  const fs = await import('node:fs');
-  return fs.readFileSync(0, 'utf8');
+  const fs = await import("node:fs");
+  return fs.readFileSync(0, "utf8");
 }
 
 async function mintCliImportToken(baseDir) {
   const socketPath = process.env[SIDECAR_ENV.IPC_PATH];
-  if (typeof socketPath !== 'string' || socketPath.length === 0) return null;
+  if (typeof socketPath !== "string" || socketPath.length === 0) return null;
   let result;
   try {
     result = await requestJsonIpc(
       socketPath,
       { type: SIDECAR_MESSAGES.MINT_IMPORT_TOKEN, input: { baseDir } },
-      { timeoutMs: 800 },
+      { timeoutMs: 800 }
     );
   } catch {
     return null;
   }
-  if (result?.ok === true && typeof result.token === 'string' && result.token.length > 0) {
+  if (result?.ok === true && typeof result.token === "string" && result.token.length > 0) {
     return result.token;
   }
-  if (result?.ok === false && result.code === 'DESKTOP_AUTH_PENDING') {
+  if (result?.ok === false && result.code === "DESKTOP_AUTH_PENDING") {
     exitWithStructuredError({
-      code: 'desktop-auth-pending',
-      message: result.message ?? 'desktop auth required but secret not yet registered',
-      data: { retryable: result.retryable === true },
+      code: "desktop-auth-pending",
+      message: result.message ?? "desktop auth required but secret not yet registered",
+      data: { retryable: result.retryable === true }
     });
   }
   return null;
 }
 
 function createUnifiedDiff(leftLabel, rightLabel, leftText, rightText) {
-  if (leftText === rightText) return '';
+  if (leftText === rightText) return "";
   const leftLines = splitDiffLines(leftText);
   const rightLines = splitDiffLines(rightText);
   let prefix = 0;
-  while (
-    prefix < leftLines.length
-    && prefix < rightLines.length
-    && leftLines[prefix] === rightLines[prefix]
-  ) {
+  while (prefix < leftLines.length && prefix < rightLines.length && leftLines[prefix] === rightLines[prefix]) {
     prefix++;
   }
   let leftEnd = leftLines.length;
   let rightEnd = rightLines.length;
-  while (
-    leftEnd > prefix
-    && rightEnd > prefix
-    && leftLines[leftEnd - 1] === rightLines[rightEnd - 1]
-  ) {
+  while (leftEnd > prefix && rightEnd > prefix && leftLines[leftEnd - 1] === rightLines[rightEnd - 1]) {
     leftEnd--;
     rightEnd--;
   }
@@ -5609,16 +6017,18 @@ function createUnifiedDiff(leftLabel, rightLabel, leftText, rightText) {
   const newMid = rightLines.slice(prefix, rightEnd);
   const body = diffLineBody(oldMid, newMid);
   if (body.length === 0) {
-    body.push(...oldMid.map((line) => diffLine('-', line)), ...newMid.map((line) => diffLine('+', line)));
+    body.push(...oldMid.map((line) => diffLine("-", line)), ...newMid.map((line) => diffLine("+", line)));
   }
   const oldStart = oldMid.length === 0 ? prefix : prefix + 1;
   const newStart = newMid.length === 0 ? prefix : prefix + 1;
-  return [
-    `--- ${leftLabel}`,
-    `+++ ${rightLabel}`,
-    `@@ -${formatDiffRange(oldStart, oldMid.length)} +${formatDiffRange(newStart, newMid.length)} @@`,
-    ...body,
-  ].join('\n') + '\n';
+  return (
+    [
+      `--- ${leftLabel}`,
+      `+++ ${rightLabel}`,
+      `@@ -${formatDiffRange(oldStart, oldMid.length)} +${formatDiffRange(newStart, newMid.length)} @@`,
+      ...body
+    ].join("\n") + "\n"
+  );
 }
 
 function splitDiffLines(text) {
@@ -5632,21 +6042,16 @@ function formatDiffRange(start, length) {
 }
 
 function diffLineBody(oldLines, newLines) {
-  if (oldLines.length === 0) return newLines.map((line) => diffLine('+', line));
-  if (newLines.length === 0) return oldLines.map((line) => diffLine('-', line));
+  if (oldLines.length === 0) return newLines.map((line) => diffLine("+", line));
+  if (newLines.length === 0) return oldLines.map((line) => diffLine("-", line));
   if (oldLines.length * newLines.length > 1_000_000) {
-    return [...oldLines.map((line) => diffLine('-', line)), ...newLines.map((line) => diffLine('+', line))];
+    return [...oldLines.map((line) => diffLine("-", line)), ...newLines.map((line) => diffLine("+", line))];
   }
   const width = newLines.length + 1;
-  const lcs = Array.from(
-    { length: oldLines.length + 1 },
-    () => new Uint32Array(width),
-  );
+  const lcs = Array.from({ length: oldLines.length + 1 }, () => new Uint32Array(width));
   for (let i = oldLines.length - 1; i >= 0; i--) {
     for (let j = newLines.length - 1; j >= 0; j--) {
-      lcs[i][j] = oldLines[i] === newLines[j]
-        ? lcs[i + 1][j + 1] + 1
-        : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+      lcs[i][j] = oldLines[i] === newLines[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
     }
   }
   const out = [];
@@ -5654,32 +6059,32 @@ function diffLineBody(oldLines, newLines) {
   let j = 0;
   while (i < oldLines.length && j < newLines.length) {
     if (oldLines[i] === newLines[j]) {
-      out.push(diffLine(' ', oldLines[i]));
+      out.push(diffLine(" ", oldLines[i]));
       i++;
       j++;
     } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
-      out.push(diffLine('-', oldLines[i]));
+      out.push(diffLine("-", oldLines[i]));
       i++;
     } else {
-      out.push(diffLine('+', newLines[j]));
+      out.push(diffLine("+", newLines[j]));
       j++;
     }
   }
-  while (i < oldLines.length) out.push(diffLine('-', oldLines[i++]));
-  while (j < newLines.length) out.push(diffLine('+', newLines[j++]));
+  while (i < oldLines.length) out.push(diffLine("-", oldLines[i++]));
+  while (j < newLines.length) out.push(diffLine("+", newLines[j++]));
   return out;
 }
 
 function diffLine(prefix, line) {
   const value = String(line);
-  if (value.endsWith('\r\n')) return `${prefix}${renderDiffLineContent(value.slice(0, -1))}`;
-  if (value.endsWith('\n')) return `${prefix}${renderDiffLineContent(value.slice(0, -1))}`;
-  if (value.endsWith('\r')) return `${prefix}${renderDiffLineContent(value)}`;
+  if (value.endsWith("\r\n")) return `${prefix}${renderDiffLineContent(value.slice(0, -1))}`;
+  if (value.endsWith("\n")) return `${prefix}${renderDiffLineContent(value.slice(0, -1))}`;
+  if (value.endsWith("\r")) return `${prefix}${renderDiffLineContent(value)}`;
   return `${prefix}${renderDiffLineContent(value)}\n\\ No newline at end of file`;
 }
 
 function renderDiffLineContent(value) {
-  return String(value).replace(/\r/g, '\\r');
+  return String(value).replace(/\r/g, "\\r");
 }
 
 // `od templates …` is the headless face of NewProjectPanel /
@@ -5689,7 +6094,7 @@ function renderDiffLineContent(value) {
 // saved, or drop one that is no longer needed. The web UI and the CLI
 // share the daemon HTTP layer so neither can drift out of step.
 async function runTemplates(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od templates list                                  List user-saved templates.
   od templates save  <projectId> --name <name>      Snapshot a project's current
@@ -5711,7 +6116,7 @@ Common options:
     console.error(err.message);
     process.exit(2);
   }
-  const base = (await cliDaemonBaseUrl(flags));
+  const base = await cliDaemonBaseUrl(flags);
   // Extract positional arguments while stepping past `--flag value`
   // pairs for any string-valued template flag. Without this the id has
   // to be the very first token after the sub-verb, so a headless caller
@@ -5724,19 +6129,19 @@ Common options:
     for (let i = 0; i < values.length; i++) {
       const value = values[i];
       if (!value) continue;
-      if (value.startsWith('--')) {
-        const eq = value.indexOf('=');
+      if (value.startsWith("--")) {
+        const eq = value.indexOf("=");
         const key = eq >= 0 ? value.slice(2, eq) : value.slice(2);
         if (eq < 0 && TEMPLATES_STRING_FLAGS.has(key)) i++;
         continue;
       }
-      if (value.startsWith('-')) continue;
+      if (value.startsWith("-")) continue;
       out.push(value);
     }
     return out;
   };
   switch (sub) {
-    case 'list': {
+    case "list": {
       // Wrap every fetch in try/catch so the user sees a clean
       // "failed to reach daemon at <url>: <code>" error from
       // surfaceFetchError when the daemon isn't running. Without
@@ -5752,7 +6157,7 @@ Common options:
       }
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       const templates = Array.isArray(data?.templates) ? data.templates : [];
       if (templates.length === 0) {
         console.log('No templates. Save one with `od templates save <projectId> --name "..."`.');
@@ -5761,30 +6166,30 @@ Common options:
       for (const t of templates) console.log(`${t.id}\t${t.name}`);
       return;
     }
-    case 'save': {
+    case "save": {
       // Pull <projectId> from anywhere among the positional args
       // (`positionalArgs` already skipped past `--flag value` pairs)
       // so callers can put shared options before or after the id.
-      const projectId = positionalArgs(rest)[0] ?? '';
+      const projectId = positionalArgs(rest)[0] ?? "";
       if (!projectId) {
-        console.error('Usage: od templates save <projectId> --name <name> [--description <text>]');
+        console.error("Usage: od templates save <projectId> --name <name> [--description <text>]");
         process.exit(2);
       }
-      const name = typeof flags.name === 'string' ? flags.name.trim() : '';
+      const name = typeof flags.name === "string" ? flags.name.trim() : "";
       if (!name) {
-        console.error('--name required');
+        console.error("--name required");
         process.exit(2);
       }
       const body = { name, sourceProjectId: projectId };
-      if (typeof flags.description === 'string' && flags.description.length > 0) {
+      if (typeof flags.description === "string" && flags.description.length > 0) {
         body.description = flags.description;
       }
       let resp;
       try {
         resp = await fetch(`${base}/api/templates`, {
-          method:  'POST',
-          headers: { 'content-type': 'application/json' },
-          body:    JSON.stringify(body),
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body)
         });
       } catch (err) {
         surfaceFetchError(err, base);
@@ -5799,26 +6204,26 @@ Common options:
       // keep the default for 5xx so genuine daemon trouble still
       // surfaces as `daemon-not-running`.
       if (!resp.ok) {
-        if (resp.status === 404) return structuredHttpFailure(resp, 'project-not-found');
-        if (resp.status === 400) return structuredHttpFailure(resp, 'missing-input');
+        if (resp.status === 404) return structuredHttpFailure(resp, "project-not-found");
+        if (resp.status === 400) return structuredHttpFailure(resp, "missing-input");
         return structuredHttpFailure(resp);
       }
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
-      const id = data?.template?.id ?? '';
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
+      const id = data?.template?.id ?? "";
       const savedName = data?.template?.name ?? name;
-      console.log(`[templates] saved ${savedName}${id ? ` (${id})` : ''}`);
+      console.log(`[templates] saved ${savedName}${id ? ` (${id})` : ""}`);
       return;
     }
-    case 'delete': {
-      const id = positionalArgs(rest)[0] ?? '';
+    case "delete": {
+      const id = positionalArgs(rest)[0] ?? "";
       if (!id) {
-        console.error('Usage: od templates delete <id>');
+        console.error("Usage: od templates delete <id>");
         process.exit(2);
       }
       let resp;
       try {
-        resp = await fetch(`${base}/api/templates/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        resp = await fetch(`${base}/api/templates/${encodeURIComponent(id)}`, { method: "DELETE" });
       } catch (err) {
         surfaceFetchError(err, base);
         process.exit(3);
@@ -5832,7 +6237,7 @@ Common options:
       if (!resp.ok) return structuredHttpFailure(resp);
       if (flags.json) {
         const data = await resp.json().catch(() => ({ ok: true }));
-        return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+        return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       }
       console.log(`[templates] deleted ${id}`);
       return;
@@ -5844,7 +6249,7 @@ Common options:
 }
 
 async function runConversation(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od conversation new  <projectId> [--title "<title>"] [--seed-from <cid>] [--fork-after <mid>] [--mode design|chat]
                                            Create a conversation in a project.
@@ -5863,62 +6268,64 @@ Common options:
   const sub = args[0];
   const rest = args.slice(1);
   const flags = parseFlags(rest, { string: PROJECT_STRING_FLAGS, boolean: PROJECT_BOOLEAN_FLAGS });
-  const base = (await projectDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await projectDaemonUrl(flags)).replace(/\/$/, "");
   switch (sub) {
-    case 'new': {
+    case "new": {
       const [id] = positionalArgs(rest, PROJECT_STRING_FLAGS);
       if (!id) {
-        console.error('Usage: od conversation new <projectId> [--title "<title>"] [--seed-from <cid>] [--fork-after <mid>]');
+        console.error(
+          'Usage: od conversation new <projectId> [--title "<title>"] [--seed-from <cid>] [--fork-after <mid>]'
+        );
         process.exit(2);
       }
       const body = {};
-      if (typeof flags.title === 'string') body.title = flags.title;
+      if (typeof flags.title === "string") body.title = flags.title;
       const sessionMode = normalizeChatSessionModeFlag(flags.mode);
       if (sessionMode) body.sessionMode = sessionMode;
-      if (typeof flags['seed-from'] === 'string' && flags['seed-from']) {
-        body.seedFromConversationId = flags['seed-from'];
+      if (typeof flags["seed-from"] === "string" && flags["seed-from"]) {
+        body.seedFromConversationId = flags["seed-from"];
       }
-      if (typeof flags['fork-after'] === 'string' && flags['fork-after']) {
+      if (typeof flags["fork-after"] === "string" && flags["fork-after"]) {
         if (!body.seedFromConversationId) {
-          console.error('--fork-after requires --seed-from');
+          console.error("--fork-after requires --seed-from");
           process.exit(2);
         }
-        body.forkAfterMessageId = flags['fork-after'];
+        body.forkAfterMessageId = flags["fork-after"];
       }
       const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/conversations`, {
-        method:  'POST',
-        headers: { 'content-type': 'application/json' },
-        body:    JSON.stringify(body),
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body)
       });
-      if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
+      if (!resp.ok) return structuredHttpFailure(resp, "project-not-found");
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       const conv = data.conversation;
-      console.log(`[conversation] created ${conv?.id ?? '-'} (mode ${conv?.sessionMode ?? sessionMode ?? 'design'})`);
+      console.log(`[conversation] created ${conv?.id ?? "-"} (mode ${conv?.sessionMode ?? sessionMode ?? "design"})`);
       return;
     }
-    case 'list': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "list": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
-        console.error('Usage: od conversation list <projectId>');
+        console.error("Usage: od conversation list <projectId>");
         process.exit(2);
       }
       const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/conversations`);
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
-      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       return;
     }
-    case 'info': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "info": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
-        console.error('Usage: od conversation info <conversationId>');
+        console.error("Usage: od conversation info <conversationId>");
         process.exit(2);
       }
       const resp = await fetch(`${base}/api/conversations/${encodeURIComponent(id)}`);
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
-      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       return;
     }
     default:
@@ -5939,7 +6346,7 @@ Common options:
 // ---------------------------------------------------------------------------
 
 async function runChat(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od chat new --project <id> [--seed-from <cid>] [--fork-after <mid>] [--title "<title>"] [--mode design|chat] [--json]
                                            Create a Side Chat — a new conversation
@@ -5956,48 +6363,47 @@ Common options:
   const sub = args[0];
   const rest = args.slice(1);
   const flags = parseFlags(rest, { string: PROJECT_STRING_FLAGS, boolean: PROJECT_BOOLEAN_FLAGS });
-  const base = (await projectDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await projectDaemonUrl(flags)).replace(/\/$/, "");
   switch (sub) {
-    case 'new': {
+    case "new": {
       // Accept --project for parity with the rest of the project-scoped CLI,
       // or a bare positional id for convenience.
-      const id = typeof flags.project === 'string' && flags.project
-        ? flags.project
-        : positionalArgs(rest, PROJECT_STRING_FLAGS)[0];
+      const id =
+        typeof flags.project === "string" && flags.project
+          ? flags.project
+          : positionalArgs(rest, PROJECT_STRING_FLAGS)[0];
       if (!id) {
         console.error('Usage: od chat new --project <id> [--seed-from <cid>] [--fork-after <mid>] [--title "<title>"]');
         process.exit(2);
       }
       const body = {};
-      if (typeof flags.title === 'string') body.title = flags.title;
+      if (typeof flags.title === "string") body.title = flags.title;
       const sessionMode = normalizeChatSessionModeFlag(flags.mode);
       if (sessionMode) body.sessionMode = sessionMode;
-      if (typeof flags['seed-from'] === 'string' && flags['seed-from']) {
-        body.seedFromConversationId = flags['seed-from'];
+      if (typeof flags["seed-from"] === "string" && flags["seed-from"]) {
+        body.seedFromConversationId = flags["seed-from"];
       }
-      if (typeof flags['fork-after'] === 'string' && flags['fork-after']) {
+      if (typeof flags["fork-after"] === "string" && flags["fork-after"]) {
         if (!body.seedFromConversationId) {
-          console.error('--fork-after requires --seed-from');
+          console.error("--fork-after requires --seed-from");
           process.exit(2);
         }
-        body.forkAfterMessageId = flags['fork-after'];
+        body.forkAfterMessageId = flags["fork-after"];
       }
       const resp = await fetch(`${base}/api/projects/${encodeURIComponent(id)}/conversations`, {
-        method:  'POST',
-        headers: { 'content-type': 'application/json' },
-        body:    JSON.stringify(body),
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body)
       });
-      if (!resp.ok) return structuredHttpFailure(resp, 'project-not-found');
+      if (!resp.ok) return structuredHttpFailure(resp, "project-not-found");
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       const conv = data.conversation;
-      const seeded = body.seedFromConversationId
-        ? ` (seeded from ${body.seedFromConversationId})`
-        : '';
-      const forked = body.forkAfterMessageId
-        ? ` through ${body.forkAfterMessageId}`
-        : '';
-      console.log(`[chat] created ${conv?.id ?? '-'}${conv?.title ? ` "${conv.title}"` : ''}${seeded}${forked} (mode ${conv?.sessionMode ?? sessionMode ?? 'design'})`);
+      const seeded = body.seedFromConversationId ? ` (seeded from ${body.seedFromConversationId})` : "";
+      const forked = body.forkAfterMessageId ? ` through ${body.forkAfterMessageId}` : "";
+      console.log(
+        `[chat] created ${conv?.id ?? "-"}${conv?.title ? ` "${conv.title}"` : ""}${seeded}${forked} (mode ${conv?.sessionMode ?? sessionMode ?? "design"})`
+      );
       return;
     }
     default:
@@ -6023,7 +6429,7 @@ Common options:
 // ---------------------------------------------------------------------------
 
 async function runDaemon(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od daemon start [--headless] [--serve-web] [--port <n>] [--host <addr>] [--no-open]
                                           Start the daemon (Phase 1.5 headless mode).
@@ -6045,10 +6451,14 @@ Common options:
   const rest = args.slice(1);
   const flags = parseFlags(rest, { string: DAEMON_STRING_FLAGS, boolean: DAEMON_BOOLEAN_FLAGS });
   switch (sub) {
-    case 'start':   return runDaemonStart(flags);
-    case 'status':  return runDaemonStatus(flags);
-    case 'stop':    return runDaemonStop(flags);
-    case 'db':      return runDaemonDb(rest, flags);
+    case "start":
+      return runDaemonStart(flags);
+    case "status":
+      return runDaemonStatus(flags);
+    case "stop":
+      return runDaemonStop(flags);
+    case "db":
+      return runDaemonDb(rest, flags);
     default:
       console.error(`unknown subcommand: od daemon ${sub}`);
       process.exit(2);
@@ -6059,7 +6469,7 @@ Common options:
 // (file path, size on disk, schema version, per-table row counts).
 async function runDaemonDb(rest, flags) {
   const sub = rest[0];
-  if (!sub || sub === 'help' || rest.includes('--help') || rest.includes('-h')) {
+  if (!sub || sub === "help" || rest.includes("--help") || rest.includes("-h")) {
     console.log(`Usage:
   od daemon db status [--json] [--daemon-url <url>]
   od daemon db verify [--quick] [--json] [--daemon-url <url>]
@@ -6083,37 +6493,39 @@ vacuum:
   sizes + elapsed ms.`);
     process.exit(sub ? 0 : 2);
   }
-  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, '');
-  if (sub === 'vacuum') {
-    const resp = await fetch(`${base}/api/daemon/db/vacuum`, { method: 'POST' });
+  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, "");
+  if (sub === "vacuum") {
+    const resp = await fetch(`${base}/api/daemon/db/vacuum`, { method: "POST" });
     if (!resp.ok) {
       console.error(`POST /api/daemon/db/vacuum failed: ${resp.status} ${await resp.text()}`);
       process.exit(1);
     }
     const data = await resp.json();
     if (flags.json) {
-      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       return;
     }
-    console.log(`[db vacuum] reclaimed ${formatBytes(data.reclaimedBytes ?? 0)} (`
-      + `${formatBytes(data.beforeBytes ?? 0)} \u2192 ${formatBytes(data.afterBytes ?? 0)}, `
-      + `${data.elapsedMs ?? 0}ms)`);
+    console.log(
+      `[db vacuum] reclaimed ${formatBytes(data.reclaimedBytes ?? 0)} (` +
+        `${formatBytes(data.beforeBytes ?? 0)} \u2192 ${formatBytes(data.afterBytes ?? 0)}, ` +
+        `${data.elapsedMs ?? 0}ms)`
+    );
     return;
   }
-  if (sub === 'verify') {
+  if (sub === "verify") {
     const verifyFlags = parseFlags(rest.slice(1), {
-      string:  new Set(['daemon-url']),
-      boolean: new Set(['help', 'h', 'json', 'quick']),
+      string: new Set(["daemon-url"]),
+      boolean: new Set(["help", "h", "json", "quick"])
     });
-    const url = `${base}/api/daemon/db/verify${verifyFlags.quick ? '?quick=1' : ''}`;
-    const resp = await fetch(url, { method: 'POST' });
+    const url = `${base}/api/daemon/db/verify${verifyFlags.quick ? "?quick=1" : ""}`;
+    const resp = await fetch(url, { method: "POST" });
     if (!resp.ok) {
       console.error(`POST ${url} failed: ${resp.status} ${await resp.text()}`);
       process.exit(1);
     }
     const data = await resp.json();
     if (flags.json) {
-      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     } else {
       const issueCount = Array.isArray(data.issues) ? data.issues.length : 0;
       console.log(`[db verify] mode=${data.mode}  ok=${data.ok}  issues=${issueCount}  ${data.elapsedMs ?? 0}ms`);
@@ -6125,7 +6537,7 @@ vacuum:
     }
     process.exit(data.ok ? 0 : 4);
   }
-  if (sub !== 'status') {
+  if (sub !== "status") {
     console.error(`unknown subcommand: od daemon db ${sub}`);
     process.exit(2);
   }
@@ -6136,18 +6548,18 @@ vacuum:
   }
   const data = await resp.json();
   if (flags.json) {
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
     return;
   }
   console.log(`# Daemon DB`);
-  console.log(`  kind:           ${data.kind ?? 'unknown'}`);
-  console.log(`  location:       ${data.location ?? '?'}`);
+  console.log(`  kind:           ${data.kind ?? "unknown"}`);
+  console.log(`  location:       ${data.location ?? "?"}`);
   console.log(`  size on disk:   ${formatBytes(data.sizeBytes ?? 0)}`);
-  console.log(`  schema version: ${data.schemaVersion ?? '(none)'}`);
+  console.log(`  schema version: ${data.schemaVersion ?? "(none)"}`);
   console.log(`  tables:`);
   const tables = Array.isArray(data.tables) ? data.tables : [];
   if (tables.length === 0) {
-    console.log('    (none)');
+    console.log("    (none)");
   } else {
     const longest = Math.max(...tables.map((t) => t.name.length));
     for (const t of tables) {
@@ -6165,15 +6577,15 @@ function formatBytes(n) {
 
 async function runDaemonStart(flags) {
   const port = Number(flags.port ?? process.env.OD_PORT ?? 7456);
-  const host = String(flags.host ?? process.env.OD_BIND_HOST ?? '127.0.0.1');
-  const headless = Boolean(flags.headless || flags['no-open'] || flags['serve-web']);
+  const host = String(flags.host ?? process.env.OD_BIND_HOST ?? "127.0.0.1");
+  const headless = Boolean(flags.headless || flags["no-open"] || flags["serve-web"]);
   const runtime = await startDaemonRuntime({
     host,
     logListening: false,
     openBrowser: !headless,
-    port,
+    port
   });
-  console.log(`[od] listening on ${runtime.url} (${headless ? 'headless' : 'desktop'})`);
+  console.log(`[od] listening on ${runtime.url} (${headless ? "headless" : "desktop"})`);
 
   await new Promise((resolve) => {
     let shuttingDown = false;
@@ -6186,11 +6598,11 @@ async function runDaemonStart(flags) {
       });
     };
     const cleanup = () => {
-      process.off('SIGINT', stop);
-      process.off('SIGTERM', stop);
+      process.off("SIGINT", stop);
+      process.off("SIGTERM", stop);
     };
-    process.on('SIGINT', stop);
-    process.on('SIGTERM', stop);
+    process.on("SIGINT", stop);
+    process.on("SIGTERM", stop);
   });
 }
 
@@ -6201,25 +6613,27 @@ async function runDaemonStatus(flags) {
     resp = await fetch(`${base}/api/daemon/status`);
   } catch (err) {
     return exitWithStructuredError({
-      code:    'daemon-not-running',
-      message: `Cannot reach daemon at ${base}: ${err?.message ?? err}`,
+      code: "daemon-not-running",
+      message: `Cannot reach daemon at ${base}: ${err?.message ?? err}`
     });
   }
   if (!resp.ok) return structuredHttpFailure(resp);
   const data = await resp.json();
-  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
-  console.log(`[daemon] ${data.bindHost}:${data.port} v${data.version} pid=${data.pid} plugins=${data.installedPlugins}`);
+  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
+  console.log(
+    `[daemon] ${data.bindHost}:${data.port} v${data.version} pid=${data.pid} plugins=${data.installedPlugins}`
+  );
 }
 
 async function runDaemonStop(flags) {
   const base = await cliDaemonBaseUrl(flags);
   let resp;
   try {
-    resp = await fetch(`${base}/api/daemon/shutdown`, { method: 'POST' });
+    resp = await fetch(`${base}/api/daemon/shutdown`, { method: "POST" });
   } catch (err) {
     return exitWithStructuredError({
-      code:    'daemon-not-running',
-      message: `Cannot reach daemon at ${base}: ${err?.message ?? err}`,
+      code: "daemon-not-running",
+      message: `Cannot reach daemon at ${base}: ${err?.message ?? err}`
     });
   }
   if (!resp.ok) return structuredHttpFailure(resp);
@@ -6239,7 +6653,7 @@ async function libraryDaemonUrl(flags) {
 }
 
 async function runAtoms(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od atoms list             List first-party atoms (implemented + planned).
   od atoms show <id>        Print one atom's metadata.
@@ -6253,23 +6667,23 @@ Common options:
   const sub = args[0];
   const rest = args.slice(1);
   const flags = parseFlags(rest, { string: LIBRARY_STRING_FLAGS, boolean: LIBRARY_BOOLEAN_FLAGS });
-  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, "");
   switch (sub) {
-    case 'list': {
+    case "list": {
       const resp = await fetch(`${base}/api/atoms`);
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       const atoms = data?.atoms ?? [];
       for (const a of atoms) {
-        console.log(`${a.id}\t${a.status}\t[${(a.taskKinds ?? []).join(', ')}]\t${a.label}`);
+        console.log(`${a.id}\t${a.status}\t[${(a.taskKinds ?? []).join(", ")}]\t${a.label}`);
       }
       return;
     }
-    case 'show': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "show": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
-        console.error('Usage: od atoms show <id>');
+        console.error("Usage: od atoms show <id>");
         process.exit(2);
       }
       const resp = await fetch(`${base}/api/atoms`);
@@ -6280,13 +6694,13 @@ Common options:
         console.error(`atom ${id} not found`);
         process.exit(65);
       }
-      process.stdout.write(JSON.stringify(atom, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(atom, null, 2) + "\n");
       return;
     }
-    case 'info': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "info": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
-        console.error('Usage: od atoms info <id>');
+        console.error("Usage: od atoms info <id>");
         process.exit(2);
       }
       const resp = await fetch(`${base}/api/atoms/${encodeURIComponent(id)}`);
@@ -6296,18 +6710,18 @@ Common options:
       }
       if (!resp.ok) return structuredHttpFailure(resp);
       const atom = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(atom, null, 2) + '\n');
+      if (flags.json) return process.stdout.write(JSON.stringify(atom, null, 2) + "\n");
       console.log(`# ${atom.label} (${atom.id})`);
       console.log(`status:    ${atom.status}`);
-      console.log(`taskKinds: ${(atom.taskKinds ?? []).join(', ')}`);
+      console.log(`taskKinds: ${(atom.taskKinds ?? []).join(", ")}`);
       console.log(`summary:   ${atom.description}`);
-      if (typeof atom.skillBody === 'string' && atom.skillBody.length > 0) {
-        console.log('');
-        console.log('--- SKILL.md ---');
+      if (typeof atom.skillBody === "string" && atom.skillBody.length > 0) {
+        console.log("");
+        console.log("--- SKILL.md ---");
         console.log(atom.skillBody.trimEnd());
       } else {
-        console.log('');
-        console.log('(no bundled SKILL.md body found for this atom)');
+        console.log("");
+        console.log("(no bundled SKILL.md body found for this atom)");
       }
       return;
     }
@@ -6318,7 +6732,7 @@ Common options:
 }
 
 async function runLibraryList(name, args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od ${name} list           List ${name}.
   od ${name} show <id>      Print one entry.`);
@@ -6327,23 +6741,23 @@ async function runLibraryList(name, args) {
   const sub = args[0];
   const rest = args.slice(1);
   const flags = parseFlags(rest, { string: LIBRARY_STRING_FLAGS, boolean: LIBRARY_BOOLEAN_FLAGS });
-  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, '');
-  const apiPath = name === 'design-systems' ? '/api/design-systems' : `/api/${name}`;
+  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, "");
+  const apiPath = name === "design-systems" ? "/api/design-systems" : `/api/${name}`;
   switch (sub) {
-    case 'list': {
+    case "list": {
       const resp = await fetch(`${base}${apiPath}`);
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
-      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
-      const rows = data?.[name === 'design-systems' ? 'designSystems' : name] ?? [];
+      if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
+      const rows = data?.[name === "design-systems" ? "designSystems" : name] ?? [];
       for (const row of rows) {
         const label = row.title ?? row.name ?? row.id ?? row.label;
         console.log(`${row.id}\t${label}`);
       }
       return;
     }
-    case 'show': {
-      const id = rest.find((a) => !a.startsWith('-'));
+    case "show": {
+      const id = rest.find((a) => !a.startsWith("-"));
       if (!id) {
         console.error(`Usage: od ${name} show <id>`);
         process.exit(2);
@@ -6351,7 +6765,7 @@ async function runLibraryList(name, args) {
       const resp = await fetch(`${base}${apiPath}/${encodeURIComponent(id)}`);
       if (!resp.ok) return structuredHttpFailure(resp);
       const data = await resp.json();
-      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(data, null, 2) + "\n");
       return;
     }
     default:
@@ -6360,20 +6774,24 @@ async function runLibraryList(name, args) {
   }
 }
 
-async function runSkills(args)        { return runLibraryList('skills', args); }
-async function runCraft(args)         { return runLibraryList('craft', args); }
+async function runSkills(args) {
+  return runLibraryList("skills", args);
+}
+async function runCraft(args) {
+  return runLibraryList("craft", args);
+}
 
 async function runDesignSystems(args) {
-  if (args[0] === 'rename') return runDesignSystemRename(args.slice(1));
-  if (args[0] === 'import-local') return runDesignSystemImportLocal(args.slice(1));
-  if (args[0] === 'import-github') return runDesignSystemImportGithub(args.slice(1));
-  if (args[0] === 'import-shadcn') return runDesignSystemImportShadcn(args.slice(1));
-  if (args[0] === 'rebuild-token-contract') return runDesignSystemTokenContractRebuild(args.slice(1));
+  if (args[0] === "rename") return runDesignSystemRename(args.slice(1));
+  if (args[0] === "import-local") return runDesignSystemImportLocal(args.slice(1));
+  if (args[0] === "import-github") return runDesignSystemImportGithub(args.slice(1));
+  if (args[0] === "import-shadcn") return runDesignSystemImportShadcn(args.slice(1));
+  if (args[0] === "rebuild-token-contract") return runDesignSystemTokenContractRebuild(args.slice(1));
   if (!args[0] || isDesignSystemsHelpArg(args[0])) {
     console.log(DESIGN_SYSTEMS_USAGE);
     process.exit(isDesignSystemsHelpArg(args[0]) ? 0 : 2);
   }
-  return runLibraryList('design-systems', args);
+  return runLibraryList("design-systems", args);
 }
 
 // od design-systems import-local <path> [--name <name>]
@@ -6383,7 +6801,7 @@ async function runDesignSystems(args) {
 // the Settings UI. The CLI resolves relative paths before sending the request
 // because the daemon intentionally accepts only absolute host paths.
 async function runDesignSystemImportLocal(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od design-systems import-local <path> [--name <name>] [--import-mode <mode>] [--craft <slugs>] [--json] [--daemon-url <url>]
   od design-systems import-local --path <path> [--name <name>] [--json]
@@ -6397,24 +6815,24 @@ Imports a local project directory as an editable Open Design design system.
   --craft <slugs>        Comma-separated craft sections to apply (e.g. color,type).`);
     process.exit(args.length === 0 ? 2 : 0);
   }
-  const stringFlags = new Set([...LIBRARY_STRING_FLAGS, 'path', 'name', 'import-mode', 'craft']);
+  const stringFlags = new Set([...LIBRARY_STRING_FLAGS, "path", "name", "import-mode", "craft"]);
   const flags = parseFlags(args, { string: stringFlags, boolean: LIBRARY_BOOLEAN_FLAGS });
-  const localPath = typeof flags.path === 'string' ? flags.path : positionalArgs(args, stringFlags)[0];
+  const localPath = typeof flags.path === "string" ? flags.path : positionalArgs(args, stringFlags)[0];
   if (!localPath) {
-    console.error('Usage: od design-systems import-local <path>');
+    console.error("Usage: od design-systems import-local <path>");
     process.exit(2);
   }
-  const pathModule = await import('node:path');
+  const pathModule = await import("node:path");
   const body = designSystemImportRequestBody(flags, {
-    baseDir: pathModule.resolve(localPath),
+    baseDir: pathModule.resolve(localPath)
   });
-  return postDesignSystemImport(flags, '/api/design-systems/import/local', body);
+  return postDesignSystemImport(flags, "/api/design-systems/import/local", body);
 }
 
 // od design-systems import-github <url> [--branch <branch>] [--name <name>]
 //   [--import-mode <mode>] [--craft <slug,slug>] [--json] [--daemon-url <url>]
 async function runDesignSystemImportGithub(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od design-systems import-github <url> [--branch <branch>] [--name <name>] [--import-mode <mode>] [--craft <slugs>] [--json] [--daemon-url <url>]
   od design-systems import-github --url <url> [--branch <branch>] [--json]
@@ -6429,45 +6847,48 @@ Imports a public GitHub repository as an editable Open Design design system.
   --craft <slugs>        Comma-separated craft sections to apply (e.g. color,type).`);
     process.exit(args.length === 0 ? 2 : 0);
   }
-  const stringFlags = new Set([...LIBRARY_STRING_FLAGS, 'url', 'branch', 'name', 'import-mode', 'craft']);
+  const stringFlags = new Set([...LIBRARY_STRING_FLAGS, "url", "branch", "name", "import-mode", "craft"]);
   const flags = parseFlags(args, { string: stringFlags, boolean: LIBRARY_BOOLEAN_FLAGS });
-  const url = typeof flags.url === 'string' ? flags.url : positionalArgs(args, stringFlags)[0];
+  const url = typeof flags.url === "string" ? flags.url : positionalArgs(args, stringFlags)[0];
   if (!url) {
-    console.error('Usage: od design-systems import-github <url>');
+    console.error("Usage: od design-systems import-github <url>");
     process.exit(2);
   }
   const body = designSystemImportRequestBody(flags, {
     url,
-    ...(typeof flags.branch === 'string' ? { branch: flags.branch } : {}),
+    ...(typeof flags.branch === "string" ? { branch: flags.branch } : {})
   });
-  return postDesignSystemImport(flags, '/api/design-systems/import/github', body);
+  return postDesignSystemImport(flags, "/api/design-systems/import/github", body);
 }
 
 function designSystemImportRequestBody(flags, baseBody) {
   const craftApplies =
-    typeof flags.craft === 'string'
-      ? flags.craft.split(',').map((slug) => slug.trim().toLowerCase()).filter(Boolean)
+    typeof flags.craft === "string"
+      ? flags.craft
+          .split(",")
+          .map((slug) => slug.trim().toLowerCase())
+          .filter(Boolean)
       : undefined;
   return {
     ...baseBody,
-    ...(typeof flags.name === 'string' ? { name: flags.name } : {}),
-    ...(typeof flags['import-mode'] === 'string' ? { importMode: flags['import-mode'] } : {}),
-    ...(craftApplies && craftApplies.length > 0 ? { craftApplies } : {}),
+    ...(typeof flags.name === "string" ? { name: flags.name } : {}),
+    ...(typeof flags["import-mode"] === "string" ? { importMode: flags["import-mode"] } : {}),
+    ...(craftApplies && craftApplies.length > 0 ? { craftApplies } : {})
   };
 }
 
 async function postDesignSystemImport(flags, endpoint, body) {
-  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, "");
   const resp = await fetch(`${base}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
   });
   if (!resp.ok) return structuredHttpFailure(resp);
   const data = await resp.json();
-  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
   const imported = data.designSystem ?? data;
-  console.log(`Imported ${imported.id ?? '(unknown id)'}${imported.title ? ` -> ${imported.title}` : ''}`);
+  console.log(`Imported ${imported.id ?? "(unknown id)"}${imported.title ? ` -> ${imported.title}` : ""}`);
   if (data.tokenContractRebuild?.job) {
     console.log(`Token contract rebuild queued: ${data.tokenContractRebuild.job.id}`);
   } else if (data.tokenContractRebuild?.decision?.reason) {
@@ -6481,7 +6902,7 @@ async function postDesignSystemImport(flags, endpoint, body) {
 // design-system detail view. Without --force the daemon only queues a job when
 // source/token-contract.report.json recommends it.
 async function runDesignSystemTokenContractRebuild(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od design-systems rebuild-token-contract <id> [--force] [--json] [--daemon-url <url>]
 
@@ -6493,28 +6914,28 @@ Starts a review-gated TOKEN_SCHEMA token contract rebuild for an editable import
   }
   const flags = parseFlags(args, {
     string: LIBRARY_STRING_FLAGS,
-    boolean: new Set([...LIBRARY_BOOLEAN_FLAGS, 'force']),
+    boolean: new Set([...LIBRARY_BOOLEAN_FLAGS, "force"])
   });
   const id = positionalArgs(args, LIBRARY_STRING_FLAGS)[0];
   if (!id) {
-    console.error('Usage: od design-systems rebuild-token-contract <id>');
+    console.error("Usage: od design-systems rebuild-token-contract <id>");
     process.exit(2);
   }
-  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, "");
   const resp = await fetch(`${base}/api/design-systems/${encodeURIComponent(id)}/token-contract/rebuild-jobs`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ force: flags.force === true }),
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ force: flags.force === true })
   });
   if (!resp.ok) return structuredHttpFailure(resp);
   const data = await resp.json();
-  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
   if (data.job) {
     console.log(`Token contract rebuild queued for ${id}: ${data.job.id}`);
     return;
   }
   const decision = data.decision;
-  console.log(`Token contract rebuild not queued for ${id}: ${decision?.reason ?? 'no rebuild needed'}`);
+  console.log(`Token contract rebuild not queued for ${id}: ${decision?.reason ?? "no rebuild needed"}`);
 }
 
 // od design-systems import-shadcn <reference> [--name <name>]
@@ -6526,7 +6947,7 @@ Starts a review-gated TOKEN_SCHEMA token contract rebuild for an editable import
 // shorthand "<owner>/<repo>/<item>" (e.g. shadcn/ui/theme-zinc) or a direct
 // https URL to a registry-item JSON document.
 async function runDesignSystemImportShadcn(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od design-systems import-shadcn <reference> [--name <name>] [--import-mode <mode>] [--craft <slugs>] [--json] [--daemon-url <url>]
 
@@ -6539,15 +6960,15 @@ Imports a shadcn registry item as an Open Design design system.
   --craft <slugs>        Comma-separated craft sections to apply (e.g. color,type).`);
     process.exit(args.length === 0 ? 2 : 0);
   }
-  const stringFlags = new Set([...LIBRARY_STRING_FLAGS, 'name', 'import-mode', 'craft']);
+  const stringFlags = new Set([...LIBRARY_STRING_FLAGS, "name", "import-mode", "craft"]);
   const flags = parseFlags(args, { string: stringFlags, boolean: LIBRARY_BOOLEAN_FLAGS });
   const reference = positionalArgs(args, stringFlags)[0];
   if (!reference) {
-    console.error('Usage: od design-systems import-shadcn <reference>');
+    console.error("Usage: od design-systems import-shadcn <reference>");
     process.exit(2);
   }
   const body = designSystemImportRequestBody(flags, { reference });
-  return postDesignSystemImport(flags, '/api/design-systems/import/shadcn', body);
+  return postDesignSystemImport(flags, "/api/design-systems/import/shadcn", body);
 }
 
 // od design-systems rename <id> --title <new-title> [--json]
@@ -6556,7 +6977,7 @@ Imports a shadcn registry item as an Open Design design system.
 // returns 404, surfaced here as a structured failure. Arg parsing lives in
 // design-system-rename-args.ts so it can be unit-tested.
 async function runDesignSystemRename(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od design-systems rename <id> --title <new-title> [--json] [--daemon-url <url>]
   od design-systems rename <id> "<new title>" [--json]
@@ -6566,29 +6987,29 @@ Renames an editable (user-created) design system. Built-in systems are read-only
   }
   const parsed = parseDesignSystemRenameArgs(args);
   if (!parsed) {
-    console.error('Usage: od design-systems rename <id> --title <new-title>');
+    console.error("Usage: od design-systems rename <id> --title <new-title>");
     process.exit(2);
   }
   const flags = parseFlags(args, {
-    string: new Set([...LIBRARY_STRING_FLAGS, 'title']),
-    boolean: LIBRARY_BOOLEAN_FLAGS,
+    string: new Set([...LIBRARY_STRING_FLAGS, "title"]),
+    boolean: LIBRARY_BOOLEAN_FLAGS
   });
-  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, "");
   const resp = await fetch(`${base}/api/design-systems/${encodeURIComponent(parsed.id)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title: parsed.title }),
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: parsed.title })
   });
   if (!resp.ok) return structuredHttpFailure(resp);
   const data = await resp.json();
-  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
   const renamed = data.designSystem ?? data;
   console.log(`Renamed ${parsed.id} -> ${renamed.title ?? parsed.title}`);
 }
 
 async function runStatus(args) {
   // Alias of `od daemon status`.
-  return runDaemon(['status', ...args]);
+  return runDaemon(["status", ...args]);
 }
 
 // ---------------------------------------------------------------------------
@@ -6603,7 +7024,7 @@ async function runStatus(args) {
 
 async function runDiagnostics(args) {
   const sub = args[0];
-  if (!sub || sub === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (!sub || sub === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od diagnostics export [<path>] [--output <path>] [--json] [--daemon-url <url>]
 
@@ -6620,26 +7041,24 @@ diagnostics produces.
   --daemon-url <url>     Override the daemon HTTP base URL.`);
     process.exit(0);
   }
-  if (sub !== 'export') {
+  if (sub !== "export") {
     console.error(`unknown subcommand: od diagnostics ${sub}`);
     process.exit(2);
   }
 
   const flags = parseFlags(args.slice(1), {
     string: DIAGNOSTICS_STRING_FLAGS,
-    boolean: DIAGNOSTICS_BOOLEAN_FLAGS,
+    boolean: DIAGNOSTICS_BOOLEAN_FLAGS
   });
-  const positional = args.slice(1).filter((a) => !a.startsWith('-'));
-  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, '');
+  const positional = args.slice(1).filter((a) => !a.startsWith("-"));
+  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, "");
 
   const { DIAGNOSTICS_EXPORT_PATH, DIAGNOSTICS_FILENAME_PREFIX, diagnosticsFileName } =
-    await import('@open-design/diagnostics');
-  const fs = await import('node:fs/promises');
-  const path = await import('node:path');
+    await import("@open-design/diagnostics");
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
 
-  const explicitOutput = typeof flags.output === 'string' && flags.output.length > 0
-    ? flags.output
-    : positional[0];
+  const explicitOutput = typeof flags.output === "string" && flags.output.length > 0 ? flags.output : positional[0];
   const targetPath = path.resolve(explicitOutput ?? diagnosticsFileName(DIAGNOSTICS_FILENAME_PREFIX));
 
   let resp;
@@ -6647,8 +7066,8 @@ diagnostics produces.
     resp = await fetch(`${base}${DIAGNOSTICS_EXPORT_PATH}`);
   } catch (err) {
     return exitWithStructuredError({
-      code:    'daemon-not-running',
-      message: `Cannot reach daemon at ${base}: ${err?.message ?? err}`,
+      code: "daemon-not-running",
+      message: `Cannot reach daemon at ${base}: ${err?.message ?? err}`
     });
   }
   if (!resp.ok) return structuredHttpFailure(resp);
@@ -6658,7 +7077,7 @@ diagnostics produces.
   await fs.writeFile(targetPath, buf);
 
   if (flags.json) {
-    process.stdout.write(JSON.stringify({ path: targetPath, sizeBytes: buf.length }) + '\n');
+    process.stdout.write(JSON.stringify({ path: targetPath, sizeBytes: buf.length }) + "\n");
     return;
   }
   console.log(`Wrote diagnostics bundle to ${targetPath} (${buf.length} bytes).`);
@@ -6666,22 +7085,20 @@ diagnostics produces.
 
 async function runVersion(args) {
   const flags = parseFlags(args, { string: LIBRARY_STRING_FLAGS, boolean: LIBRARY_BOOLEAN_FLAGS });
-  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, "");
   let resp;
   try {
     resp = await fetch(`${base}/api/version`);
   } catch (err) {
     return exitWithStructuredError({
-      code:    'daemon-not-running',
-      message: `Cannot reach daemon at ${base}: ${err?.message ?? err}`,
+      code: "daemon-not-running",
+      message: `Cannot reach daemon at ${base}: ${err?.message ?? err}`
     });
   }
   if (!resp.ok) return structuredHttpFailure(resp);
   const data = await resp.json();
-  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
-  const version = typeof data?.version === 'string'
-    ? data.version
-    : (data?.version?.version ?? JSON.stringify(data));
+  if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + "\n");
+  const version = typeof data?.version === "string" ? data.version : (data?.version?.version ?? JSON.stringify(data));
   console.log(version);
 }
 
@@ -6712,30 +7129,30 @@ Exit code is non-zero when any installed plugin's doctor returns ok=false
 or the daemon cannot be reached.`);
     process.exit(0);
   }
-  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, "");
   const report = {
-    daemon:        null,
-    plugins:       [],
-    skills:        [],
+    daemon: null,
+    plugins: [],
+    skills: [],
     designSystems: [],
-    atoms:         [],
-    issues:        [],
+    atoms: [],
+    issues: []
   };
 
   // Daemon status
   try {
     const resp = await fetch(`${base}/api/daemon/status`);
     if (!resp.ok) {
-      report.issues.push({ severity: 'error', code: 'daemon-status', message: `HTTP ${resp.status}` });
+      report.issues.push({ severity: "error", code: "daemon-status", message: `HTTP ${resp.status}` });
     } else {
       report.daemon = await resp.json();
     }
   } catch (err) {
-    report.issues.push({ severity: 'error', code: 'daemon-not-running', message: String(err?.message ?? err) });
+    report.issues.push({ severity: "error", code: "daemon-not-running", message: String(err?.message ?? err) });
     if (flags.json) {
-      process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
     } else {
-      console.error('[doctor] daemon unreachable:', String(err?.message ?? err));
+      console.error("[doctor] daemon unreachable:", String(err?.message ?? err));
     }
     process.exit(64);
   }
@@ -6745,7 +7162,7 @@ or the daemon cannot be reached.`);
     const [skillsResp, dsResp, atomsResp] = await Promise.all([
       fetch(`${base}/api/skills`),
       fetch(`${base}/api/design-systems`),
-      fetch(`${base}/api/atoms`),
+      fetch(`${base}/api/atoms`)
     ]);
     if (skillsResp.ok) {
       const data = await skillsResp.json();
@@ -6760,7 +7177,7 @@ or the daemon cannot be reached.`);
       report.atoms = data?.atoms ?? [];
     }
   } catch (err) {
-    report.issues.push({ severity: 'warn', code: 'library-list-failed', message: String(err?.message ?? err) });
+    report.issues.push({ severity: "warn", code: "library-list-failed", message: String(err?.message ?? err) });
   }
 
   // Plugin doctor — runs the daemon's per-plugin check on every install.
@@ -6771,48 +7188,52 @@ or the daemon cannot be reached.`);
       const plugins = list?.plugins ?? [];
       for (const p of plugins) {
         try {
-          const doctorResp = await fetch(`${base}/api/plugins/${encodeURIComponent(p.id)}/doctor`, { method: 'POST' });
+          const doctorResp = await fetch(`${base}/api/plugins/${encodeURIComponent(p.id)}/doctor`, { method: "POST" });
           const data = await doctorResp.json().catch(() => ({}));
           report.plugins.push({ id: p.id, version: p.version, ok: !!data?.ok, issues: data?.issues ?? [] });
           if (!data?.ok) {
             report.issues.push({
-              severity: 'error',
-              code:     'plugin-doctor-failed',
-              message:  `${p.id}@${p.version}: ${(data?.issues ?? []).map((i) => i.code).join(', ')}`,
+              severity: "error",
+              code: "plugin-doctor-failed",
+              message: `${p.id}@${p.version}: ${(data?.issues ?? []).map((i) => i.code).join(", ")}`
             });
           }
         } catch (err) {
           report.issues.push({
-            severity: 'warn',
-            code:     'plugin-doctor-error',
-            message:  `${p.id}: ${err?.message ?? err}`,
+            severity: "warn",
+            code: "plugin-doctor-error",
+            message: `${p.id}: ${err?.message ?? err}`
           });
         }
       }
     }
   } catch (err) {
-    report.issues.push({ severity: 'warn', code: 'plugin-list-failed', message: String(err?.message ?? err) });
+    report.issues.push({ severity: "warn", code: "plugin-list-failed", message: String(err?.message ?? err) });
   }
 
   if (flags.json) {
-    process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(report, null, 2) + "\n");
   } else {
-    console.log(`[doctor] daemon ${report.daemon?.bindHost ?? '?'}:${report.daemon?.port ?? '?'} pid=${report.daemon?.pid ?? '?'}`);
-    console.log(`[doctor] plugins: ${report.plugins.length} (skills ${report.skills.length}, design-systems ${report.designSystems.length}, atoms ${report.atoms.length})`);
+    console.log(
+      `[doctor] daemon ${report.daemon?.bindHost ?? "?"}:${report.daemon?.port ?? "?"} pid=${report.daemon?.pid ?? "?"}`
+    );
+    console.log(
+      `[doctor] plugins: ${report.plugins.length} (skills ${report.skills.length}, design-systems ${report.designSystems.length}, atoms ${report.atoms.length})`
+    );
     if (report.issues.length === 0) {
-      console.log('[doctor] no issues');
+      console.log("[doctor] no issues");
     } else {
       for (const i of report.issues) {
         console.log(`  [${i.severity}] ${i.code}: ${i.message}`);
       }
     }
   }
-  const hasError = report.issues.some((i) => i.severity === 'error');
+  const hasError = report.issues.some((i) => i.severity === "error");
   process.exit(hasError ? 1 : 0);
 }
 
 async function runConfig(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage:
   od config list                      Print the full app config as JSON.
   od config get <key>                 Print one top-level key.
@@ -6829,7 +7250,7 @@ Common options:
   const sub = args[0];
   const rest = args.slice(1);
   const flags = parseFlags(rest, { string: CONFIG_STRING_FLAGS, boolean: CONFIG_BOOLEAN_FLAGS });
-  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, '');
+  const base = (await libraryDaemonUrl(flags)).replace(/\/$/, "");
 
   const fetchConfig = async () => {
     const resp = await fetch(`${base}/api/app-config`);
@@ -6839,72 +7260,72 @@ Common options:
   };
   const writeConfig = async (next) => {
     const resp = await fetch(`${base}/api/app-config`, {
-      method:  'PUT',
-      headers: { 'content-type': 'application/json' },
-      body:    JSON.stringify(next),
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(next)
     });
     if (!resp.ok) return structuredHttpFailure(resp);
     return (await resp.json())?.config ?? next;
   };
 
   switch (sub) {
-    case 'list': {
+    case "list": {
       const cfg = await fetchConfig();
-      process.stdout.write(JSON.stringify(cfg, null, 2) + '\n');
+      process.stdout.write(JSON.stringify(cfg, null, 2) + "\n");
       return;
     }
-    case 'get': {
-      const key = rest.find((a) => !a.startsWith('-'));
+    case "get": {
+      const key = rest.find((a) => !a.startsWith("-"));
       if (!key) {
-        console.error('Usage: od config get <key>');
+        console.error("Usage: od config get <key>");
         process.exit(2);
       }
       const cfg = await fetchConfig();
       const value = cfg?.[key];
       if (flags.json) {
-        process.stdout.write(JSON.stringify(value ?? null, null, 2) + '\n');
+        process.stdout.write(JSON.stringify(value ?? null, null, 2) + "\n");
       } else {
-        console.log(value === undefined ? '' : (typeof value === 'string' ? value : JSON.stringify(value, null, 2)));
+        console.log(value === undefined ? "" : typeof value === "string" ? value : JSON.stringify(value, null, 2));
       }
       return;
     }
-    case 'set': {
-      const positional = rest.filter((a) => !a.startsWith('-')
-        && a !== flags.value
-        && a !== flags['value-json']);
+    case "set": {
+      const positional = rest.filter((a) => !a.startsWith("-") && a !== flags.value && a !== flags["value-json"]);
       const [key, scalarValue] = positional;
       if (!key) {
-        console.error('Usage: od config set <key> <value> | od config set <key> --value-json <json>');
+        console.error("Usage: od config set <key> <value> | od config set <key> --value-json <json>");
         process.exit(2);
       }
       let parsed;
-      if (typeof flags['value-json'] === 'string') {
-        try { parsed = JSON.parse(flags['value-json']); } catch (err) {
+      if (typeof flags["value-json"] === "string") {
+        try {
+          parsed = JSON.parse(flags["value-json"]);
+        } catch (err) {
           console.error(`--value-json must be valid JSON: ${err.message}`);
           process.exit(2);
         }
-      } else if (typeof flags.value === 'string') {
+      } else if (typeof flags.value === "string") {
         parsed = coerceCliValue(flags.value);
       } else if (scalarValue !== undefined) {
         parsed = coerceCliValue(scalarValue);
       } else {
-        console.error('Provide a value (positional, --value, or --value-json).');
+        console.error("Provide a value (positional, --value, or --value-json).");
         process.exit(2);
       }
       const cfg = await fetchConfig();
       const next = { ...cfg, [key]: parsed };
       const written = await writeConfig(next);
       if (flags.json) {
-        process.stdout.write(JSON.stringify(written, null, 2) + '\n');
+        process.stdout.write(JSON.stringify(written, null, 2) + "\n");
       } else {
         console.log(`[config] set ${key}`);
       }
       return;
     }
-    case 'unset': {
-      const key = rest.find((a) => !a.startsWith('-'));
+    case "unset": {
+      const key = rest.find((a) => !a.startsWith("-"));
       if (!key) {
-        console.error('Usage: od config unset <key>');
+        console.error("Usage: od config unset <key>");
         process.exit(2);
       }
       const cfg = await fetchConfig();
@@ -6912,7 +7333,7 @@ Common options:
       delete next[key];
       const written = await writeConfig(next);
       if (flags.json) {
-        process.stdout.write(JSON.stringify(written, null, 2) + '\n');
+        process.stdout.write(JSON.stringify(written, null, 2) + "\n");
       } else {
         console.log(`[config] unset ${key}`);
       }
@@ -6931,6 +7352,125 @@ Common options:
 // Settings. Agents can inspect what will be injected into future prompts,
 // edit a node, or move a node between memory buckets without scraping the UI.
 // ---------------------------------------------------------------------------
+
+function printWechatHelp() {
+  console.log(`Usage:
+  od wechat status [--json] [--daemon-url <url>]
+      Read the WeChat internal-Agent bridge status.
+
+  od wechat connect [--json] [--daemon-url <url>]
+      Bind the WeChat bridge to a detected Open Design Agent such as OpenCode.
+
+  od wechat refresh [--json] [--daemon-url <url>]
+      Re-detect built-in Agents and refresh the bridge binding.
+
+  od wechat cancel [--json] [--daemon-url <url>]
+      Clear the current bridge binding.`);
+}
+
+async function fetchWechatJson(base, path, init = undefined) {
+  let resp;
+  try {
+    resp = await fetch(`${base}${path}`, init);
+  } catch (err) {
+    surfaceFetchError(err, base);
+    process.exit(3);
+  }
+  if (!resp.ok) return structuredHttpFailure(resp);
+  return await resp.json();
+}
+
+function printWechatLoginSnapshot(login) {
+  if (!login) return;
+  const phase = login.phase ?? "idle";
+  const command = Array.isArray(login.command) ? login.command.join(" ") : "";
+  console.log(`[wechat] phase=${phase}${login.running ? " running=true" : ""}`);
+  if (command) console.log(`[wechat] command=${command}`);
+  if (login.pid) console.log(`[wechat] pid=${login.pid}`);
+  if (login.terminalQr) {
+    console.log("");
+    console.log(login.terminalQr);
+    console.log("");
+    console.log("[wechat] Use the connection code above in the WeChat gateway.");
+    return;
+  }
+  if (login.output) {
+    console.log("");
+    process.stdout.write(`${login.output.trim()}\n`);
+  }
+  if (login.error) console.error(`[wechat] ${login.error}`);
+}
+
+function printWechatStatus(status) {
+  const selected = status.selectedAgent ? `${status.selectedAgent.name} (${status.selectedAgent.id})` : "none";
+  console.log(`[wechat] Agent bridge: ${status.agentAvailable ? selected : "not available"}`);
+  console.log(`[wechat] WeChat: ${status.connected ? "connected" : (status.login?.phase ?? "idle")}`);
+  if (status.bridgeStatus) {
+    console.log("");
+    process.stdout.write(`${status.bridgeStatus.trim()}\n`);
+  }
+  if (status.error) console.error(`[wechat] ${status.error}`);
+  printWechatLoginSnapshot(status.login);
+}
+
+async function runWechat(args) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
+    printWechatHelp();
+    process.exit(args.length === 0 ? 2 : 0);
+  }
+  let flags;
+  try {
+    flags = parseFlags(args, { string: WECHAT_STRING_FLAGS, boolean: WECHAT_BOOLEAN_FLAGS });
+  } catch (err) {
+    console.error(err.message);
+    process.exit(2);
+  }
+  const action = positionalArgs(args, WECHAT_STRING_FLAGS)[0] ?? "status";
+  const base = await cliDaemonBaseUrl(flags);
+  const writeJson = (data) => process.stdout.write(`${JSON.stringify(data, null, 2)}\n`);
+
+  switch (action) {
+    case "status": {
+      const status = await fetchWechatJson(base, "/api/integrations/wechat/agent/status");
+      if (flags.json) return writeJson(status);
+      printWechatStatus(status);
+      return;
+    }
+    case "connect": {
+      const result = await fetchWechatJson(base, "/api/integrations/wechat/agent/connect", {
+        method: "POST"
+      });
+      if (flags.json) return writeJson(result);
+      console.log(result.ok ? "[wechat] internal Agent bridge connected." : "[wechat] bridge connection failed.");
+      printWechatLoginSnapshot(result.login);
+      return;
+    }
+    case "cancel": {
+      const result = await fetchWechatJson(base, "/api/integrations/wechat/agent/cancel", {
+        method: "POST"
+      });
+      if (flags.json) return writeJson(result);
+      console.log(result.canceled ? "[wechat] cleared bridge binding." : "[wechat] no bridge binding.");
+      printWechatLoginSnapshot(result.login);
+      return;
+    }
+    case "refresh": {
+      const result = await fetchWechatJson(base, "/api/integrations/wechat/agent/refresh", {
+        method: "POST"
+      });
+      if (flags.json) return writeJson(result);
+      console.log(result.ok ? "[wechat] bridge refreshed." : "[wechat] bridge refresh failed.");
+      if (result.stdout) process.stdout.write(`${result.stdout.trim()}\n`);
+      if (result.stderr) process.stderr.write(`${result.stderr.trim()}\n`);
+      if (result.error) process.stderr.write(`${result.error}\n`);
+      return;
+    }
+    default:
+      console.error(`unknown subcommand: od wechat ${action}`);
+      printWechatHelp();
+      process.exit(2);
+  }
+}
 
 function printMemoryHelp() {
   console.log(`Usage:
@@ -6957,8 +7497,8 @@ function memoryPositionals(values) {
   for (let i = 0; i < values.length; i++) {
     const value = values[i];
     if (!value) continue;
-    if (value.startsWith('--')) {
-      const eq = value.indexOf('=');
+    if (value.startsWith("--")) {
+      const eq = value.indexOf("=");
       const key = eq >= 0 ? value.slice(2, eq) : value.slice(2);
       if (eq < 0 && MEMORY_STRING_FLAGS.has(key)) i++;
       continue;
@@ -6969,37 +7509,29 @@ function memoryPositionals(values) {
 }
 
 async function readMemoryBodyFromFlags(flags) {
-  if (typeof flags.body === 'string') return flags.body;
-  if (typeof flags['body-file'] !== 'string') return undefined;
-  const path = flags['body-file'];
-  if (path === '-') {
-    let body = '';
+  if (typeof flags.body === "string") return flags.body;
+  if (typeof flags["body-file"] !== "string") return undefined;
+  const path = flags["body-file"];
+  if (path === "-") {
+    let body = "";
     for await (const chunk of process.stdin) body += chunk;
     return body;
   }
-  const { readFile } = await import('node:fs/promises');
-  return await readFile(path, 'utf8');
+  const { readFile } = await import("node:fs/promises");
+  return await readFile(path, "utf8");
 }
 
 function formatMemoryTreeRow(node) {
-  return [
-    node.id,
-    node.parentId ?? '-',
-    node.path,
-    node.kind,
-    node.type ?? '-',
-    node.scope,
-    node.name,
-  ].join('\t');
+  return [node.id, node.parentId ?? "-", node.path, node.kind, node.type ?? "-", node.scope, node.name].join("\t");
 }
 
 function printMemoryEntry(entry) {
   console.log(`# ${entry.name}`);
   console.log(`id: ${entry.id}`);
   console.log(`type: ${entry.type}`);
-  console.log(`description: ${entry.description || '-'}`);
-  console.log('');
-  process.stdout.write(`${entry.body ?? ''}\n`);
+  console.log(`description: ${entry.description || "-"}`);
+  console.log("");
+  process.stdout.write(`${entry.body ?? ""}\n`);
 }
 
 async function fetchMemoryTree(base) {
@@ -7018,9 +7550,9 @@ async function patchMemoryTreeNode(base, id, body) {
   let resp;
   try {
     resp = await fetch(`${base}/api/memory/tree/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
     });
   } catch (err) {
     surfaceFetchError(err, base);
@@ -7031,12 +7563,12 @@ async function patchMemoryTreeNode(base, id, body) {
 }
 
 async function runMemory(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     printMemoryHelp();
     process.exit(args.length === 0 ? 2 : 0);
   }
   const topic = args[0];
-  if (topic !== 'tree') {
+  if (topic !== "tree") {
     console.error(`unknown subcommand: od memory ${topic}`);
     printMemoryHelp();
     process.exit(2);
@@ -7046,35 +7578,34 @@ async function runMemory(args) {
   try {
     flags = parseFlags(rest, {
       string: MEMORY_STRING_FLAGS,
-      boolean: MEMORY_BOOLEAN_FLAGS,
+      boolean: MEMORY_BOOLEAN_FLAGS
     });
   } catch (err) {
     console.error(err.message);
     process.exit(2);
   }
   const base = await cliDaemonBaseUrl(flags);
-  const writeJson = (data) =>
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+  const writeJson = (data) => process.stdout.write(JSON.stringify(data, null, 2) + "\n");
   const parts = memoryPositionals(rest);
-  const action = parts[0] ?? 'list';
+  const action = parts[0] ?? "list";
 
-  if (action === 'list') {
+  if (action === "list") {
     const data = await fetchMemoryTree(base);
     if (flags.json) return writeJson(data);
     const tree = data.tree ?? [];
     if (tree.length === 0) {
-      console.log('No memory tree nodes.');
+      console.log("No memory tree nodes.");
       return;
     }
-    console.log('# id\tparent\tpath\tkind\ttype\tscope\tname');
+    console.log("# id\tparent\tpath\tkind\ttype\tscope\tname");
     for (const node of tree) console.log(formatMemoryTreeRow(node));
     return;
   }
 
-  if (action === 'view') {
+  if (action === "view") {
     const id = parts[1];
     if (!id) {
-      console.error('Usage: od memory tree view <id>');
+      console.error("Usage: od memory tree view <id>");
       process.exit(2);
     }
     const treeData = await fetchMemoryTree(base);
@@ -7083,7 +7614,7 @@ async function runMemory(args) {
       console.error(`memory tree node not found: ${id}`);
       process.exit(4);
     }
-    if (node.kind === 'folder') {
+    if (node.kind === "folder") {
       if (flags.json) return writeJson({ node });
       console.log(`${node.path}\t${node.name}\t${node.childrenCount ?? 0} children`);
       return;
@@ -7102,20 +7633,22 @@ async function runMemory(args) {
     return;
   }
 
-  if (action === 'edit') {
+  if (action === "edit") {
     const id = parts[1];
     if (!id) {
-      console.error('Usage: od memory tree edit <id> [--name ...] [--description ...] [--type ...] [--body ...|--body-file ...]');
+      console.error(
+        "Usage: od memory tree edit <id> [--name ...] [--description ...] [--type ...] [--body ...|--body-file ...]"
+      );
       process.exit(2);
     }
     const body = {};
-    if (typeof flags.name === 'string') body.name = flags.name;
-    if (typeof flags.description === 'string') body.description = flags.description;
-    if (typeof flags.type === 'string') body.type = flags.type;
+    if (typeof flags.name === "string") body.name = flags.name;
+    if (typeof flags.description === "string") body.description = flags.description;
+    if (typeof flags.type === "string") body.type = flags.type;
     const nextBody = await readMemoryBodyFromFlags(flags);
-    if (typeof nextBody === 'string') body.body = nextBody;
+    if (typeof nextBody === "string") body.body = nextBody;
     if (Object.keys(body).length === 0) {
-      console.error('nothing to edit; pass --name, --description, --type, --body, or --body-file');
+      console.error("nothing to edit; pass --name, --description, --type, --body, or --body-file");
       process.exit(2);
     }
     const data = await patchMemoryTreeNode(base, id, body);
@@ -7124,11 +7657,11 @@ async function runMemory(args) {
     return;
   }
 
-  if (action === 'move') {
+  if (action === "move") {
     const id = parts[1];
     const type = flags.type ?? parts[2];
     if (!id || !type) {
-      console.error('Usage: od memory tree move <id> --type user|feedback|project|reference');
+      console.error("Usage: od memory tree move <id> --type user|feedback|project|reference");
       process.exit(2);
     }
     const data = await patchMemoryTreeNode(base, id, { type });
@@ -7155,36 +7688,36 @@ async function runMemory(args) {
 // ---------------------------------------------------------------------------
 
 function parseScheduleFlag(raw) {
-  if (!raw || typeof raw !== 'string') {
+  if (!raw || typeof raw !== "string") {
     throw new Error(
-      '--schedule is required. Forms: hourly:<minute> | daily:HH:MM[:TZ] | weekdays:HH:MM[:TZ] | weekly:DAY:HH:MM[:TZ]',
+      "--schedule is required. Forms: hourly:<minute> | daily:HH:MM[:TZ] | weekdays:HH:MM[:TZ] | weekly:DAY:HH:MM[:TZ]"
     );
   }
-  const parts = raw.split(':');
+  const parts = raw.split(":");
   const kind = parts[0];
-  if (kind === 'hourly') {
+  if (kind === "hourly") {
     const minute = Number(parts[1]);
     if (!Number.isInteger(minute) || minute < 0 || minute > 59) {
-      throw new Error('--schedule hourly requires :<minute>, 0-59');
+      throw new Error("--schedule hourly requires :<minute>, 0-59");
     }
-    return { kind: 'hourly', minute };
+    return { kind: "hourly", minute };
   }
-  if (kind === 'daily' || kind === 'weekdays') {
+  if (kind === "daily" || kind === "weekdays") {
     if (parts.length < 3) {
       throw new Error(`--schedule ${kind} requires :HH:MM[:TZ]`);
     }
     const hh = parts[1];
     const mm = parts[2];
-    const time = `${hh.padStart(2, '0')}:${mm.padStart(2, '0')}`;
+    const time = `${hh.padStart(2, "0")}:${mm.padStart(2, "0")}`;
     if (!/^[0-2]\d:[0-5]\d$/.test(time)) {
       throw new Error(`--schedule ${kind} time must be HH:MM (24h)`);
     }
-    const timezone = parts.slice(3).join(':') || 'UTC';
+    const timezone = parts.slice(3).join(":") || "UTC";
     return { kind, time, timezone };
   }
-  if (kind === 'weekly') {
+  if (kind === "weekly") {
     if (parts.length < 4) {
-      throw new Error('--schedule weekly requires :DAY:HH:MM[:TZ] (DAY is 0-6 or sun/mon/...)');
+      throw new Error("--schedule weekly requires :DAY:HH:MM[:TZ] (DAY is 0-6 or sun/mon/...)");
     }
     const dayToken = String(parts[1]).toLowerCase();
     let weekday;
@@ -7195,12 +7728,12 @@ function parseScheduleFlag(raw) {
     } else {
       throw new Error(`--schedule weekly day must be 0-6 or sun..sat (got "${parts[1]}")`);
     }
-    const time = `${parts[2].padStart(2, '0')}:${parts[3].padStart(2, '0')}`;
+    const time = `${parts[2].padStart(2, "0")}:${parts[3].padStart(2, "0")}`;
     if (!/^[0-2]\d:[0-5]\d$/.test(time)) {
-      throw new Error('--schedule weekly time must be HH:MM (24h)');
+      throw new Error("--schedule weekly time must be HH:MM (24h)");
     }
-    const timezone = parts.slice(4).join(':') || 'UTC';
-    return { kind: 'weekly', weekday, time, timezone };
+    const timezone = parts.slice(4).join(":") || "UTC";
+    return { kind: "weekly", weekday, time, timezone };
   }
   throw new Error(`--schedule kind must be hourly|daily|weekdays|weekly (got "${kind}")`);
 }
@@ -7208,58 +7741,51 @@ function parseScheduleFlag(raw) {
 function parseAutomationTarget(flags) {
   const raw = flags.target;
   if (raw == null) {
-    if (flags.project) return { mode: 'reuse', projectId: String(flags.project) };
-    return { mode: 'create_each_run' };
+    if (flags.project) return { mode: "reuse", projectId: String(flags.project) };
+    return { mode: "create_each_run" };
   }
   const value = String(raw);
-  if (
-    value === 'worktree' ||
-    value === 'new-project' ||
-    value === 'create-each-run' ||
-    value === 'create_each_run'
-  ) {
-    return { mode: 'create_each_run' };
+  if (value === "worktree" || value === "new-project" || value === "create-each-run" || value === "create_each_run") {
+    return { mode: "create_each_run" };
   }
-  if (value === 'reuse') {
+  if (value === "reuse") {
     if (!flags.project) {
-      throw new Error('--target reuse needs --project <id>');
+      throw new Error("--target reuse needs --project <id>");
     }
-    return { mode: 'reuse', projectId: String(flags.project) };
+    return { mode: "reuse", projectId: String(flags.project) };
   }
-  const eq = value.indexOf('=');
-  if ((value.startsWith('reuse=') || value.startsWith('reuse:')) && eq > 0) {
+  const eq = value.indexOf("=");
+  if ((value.startsWith("reuse=") || value.startsWith("reuse:")) && eq > 0) {
     const projectId = value.slice(eq + 1).trim();
-    if (!projectId) throw new Error('--target reuse=<projectId> needs a non-empty id');
-    return { mode: 'reuse', projectId };
+    if (!projectId) throw new Error("--target reuse=<projectId> needs a non-empty id");
+    return { mode: "reuse", projectId };
   }
-  throw new Error(
-    `--target must be "new-project" or "reuse=<projectId>" (got "${value}")`,
-  );
+  throw new Error(`--target must be "new-project" or "reuse=<projectId>" (got "${value}")`);
 }
 
 function describeAutomationScheduleForCli(schedule) {
-  if (!schedule) return '-';
-  if (schedule.kind === 'hourly') {
-    return `hourly:${String(schedule.minute).padStart(2, '0')}`;
+  if (!schedule) return "-";
+  if (schedule.kind === "hourly") {
+    return `hourly:${String(schedule.minute).padStart(2, "0")}`;
   }
-  if (schedule.kind === 'weekly') {
-    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  if (schedule.kind === "weekly") {
+    const days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     return `weekly:${days[schedule.weekday] ?? schedule.weekday}:${schedule.time}:${schedule.timezone}`;
   }
   return `${schedule.kind}:${schedule.time}:${schedule.timezone}`;
 }
 
 function describeAutomationTargetForCli(target) {
-  if (!target) return '-';
-  if (target.mode === 'reuse') return `reuse=${target.projectId}`;
-  return 'new-project';
+  if (!target) return "-";
+  if (target.mode === "reuse") return `reuse=${target.projectId}`;
+  return "new-project";
 }
 
 function splitAutomationIds(value) {
-  if (typeof value !== 'string' || value.trim().length === 0) return [];
+  if (typeof value !== "string" || value.trim().length === 0) return [];
   const seen = new Set();
   const out = [];
-  for (const part of value.split(',')) {
+  for (const part of value.split(",")) {
     const id = part.trim();
     if (!id || seen.has(id)) continue;
     seen.add(id);
@@ -7277,42 +7803,42 @@ function automationContextFromFlags(flags) {
     ...(skillIds.length > 0 ? { skillIds } : {}),
     ...(pluginIds.length > 0 ? { pluginIds } : {}),
     ...(mcpServerIds.length > 0 ? { mcpServerIds } : {}),
-    ...(connectorIds.length > 0 ? { connectorIds } : {}),
+    ...(connectorIds.length > 0 ? { connectorIds } : {})
   };
   return Object.keys(context).length > 0 ? context : null;
 }
 
 function formatAutomationRow(r) {
-  const next = r.nextRunAt
-    ? new Date(r.nextRunAt).toISOString()
-    : (r.enabled ? '-' : 'paused');
+  const next = r.nextRunAt ? new Date(r.nextRunAt).toISOString() : r.enabled ? "-" : "paused";
   return [
     r.id,
     r.name,
     describeAutomationScheduleForCli(r.schedule),
     describeAutomationTargetForCli(r.target),
-    r.enabled ? 'enabled' : 'paused',
-    next,
-  ].join('\t');
+    r.enabled ? "enabled" : "paused",
+    next
+  ].join("\t");
 }
 
 async function readPromptFromFlags(flags) {
-  if (typeof flags.prompt === 'string' && flags.prompt.length > 0) {
+  if (typeof flags.prompt === "string" && flags.prompt.length > 0) {
     return flags.prompt;
   }
-  if (typeof flags['prompt-file'] === 'string' && flags['prompt-file'].length > 0) {
-    const path = flags['prompt-file'];
-    if (path === '-') {
+  if (typeof flags["prompt-file"] === "string" && flags["prompt-file"].length > 0) {
+    const path = flags["prompt-file"];
+    if (path === "-") {
       return await new Promise((resolve, reject) => {
-        let buf = '';
-        process.stdin.setEncoding('utf8');
-        process.stdin.on('data', (chunk) => { buf += chunk; });
-        process.stdin.on('end', () => resolve(buf));
-        process.stdin.on('error', reject);
+        let buf = "";
+        process.stdin.setEncoding("utf8");
+        process.stdin.on("data", (chunk) => {
+          buf += chunk;
+        });
+        process.stdin.on("end", () => resolve(buf));
+        process.stdin.on("error", reject);
       });
     }
-    const { readFile } = await import('node:fs/promises');
-    return await readFile(path, 'utf8');
+    const { readFile } = await import("node:fs/promises");
+    return await readFile(path, "utf8");
   }
   return null;
 }
@@ -7371,7 +7897,7 @@ Common options:
 }
 
 async function runAutomation(args) {
-  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+  if (args.length === 0 || args[0] === "help" || args.includes("--help") || args.includes("-h")) {
     printAutomationHelp();
     process.exit(args.length === 0 ? 2 : 0);
   }
@@ -7381,7 +7907,7 @@ async function runAutomation(args) {
   try {
     flags = parseFlags(rest, {
       string: AUTOMATION_STRING_FLAGS,
-      boolean: AUTOMATION_BOOLEAN_FLAGS,
+      boolean: AUTOMATION_BOOLEAN_FLAGS
     });
   } catch (err) {
     console.error(err.message);
@@ -7389,16 +7915,15 @@ async function runAutomation(args) {
   }
   const base = await cliDaemonBaseUrl(flags);
 
-  const writeJson = (data) =>
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+  const writeJson = (data) => process.stdout.write(JSON.stringify(data, null, 2) + "\n");
 
   const positionalArgs = (values) => {
     const out = [];
     for (let i = 0; i < values.length; i++) {
       const value = values[i];
       if (!value) continue;
-      if (value.startsWith('--')) {
-        const eq = value.indexOf('=');
+      if (value.startsWith("--")) {
+        const eq = value.indexOf("=");
         const key = eq >= 0 ? value.slice(2, eq) : value.slice(2);
         if (eq < 0 && AUTOMATION_STRING_FLAGS.has(key)) i++;
         continue;
@@ -7419,16 +7944,16 @@ async function runAutomation(args) {
 
   const readAutomationIngestBody = async () => {
     const direct = await readMemoryBodyFromFlags(flags);
-    if (typeof direct === 'string') return direct;
+    if (typeof direct === "string") return direct;
     return await readPromptFromFlags(flags);
   };
 
   switch (sub) {
-    case 'template':
-    case 'templates': {
+    case "template":
+    case "templates": {
       const parts = positionalArgs(rest);
-      const action = parts[0] ?? 'list';
-      if (action === 'list') {
+      const action = parts[0] ?? "list";
+      if (action === "list") {
         let resp;
         try {
           resp = await fetch(`${base}/api/automation-templates`);
@@ -7441,27 +7966,29 @@ async function runAutomation(args) {
         if (flags.json) return writeJson(data);
         const templates = data.templates ?? [];
         if (templates.length === 0) {
-          console.log('No automation templates available.');
+          console.log("No automation templates available.");
           return;
         }
-        console.log('# id\ttitle\ttriggers\tsources\toutputs\tcompression\treview');
+        console.log("# id\ttitle\ttriggers\tsources\toutputs\tcompression\treview");
         for (const template of templates) {
-          console.log([
-            template.id,
-            template.title,
-            (template.triggerKinds ?? []).join(','),
-            (template.sourceKinds ?? []).join(','),
-            (template.outputSinks ?? []).join(','),
-            template.tokenCompression,
-            template.reviewPolicy,
-          ].join('\t'));
+          console.log(
+            [
+              template.id,
+              template.title,
+              (template.triggerKinds ?? []).join(","),
+              (template.sourceKinds ?? []).join(","),
+              (template.outputSinks ?? []).join(","),
+              template.tokenCompression,
+              template.reviewPolicy
+            ].join("\t")
+          );
         }
         return;
       }
-      if (action === 'get') {
+      if (action === "get") {
         const id = parts[1];
         if (!id) {
-          console.error('Usage: od automation template get <id>');
+          console.error("Usage: od automation template get <id>");
           process.exit(2);
         }
         let resp;
@@ -7479,34 +8006,38 @@ async function runAutomation(args) {
       printAutomationHelp();
       process.exit(2);
     }
-    case 'ingest':
-    case 'source':
-    case 'sources': {
+    case "ingest":
+    case "source":
+    case "sources": {
       const parts = positionalArgs(rest);
-      const action = sub === 'ingest' ? 'ingest' : (parts[0] ?? 'list');
-      if (action === 'ingest') {
-        const sourceKind = flags['source-kind'] ?? (sub === 'ingest' ? parts[0] : parts[1]);
+      const action = sub === "ingest" ? "ingest" : (parts[0] ?? "list");
+      if (action === "ingest") {
+        const sourceKind = flags["source-kind"] ?? (sub === "ingest" ? parts[0] : parts[1]);
         if (!sourceKind) {
-          console.error('Usage: od automation source ingest --source-kind <kind> --body-file <path|->');
+          console.error("Usage: od automation source ingest --source-kind <kind> --body-file <path|->");
           process.exit(2);
         }
         const bodyMarkdown = await readAutomationIngestBody();
         if (!bodyMarkdown) {
-          console.error('--body, --body-file, --prompt, or --prompt-file is required');
+          console.error("--body, --body-file, --prompt, or --prompt-file is required");
           process.exit(2);
         }
-        const candidateSinks = typeof flags['candidate-sinks'] === 'string'
-          ? flags['candidate-sinks'].split(',').map((item) => item.trim()).filter(Boolean)
-          : undefined;
+        const candidateSinks =
+          typeof flags["candidate-sinks"] === "string"
+            ? flags["candidate-sinks"]
+                .split(",")
+                .map((item) => item.trim())
+                .filter(Boolean)
+            : undefined;
         let resp;
         try {
           resp = await fetch(`${base}/api/automation-ingestions`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            method: "POST",
+            headers: { "content-type": "application/json" },
             body: JSON.stringify({
               templateId: flags.template,
               sourceKind,
-              sourceRef: flags['source-ref'],
+              sourceRef: flags["source-ref"],
               title: flags.title ?? flags.name,
               bodyMarkdown,
               projectId: flags.project,
@@ -7515,8 +8046,8 @@ async function runAutomation(args) {
               sensitivity: flags.sensitivity,
               tokenCompression: flags.compression,
               candidateSinks,
-              memoryType: flags['memory-type'],
-            }),
+              memoryType: flags["memory-type"]
+            })
           });
         } catch (err) {
           surfaceFetchError(err, base);
@@ -7526,24 +8057,22 @@ async function runAutomation(args) {
         const data = await resp.json();
         if (flags.json) return writeJson(data);
         console.log(`[automation source] ingested ${data.packet?.id}`);
-        console.log(`compression: ${data.compressionReport?.status ?? 'unknown'} (${data.compressionReport?.beforeTokens ?? 0} -> ${data.compressionReport?.afterTokens ?? 0} tokens)`);
+        console.log(
+          `compression: ${data.compressionReport?.status ?? "unknown"} (${data.compressionReport?.beforeTokens ?? 0} -> ${data.compressionReport?.afterTokens ?? 0} tokens)`
+        );
         const proposals = data.proposals ?? [];
         if (proposals.length > 0) {
-          console.log('# proposals');
+          console.log("# proposals");
           for (const proposal of proposals) {
-            console.log([
-              proposal.id,
-              proposal.targetKind,
-              proposal.action,
-              proposal.status,
-              proposal.title,
-            ].join('\t'));
+            console.log(
+              [proposal.id, proposal.targetKind, proposal.action, proposal.status, proposal.title].join("\t")
+            );
           }
         }
         return;
       }
-      if (action === 'list') {
-        const query = flags.limit ? `?limit=${encodeURIComponent(String(flags.limit))}` : '';
+      if (action === "list") {
+        const query = flags.limit ? `?limit=${encodeURIComponent(String(flags.limit))}` : "";
         let resp;
         try {
           resp = await fetch(`${base}/api/automation-source-packets${query}`);
@@ -7556,25 +8085,27 @@ async function runAutomation(args) {
         if (flags.json) return writeJson(data);
         const packets = data.packets ?? [];
         if (packets.length === 0) {
-          console.log('No automation source packets.');
+          console.log("No automation source packets.");
           return;
         }
-        console.log('# id\tkind\tcapturedAt\ttokens\ttitle');
+        console.log("# id\tkind\tcapturedAt\ttokens\ttitle");
         for (const packet of packets) {
-          console.log([
-            packet.id,
-            packet.sourceKind,
-            packet.capturedAt,
-            packet.tokenStats?.originalTokens ?? 0,
-            packet.title,
-          ].join('\t'));
+          console.log(
+            [
+              packet.id,
+              packet.sourceKind,
+              packet.capturedAt,
+              packet.tokenStats?.originalTokens ?? 0,
+              packet.title
+            ].join("\t")
+          );
         }
         return;
       }
-      if (action === 'get') {
+      if (action === "get") {
         const id = parts[1];
         if (!id) {
-          console.error('Usage: od automation source get <id>');
+          console.error("Usage: od automation source get <id>");
           process.exit(2);
         }
         let resp;
@@ -7591,12 +8122,12 @@ async function runAutomation(args) {
       printAutomationHelp();
       process.exit(2);
     }
-    case 'proposal':
-    case 'proposals': {
+    case "proposal":
+    case "proposals": {
       const parts = positionalArgs(rest);
-      const action = parts[0] ?? 'list';
-      if (action === 'list') {
-        const query = flags.status ? `?status=${encodeURIComponent(String(flags.status))}` : '';
+      const action = parts[0] ?? "list";
+      if (action === "list") {
+        const query = flags.status ? `?status=${encodeURIComponent(String(flags.status))}` : "";
         let resp;
         try {
           resp = await fetch(`${base}/api/automation-proposals${query}`);
@@ -7609,26 +8140,28 @@ async function runAutomation(args) {
         if (flags.json) return writeJson(data);
         const proposals = data.proposals ?? [];
         if (proposals.length === 0) {
-          console.log('No automation proposals.');
+          console.log("No automation proposals.");
           return;
         }
-        console.log('# id\tstatus\ttarget\taction\tupdatedAt\ttitle');
+        console.log("# id\tstatus\ttarget\taction\tupdatedAt\ttitle");
         for (const proposal of proposals) {
-          console.log([
-            proposal.id,
-            proposal.status,
-            proposal.targetKind,
-            proposal.action,
-            proposal.updatedAt,
-            proposal.title,
-          ].join('\t'));
+          console.log(
+            [
+              proposal.id,
+              proposal.status,
+              proposal.targetKind,
+              proposal.action,
+              proposal.updatedAt,
+              proposal.title
+            ].join("\t")
+          );
         }
         return;
       }
-      if (action === 'get') {
+      if (action === "get") {
         const id = parts[1];
         if (!id) {
-          console.error('Usage: od automation proposal get <id>');
+          console.error("Usage: od automation proposal get <id>");
           process.exit(2);
         }
         let resp;
@@ -7641,7 +8174,7 @@ async function runAutomation(args) {
         if (!resp.ok) return structuredHttpFailure(resp);
         return writeJson(await resp.json());
       }
-      if (action === 'apply' || action === 'reject') {
+      if (action === "apply" || action === "reject") {
         const id = parts[1];
         if (!id) {
           console.error(`Usage: od automation proposal ${action} <id>`);
@@ -7649,16 +8182,11 @@ async function runAutomation(args) {
         }
         let resp;
         try {
-          resp = await fetch(
-            `${base}/api/automation-proposals/${encodeURIComponent(id)}/${action}`,
-            {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: action === 'reject'
-                ? JSON.stringify({ reason: flags.reason ?? '' })
-                : '{}',
-            },
-          );
+          resp = await fetch(`${base}/api/automation-proposals/${encodeURIComponent(id)}/${action}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: action === "reject" ? JSON.stringify({ reason: flags.reason ?? "" }) : "{}"
+          });
         } catch (err) {
           surfaceFetchError(err, base);
           process.exit(3);
@@ -7666,14 +8194,14 @@ async function runAutomation(args) {
         if (!resp.ok) return structuredHttpFailure(resp);
         const data = await resp.json();
         if (flags.json) return writeJson(data);
-        console.log(`[automation proposal] ${action === 'apply' ? 'applied' : 'rejected'} ${data.proposal?.id ?? id}`);
+        console.log(`[automation proposal] ${action === "apply" ? "applied" : "rejected"} ${data.proposal?.id ?? id}`);
         return;
       }
       console.error(`unknown subcommand: od automation proposal ${action}`);
       printAutomationHelp();
       process.exit(2);
     }
-    case 'list': {
+    case "list": {
       let resp;
       try {
         resp = await fetch(`${base}/api/routines`);
@@ -7686,15 +8214,17 @@ async function runAutomation(args) {
       if (flags.json) return writeJson(data);
       const routines = data.routines ?? [];
       if (routines.length === 0) {
-        console.log('No automations. Create one with `od automation create --name "..." --prompt "..." --schedule daily:09:00`.');
+        console.log(
+          'No automations. Create one with `od automation create --name "..." --prompt "..." --schedule daily:09:00`.'
+        );
         return;
       }
-      console.log('# id\tname\tschedule\ttarget\tstatus\tnextRun');
+      console.log("# id\tname\tschedule\ttarget\tstatus\tnextRun");
       for (const r of routines) console.log(formatAutomationRow(r));
       return;
     }
-    case 'get': {
-      const id = requireId('get');
+    case "get": {
+      const id = requireId("get");
       let resp;
       try {
         resp = await fetch(`${base}/api/routines/${encodeURIComponent(id)}`);
@@ -7708,14 +8238,12 @@ async function runAutomation(args) {
       writeJson(data.routine ?? data);
       return;
     }
-    case 'runs': {
-      const id = requireId('runs');
+    case "runs": {
+      const id = requireId("runs");
       const limit = Number(flags.limit) > 0 ? Number(flags.limit) : 20;
       let resp;
       try {
-        resp = await fetch(
-          `${base}/api/routines/${encodeURIComponent(id)}/runs?limit=${limit}`,
-        );
+        resp = await fetch(`${base}/api/routines/${encodeURIComponent(id)}/runs?limit=${limit}`);
       } catch (err) {
         surfaceFetchError(err, base);
         process.exit(3);
@@ -7728,32 +8256,27 @@ async function runAutomation(args) {
         console.log(`No runs yet for ${id}.`);
         return;
       }
-      console.log('# runId\tstatus\ttrigger\tstartedAt\tprojectId\tconversationId');
+      console.log("# runId\tstatus\ttrigger\tstartedAt\tprojectId\tconversationId");
       for (const r of runs) {
-        console.log([
-          r.id,
-          r.status,
-          r.trigger,
-          new Date(r.startedAt).toISOString(),
-          r.projectId,
-          r.conversationId,
-        ].join('\t'));
+        console.log(
+          [r.id, r.status, r.trigger, new Date(r.startedAt).toISOString(), r.projectId, r.conversationId].join("\t")
+        );
       }
       return;
     }
-    case 'crystallize-run': {
+    case "crystallize-run": {
       const parts = positionalArgs(rest);
       const routineId = parts[0];
       const runId = parts[1];
       if (!routineId || !runId) {
-        console.error('Usage: od automation crystallize-run <routineId> <runId> [--json]');
+        console.error("Usage: od automation crystallize-run <routineId> <runId> [--json]");
         process.exit(2);
       }
       let resp;
       try {
         resp = await fetch(
           `${base}/api/routines/${encodeURIComponent(routineId)}/runs/${encodeURIComponent(runId)}/crystallize`,
-          { method: 'POST' },
+          { method: "POST" }
         );
       } catch (err) {
         surfaceFetchError(err, base);
@@ -7763,32 +8286,28 @@ async function runAutomation(args) {
       const data = await resp.json();
       if (flags.json) return writeJson(data);
       console.log(`[automation] crystallized ${runId}`);
-      console.log(`sourcePacket\t${data.packet?.id ?? ''}`);
-      console.log(`compression\t${data.compressionReport?.status ?? 'unknown'}\t${data.compressionReport?.beforeTokens ?? 0}->${data.compressionReport?.afterTokens ?? 0}`);
+      console.log(`sourcePacket\t${data.packet?.id ?? ""}`);
+      console.log(
+        `compression\t${data.compressionReport?.status ?? "unknown"}\t${data.compressionReport?.beforeTokens ?? 0}->${data.compressionReport?.afterTokens ?? 0}`
+      );
       const proposals = data.proposals ?? [];
       if (proposals.length > 0) {
-        console.log('# proposals');
+        console.log("# proposals");
         for (const proposal of proposals) {
-          console.log([
-            proposal.id,
-            proposal.targetKind,
-            proposal.action,
-            proposal.status,
-            proposal.title,
-          ].join('\t'));
+          console.log([proposal.id, proposal.targetKind, proposal.action, proposal.status, proposal.title].join("\t"));
         }
       }
       return;
     }
-    case 'create': {
-      const name = typeof flags.name === 'string' ? flags.name.trim() : '';
+    case "create": {
+      const name = typeof flags.name === "string" ? flags.name.trim() : "";
       if (!name) {
-        console.error('--name is required');
+        console.error("--name is required");
         process.exit(2);
       }
-      const prompt = (await readPromptFromFlags(flags)) || '';
+      const prompt = (await readPromptFromFlags(flags)) || "";
       if (!prompt.trim()) {
-        console.error('--prompt or --prompt-file is required');
+        console.error("--prompt or --prompt-file is required");
         process.exit(2);
       }
       let schedule;
@@ -7805,7 +8324,7 @@ async function runAutomation(args) {
         prompt: prompt.trim(),
         schedule,
         target,
-        enabled: !flags.disabled,
+        enabled: !flags.disabled
       };
       const context = automationContextFromFlags(flags);
       const skillIds = splitAutomationIds(flags.skill);
@@ -7815,9 +8334,9 @@ async function runAutomation(args) {
       let resp;
       try {
         resp = await fetch(`${base}/api/routines`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body)
         });
       } catch (err) {
         surfaceFetchError(err, base);
@@ -7833,10 +8352,10 @@ async function runAutomation(args) {
       console.log(formatAutomationRow(data.routine));
       return;
     }
-    case 'update': {
-      const id = requireId('update');
+    case "update": {
+      const id = requireId("update");
       const patch = {};
-      if (typeof flags.name === 'string') patch.name = flags.name.trim();
+      if (typeof flags.name === "string") patch.name = flags.name.trim();
       const promptPatch = await readPromptFromFlags(flags);
       if (promptPatch != null) patch.prompt = promptPatch.trim();
       if (flags.schedule) {
@@ -7864,15 +8383,17 @@ async function runAutomation(args) {
         patch.context = context;
       }
       if (Object.keys(patch).length === 0) {
-        console.error('update needs at least one of --name --prompt(--prompt-file) --schedule --target --skill --plugin --mcp --connector --enabled --disabled');
+        console.error(
+          "update needs at least one of --name --prompt(--prompt-file) --schedule --target --skill --plugin --mcp --connector --enabled --disabled"
+        );
         process.exit(2);
       }
       let resp;
       try {
         resp = await fetch(`${base}/api/routines/${encodeURIComponent(id)}`, {
-          method: 'PATCH',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(patch),
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(patch)
         });
       } catch (err) {
         surfaceFetchError(err, base);
@@ -7888,16 +8409,16 @@ async function runAutomation(args) {
       console.log(formatAutomationRow(data.routine));
       return;
     }
-    case 'pause':
-    case 'resume': {
+    case "pause":
+    case "resume": {
       const id = requireId(sub);
-      const enabled = sub === 'resume';
+      const enabled = sub === "resume";
       let resp;
       try {
         resp = await fetch(`${base}/api/routines/${encodeURIComponent(id)}`, {
-          method: 'PATCH',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ enabled }),
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ enabled })
         });
       } catch (err) {
         surfaceFetchError(err, base);
@@ -7912,12 +8433,12 @@ async function runAutomation(args) {
       console.log(`[automation] ${sub}d ${id}`);
       return;
     }
-    case 'run': {
-      const id = requireId('run');
+    case "run": {
+      const id = requireId("run");
       let resp;
       try {
         resp = await fetch(`${base}/api/routines/${encodeURIComponent(id)}/run`, {
-          method: 'POST',
+          method: "POST"
         });
       } catch (err) {
         surfaceFetchError(err, base);
@@ -7935,12 +8456,12 @@ async function runAutomation(args) {
       if (data.agentRunId) console.log(`agentRunId\t${data.agentRunId}`);
       return;
     }
-    case 'delete': {
-      const id = requireId('delete');
+    case "delete": {
+      const id = requireId("delete");
       let resp;
       try {
         resp = await fetch(`${base}/api/routines/${encodeURIComponent(id)}`, {
-          method: 'DELETE',
+          method: "DELETE"
         });
       } catch (err) {
         surfaceFetchError(err, base);

@@ -106,7 +106,7 @@ interface ActivePlugin {
   // plugin through the Home chip rail, the chip carries the project
   // kind we should stamp on the resulting create payload. `null` =
   // applied through the search picker / PluginsHomeSection, where the
-  // kind defaults to the historical 'prototype' value.
+  // kind defaults to the current ecommerce video starter value.
   projectKind: ProjectKind | null;
   chipId: string | null;
   mediaSurface: HomeComposerMediaSurface | null;
@@ -524,9 +524,8 @@ export function HomeView({
     stagedFiles.length,
   ]);
 
-  // The Home chip rail and the Community grid share a mental
-  // model — "Prototype" up top is the same artifact intent as the
-  // `prototype` slice down below. When the user picks a chip,
+  // The Home chip rail and the template grid share the same ecommerce
+  // video workflow model. When the user picks a chip,
   // we drive the starters' FacetSelection from it so they get a
   // pre-filtered shelf of templates for the same intent without having
   // to scroll and re-pick. `pendingChipId` (set on click, before apply
@@ -539,7 +538,7 @@ export function HomeView({
   }, [pendingChipId, active?.chipId]);
 
   // When the active plugin was bound through a chip, the badge shows
-  // the chip label (e.g. "Prototype") instead of the underlying plugin
+  // the chip label (e.g. "Ecommerce video") instead of the underlying plugin
   // record title (e.g. "New generation (default scenario)"). Several
   // chips share od-new-generation, so surfacing the raw plugin title
   // would mislabel what the user actually picked.
@@ -636,7 +635,7 @@ export function HomeView({
       // into the textarea. The user keeps whatever they had typed
       // (or empty); the preset cards are the surfaced opt-in to seed
       // the textarea instead. Used by the top type-chip rail: picking
-      // Slide deck binds the plugin context, leaving the user's draft
+      // Ecommerce video binds the plugin context, leaving the user's draft
       // alone.
       suppressPromptUpdate?: boolean;
       // When true, `queryTemplate` only covers the trailing plugin-query
@@ -645,7 +644,7 @@ export function HomeView({
       // the whole prompt.
       queryTemplateAllowsPrefix?: boolean;
       // Type chips are a mode switch, not a commitment to run. Keeping
-      // their apply deferred makes Prototype <-> Deck <-> Media changes
+      // their apply deferred makes video workflow changes
       // feel instant; submit() still resolves the snapshot before sending.
       deferApply?: boolean;
     },
@@ -1288,8 +1287,8 @@ export function HomeView({
             projectMetadata: metadataForHomeMediaComposer(mediaSurface, composer.inputs, promptTemplates),
             editableInputNames: composer.editableFieldNames,
             preserveInputFields: true,
-            // Media chips are a mode switch, just like Prototype and
-            // Slide deck: they no longer surface inline model/ratio/duration
+            // Media chips are a mode switch: they no longer surface inline
+            // model/ratio/duration
             // settings (the agent asks for those during the run), and they
             // leave the textarea alone until the user picks a concrete
             // template/preset or types their own prompt.
@@ -1726,19 +1725,12 @@ function shouldShowActivePluginChip(active: ActivePlugin | null): boolean {
   return active.record.id !== defaultPluginIdForChip(active.chipId);
 }
 
-// Maps a Home hero chip id to the Community facet slice the
-// user most likely wants to browse next. The chip rail is intent
-// ("I want to design a slide deck"); the starters grid is the catalog
-// for that intent, so pinning the same `deck` slice lets the
-// user keep scanning examples without re-picking the same artifact
-// kind in a different control. The list mirrors the `apply-scenario`
-// and `apply-figma-migration` chip ids in `home-hero/chips.ts`; any
-// new chip there should add a row here too.
+// Maps a Home hero chip id to the ecommerce template facet slice the
+// user most likely wants to browse next. The list mirrors the visible
+// `apply-scenario` chip ids in `home-hero/chips.ts`; any new visible
+// workflow chip there should add a row here too.
 function facetSelectionForChip(chipId: string): FacetSelection | null {
   switch (chipId) {
-    case 'prototype': return { category: 'prototype', subcategory: null };
-    case 'live-artifact': return { category: 'live-artifact', subcategory: null };
-    case 'deck': return { category: 'deck', subcategory: null };
     case 'image': return { category: 'image', subcategory: null };
     case 'video': return { category: 'video', subcategory: null };
     case 'hyperframes': return { category: 'hyperframes', subcategory: null };
@@ -1763,14 +1755,10 @@ function homeHeroChipLabelForId(chipId: string, t: ReturnType<typeof useI18n>['t
   }
 }
 
-// Prototype/deck-specific settings (fidelity, slide count, speaker notes) are
-// no longer promoted into the home composer footer — the agent asks for those
-// via the first-turn discovery flow, so the prototype/deck footer keeps only
-// the design-system picker. Media surfaces (image/video/audio/hyperframes)
-// now defer the same way: image/video keep only the design-system picker and
-// audio/hyperframes keep nothing, with model / ratio / resolution / duration /
-// audio type collected by the agent via AskUserQuestion during the run instead
-// of inline pre-flight controls.
+// Generic artifact settings (fidelity, slide count, speaker notes) are no
+// longer promoted into the ecommerce video composer footer. Media surfaces
+// defer model / ratio / resolution / duration / audio type to the first-turn
+// discovery flow instead of inline pre-flight controls.
 const ARTIFACT_FOOTER_FIELD_NAMES = new Set([
   'fidelity',
   'slideCount',
@@ -1790,10 +1778,9 @@ const ARTIFACT_FOOTER_FIELD_NAMES = new Set([
   'voice',
 ]);
 
-// The prototype/deck footer no longer exposes these settings, so any plugin
-// default for them must NOT be seeded into the Home composer's inputs — that
-// would forward a prefilled value (e.g. `fidelity: high-fidelity`) to the run
-// instead of leaving it "unknown" for the first-turn discovery flow to ask.
+// These hidden footer settings must NOT be seeded into the Home composer's
+// inputs — that would forward a prefilled value to the run instead of leaving
+// it "unknown" for the first-turn discovery flow to ask.
 function stripArtifactFooterInputs(
   inputs: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -1809,7 +1796,6 @@ function stripArtifactFooterInputs(
 }
 
 function footerInputNamesForChip(chipId: string | null): string[] {
-  if (chipId === 'prototype' || chipId === 'deck') return ['designSystem'];
   if (chipId === 'image' || chipId === 'video') return ['designSystem'];
   // hyperframes / audio surface no pre-flight settings — the agent asks for
   // ratio / duration / model / audio kind via AskUserQuestion during the run.

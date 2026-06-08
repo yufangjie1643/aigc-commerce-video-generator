@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 // Regression coverage for the shared composer "+" menu (replaces the deleted
-// ChatComposer.tools-menu-caret.test.tsx, #3195): the connector / plugin / MCP
+// ChatComposer.tools-menu-caret.test.tsx, #3195): connector / creation / MCP
 // pick rows must cancel `mousedown` so the editor keeps focus and the caller's
 // insertMention lands at the caret instead of the draft end.
 
@@ -50,14 +50,14 @@ function expectPickRowPreventsMousedown(name: RegExp) {
 }
 
 describe('ComposerPlusMenu pick-row caret protection', () => {
-  it('cancels mousedown on the connector / plugin / MCP pick rows', () => {
+  it('cancels mousedown on the connector / creation / MCP pick rows', () => {
     renderMenu();
     fireEvent.click(screen.getByTestId('plus-trigger'));
 
     fireEvent.click(screen.getByRole('menuitem', { name: /Connectors/i }));
     expectPickRowPreventsMousedown(/Notion/i);
 
-    fireEvent.click(screen.getByRole('menuitem', { name: /Plugins/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Creation/i }));
     expectPickRowPreventsMousedown(/Deck Maker/i);
 
     fireEvent.click(screen.getByRole('menuitem', { name: /^MCP/i }));
@@ -68,8 +68,8 @@ describe('ComposerPlusMenu pick-row caret protection', () => {
     renderMenu();
     fireEvent.click(screen.getByTestId('plus-trigger'));
 
-    fireEvent.click(screen.getByRole('menuitem', { name: /Plugins/i }));
-    const pluginSearch = screen.getByPlaceholderText('Plugins') as HTMLInputElement;
+    fireEvent.click(screen.getByRole('menuitem', { name: /Creation/i }));
+    const pluginSearch = screen.getByPlaceholderText('Creation') as HTMLInputElement;
     fireEvent.change(pluginSearch, { target: { value: 'deck' } });
     expect(pluginSearch.value).toBe('deck');
 

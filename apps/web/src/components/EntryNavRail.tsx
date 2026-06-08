@@ -1,10 +1,9 @@
 // Lovart-style left navigation rail for the entry view.
 //
-// Renders a narrow icon-only column. The first slot is the brand logo,
-// followed by the primary destinations users expect to keep in reach:
-// New project, home, projects, automations, design systems, plugins,
-// and integrations. Footer controls are reserved for lower-frequency
-// support affordances such as the help launcher.
+// Renders a narrow icon-only column. The visible labels are now mapped to the
+// ecommerce-video workflow: project, assets, script, creation, and
+// generation/diagnostics. Underlying routes are reused for this first surface
+// cleanup pass so daemon and CLI contracts stay untouched.
 // Language switching and other account-scoped controls live behind the
 // floating settings cog in the top-right corner of the main content.
 
@@ -155,15 +154,6 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose }
           testId="entry-nav-tasks"
         >
           <Icon name="kanban" size={18} />
-        </NavButton>
-        <NavButton
-          active={view === 'design-systems'}
-          ariaLabel={t('entry.navDesignSystems')}
-          tooltip={t('entry.navDesignSystems')}
-          onClick={() => selectView('design-systems')}
-          testId="entry-nav-design-systems"
-        >
-          <Icon name="blocks" size={18} />
         </NavButton>
         <NavButton
           active={view === 'plugins'}

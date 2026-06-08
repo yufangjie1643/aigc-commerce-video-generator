@@ -27,6 +27,10 @@ import type {
   ResearchOptions,
   RunContextSelection,
   SseErrorPayload,
+  WeChatAgentBridgeCancelResponse,
+  WeChatAgentBridgeCommandResponse,
+  WeChatAgentBridgeStartResponse,
+  WeChatAgentBridgeStatusResponse,
 } from '@open-design/contracts';
 import type { StreamHandlers } from './anthropic';
 
@@ -114,7 +118,9 @@ function buildPriorRunContextWarning(history: ChatMessage[]): string | null {
     notes.push(`a previous run reported ${highestInputTokens} input tokens`);
   }
   if (largeToolResults > 0) {
-    notes.push(`${largeToolResults} large prior tool result${largeToolResults === 1 ? '' : 's'} exist only in persisted event history`);
+    notes.push(
+      `${largeToolResults} large prior tool result${largeToolResults === 1 ? '' : 's'} exist only in persisted event history`,
+    );
   }
   if (sawAgentBrowserCoreDump) {
     notes.push('agent-browser documentation output was seen earlier; do not replay it into this turn');
@@ -160,15 +166,12 @@ export function sanitizePriorAssistantTurnForTranscript(content: string): string
   // form schema shape — `"questions": [` is the strongest tell. A
   // generic JSON snippet without that key (e.g. an API response the
   // agent shared) is left intact.
-  sanitized = sanitized.replace(
-    /```(?:json)?\s*\n([\s\S]*?)\n```/g,
-    (match, body: string) => {
-      if (/"questions"\s*:\s*\[/.test(body)) {
-        return '[form schema was echoed here on a prior turn; stripped to avoid a loop.]';
-      }
-      return match;
-    },
-  );
+  sanitized = sanitized.replace(/```(?:json)?\s*\n([\s\S]*?)\n```/g, (match, body: string) => {
+    if (/"questions"\s*:\s*\[/.test(body)) {
+      return '[form schema was echoed here on a prior turn; stripped to avoid a loop.]';
+    }
+    return match;
+  });
   return sanitized;
 }
 
@@ -177,10 +180,7 @@ export function buildDaemonTranscript(history: ChatMessage[], targetAgentId?: st
   const transcript = scopedHistory
     .map((m) => {
       const trimmed = m.content.trim();
-      const sanitized =
-        m.role === 'assistant'
-          ? sanitizePriorAssistantTurnForTranscript(trimmed)
-          : trimmed;
+      const sanitized = m.role === 'assistant' ? sanitizePriorAssistantTurnForTranscript(trimmed) : trimmed;
       return `## ${m.role}\n${escapeTranscriptRoleDelimiters(truncateForTranscript(sanitized))}`;
     })
     .join('\n\n');
@@ -306,8 +306,7 @@ function shouldSuppressLifecycleExitFallback(
   if (agentId === 'amr') return true;
   const normalizedStderr = stderrTail.toLowerCase();
   return (
-    normalizedStderr.includes('opencode server listening') ||
-    normalizedStderr.includes('opencode_server_password')
+    normalizedStderr.includes('opencode server listening') || normalizedStderr.includes('opencode_server_password')
   );
 }
 
@@ -688,14 +687,11 @@ export async function launchAntigravityOauth(): Promise<LaunchAntigravityOauthRe
       headers: { 'Content-Type': 'application/json' },
       body: '{}',
     });
-    const body = (await resp.json().catch(() => null)) as
-      | LaunchAntigravityOauthResult
-      | null;
+    const body = (await resp.json().catch(() => null)) as LaunchAntigravityOauthResult | null;
     if (!resp.ok) {
       return {
         ok: false,
-        error:
-          body?.error ?? `daemon returned ${resp.status} ${resp.statusText}`,
+        error: body?.error ?? `daemon returned ${resp.status} ${resp.statusText}`,
       };
     }
     return body ?? { ok: true };
@@ -757,9 +753,7 @@ export interface StartVelaLoginResult {
   error?: string;
 }
 
-export async function startVelaLogin(
-  attribution?: AmrEntryAttribution | null,
-): Promise<StartVelaLoginResult> {
+export async function startVelaLogin(attribution?: AmrEntryAttribution | null): Promise<StartVelaLoginResult> {
   try {
     const resp = await fetch('/api/integrations/vela/login', {
       method: 'POST',
@@ -802,6 +796,107 @@ export async function velaLogout(): Promise<{ ok: boolean }> {
   }
 }
 
+export async function fetchWeChatAgentBridgeStatus(): Promise<WeChatAgentBridgeStatusResponse | null> {
+  try {
+    const resp = await fetch('/api/integrations/wechat/agent/status', { cache: 'no-store' });
+    if (!resp.ok) return null;
+    return (await resp.json()) as WeChatAgentBridgeStatusResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function connectWeChatAgentBridge(): Promise<WeChatAgentBridgeStartResponse> {
+  try {
+    const resp = await fetch('/api/integrations/wechat/agent/connect', {
+      method: 'POST',
+    });
+    const body = (await resp.json().catch(() => null)) as Partial<WeChatAgentBridgeStartResponse> | null;
+    return {
+      ok: resp.ok,
+      alreadyRunning: resp.status === 409 || body?.alreadyRunning === true,
+      login: body?.login ?? {
+        phase: 'failed',
+        running: false,
+        command: [],
+        output: '',
+        detectedUrls: [],
+        error: body?.error ?? `HTTP ${resp.status}`,
+      },
+      error: body?.error,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      login: {
+        phase: 'failed',
+        running: false,
+        command: [],
+        output: '',
+        detectedUrls: [],
+        error: err instanceof Error ? err.message : String(err),
+      },
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function cancelWeChatAgentBridge(): Promise<WeChatAgentBridgeCancelResponse> {
+  try {
+    const resp = await fetch('/api/integrations/wechat/agent/cancel', { method: 'POST' });
+    const body = (await resp.json().catch(() => null)) as WeChatAgentBridgeCancelResponse | null;
+    return (
+      body ?? {
+        ok: resp.ok,
+        canceled: false,
+        login: {
+          phase: resp.ok ? 'idle' : 'failed',
+          running: false,
+          command: [],
+          output: '',
+          detectedUrls: [],
+        },
+      }
+    );
+  } catch {
+    return {
+      ok: false,
+      canceled: false,
+      login: {
+        phase: 'failed',
+        running: false,
+        command: [],
+        output: '',
+        detectedUrls: [],
+      },
+    };
+  }
+}
+
+export async function refreshWeChatAgentBridge(): Promise<WeChatAgentBridgeCommandResponse> {
+  try {
+    const resp = await fetch('/api/integrations/wechat/agent/refresh', { method: 'POST' });
+    const body = (await resp.json().catch(() => null)) as Partial<WeChatAgentBridgeCommandResponse> | null;
+    return {
+      ok: resp.ok,
+      command: body?.command ?? ['od', 'wechat', 'refresh'],
+      stdout: body?.stdout ?? '',
+      stderr: body?.stderr ?? '',
+      exitCode: body?.exitCode,
+      signal: body?.signal,
+      error: body?.error,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      command: ['od', 'wechat', 'refresh'],
+      stdout: '',
+      stderr: '',
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 // Forwards the user's assistant-turn rating to the daemon so it can emit
 // a Langfuse `score-create`. Fire-and-forget — failures are not surfaced
 // to the UI (the rating is already persisted on the message itself via
@@ -827,10 +922,7 @@ export async function reportChatRunFeedback(req: {
   }
 }
 
-export async function listActiveChatRuns(
-  projectId: string,
-  conversationId: string,
-): Promise<ChatRunStatusResponse[]> {
+export async function listActiveChatRuns(projectId: string, conversationId: string): Promise<ChatRunStatusResponse[]> {
   try {
     const qs = new URLSearchParams({ projectId, conversationId, status: 'active' });
     const resp = await fetch(`/api/runs?${qs.toString()}`);
@@ -892,7 +984,7 @@ async function consumeDaemonRun({
       return;
     }
 
-    for (let reconnects = 0; endStatus === null && reconnects < 5;) {
+    for (let reconnects = 0; endStatus === null && reconnects < 5; ) {
       const qs = lastEventId ? `?after=${encodeURIComponent(lastEventId)}` : '';
       let resp: Response;
       try {
@@ -1048,9 +1140,7 @@ async function consumeDaemonRun({
     // `{code:null,signal:"SIGTERM"}` without `status` still surfaces an
     // error banner.
     const looksLikeFailure =
-      endStatus === 'failed' ||
-      (!serverDeclaredSuccess &&
-        (exitSignal || (exitCode !== null && exitCode !== 0)));
+      endStatus === 'failed' || (!serverDeclaredSuccess && (exitSignal || (exitCode !== null && exitCode !== 0)));
     if (looksLikeFailure) {
       if (shouldSuppressLifecycleExitFallback(agentId, exitCode, exitSignal, stderrBuf)) {
         handlers.onDone(acc);
@@ -1062,7 +1152,9 @@ async function consumeDaemonRun({
       const fallbackTail =
         tail || (isAmrOpenCodeExitFallback(agentId, stderrBuf) ? AMR_OPENCODE_INCOMPLETE_MESSAGE : '');
       handlers.onError(
-        new Error(`agent exited with ${exitSignal ? `signal ${exitSignal}` : `code ${exitCode}`}${fallbackTail ? `\n${fallbackTail}` : ''}`),
+        new Error(
+          `agent exited with ${exitSignal ? `signal ${exitSignal}` : `code ${exitCode}`}${fallbackTail ? `\n${fallbackTail}` : ''}`,
+        ),
       );
       return;
     }
@@ -1078,7 +1170,9 @@ async function consumeDaemonRun({
 }
 
 function isChatRunStatus(value: unknown): value is ChatRunStatus {
-  return value === 'queued' || value === 'running' || value === 'succeeded' || value === 'failed' || value === 'canceled';
+  return (
+    value === 'queued' || value === 'running' || value === 'succeeded' || value === 'failed' || value === 'canceled'
+  );
 }
 
 function normalizeToolInput(input: unknown): unknown {
@@ -1114,10 +1208,10 @@ function translateAgentEvent(data: DaemonAgentPayload): AgentEvent | null {
         typeof data.detail === 'string'
           ? data.detail
           : typeof data.model === 'string'
-          ? data.model
-          : typeof data.ttftMs === 'number'
-            ? `first token in ${Math.round((data.ttftMs as number) / 100) / 10}s`
-            : undefined,
+            ? data.model
+            : typeof data.ttftMs === 'number'
+              ? `first token in ${Math.round((data.ttftMs as number) / 100) / 10}s`
+              : undefined,
     };
   }
   if (t === 'text_delta' && typeof data.delta === 'string') {

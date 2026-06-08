@@ -274,8 +274,10 @@ function escapeHtml(value: string): string {
 function renderConnectorConnectedHtml(connectorId: string): string {
   const knownConnectorLabels: Record<string, string> = {
     github: 'GitHub',
-    google_drive: 'Google Drive',
-    notion: 'Notion',
+    youtube: 'YouTube',
+    tiktok: 'TikTok',
+    douyin: 'Douyin',
+    bilibili: 'Bilibili',
   };
   const connectorLabel = connectorId
     ? knownConnectorLabels[connectorId] ?? connectorId

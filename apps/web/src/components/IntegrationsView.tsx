@@ -153,7 +153,6 @@ export function IntegrationsView({
         {activeTab === 'use-everywhere' ? (
           <div className="integrations-view__use-everywhere">
             <UseEverywhereGuidePanel
-              onOpenSettings={() => setActiveTab('mcp')}
               {...(liveDaemonUrl ? { daemonUrl: liveDaemonUrl } : {})}
             />
           </div>

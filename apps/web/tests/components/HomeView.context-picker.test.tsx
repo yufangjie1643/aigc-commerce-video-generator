@@ -56,7 +56,7 @@ const DECK_SKILL: SkillSummary = {
   examplePrompt: 'Design a focused investor deck.',
 };
 
-const WEB_PROTOTYPE_PLUGIN = makePlugin('example-web-prototype', 'Web Prototype');
+const MEDIA_PLUGIN = makePlugin('od-media-generation', 'Media Generation');
 const MCP_SERVER: McpServerConfig = {
   id: 'linear',
   label: 'Linear',
@@ -300,7 +300,7 @@ describe('HomeView context picker', () => {
   it('clears an active type chip when the user picks a skill (#2972)', async () => {
     const fetchMock = vi.fn<typeof fetch>(async (url) => {
       if (typeof url === 'string' && url === '/api/plugins') {
-        return new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN] }), {
+        return new Response(JSON.stringify({ plugins: [MEDIA_PLUGIN] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         });
@@ -330,9 +330,9 @@ describe('HomeView context picker', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByTestId('home-hero-rail-prototype'));
+    fireEvent.click(await screen.findByTestId('home-hero-rail-video'));
     await waitFor(() => {
-      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('Prototype');
+      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('Ecommerce video');
     });
 
     screen.getByTestId('home-hero-input');
@@ -352,13 +352,13 @@ describe('HomeView context picker', () => {
       skillId: DECK_SKILL.id,
       projectKind: 'deck',
     }));
-    expect(onSubmit.mock.calls[0]?.[0]?.pluginId).not.toBe('example-web-prototype');
+    expect(onSubmit.mock.calls[0]?.[0]?.pluginId).not.toBe('od-media-generation');
   });
 
   it('clears an active skill when the user picks a type chip (#2972)', async () => {
     const fetchMock = vi.fn<typeof fetch>(async (url) => {
       if (typeof url === 'string' && url === '/api/plugins') {
-        return new Response(JSON.stringify({ plugins: [WEB_PROTOTYPE_PLUGIN] }), {
+        return new Response(JSON.stringify({ plugins: [MEDIA_PLUGIN] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         });
@@ -366,8 +366,8 @@ describe('HomeView context picker', () => {
       if (typeof url === 'string' && url.includes('/apply')) {
         return new Response(JSON.stringify({
           appliedPlugin: {
-            snapshotId: 'snap-web-prototype',
-            pluginId: 'example-web-prototype',
+            snapshotId: 'snap-media-generation',
+            pluginId: 'od-media-generation',
             pluginVersion: '1.0.0',
             inputs: {},
           },
@@ -410,20 +410,20 @@ describe('HomeView context picker', () => {
       expect(screen.getByTestId('home-hero-active-skill')).toBeTruthy();
     });
 
-    fireEvent.click(await screen.findByTestId('home-hero-rail-prototype'));
+    fireEvent.click(await screen.findByTestId('home-hero-rail-video'));
     await waitFor(() => {
-      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('Prototype');
+      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('Ecommerce video');
       expect(screen.queryByTestId('home-hero-active-skill')).toBeNull();
     });
 
-    setHomeHeroPrompt('Build a pricing-page prototype.');
+    setHomeHeroPrompt('Build a conversion-focused product video.');
     await settle();
     fireEvent.click(screen.getByTestId('home-hero-submit'));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
-      pluginId: 'example-web-prototype',
+      pluginId: 'od-media-generation',
       skillId: null,
-      projectKind: 'prototype',
+      projectKind: 'video',
     })));
   });
 

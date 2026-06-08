@@ -44,6 +44,17 @@ const configuredComposioConnector: ConnectorDetail = {
   tools: [],
 };
 
+const bilibiliCookieConnector: ConnectorDetail = {
+  id: 'bilibili',
+  name: 'Bilibili',
+  provider: 'open-design-video-crawler',
+  category: 'Video',
+  status: 'available',
+  auth: { provider: 'cookie', configured: false },
+  toolCount: 4,
+  tools: [],
+};
+
 function makeTool(name: string): ConnectorDetail['tools'][number] {
   return {
     name,
@@ -80,15 +91,42 @@ describe('ConnectorsBrowser', () => {
     window.sessionStorage.clear();
   });
 
-  it('masks the grid immediately when the Composio key is cleared locally', async () => {
+  it('masks only the Composio provider tab when the Composio key is cleared locally', async () => {
     vi.mocked(fetchConnectors).mockResolvedValue([configuredComposioConnector]);
     vi.mocked(fetchConnectorDiscovery).mockResolvedValue([configuredComposioConnector]);
     vi.mocked(fetchConnectorStatuses).mockResolvedValue({});
 
     render(<ConnectorsBrowser composioConfigured={false} />);
 
+    await screen.findByText('GitHub');
+    expect(screen.queryByTestId('connector-gate')).toBeNull();
+    expect(screen.getByTestId('connector-grid-wrap').className).not.toContain('is-masked');
+
+    fireEvent.click(screen.getByTestId('connectors-provider-tab-composio'));
+
     await waitFor(() => expect(screen.getByTestId('connector-gate')).toBeTruthy());
     expect(screen.getByTestId('connector-grid-wrap').className).toContain('is-masked');
+  });
+
+  it('keeps video crawler connectors visible without a Composio key', async () => {
+    vi.mocked(fetchConnectors).mockResolvedValue([configuredComposioConnector, bilibiliCookieConnector]);
+    vi.mocked(fetchConnectorDiscovery).mockResolvedValue([configuredComposioConnector, bilibiliCookieConnector]);
+    vi.mocked(fetchConnectorStatuses).mockResolvedValue({});
+
+    render(<ConnectorsBrowser composioConfigured={false} />);
+
+    await screen.findByText('Bilibili');
+    expect(screen.queryByTestId('connector-gate')).toBeNull();
+    expect(screen.getByTestId('connector-grid-wrap').className).not.toContain('is-masked');
+
+    fireEvent.click(screen.getByTestId('connectors-provider-tab-video-crawler'));
+
+    expect(screen.getByText('Bilibili')).toBeTruthy();
+    expect(screen.queryByText('GitHub')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+
+    await waitFor(() => expect(connectConnector).toHaveBeenCalledWith('bilibili'));
   });
 
   it('broadcasts connector changes when a connect action completes immediately', async () => {
@@ -329,9 +367,13 @@ describe('ConnectorsBrowser', () => {
     render(<ConnectorsBrowser composioConfigured={false} />);
 
     await screen.findByText('Notion');
-    expect(screen.getByTestId('connector-grid-wrap').className).toContain('is-masked');
+    expect(screen.getByTestId('connector-grid-wrap').className).not.toContain('is-masked');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Notion details' }));
     expect(screen.queryByTestId('connector-drawer')).toBeNull();
     expect(fetchConnectorDetail).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId('connectors-provider-tab-composio'));
+    expect(screen.getByTestId('connector-grid-wrap').className).toContain('is-masked');
   });
 
   it('does not keep loading after failed tool preview fetches', async () => {

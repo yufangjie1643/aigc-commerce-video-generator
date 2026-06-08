@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { accessSync, constants, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path, { delimiter } from 'node:path';
 import { inspectAgentExecutableResolution, userToolchainBinDirs } from './executables.js';
@@ -41,6 +42,7 @@ export function applyAgentLaunchEnv(
   launch: Pick<AgentLaunchResolution, 'childPathPrepend'>,
   nodeBinDir: string = path.dirname(process.execPath),
   appendPathDirs: string[] = userToolchainBinDirs(),
+  refreshedPathDirs: string[] = readWindowsEnvironmentPathDirs(env),
 ): NodeJS.ProcessEnv {
   // Build the ordered list of directories to guarantee are at the front of
   // PATH: the running Node binary directory first (so npm .cmd shims on
@@ -51,6 +53,13 @@ export function applyAgentLaunchEnv(
   // consistently reaches the correct Node binary without each caller having
   // to duplicate the dirname(process.execPath) prepend independently.
   //
+  // `refreshedPathDirs` bridges Windows GUI launches whose inherited PATH is
+  // stale or minimal. Desktop-started daemons do not automatically see PATH
+  // edits made in System Properties, so read the current user/system Path from
+  // the registry before spawning an agent. This lets tools such as ffmpeg and
+  // ffprobe resolve inside connected agents without requiring a shell-launched
+  // daemon.
+  //
   // `appendPathDirs` adds the user toolchain bin dirs (Homebrew, ~/.bun/bin,
   // version-manager dirs, …) to the END of PATH so a resolved binary's shebang
   // interpreter is findable at spawn time even when the daemon's own PATH is
@@ -60,7 +69,7 @@ export function applyAgentLaunchEnv(
   // unavailable. Defaults to the real toolchain dirs; tests pass [] for
   // determinism.
   const toPrepend = [...(nodeBinDir ? [nodeBinDir] : []), ...launch.childPathPrepend];
-  if (toPrepend.length === 0 && appendPathDirs.length === 0) return env;
+  if (toPrepend.length === 0 && appendPathDirs.length === 0 && refreshedPathDirs.length === 0) return env;
   // Case-insensitive key lookup — Windows uses 'Path', not 'PATH'.
   // Using env.PATH directly would be undefined on Windows, yielding a
   // one-entry PATH that contains only toPrepend and discards all system
@@ -75,7 +84,7 @@ export function applyAgentLaunchEnv(
   const existingParts = existing.split(delimiter).filter((e) => e.length > 0);
   const seen = new Set<string>();
   const merged: string[] = [];
-  for (const entry of [...toPrepend, ...existingParts, ...appendPathDirs]) {
+  for (const entry of [...toPrepend, ...existingParts, ...refreshedPathDirs, ...appendPathDirs]) {
     const n = normalize(entry);
     if (!seen.has(n)) {
       seen.add(n);
@@ -83,6 +92,73 @@ export function applyAgentLaunchEnv(
     }
   }
   return { ...env, [pathKey]: merged.join(delimiter) };
+}
+
+const WINDOWS_ENVIRONMENT_PATH_KEYS = [
+  'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment',
+  'HKCU\\Environment',
+];
+
+type WindowsEnvironmentPathReader = (key: string) => string | null;
+
+export function readWindowsEnvironmentPathDirs(
+  env: NodeJS.ProcessEnv = process.env,
+  readPathValue: WindowsEnvironmentPathReader = readWindowsEnvironmentPathValue,
+): string[] {
+  if (process.platform !== 'win32') return [];
+  const dirs: string[] = [];
+  for (const key of WINDOWS_ENVIRONMENT_PATH_KEYS) {
+    let value: string | null = null;
+    try {
+      value = readPathValue(key);
+    } catch {
+      value = null;
+    }
+    if (!value) continue;
+    dirs.push(...splitWindowsPath(expandWindowsEnvRefs(value, env)));
+  }
+  return dirs;
+}
+
+export function parseWindowsRegistryPathValue(output: string): string | null {
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^\s*Path\s+REG_(?:EXPAND_)?SZ\s+(.+?)\s*$/.exec(line);
+    if (match) return match[1] ?? null;
+  }
+  return null;
+}
+
+function readWindowsEnvironmentPathValue(key: string): string | null {
+  let output: string;
+  try {
+    output = execFileSync('reg.exe', ['query', key, '/v', 'Path'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 1_000,
+      windowsHide: true,
+    });
+  } catch {
+    return null;
+  }
+  return parseWindowsRegistryPathValue(output);
+}
+
+function splitWindowsPath(value: string): string[] {
+  return value.split(';').filter((entry) => entry.length > 0);
+}
+
+function expandWindowsEnvRefs(value: string, env: NodeJS.ProcessEnv): string {
+  return value.replace(
+    /%([^%]+)%/g,
+    (match, name: string) => lookupEnvCaseInsensitive(env, name) ?? match,
+  );
+}
+
+function lookupEnvCaseInsensitive(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  const key = Object.keys(env).find((candidate) => candidate.toLowerCase() === name.toLowerCase());
+  if (!key) return undefined;
+  const value = env[key];
+  return typeof value === 'string' ? value : undefined;
 }
 
 function tryResolveCodexNativeBinary(wrapperPath: string): {

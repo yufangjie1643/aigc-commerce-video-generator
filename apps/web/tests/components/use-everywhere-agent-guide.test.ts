@@ -6,23 +6,27 @@ import { GUIDE_SECTIONS } from '../../src/components/use-everywhere/sections';
 describe('buildAgentGuideMarkdown', () => {
   it('emits a top-level header and the setup checklist by default', () => {
     const md = buildAgentGuideMarkdown();
-    expect(md).toMatch(/^# Open Design — agent setup guide/);
-    expect(md).toContain('## Setup checklist');
-    expect(md).toContain('http://127.0.0.1:7456/api/health');
-    expect(md).toContain('http://127.0.0.1:7456/api/mcp/install-info');
+    expect(md).toMatch(/^# Open Design — WeChat status bridge/);
+    expect(md).toContain('## Bridge checklist');
+    expect(md).toContain('/api/integrations/wechat/agent/connect');
+    expect(md).toContain('/api/integrations/wechat/agent/status');
+    expect(md).toContain('http://127.0.0.1:7456/api/routines');
+    expect(md).toContain('http://127.0.0.1:7456/api/orbit/status');
+    expect(md).not.toContain('/api/mcp/install-info');
+    expect(md).not.toContain('openclaw');
   });
 
   it('substitutes the daemonUrl into every default snippet URL', () => {
     const md = buildAgentGuideMarkdown({ daemonUrl: 'http://localhost:9999' });
-    expect(md).toContain('http://localhost:9999/api/health');
-    expect(md).toContain('http://localhost:9999/api/mcp/install-info');
+    expect(md).toContain('http://localhost:9999/api/routines');
+    expect(md).toContain('http://localhost:9999/api/orbit/status');
     expect(md).not.toContain('http://127.0.0.1:7456');
   });
 
   it('strips a trailing slash on the daemonUrl so URLs do not double up', () => {
     const md = buildAgentGuideMarkdown({ daemonUrl: 'http://example.test:1234/' });
-    expect(md).toContain('http://example.test:1234/api/health');
-    expect(md).not.toContain('http://example.test:1234//api/health');
+    expect(md).toContain('http://example.test:1234/api/routines');
+    expect(md).not.toContain('http://example.test:1234//api/routines');
   });
 
   it('includes every guide section heading', () => {
@@ -39,18 +43,19 @@ describe('buildAgentGuideMarkdown', () => {
     expect(fenceCount).toBeGreaterThan(GUIDE_SECTIONS.length * 2);
     expect(md).toContain('```bash');
     expect(md).toContain('```json');
-    expect(md).toContain('```yaml');
+    expect(md).not.toContain('```yaml');
   });
 
-  it('documents the current project create plus run start CLI flow', () => {
+  it('documents the WeChat automation status surfaces', () => {
     const md = buildAgentGuideMarkdown();
-    expect(md).toContain('od project create');
-    expect(md).toContain('od run start');
-    expect(md).toContain('--conversation "$CONVERSATION_ID"');
-    expect(md).toContain('[form answers - discovery]');
-    expect(md).toContain('od files list "$PROJECT_ID"');
-    expect(md).not.toContain('od run \\\n  --plugin');
-    expect(md).not.toContain("--prompt 'A 10-slide investor pitch");
+    expect(md).toContain('internal Agent bridge');
+    expect(md).toContain('OpenCode');
+    expect(md).toContain('next scheduled agent session');
+    expect(md).toContain('/api/routines');
+    expect(md).toContain('/api/orbit/status');
+    expect(md).toContain('od tools live-artifacts list --format compact');
+    expect(md).not.toContain('od project create');
+    expect(md).not.toContain('od run start');
   });
 
   it('surfaces version and CLI hints in the checklist when supplied', () => {
@@ -72,6 +77,11 @@ describe('buildAgentGuideMarkdown', () => {
     const md = buildAgentGuideMarkdown({ daemonUrl: 'http://example.test:5555' });
     expect(md).toContain('## Reference URLs');
     expect(md).toContain('- Daemon: `http://example.test:5555`');
-    expect(md).toContain('- MCP install info: `http://example.test:5555/api/mcp/install-info`');
+    expect(md).toContain('- Automation routines: `http://example.test:5555/api/routines`');
+    expect(md).toContain('- Orbit status: `http://example.test:5555/api/orbit/status`');
+    expect(md).toContain(
+      '- WeChat Agent bridge: `http://example.test:5555/api/integrations/wechat/agent/status`',
+    );
+    expect(md).not.toContain('MCP install info');
   });
 });

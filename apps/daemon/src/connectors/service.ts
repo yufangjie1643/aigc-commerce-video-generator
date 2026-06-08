@@ -12,7 +12,13 @@ import {
   type ConnectorToolSafety,
   type ConnectorStatus,
 } from './catalog.js';
-import { composioConnectorProvider, getStaticComposioCatalogDefinitions, type ComposioAuthConfigPrepareResult, type ComposioConnectionStart } from './composio.js';
+import { composioConnectorProvider, type ComposioAuthConfigPrepareResult, type ComposioConnectionStart } from './composio.js';
+import {
+  isVideoCrawlerDefinition,
+  normalizeVideoCrawlerCredentials,
+  videoCrawlerConnectorProvider,
+  videoCrawlerLoginStart,
+} from './video-crawler.js';
 
 export interface ConnectorExecuteRequest {
   connectorId: string;
@@ -129,7 +135,7 @@ export interface ConnectorConnectionRecord extends ConnectorConnectionStatus {
 export interface ConnectorDiscoveryResult {
   connectors: ConnectorDetail[];
   meta?: {
-    provider: 'composio';
+    provider: 'composio' | 'mixed';
     refreshRequested?: boolean;
   };
 }
@@ -347,6 +353,14 @@ function assertJsonSchemaMatches(value: BoundedJsonValue, schema: BoundedJsonObj
 
 function defaultConnectedAccountLabel(definition: ConnectorCatalogDefinition): string {
   return LOCAL_CONNECTOR_ACCOUNT_LABELS[definition.id] ?? definition.name;
+}
+
+function mergeConnectorDefinitions(...definitionGroups: ConnectorCatalogDefinition[][]): ConnectorCatalogDefinition[] {
+  const byId = new Map<string, ConnectorCatalogDefinition>();
+  for (const definitions of definitionGroups) {
+    for (const definition of definitions) byId.set(definition.id, definition);
+  }
+  return [...byId.values()];
 }
 
 export class ConnectorStatusService {
@@ -571,15 +585,24 @@ export class ConnectorService {
   }
 
   async listDefinitions(signal?: AbortSignal): Promise<ConnectorCatalogDefinition[]> {
-    return composioConnectorProvider.listDefinitions(signal);
+    return mergeConnectorDefinitions(
+      await composioConnectorProvider.listDefinitions(signal),
+      videoCrawlerConnectorProvider.getFastDefinitions(),
+    );
   }
 
   async listHydratedDefinitions(signal?: AbortSignal): Promise<ConnectorCatalogDefinition[]> {
-    return composioConnectorProvider.listDefinitions(signal, { hydrateTools: true });
+    return mergeConnectorDefinitions(
+      await composioConnectorProvider.listDefinitions(signal, { hydrateTools: true }),
+      videoCrawlerConnectorProvider.getFastDefinitions(),
+    );
   }
 
   listFastDefinitions(): ConnectorCatalogDefinition[] {
-    return composioConnectorProvider.getFastDefinitions();
+    return mergeConnectorDefinitions(
+      composioConnectorProvider.getFastDefinitions(),
+      videoCrawlerConnectorProvider.getFastDefinitions(),
+    );
   }
 
   getFastDefinition(connectorId: string): ConnectorCatalogDefinition | undefined {
@@ -587,15 +610,21 @@ export class ConnectorService {
   }
 
   async getDefinition(connectorId: string, signal?: AbortSignal): Promise<ConnectorCatalogDefinition | undefined> {
+    const fastDefinition = this.getFastDefinition(connectorId);
+    if (fastDefinition && isVideoCrawlerDefinition(fastDefinition)) return fastDefinition;
     return composioConnectorProvider.getDefinition(connectorId, signal);
   }
 
   async getHydratedDefinition(connectorId: string, signal?: AbortSignal): Promise<ConnectorCatalogDefinition | undefined> {
+    const fastDefinition = this.getFastDefinition(connectorId);
+    if (fastDefinition && isVideoCrawlerDefinition(fastDefinition)) return fastDefinition;
     return await composioConnectorProvider.getHydratedDefinition(connectorId, signal)
       ?? await this.getDefinition(connectorId, signal);
   }
 
   async getPreviewDefinition(connectorId: string, options: { toolsLimit: number; toolsCursor?: string; signal?: AbortSignal }): Promise<ConnectorCatalogDefinition | undefined> {
+    const fastDefinition = this.getFastDefinition(connectorId);
+    if (fastDefinition && isVideoCrawlerDefinition(fastDefinition)) return fastDefinition;
     return composioConnectorProvider.getPreviewDefinition(connectorId, options);
   }
 
@@ -620,15 +649,16 @@ export class ConnectorService {
 
   async listConnectorDiscovery(options: { refresh?: boolean; hydrateTools?: boolean; signal?: AbortSignal } = {}): Promise<ConnectorDiscoveryResult> {
     if (options.refresh) composioConnectorProvider.clearDiscoveryCache();
-    const definitions = options.refresh && !options.hydrateTools
+    const composioDefinitions = options.refresh && !options.hydrateTools
       ? await composioConnectorProvider.refreshCatalog(options.signal)
       : options.hydrateTools
         ? await this.listHydratedDefinitions(options.signal)
         : await this.listDefinitions(options.signal);
+    const definitions = mergeConnectorDefinitions(composioDefinitions, videoCrawlerConnectorProvider.getFastDefinitions());
     return {
       connectors: definitions.map((definition) => this.toDetail(definition)),
       meta: {
-        provider: 'composio',
+        provider: 'mixed',
         ...(options.refresh ? { refreshRequested: true } : {}),
       },
     };
@@ -697,6 +727,17 @@ export class ConnectorService {
       if (auth.credentials !== undefined) {
         options = { ...options, ...(auth.accountLabel === undefined ? {} : { accountLabel: auth.accountLabel }), credentials: auth.credentials };
       }
+    }
+    if (definition.authentication === 'cookie') {
+      if (options.credentials === undefined) {
+        auth = videoCrawlerLoginStart(definition.id);
+        return { connector: this.toDetail(detailDefinition), auth };
+      }
+      const normalizedCredentials = normalizeVideoCrawlerCredentials(definition, options.credentials);
+      const accountLabel = typeof normalizedCredentials.accountLabel === 'string'
+        ? normalizedCredentials.accountLabel
+        : options.accountLabel;
+      options = { ...options, ...(accountLabel === undefined ? {} : { accountLabel }), credentials: normalizedCredentials };
     }
 
     const status = this.statusService.connect(detailDefinition, options.accountLabel, options.credentials);
@@ -854,6 +895,9 @@ export class ConnectorService {
     if (definition?.authentication === 'composio' && tool) {
       return composioConnectorProvider.execute(definition, tool, request.input, this.getCredential(request.connectorId)?.credentials, context.signal);
     }
+    if (definition && isVideoCrawlerDefinition(definition) && tool) {
+      return videoCrawlerConnectorProvider.execute(definition, tool, request.input, this.getCredential(request.connectorId)?.credentials, context.signal);
+    }
 
     throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', 'connector provider is not implemented', 501, {
       connectorId: request.connectorId,
@@ -909,7 +953,9 @@ export class ConnectorService {
       ...(detail.auth === undefined ? {} : {
         auth: {
           ...detail.auth,
-          configured: detail.auth.configured || (definition.authentication === 'composio' && composioConnectorProvider.isConfigured(definition)),
+          configured: detail.auth.configured
+            || status.status === 'connected'
+            || (definition.authentication === 'composio' && composioConnectorProvider.isConfigured(definition)),
         },
       }),
     };

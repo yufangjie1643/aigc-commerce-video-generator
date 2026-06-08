@@ -13,6 +13,8 @@ import {
   fetchAppVersionInfo,
   fetchConnectorDetail,
   fetchConnectorDiscovery,
+  fetchConnectors,
+  fetchConnectorStatuses,
   fetchPluginExampleHtml,
   fetchPluginPreviewHtml,
   fetchProjectDesignSystemPackageAudit,
@@ -414,9 +416,36 @@ describe('fetchConnectorDiscovery', () => {
     vi.unstubAllGlobals();
   });
 
+  it('filters connector discovery to GitHub and video connectors', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      connectors: [
+        { id: 'airtable', name: 'Airtable' },
+        { id: 'github', name: 'GitHub' },
+        { id: 'youtube', name: 'YouTube' },
+        { id: 'tiktok', name: 'Tiktok' },
+        { id: 'douyin', name: 'Douyin' },
+        { id: 'bilibili', name: 'Bilibili' },
+        { id: 'notion', name: 'Notion' },
+        { id: 'twitter', name: 'Twitter' },
+      ],
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchConnectorDiscovery({ refresh: true })).resolves.toEqual([
+      { id: 'github', name: 'GitHub' },
+      { id: 'youtube', name: 'YouTube' },
+      { id: 'tiktok', name: 'Tiktok' },
+      { id: 'douyin', name: 'Douyin' },
+      { id: 'bilibili', name: 'Bilibili' },
+    ]);
+  });
+
   it('caches connector discovery after a successful fetch', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      connectors: [{ id: 'github', name: 'GitHub', tools: [{ name: 'issues' }] }],
+      connectors: [
+        { id: 'github', name: 'GitHub', tools: [{ name: 'issues' }] },
+        { id: 'canvas', name: 'Canvas', toolCount: 574 },
+      ],
     }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -432,6 +461,56 @@ describe('fetchConnectorDiscovery', () => {
   });
 });
 
+describe('fetchConnectors', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('filters the fast connector catalog to GitHub and video connectors', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      connectors: [
+        { id: 'canvas', name: 'Canvas' },
+        { id: 'github', name: 'GitHub' },
+        { id: 'youtube', name: 'YouTube' },
+        { id: 'bilibili', name: 'Bilibili' },
+        { id: 'notion', name: 'Notion' },
+      ],
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchConnectors()).resolves.toEqual([
+      { id: 'github', name: 'GitHub' },
+      { id: 'youtube', name: 'YouTube' },
+      { id: 'bilibili', name: 'Bilibili' },
+    ]);
+  });
+});
+
+describe('fetchConnectorStatuses', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('filters statuses for hidden connectors', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      statuses: {
+        github: { status: 'connected', accountLabel: 'octocat@example.com' },
+        notion: { status: 'connected', accountLabel: 'docs@example.com' },
+        youtube: { status: 'available' },
+        twitter: { status: 'connected' },
+      },
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchConnectorStatuses()).resolves.toEqual({
+      github: { status: 'connected', accountLabel: 'octocat@example.com' },
+      youtube: { status: 'available' },
+    });
+  });
+});
+
 describe('fetchConnectorDetail', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -441,28 +520,40 @@ describe('fetchConnectorDetail', () => {
   it('requests paginated hydrated tool previews for one connector', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({
       connector: {
-        id: 'canvas',
-        name: 'Canvas',
-        tools: [{ name: 'canvas.list_courses' }],
-        toolCount: 574,
+        id: 'youtube',
+        name: 'YouTube',
+        tools: [{ name: 'youtube.search_videos' }],
+        toolCount: 57,
         toolsNextCursor: 'cursor_2',
         toolsHasMore: true,
       },
     }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(fetchConnectorDetail('canvas', {
+    await expect(fetchConnectorDetail('youtube', {
       hydrateTools: true,
       toolsLimit: 50,
       toolsCursor: 'cursor_1',
     })).resolves.toMatchObject({
-      id: 'canvas',
-      toolCount: 574,
+      id: 'youtube',
+      toolCount: 57,
       toolsNextCursor: 'cursor_2',
-      tools: [{ name: 'canvas.list_courses' }],
+      tools: [{ name: 'youtube.search_videos' }],
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/connectors/canvas?hydrateTools=true&toolsLimit=50&toolsCursor=cursor_1');
+    expect(fetchMock).toHaveBeenCalledWith('/api/connectors/youtube?hydrateTools=true&toolsLimit=50&toolsCursor=cursor_1');
+  });
+
+  it('does not request detail for hidden connectors', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchConnectorDetail('canvas', {
+      hydrateTools: true,
+      toolsLimit: 50,
+    })).resolves.toBeNull();
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

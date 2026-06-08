@@ -40,8 +40,7 @@ describe('NewProjectPanel media provider badges', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Media' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Image' }));
+    fireEvent.click(screen.getByTestId('new-project-media-surface-image'));
     // Model picker is now a combobox — open the popover so the
     // provider group + status badge become visible in the DOM.
     fireEvent.click(screen.getByTestId('model-picker-trigger'));
@@ -65,8 +64,7 @@ describe('NewProjectPanel media provider badges', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Media' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Image' }));
+    fireEvent.click(screen.getByTestId('new-project-media-surface-image'));
     fireEvent.click(screen.getByTestId('model-picker-trigger'));
 
     expect(screen.queryByText('OpenAI')).toBeNull();
@@ -88,8 +86,7 @@ describe('NewProjectPanel media provider badges', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Media' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Image' }));
+    fireEvent.click(screen.getByTestId('new-project-media-surface-image'));
     await waitFor(() => {
       expect(screen.getByTestId('model-picker-trigger').textContent).toContain('Pick a model');
     });
@@ -131,8 +128,7 @@ describe('NewProjectPanel media provider badges', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Media' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Image' }));
+    fireEvent.click(screen.getByTestId('new-project-media-surface-image'));
     fireEvent.click(screen.getByTestId('model-picker-trigger'));
 
     expect(screen.queryByText('OpenAI')).toBeNull();
@@ -161,8 +157,7 @@ describe('NewProjectPanel media provider badges', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Media' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'Image' }));
+    fireEvent.click(screen.getByTestId('new-project-media-surface-image'));
     fireEvent.change(screen.getByTestId('new-project-name'), {
       target: { value: 'Configured provider image' },
     });

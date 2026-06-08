@@ -161,6 +161,12 @@ const TAB_LABEL_KEYS: Record<CreateTab, keyof Dict> = {
   other: 'newproj.tabOther',
 };
 
+const VISIBLE_CREATE_TABS: readonly CreateTab[] = ['media', 'template', 'other'];
+
+function coerceVisibleCreateTab(tab: CreateTab): CreateTab {
+  return VISIBLE_CREATE_TABS.includes(tab) ? tab : 'media';
+}
+
 // Maps the New Project tab + media surface to the apply-result target
 // kind enum. `media` collapses to image/video/audio inside callers;
 // this helper covers the non-media tabs and the live-artifact special
@@ -227,6 +233,8 @@ const MEDIA_SURFACE_LABEL_KEYS: Record<MediaSurface, keyof Dict> = {
   audio: 'newproj.surfaceAudio',
 };
 
+const VISIBLE_MEDIA_SURFACES: readonly MediaSurface[] = ['video', 'image', 'audio'];
+
 export function defaultDesignSystemSelection(
   defaultDesignSystemId: string | null,
   designSystems: DesignSystemSummary[],
@@ -265,7 +273,7 @@ export function NewProjectPanel({
   connectorsLoading = false,
   onOpenConnectorsTab,
   loading = false,
-  initialTab = 'prototype',
+  initialTab = 'media',
 }: Props) {
   const t = useT();
   const analytics = useAnalytics();
@@ -280,7 +288,7 @@ export function NewProjectPanel({
   const [workingDirError, setWorkingDirError] = useState<
     { message: string; details?: string } | null
   >(null);
-  const [tab, setTab] = useState<CreateTab>(initialTab);
+  const [tab, setTab] = useState<CreateTab>(() => coerceVisibleCreateTab(initialTab));
   // P0 analytics — fire surface_view once per (panel mount, tab) pair so the
   // funnel sees both initial open and tab switches without double-counting on
   // unrelated re-renders. Ref keys on a tab string because the panel is a
@@ -299,7 +307,7 @@ export function NewProjectPanel({
   // which set of options + skill resolution applies; submission still maps
   // back to the existing image/video/audio ProjectKind branches so the
   // backend contract is unchanged.
-  const [mediaSurface, setMediaSurface] = useState<MediaSurface>('image');
+  const [mediaSurface, setMediaSurface] = useState<MediaSurface>('video');
   const tabsRef = useRef<HTMLDivElement | null>(null);
   const [tabScroll, setTabScroll] = useState({ left: false, right: false });
   const [name, setName] = useState('');
@@ -785,7 +793,7 @@ export function NewProjectPanel({
           <Icon name="chevron-left" size={16} strokeWidth={2} />
         </button>
         <div className="newproj-tabs" role="tablist" ref={tabsRef}>
-          {(Object.keys(TAB_LABEL_KEYS) as CreateTab[]).map((entry) => (
+          {VISIBLE_CREATE_TABS.map((entry) => (
             <button
               key={entry}
               role="tab"
@@ -890,7 +898,7 @@ export function NewProjectPanel({
             role="tablist"
             aria-label={t('newproj.tabMedia')}
           >
-            {(Object.keys(MEDIA_SURFACE_LABEL_KEYS) as MediaSurface[]).map((surface) => (
+            {VISIBLE_MEDIA_SURFACES.map((surface) => (
               <button
                 key={surface}
                 type="button"

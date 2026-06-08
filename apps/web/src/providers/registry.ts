@@ -88,6 +88,25 @@ export function isDeployProviderId(value: unknown): value is WebDeployProviderId
   return typeof value === 'string' && (DEPLOY_PROVIDER_IDS as readonly string[]).includes(value);
 }
 
+const VISIBLE_CONNECTOR_IDS = new Set(['github', 'youtube', 'tiktok', 'douyin', 'bilibili']);
+const COOKIE_CONNECTOR_IDS = new Set(['youtube', 'tiktok', 'douyin', 'bilibili']);
+
+function isVisibleConnectorId(connectorId: string): boolean {
+  return VISIBLE_CONNECTOR_IDS.has(connectorId.trim().toLowerCase());
+}
+
+function filterVisibleConnectors(connectors: ConnectorDetail[]): ConnectorDetail[] {
+  return connectors.filter((connector) => isVisibleConnectorId(connector.id));
+}
+
+function filterVisibleConnectorStatuses(
+  statuses: ConnectorStatusResponse['statuses'],
+): ConnectorStatusResponse['statuses'] {
+  return Object.fromEntries(
+    Object.entries(statuses).filter(([connectorId]) => isVisibleConnectorId(connectorId)),
+  ) as ConnectorStatusResponse['statuses'];
+}
+
 function deployProviderQuery(providerId?: WebDeployProviderId): string {
   return providerId ? `?providerId=${encodeURIComponent(providerId)}` : '';
 }
@@ -824,7 +843,7 @@ export async function fetchConnectors(): Promise<ConnectorDetail[]> {
     const resp = await fetch('/api/connectors');
     if (!resp.ok) return [];
     const json = (await resp.json()) as ConnectorListResponse;
-    return json.connectors ?? [];
+    return filterVisibleConnectors(json.connectors ?? []);
   } catch {
     return [];
   }
@@ -837,7 +856,7 @@ export async function fetchConnectorStatuses(options?: {
     const resp = await fetch('/api/connectors/status', { signal: options?.signal });
     if (!resp.ok) return {};
     const json = (await resp.json()) as ConnectorStatusResponse;
-    return json.statuses ?? {};
+    return filterVisibleConnectorStatuses(json.statuses ?? {});
   } catch {
     return {};
   }
@@ -860,7 +879,7 @@ export async function fetchConnectorDiscovery(options: { refresh?: boolean } = {
       const resp = await fetch(`/api/connectors/discovery${params}`);
       if (!resp.ok) return [];
       const json = (await resp.json()) as ConnectorDiscoveryResponse;
-      const connectors = json.connectors ?? [];
+      const connectors = filterVisibleConnectors(json.connectors ?? []);
       connectorDiscoveryCache = connectors;
       return connectors;
     } catch {
@@ -877,6 +896,7 @@ export async function fetchConnectorDetail(
   connectorId: string,
   options: { hydrateTools?: boolean; toolsLimit?: number; toolsCursor?: string } = {},
 ): Promise<ConnectorDetail | null> {
+  if (!isVisibleConnectorId(connectorId)) return null;
   try {
     const params = new URLSearchParams();
     if (options.hydrateTools) params.set('hydrateTools', 'true');
@@ -886,7 +906,8 @@ export async function fetchConnectorDetail(
     const resp = await fetch(`/api/connectors/${encodeURIComponent(connectorId)}${query ? `?${query}` : ''}`);
     if (!resp.ok) return null;
     const json = (await resp.json()) as ConnectorDetailResponse;
-    return json.connector ?? null;
+    const connector = json.connector ?? null;
+    return connector && isVisibleConnectorId(connector.id) ? connector : null;
   } catch {
     return null;
   }
@@ -940,23 +961,34 @@ async function decodeConnectorError(resp: Response): Promise<string> {
 export async function connectConnector(connectorId: string): Promise<ConnectorActionResult> {
   let authWindow: Window | null = null;
   const useExternalBrowser = isOpenDesignHostAvailable();
+  const connectorKey = connectorId.trim().toLowerCase();
+  const requiresComposioAuthConfig = !COOKIE_CONNECTOR_IDS.has(connectorKey);
   try {
     if (!useExternalBrowser) {
       authWindow = window.open('about:blank', '_blank');
       renderConnectorAuthLoading(authWindow, {
-        title: 'Initializing auth config…',
-        body: 'Creating or reusing the Composio auth configuration for this app. This can take a moment the first time.',
+        title: requiresComposioAuthConfig ? 'Initializing auth config…' : 'Opening platform login…',
+        body: requiresComposioAuthConfig
+          ? 'Creating or reusing the Composio auth configuration for this app. This can take a moment the first time.'
+          : 'Open the platform, log in, and let the cookie crawler bridge capture the session for Open Design.',
       });
     }
-    const prepare = await prepareConnectorAuthConfig(connectorId);
-    if (prepare.status !== 'ready') {
-      renderConnectorAuthError(authWindow, prepare.message);
-      return { connector: null, error: prepare.message };
+    if (requiresComposioAuthConfig) {
+      const prepare = await prepareConnectorAuthConfig(connectorId);
+      if (prepare.status !== 'ready') {
+        renderConnectorAuthError(authWindow, prepare.message);
+        return { connector: null, error: prepare.message };
+      }
+      renderConnectorAuthLoading(authWindow, {
+        title: 'Opening authorization…',
+        body: 'The auth config is ready. Preparing the provider authorization page.',
+      });
+    } else {
+      renderConnectorAuthLoading(authWindow, {
+        title: 'Opening platform login…',
+        body: 'After login, the crawler bridge should submit the captured cookie session back to Open Design.',
+      });
     }
-    renderConnectorAuthLoading(authWindow, {
-      title: 'Opening authorization…',
-      body: 'The auth config is ready. Preparing the provider authorization page.',
-    });
     const resp = await fetch(`/api/connectors/${encodeURIComponent(connectorId)}/connect`, {
       method: 'POST',
     });

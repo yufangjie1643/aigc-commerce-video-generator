@@ -145,11 +145,11 @@ describe('HomeHero intent rail', () => {
     expect(screen.queryByTestId('home-hero-rail-video')).toBeNull();
     const node = screen.getByTestId('home-hero-active-type-chip');
     expect(node.getAttribute('data-chip-id')).toBe('video');
-    expect(node.textContent).toContain('Video');
+    expect(node.textContent).toContain('Ecommerce video');
   });
 
   it('lets the active creation chip be removed from the composer', () => {
-    const { onClearActiveChip } = renderHero({ activeChipId: 'prototype' });
+    const { onClearActiveChip } = renderHero({ activeChipId: 'video' });
     fireEvent.click(screen.getByTestId('home-hero-active-type-chip'));
     expect(onClearActiveChip).toHaveBeenCalledTimes(1);
   });
@@ -187,69 +187,64 @@ describe('HomeHero intent rail', () => {
 
   it('shows prompt examples below the composer for the selected tab', () => {
     const onPromptChange = vi.fn();
-    renderHero({ activeChipId: 'deck', onPromptChange });
+    renderHero({ activeChipId: 'video', onPromptChange });
 
     expect(screen.getByTestId('home-hero-prompt-examples')).toBeTruthy();
     const examples = screen.getAllByTestId('home-hero-prompt-example');
-    expect(examples).toHaveLength(4);
+    expect(examples).toHaveLength(2);
 
     fireEvent.click(examples[0]!);
     expect(onPromptChange).toHaveBeenCalledWith(
-      'Research the market opportunity for a product launch, including competitors, target users, pricing hypotheses, and launch narrative',
+      'Create a 20-second vertical ecommerce video for a portable blender: 3-second hook, pain point, product demo, benefit proof, limited offer, and CTA',
     );
     // The top "selected example" pill was removed from the composer; picking an
     // example still seeds the prompt but no longer surfaces a dismissible chip.
     expect(screen.queryByTestId('home-hero-active-example')).toBeNull();
   });
 
-  it('shows matching plugin presets in the example prompt area for the selected tab', () => {
-    const deckPlugin = makePlugin('example-deck-a', 'deck', 'Investor deck');
+  it('shows matching ecommerce plugin presets in the example prompt area for the selected tab', () => {
+    const videoPlugin = makePlugin('example-video-a', 'video', 'Product video', ['ecommerce']);
     const imagePlugin = makePlugin('example-image-a', 'image', 'Product image');
     const { onPickExamplePlugin } = renderHero({
-      activeChipId: 'deck',
-      pluginOptions: [deckPlugin, imagePlugin],
+      activeChipId: 'video',
+      pluginOptions: [videoPlugin, imagePlugin],
     });
 
     const presets = screen.getAllByTestId('home-hero-plugin-preset');
     expect(presets).toHaveLength(1);
     // The preset card is now a thumbnail + name only; the prompt blurb was
     // dropped from the card face but is still passed through on click below.
-    expect(presets[0]?.textContent).toContain('Investor deck');
+    expect(presets[0]?.textContent).toContain('Product video');
 
     fireEvent.click(presets[0]!);
     expect(onPickExamplePlugin).toHaveBeenCalledWith(
-      deckPlugin,
-      'deck',
-      'Create with a focused brief using Investor deck',
+      videoPlugin,
+      'video',
+      'Create with a focused brief using Product video',
     );
   });
 
-  it('orders curated example presets first for the selected artifact type', () => {
-    const ordinaryDeck = makePlugin('example-ordinary-deck', 'deck', 'Ordinary deck');
-    const capsule = makePlugin(
-      'example-html-ppt-zhangzara-capsule',
-      'deck',
-      'Html Ppt Zhangzara Capsule',
-    );
-    const creativeMode = makePlugin(
-      'example-html-ppt-zhangzara-creative-mode',
-      'deck',
-      'Html Ppt Zhangzara Creative Mode',
+  it('orders bundled ecommerce presets deterministically for the selected artifact type', () => {
+    const ordinaryVideo = makePlugin('example-ordinary-video', 'video', 'Ordinary video', ['ecommerce']);
+    const templateVideo = makePlugin(
+      'video-template-product-demo',
+      'video',
+      'Product demo template',
+      ['video-template', 'product-demo'],
     );
     renderHero({
-      activeChipId: 'deck',
-      pluginOptions: [ordinaryDeck, capsule, creativeMode],
+      activeChipId: 'video',
+      pluginOptions: [ordinaryVideo, templateVideo],
     });
 
     const presets = screen.getAllByTestId('home-hero-plugin-preset');
     expect(presets.map((preset) => preset.getAttribute('data-plugin-id'))).toEqual([
-      'example-html-ppt-zhangzara-creative-mode',
-      'example-html-ppt-zhangzara-capsule',
-      'example-ordinary-deck',
+      'example-ordinary-video',
+      'video-template-product-demo',
     ]);
   });
 
-  it('keeps curated presets even when they rely on fallback prompt text', () => {
+  it('keeps non-commerce curated presets out of the ecommerce prompt area', () => {
     const otakuDance = makePlugin(
       'image-template-infographic-otaku-dance-choreography-breakdown-gokurakujodo-16-panels',
       'image',
@@ -257,127 +252,61 @@ describe('HomeHero intent rail', () => {
       ['image-template'],
       { query: null },
     );
-    const ordinaryImage = makePlugin(
-      'image-template-ordinary',
+    const productAssets = makePlugin(
+      'image-template-product-assets',
       'image',
-      'Ordinary image',
-      ['image-template'],
+      'Product assets',
+      ['image-template', 'product-assets'],
     );
     renderHero({
       activeChipId: 'image',
-      pluginOptions: [ordinaryImage, otakuDance],
+      pluginOptions: [productAssets, otakuDance],
     });
 
     const presets = screen.getAllByTestId('home-hero-plugin-preset');
-    expect(presets[0]?.getAttribute('data-plugin-id')).toBe(
-      'image-template-infographic-otaku-dance-choreography-breakdown-gokurakujodo-16-panels',
-    );
-  });
-
-  it('keeps Hatch Pet at the end of the image example presets', () => {
-    const hatchPet = makePlugin('example-hatch-pet', 'image', 'Hatch Pet');
-    const imagePoster = makePlugin('image-template-poster', 'image', 'Image Poster');
-    const stoneInfographic = makePlugin('image-template-stone', 'image', 'Stone Infographic');
-    renderHero({
-      activeChipId: 'image',
-      pluginOptions: [hatchPet, imagePoster, stoneInfographic],
-    });
-
-    const presets = screen.getAllByTestId('home-hero-plugin-preset');
-    expect(presets.map((preset) => preset.textContent)).toEqual([
-      expect.stringContaining('Image Poster'),
-      expect.stringContaining('Stone Infographic'),
-      expect.stringContaining('Hatch Pet'),
-    ]);
-  });
-
-  it('moves live artifact presets out of Image and into Live artifact examples', () => {
-    const imagePoster = makePlugin('image-template-poster', 'image', 'Image Poster');
-    const liveDashboard = makePlugin(
-      'example-live-dashboard',
-      'prototype',
-      'Live Dashboard',
-      ['live-dashboard'],
-    );
-    const notionDashboard = makePlugin(
-      'image-template-notion-team-dashboard-live-artifact',
-      'image',
-      'Notion-style Team Dashboard (Live Artifact)',
-      ['live-artifact'],
-    );
-    const socialTracker = makePlugin(
-      'example-social-media-matrix-tracker-template',
-      'template',
-      'Social Media Matrix Tracker Template',
-      ['live-artifacts'],
-    );
-    const tradingDashboard = makePlugin(
-      'example-trading-analysis-dashboard-template',
-      'template',
-      'Trading Analysis Dashboard Template',
-      ['live-artifacts'],
-    );
-    const liveArtifact = makePlugin(
-      'example-live-artifact',
-      'prototype',
-      'Live Artifact',
-      ['live-artifact'],
-    );
-    renderHero({
-      activeChipId: 'image',
-      pluginOptions: [imagePoster, liveDashboard, notionDashboard],
-    });
-
-    let presets = screen.getAllByTestId('home-hero-plugin-preset');
     expect(presets).toHaveLength(1);
-    expect(presets[0]?.textContent).toContain('Image Poster');
+    expect(presets[0]?.getAttribute('data-plugin-id')).toBe('image-template-product-assets');
+  });
 
-    cleanup();
+  it('hides Hatch Pet from the image example presets', () => {
+    const hatchPet = makePlugin('example-hatch-pet', 'image', 'Hatch Pet');
+    const productAssets = makePlugin(
+      'image-template-product-assets',
+      'image',
+      'Product assets',
+      ['product-assets'],
+    );
     renderHero({
-      activeChipId: 'live-artifact',
-      pluginOptions: [
-        imagePoster,
-        liveArtifact,
-        tradingDashboard,
-        notionDashboard,
-        socialTracker,
-        liveDashboard,
-      ],
+      activeChipId: 'image',
+      pluginOptions: [hatchPet, productAssets],
     });
 
-    presets = screen.getAllByTestId('home-hero-plugin-preset');
-    expect(presets.map((preset) => preset.getAttribute('data-plugin-id'))).toEqual([
-      'example-live-dashboard',
-      'image-template-notion-team-dashboard-live-artifact',
-      'example-social-media-matrix-tracker-template',
-      'example-trading-analysis-dashboard-template',
-      'example-live-artifact',
-    ]);
+    const presets = screen.getAllByTestId('home-hero-plugin-preset');
+    expect(presets.map((preset) => preset.textContent).join(' ')).not.toContain('Hatch Pet');
   });
 
   it('disables every visible chip while a plugin apply is in flight', () => {
-    renderHero({ pendingPluginId: 'od-figma-migration', pendingChipId: 'figma' });
+    renderHero({ pendingPluginId: 'od-media-generation', pendingChipId: 'video' });
     for (const chip of HOME_HERO_CHIPS.filter((item) => item.group === 'create')) {
       const node = screen.getByTestId(`home-hero-rail-${chip.id}`);
       expect((node as HTMLButtonElement).disabled).toBe(true);
     }
+    expect(screen.getByTestId('home-hero-rail-video').className).toContain('is-pending');
     const trigger = screen.getByTestId('home-hero-shortcuts-trigger') as HTMLButtonElement;
     expect(trigger.disabled).toBe(true);
-    expect(trigger.className).toContain('is-pending');
+    expect(trigger.className).not.toContain('is-pending');
   });
 
-  it('shows plugin authoring with the starter shortcuts after More opens', () => {
+  it('shows the template library shortcut after More opens', () => {
     renderHero();
     fireEvent.click(screen.getByTestId('home-hero-shortcuts-trigger'));
-    const createPluginGroup = screen
-      .getByTestId('home-hero-rail-create-plugin')
+    const templateGroup = screen
+      .getByTestId('home-hero-rail-template')
       .closest('[data-rail-group]');
 
-    expect(createPluginGroup?.getAttribute('data-rail-group')).toBe('migrate');
-    for (const id of ['figma', 'template']) {
-      expect(screen.getByTestId(`home-hero-rail-${id}`).closest('[data-rail-group]'))
-        .toBe(createPluginGroup);
-    }
+    expect(templateGroup?.getAttribute('data-rail-group')).toBe('migrate');
+    expect(screen.queryByTestId('home-hero-rail-create-plugin')).toBeNull();
+    expect(screen.queryByTestId('home-hero-rail-figma')).toBeNull();
     expect(screen.queryByTestId('home-hero-rail-folder')).toBeNull();
   });
 
@@ -388,9 +317,9 @@ describe('HomeHero intent rail', () => {
     expect(screen.queryByTestId('home-hero-rail-other')).toBeNull();
   });
 
-  it('migration chips carry the right action discriminator', () => {
-    expect(findChip('create-plugin')?.action).toMatchObject({ kind: 'create-plugin' });
-    expect(findChip('figma')?.action).toMatchObject({ kind: 'apply-figma-migration' });
+  it('shortcut chips carry the right action discriminator', () => {
+    expect(findChip('create-plugin')).toBeUndefined();
+    expect(findChip('figma')).toBeUndefined();
     expect(findChip('folder')).toBeUndefined();
     expect(findChip('template')?.action).toMatchObject({ kind: 'open-template-picker' });
   });
@@ -405,16 +334,7 @@ describe('HomeHero intent rail', () => {
     expect(findChip('audio')?.action).toMatchObject({ pluginId: 'od-media-generation', projectKind: 'audio' });
   });
 
-  it('prototype and slide-deck chips route to their specialised bundled scenario plugin', () => {
-    // Prototype now binds to web-prototype's seed template instead of
-    // the generic od-new-generation router. Same for Slide deck →
-    // simple-deck. See packages/contracts/src/plugins/scenario-defaults.ts
-    // for the rationale (battle-tested seed + layouts + checklist).
-    expect(findChip('prototype')?.action).toMatchObject({ pluginId: 'example-web-prototype', projectKind: 'prototype' });
-    expect(findChip('deck')?.action).toMatchObject({ pluginId: 'example-simple-deck', projectKind: 'deck' });
-  });
-
-  it('specialised category chips route to their bundled scenario plugin', () => {
+  it('specialised storyboard chip routes to its bundled scenario plugin', () => {
     // HyperFrames is the motion-graphics specialisation of Video,
     // surfaced as a separate chip so users can target it directly
     // instead of routing through the generic Video chip.
@@ -423,15 +343,6 @@ describe('HomeHero intent rail', () => {
       pluginId: 'example-hyperframes',
       projectKind: 'video',
     });
-    expect(findChip('live-artifact')?.action).toMatchObject({
-      kind: 'apply-scenario',
-      pluginId: 'example-live-artifact',
-      projectKind: 'prototype',
-      projectMetadata: {
-        kind: 'prototype',
-        intent: 'live-artifact',
-        fidelity: 'high-fidelity',
-      },
-    });
+    expect(findChip('live-artifact')).toBeUndefined();
   });
 });

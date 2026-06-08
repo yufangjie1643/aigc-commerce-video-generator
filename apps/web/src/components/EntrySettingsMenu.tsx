@@ -1,15 +1,8 @@
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
-import {
-  buildSocialSharePayload,
-  OPEN_DESIGN_GITHUB_REPO_URL,
-  type SocialShareRequest,
-  type SocialShareResponse,
-} from '@open-design/contracts';
 import {
   LOCALE_LABEL,
   LOCALES,
@@ -17,14 +10,8 @@ import {
   useT,
   type Locale,
 } from '../i18n';
-import { createSocialSharePayload } from '../providers/registry';
 import type { AppConfig, AppTheme } from '../types';
-import { formatDiscordPresenceCount, useDiscordPresence } from './useDiscordPresence';
 import { Icon } from './Icon';
-import { SocialShareGrid } from './SocialShareGrid';
-
-const DISCORD_URL = 'https://discord.gg/mHAjSMV6gz';
-const X_URL = 'https://x.com/nexudotio';
 
 export type EntrySettingsSection =
   | 'execution'
@@ -36,7 +23,6 @@ export type EntrySettingsSection =
   | 'language'
   | 'appearance'
   | 'notifications'
-  | 'pet'
   | 'projectLocations'
   | 'library'
   | 'about'
@@ -66,34 +52,10 @@ export function EntrySettingsMenu({
 }: Props) {
   const t = useT();
   const { locale, setLocale } = useI18n();
-  const discordPresence = useDiscordPresence();
   const [open, setOpen] = useState(false);
-  const [openDesignShare, setOpenDesignShare] = useState<SocialShareResponse | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const activeTheme = config.theme ?? 'system';
-  const discordOnlineLabel = discordPresence
-    ? t('entry.discordOnlineLabel', {
-        count: formatDiscordPresenceCount(discordPresence.onlineCount),
-      })
-    : null;
-  const openDesignShareRequest = useMemo<SocialShareRequest>(() => {
-    const text = t('socialShare.openDesignText');
-    return {
-      kind: 'open-design-repo',
-      locale,
-      title: t('socialShare.openDesignTitle'),
-      text,
-      copyText: t('socialShare.openDesignCopyText', {
-        text,
-        url: OPEN_DESIGN_GITHUB_REPO_URL,
-      }),
-    };
-  }, [locale, t]);
-  const fallbackOpenDesignShare = useMemo(
-    () => buildSocialSharePayload(openDesignShareRequest),
-    [openDesignShareRequest],
-  );
 
   useEffect(() => {
     if (!open) return;
@@ -114,22 +76,6 @@ export function EntrySettingsMenu({
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    setOpenDesignShare(null);
-    void createSocialSharePayload(openDesignShareRequest)
-      .then((payload) => {
-        if (!cancelled) setOpenDesignShare(payload);
-      })
-      .catch(() => {
-        if (!cancelled) setOpenDesignShare(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, openDesignShareRequest]);
 
   return (
     <div className="entry-settings-menu" ref={wrapRef}>
@@ -214,57 +160,6 @@ export function EntrySettingsMenu({
               })}
             </div>
           </section>
-
-          <section className="entry-settings-menu__section">
-            <div className="entry-settings-menu__section-title">
-              <Icon name="external-link" size={13} />
-              <span>{t('socialShare.openDesignSection')}</span>
-            </div>
-            <SocialShareGrid
-              share={openDesignShare ?? fallbackOpenDesignShare}
-              className="entry-settings-social-share"
-              onAfterShare={() => setOpen(false)}
-            />
-          </section>
-
-          <div className="entry-settings-menu__divider" aria-hidden />
-
-          <a
-            className="entry-settings-menu__item"
-            href={DISCORD_URL}
-            target="_blank"
-            rel="noreferrer noopener"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <span className="entry-settings-menu__item-icon" aria-hidden>
-              <Icon name="discord" size={14} />
-            </span>
-            <span>{t('entry.discordLabel')}</span>
-            {discordOnlineLabel ? (
-              <span className="entry-settings-menu__item-meta">
-                {discordOnlineLabel}
-              </span>
-            ) : null}
-            <Icon name="external-link" size={12} className="entry-settings-menu__item-end" />
-          </a>
-          <a
-            className="entry-settings-menu__item"
-            href={X_URL}
-            target="_blank"
-            rel="noreferrer noopener"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <span
-              className="entry-settings-menu__item-icon entry-settings-menu__x-mark"
-              aria-hidden
-            >
-              X
-            </span>
-            <span>{t('entry.followXLabel')}</span>
-            <Icon name="external-link" size={12} className="entry-settings-menu__item-end" />
-          </a>
 
           <div className="entry-settings-menu__divider" aria-hidden />
 

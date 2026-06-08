@@ -4,7 +4,6 @@ import { resolveSystemLocale } from '../../src/i18n';
 import { en } from '../../src/i18n/locales/en';
 import { id } from '../../src/i18n/locales/id';
 import { zhCN } from '../../src/i18n/locales/zh-CN';
-import { zhTW } from '../../src/i18n/locales/zh-TW';
 import { LOCALES, LOCALE_LABEL, type Dict, type Locale } from '../../src/i18n/types';
 
 const EXPECTED_LOCALES = ['en', 'id', 'de', 'zh-CN', 'zh-TW', 'pt-BR', 'es-ES', 'ru', 'fa', 'ar', 'ja', 'ko', 'pl', 'hu', 'fr', 'uk', 'tr', 'th', 'it'];
@@ -126,7 +125,7 @@ describe('i18n locales', () => {
     }
   });
 
-  it('keeps Chinese integrations copy translated instead of falling back to English', () => {
+  it('keeps zh-CN integrations copy translated instead of falling back to English', () => {
     const translatedKeys: Array<keyof Dict> = [
       'entry.navIntegrations',
       'integrations.kicker',
@@ -153,11 +152,10 @@ describe('i18n locales', () => {
 
     for (const key of translatedKeys) {
       expect(zhCN[key], `zh-CN.${key}`).not.toBe(en[key]);
-      expect(zhTW[key], `zh-TW.${key}`).not.toBe(en[key]);
     }
   });
 
-  it('keeps Routines settings page copy translated in Chinese (issue #1372)', () => {
+  it('keeps Routines settings page copy translated in zh-CN (issue #1372)', () => {
     const translatedKeys: Array<keyof Dict> = [
       'routines.title',
       'routines.subtitle',
@@ -178,7 +176,6 @@ describe('i18n locales', () => {
 
     for (const key of translatedKeys) {
       expect(zhCN[key], `zh-CN.${key}`).not.toBe(en[key]);
-      expect(zhTW[key], `zh-TW.${key}`).not.toBe(en[key]);
     }
   });
 

@@ -14,7 +14,7 @@ export interface ComposerPlusMenuProps {
   /** Opens the connector integration surface; omit to hide the add row. */
   onAddConnector?: () => void;
 
-  /** Installed plugin options shown under the "Plugins" submenu. */
+  /** Installed workflow options shown under the "Creation" submenu. */
   plugins: InstalledPluginRecord[];
   onPickPlugin: (plugin: InstalledPluginRecord) => void;
   /** Opens the plugin registry; omit to hide the add row. */
@@ -43,7 +43,7 @@ export interface ComposerPlusMenuProps {
 
   /**
    * Notified when the menu opens. The project composer uses this to latch its
-   * lazy plugin / MCP / connector fetches, so the Plugins / Connectors / MCP
+   * lazy plugin / MCP / connector fetches, so the Creation / Connectors / MCP
    * submenus aren't empty when the "+" menu is the first thing clicked on a
    * cold composer.
    */
@@ -91,9 +91,9 @@ export function ComposerPlusMenu({
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
 
-  // The plugin and MCP flyouts share one `query`, but it is scoped to whichever
+  // The creation and MCP flyouts share one `query`, but it is scoped to whichever
   // submenu is open. Reset it whenever the active submenu changes so a stale
-  // plugin search (e.g. "deck") never filters the MCP list — which would
+  // creation search (e.g. "video") never filters the MCP list — which would
   // otherwise show the empty state even when servers exist.
   useEffect(() => {
     setQuery('');

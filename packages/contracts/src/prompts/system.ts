@@ -71,10 +71,13 @@ function renderUiLocalePrompt(locale: string | undefined): string {
     '# UI locale override',
     '',
     `The Open Design UI locale for this run is \`${normalized}\` (${languageName}). All user-visible chat prose and generated UI controls must follow this locale, especially \`<question-form>\` titles, descriptions, labels, placeholders, helper text, and option labels. Keep machine-readable ids and object option \`value\` fields exact and unlocalized.`,
+    `This locale is the user's Settings → Language choice, not merely a UI translation hint. Use ${languageName} as the default conversation language for every direct reply to the user, including plans, progress updates, clarifying questions, error explanations, and final summaries. Preserve code, shell commands, file names, API fields, provider/model ids, and machine-readable values in their original language.`,
     'Exception: for the default task-type form, keep the `taskType` option labels as the canonical routing choices: `Prototype`, `Live artifact`, `Slide deck`, `Image`, `Video`, `HyperFrames`, `Audio`, `Other`. Do not translate, reorder, or rewrite those option labels.',
   ];
   if (normalized === 'zh-CN') {
     lines.push(
+      '',
+      '中文沟通要求：默认用简体中文和用户交流；即使参考模板、工具输出或系统示例是英文，也不要切回英文。只有用户明确要求其它语言时才切换。',
       '',
       'For the default quick brief in Simplified Chinese, use copy like:',
       '- title: `快速简报 — 30 秒`',
@@ -576,6 +579,7 @@ function renderMetadataBlock(
     lines.push(
       'This is a **video** project. Plan the shotlist and motion, then dispatch via the **media generation contract** using `"$OD_NODE_BIN" "$OD_BIN" media generate --surface video --model <videoModel> --length <seconds> --aspect <ratio>`. Do NOT emit `<artifact>` HTML.',
     );
+    lines.push(ECOMMERCE_VIDEO_CONFIGURATION_DIRECTIVE);
     if (metadata.videoModel === 'hyperframes-html') {
       lines.push(
         'Special case: `hyperframes-html` is a local HTML-to-MP4 renderer, not a photoreal text-to-video model. Treat it like a motion design renderer, ask at most one clarifying question, then dispatch immediately.',
@@ -732,6 +736,30 @@ function renderMetadataBlock(
 
   return lines.join('\n');
 }
+
+const ECOMMERCE_VIDEO_CONFIGURATION_DIRECTIVE = `\
+### Ecommerce selling-video configuration workflow
+
+When the video brief is for ecommerce, product selling, 带货, product demo, product promo, offer/CTA, or a product asset/reference-video workflow, normalize the brief through this production chain before dispatching generation:
+
+1. **Project** — identify the product, channel, target customer, platform, current workflow stage, and the single next action. Respect explicit user render settings first; if aspect is unknown for short-form commerce video, prefer 9:16 and state the assumption.
+2. **Assets** — inventory product photo/video, package, logo, reference video, SKU/detail/lifestyle/proof shots. Produce an \`asset_manifest\`, note missing assets, and state whether generation can continue with placeholders.
+3. **Script** — derive hook, pain point, selling points, proof, offer, CTA, safety/brand constraints, and a 3-6 shot structure. If reference videos or templates are present, extract method, not subject copy.
+4. **Creation** — turn the script into an editable composition: each shot needs duration, visual goal, camera/motion, caption, voiceover, required asset, image/video prompt, match reason, and QA checks. Keep total duration within the selected \`lengthSeconds\`; if no length is selected, keep short-form commerce videos within 15-20 seconds.
+5. **Generate / diagnose** — carry render settings, queue state, validation, asset matching, subtitle/TTS prep, per-shot render, full composition, export, and QA as explicit stages. For failures, name the failed stage, last successful output, likely cause, and retry path.
+
+Before calling the media generation contract, assemble a compact \`Ecommerce video config\` with:
+- \`project_goal\`
+- \`product_inputs\`
+- \`asset_manifest\`
+- \`script_strategy\`
+- \`storyboard[]\`
+- \`render_settings\`
+- \`qa_checklist\`
+- \`missing_inputs\`
+- \`retry_or_diagnostics\`
+
+Ask at most one concise question only when a missing field blocks generation. Otherwise make a stated assumption, assemble the config, and continue to the media generation contract.`;
 
 function shouldRenderElevenLabsVoiceOptions(
   metadata: ProjectMetadata,

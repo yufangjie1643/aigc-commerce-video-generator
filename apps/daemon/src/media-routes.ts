@@ -1,5 +1,10 @@
 import type { Express } from 'express';
-import type { MediaExecutionPolicy } from '@open-design/contracts';
+import type {
+  MediaExecutionPolicy,
+  MediaProviderTestKind,
+  MediaProviderTestResponse,
+} from '@open-design/contracts';
+import { validateBaseUrl } from '@open-design/contracts/api/connectionTest';
 import { defaultMediaExecutionPolicy, mediaPolicyDenial } from './media-policy.js';
 import type { RouteDeps } from './server-context.js';
 import { proxyDispatcherRequestInit } from './connectionTest.js';
@@ -19,6 +24,195 @@ const LONG_MEDIA_PROXY_TIMEOUT_MS = 10 * 60 * 1000;
 // `${baseUrl}|${type}`. Values expire after AIHUBMIX_CATALOG_TTL_MS.
 const AIHUBMIX_CATALOG_TTL_MS = 5 * 60 * 1000;
 const aihubmixCatalogCache = new Map<string, { at: number; models: Array<{ id: string; label: string }> }>();
+
+function stringField(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function mediaProviderProbePath(providerId: string, baseUrl: string): string {
+  const lower = baseUrl.toLowerCase().replace(/\/+$/, '');
+  if (providerId === 'elevenlabs') {
+    return lower.endsWith('/v1') ? '/voices' : '/v1/voices';
+  }
+  if (providerId === 'nanobanana' || providerId === 'google') {
+    return lower.endsWith('/v1beta') ? '/models' : '/v1beta/models';
+  }
+  if (providerId === 'leonardo') {
+    return lower.endsWith('/api/rest/v1') ? '/me' : '/api/rest/v1/me';
+  }
+  return '/models';
+}
+
+function mediaProviderProbeHeaders(providerId: string, apiKey: string): Record<string, string> {
+  const headers: Record<string, string> = { accept: 'application/json' };
+  if (!apiKey) return headers;
+  if (providerId === 'elevenlabs') {
+    headers['xi-api-key'] = apiKey;
+    return headers;
+  }
+  headers.authorization = `Bearer ${apiKey}`;
+  return headers;
+}
+
+function countModels(value: unknown): number | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const record = value as Record<string, unknown>;
+  const candidates = [
+    record.data,
+    record.models,
+    record.voices,
+    record.items,
+  ];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate.length;
+  }
+  return undefined;
+}
+
+function mediaProviderTestKindForStatus(status: number): MediaProviderTestKind {
+  if (status === 401) return 'auth_failed';
+  if (status === 403) return 'forbidden';
+  if (status === 404 || status === 405) return 'unsupported';
+  if (status === 429) return 'rate_limited';
+  if (status >= 500) return 'upstream_unavailable';
+  return 'unknown';
+}
+
+function mediaProviderTestResult(input: {
+  ok: boolean;
+  providerId: string;
+  kind: MediaProviderTestKind;
+  startedAt: number;
+  status?: number;
+  detail?: string;
+  modelCount?: number;
+  model?: string;
+}): MediaProviderTestResponse {
+  const result: MediaProviderTestResponse = {
+    ok: input.ok,
+    providerId: input.providerId,
+    kind: input.kind,
+    latencyMs: Date.now() - input.startedAt,
+  };
+  if (typeof input.status === 'number') result.status = input.status;
+  if (input.detail) result.detail = input.detail;
+  if (typeof input.modelCount === 'number') result.modelCount = input.modelCount;
+  if (input.model) result.model = input.model;
+  return result;
+}
+
+function truncateDetail(value: string, max = 240): string {
+  const singleLine = value.replace(/\s+/g, ' ').trim();
+  return singleLine.length > max ? `${singleLine.slice(0, max)}...` : singleLine;
+}
+
+async function testMediaProviderConnection(input: {
+  provider: { id: string; defaultBaseUrl?: string; credentialsRequired?: boolean };
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  requestInit: Pick<RequestInit, 'dispatcher'>;
+  startedAt: number;
+}): Promise<MediaProviderTestResponse> {
+  const { provider, apiKey, model, requestInit, startedAt } = input;
+  const providerId = provider.id;
+  if (providerId === 'hyperframes') {
+    return mediaProviderTestResult({
+      ok: true,
+      providerId,
+      kind: 'success',
+      startedAt,
+      detail: 'local renderer',
+      model,
+    });
+  }
+
+  const baseUrl = (input.baseUrl || provider.defaultBaseUrl || '').replace(/\/+$/, '');
+  if (!baseUrl) {
+    return mediaProviderTestResult({
+      ok: false,
+      providerId,
+      kind: 'invalid_base_url',
+      startedAt,
+      detail: 'missing baseUrl',
+      model,
+    });
+  }
+  const validation = validateBaseUrl(baseUrl);
+  if (validation.error || !validation.parsed) {
+    return mediaProviderTestResult({
+      ok: false,
+      providerId,
+      kind: 'invalid_base_url',
+      startedAt,
+      detail: validation.error || 'invalid baseUrl',
+      model,
+    });
+  }
+  if (provider.credentialsRequired !== false && !apiKey) {
+    return mediaProviderTestResult({
+      ok: false,
+      providerId,
+      kind: 'missing_api_key',
+      startedAt,
+      model,
+    });
+  }
+
+  const url = `${baseUrl}${mediaProviderProbePath(providerId, baseUrl)}`;
+  try {
+    const resp = await fetch(url, {
+      ...requestInit,
+      method: 'GET',
+      headers: mediaProviderProbeHeaders(providerId, apiKey),
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
+    });
+    const text = await resp.text();
+    if (!resp.ok) {
+      return mediaProviderTestResult({
+        ok: false,
+        providerId,
+        kind: mediaProviderTestKindForStatus(resp.status),
+        startedAt,
+        status: resp.status,
+        detail: truncateDetail(text),
+        model,
+      });
+    }
+    let json: unknown = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    const modelCount = countModels(json);
+    return mediaProviderTestResult({
+      ok: true,
+      providerId,
+      kind: 'success',
+      startedAt,
+      status: resp.status,
+      detail: url,
+      ...(typeof modelCount === 'number' ? { modelCount } : {}),
+      model,
+    });
+  } catch (err: any) {
+    const message = String(err && err.message ? err.message : err);
+    const kind: MediaProviderTestKind =
+      err?.name === 'TimeoutError' || /timeout/i.test(message)
+        ? 'timeout'
+        : 'network_error';
+    return mediaProviderTestResult({
+      ok: false,
+      providerId,
+      kind,
+      startedAt,
+      detail: truncateDetail(message),
+      model,
+    });
+  }
+}
 
 export interface RegisterMediaRoutesDeps extends RouteDeps<'db' | 'design' | 'http' | 'paths' | 'ids' | 'auth' | 'media' | 'appConfig' | 'orbit' | 'nativeDialogs' | 'projectStore' | 'projectFiles' | 'conversations' | 'research'> {}
 
@@ -70,7 +264,7 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
   const { PROJECT_ROOT, PROJECTS_DIR, RUNTIME_DATA_DIR } = ctx.paths;
   const { authorizeToolRequest, optionalToolGrantFromRequest, requestProjectOverride } = ctx.auth;
   const { randomUUID } = ctx.ids;
-  const { MEDIA_PROVIDERS, IMAGE_MODELS, VIDEO_MODELS, AUDIO_MODELS_BY_KIND, MEDIA_ASPECTS, VIDEO_LENGTHS_SEC, AUDIO_DURATIONS_SEC, readMaskedConfig, writeConfig, generateMedia, createMediaTask, persistMediaTask, appendTaskProgress, notifyTaskWaiters, getLiveMediaTask, mediaTaskSnapshot, listMediaTasksByProject, listElevenLabsVoiceOptions } = ctx.media;
+  const { MEDIA_PROVIDERS, IMAGE_MODELS, VIDEO_MODELS, AUDIO_MODELS_BY_KIND, MEDIA_ASPECTS, VIDEO_LENGTHS_SEC, AUDIO_DURATIONS_SEC, readMaskedConfig, resolveProviderConfig, writeConfig, generateMedia, createMediaTask, persistMediaTask, appendTaskProgress, notifyTaskWaiters, getLiveMediaTask, mediaTaskSnapshot, listMediaTasksByProject, listElevenLabsVoiceOptions } = ctx.media;
   const { readAppConfig, writeAppConfig } = ctx.appConfig;
   const { orbitService } = ctx.orbit;
   const { openNativeFolderDialog } = ctx.nativeDialogs;
@@ -309,6 +503,59 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
       res
         .status(status)
         .json({ error: String(err && err.message ? err.message : err) });
+    }
+  });
+
+  app.post('/api/media/providers/:providerId/test', async (req, res) => {
+    if (!isLocalSameOrigin(req, getResolvedPort())) {
+      return res.status(403).json({ error: 'cross-origin request rejected' });
+    }
+    const providerId = String(req.params.providerId || '').trim();
+    const startedAt = Date.now();
+    const provider = MEDIA_PROVIDERS.find((candidate: any) => candidate.id === providerId);
+    if (!provider) {
+      return res.json(
+        mediaProviderTestResult({
+          ok: false,
+          providerId,
+          kind: 'unsupported',
+          startedAt,
+          detail: 'unknown provider',
+        }),
+      );
+    }
+    try {
+      const stored = await resolveProviderConfig(PROJECT_ROOT, providerId);
+      const apiKey = stringField(req.body?.apiKey) || stringField(stored.apiKey);
+      const baseUrl =
+        stringField(req.body?.baseUrl)
+        || stringField(stored.baseUrl)
+        || stringField(provider.defaultBaseUrl);
+      const model = stringField(req.body?.model) || stringField(stored.model);
+      const proxyDispatcher = proxyDispatcherRequestInit(process.env);
+      try {
+        const result = await testMediaProviderConnection({
+          provider,
+          apiKey,
+          baseUrl,
+          model,
+          requestInit: proxyDispatcher.requestInit,
+          startedAt,
+        });
+        return res.json(result);
+      } finally {
+        await proxyDispatcher.close();
+      }
+    } catch (err: any) {
+      return res.json(
+        mediaProviderTestResult({
+          ok: false,
+          providerId,
+          kind: 'unknown',
+          startedAt,
+          detail: String(err && err.message ? err.message : err),
+        }),
+      );
     }
   });
 

@@ -1,9 +1,8 @@
-// Faceted categorisation hook for the Plugins home section.
+// Faceted categorisation hook for the ecommerce video template section.
 //
-// Two-level starter model: the top row is the artifact kind
-// (Prototype / Slides / Image / Video / HyperFrames / Audio). Prototype,
-// Slides, Image, and Video expose scene buckets from the prompt-taxonomy
-// analysis; HyperFrames and Audio stay flat.
+// Two-level starter model: the top row follows the product-video workflow
+// (Video / Product assets / Storyboard motion / Voice and captions), and
+// child buckets narrow each stage to common ecommerce jobs.
 //
 // A small "Saved" toggle sits orthogonally to the category row —
 // when active it overrides the category selection and just shows
@@ -17,6 +16,7 @@ import {
   applyFacetSelection,
   buildFacetCatalog,
   filterByQuery,
+  isCommerceVideoTemplate,
   resolveDefaultSelection,
   type FacetCatalog,
   type FacetSelection,
@@ -79,16 +79,13 @@ export function usePluginFacets({
   const lastAppliedPresetKeyRef = useRef<string | null>(null);
 
   // Atoms are infrastructure pieces (`code-import`, `patch-edit`) that
-  // are not user-facing on the home grid; the original section already
-  // filtered them out and we preserve that contract. We immediately
-  // sort by visual-appeal score so the first viewport leads with the
-  // cinematic decks / image / video templates rather than alphabetical
-  // bundled noise. Featured plugins get a +1000 score boost inside the
-  // sort so curator picks stay anchored to the front of every category view.
+  // are not user-facing on the home grid. The first-step product trim also
+  // filters the visible catalog to ecommerce video templates while keeping
+  // the underlying plugin runtime intact.
   const visiblePlugins = useMemo(
     () =>
       sortByVisualAppeal(
-        plugins.filter((p) => p.manifest?.od?.kind !== 'atom'),
+        plugins.filter((p) => p.manifest?.od?.kind !== 'atom' && isCommerceVideoTemplate(p)),
       ),
     [plugins],
   );

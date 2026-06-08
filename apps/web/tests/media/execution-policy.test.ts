@@ -20,4 +20,15 @@ describe('media execution policy for project metadata', () => {
       allowedModels: ['gpt-image-2'],
     });
   });
+
+  it('uses question mode for media projects in chat sessions', () => {
+    expect(mediaExecutionPolicyForProjectMetadata({
+      kind: 'video',
+      videoModel: 'hyperframes-html',
+    }, 'chat')).toEqual({
+      mode: 'question',
+      allowedSurfaces: ['video'],
+      allowedModels: ['hyperframes-html'],
+    });
+  });
 });

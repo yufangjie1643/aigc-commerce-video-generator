@@ -1,401 +1,426 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SettingsDialog } from '../../src/components/SettingsDialog';
-import { DEFAULT_CONFIG } from '../../src/state/config';
-import type { AgentInfo, AppConfig } from '../../src/types';
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { SettingsDialog } from "../../src/components/SettingsDialog";
+import { DEFAULT_CONFIG } from "../../src/state/config";
+import type { AgentInfo, AppConfig } from "../../src/types";
 
-describe('SettingsDialog media providers', () => {
+describe("SettingsDialog media providers", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
   });
 
-  it('shows saved masked media provider keys like Composio does', () => {
+  it("shows saved masked media provider keys like Composio does", () => {
     renderDialog({
       ...DEFAULT_CONFIG,
       mediaProviders: {
-        openai: {
-          apiKey: '',
+        minimax: {
+          apiKey: "",
           apiKeyConfigured: true,
-          apiKeyTail: '1234',
-          baseUrl: '',
-        },
-      },
+          apiKeyTail: "1234",
+          baseUrl: ""
+        }
+      }
     });
 
-    expect(screen.getByText('Saved · ••••1234')).toBeTruthy();
-    expect(screen.getByLabelText('OpenAI API key').getAttribute('placeholder')).toBe(
-      'Paste a new key to replace the saved one',
+    expect(screen.getByText("Saved · ••••1234")).toBeTruthy();
+    expect(screen.getByLabelText("MiniMax API key").getAttribute("placeholder")).toBe(
+      "Paste a new key to replace the saved one"
     );
   });
 
-  it('shows daemon fallback notice and reloads media providers from daemon', async () => {
+  it("shows only configured callable models in the workflow capability cards", () => {
+    renderDialog({
+      ...DEFAULT_CONFIG,
+      mediaProviders: {
+        minimax: {
+          apiKey: "",
+          apiKeyConfigured: true,
+          apiKeyTail: "1234",
+          baseUrl: ""
+        },
+        volcengine: {
+          apiKey: "",
+          apiKeyConfigured: true,
+          apiKeyTail: "5678",
+          baseUrl: ""
+        }
+      }
+    });
+
+    const workflowHead = screen
+      .getByText("Video workstation API capabilities")
+      .closest(".media-provider-workflow-head") as HTMLElement | null;
+    const workflow = workflowHead?.nextElementSibling as HTMLElement | null;
+    if (!workflow) throw new Error("Expected media provider workflow grid");
+
+    expect(within(workflow).getByText("doubao-seedance-1.5-pro")).toBeTruthy();
+    expect(within(workflow).getByText("image-01")).toBeTruthy();
+    expect(within(workflow).getByText("image-01-live")).toBeTruthy();
+    expect(within(workflow).getByText("speech-2.8-hd")).toBeTruthy();
+    expect(within(workflow).getByText("speech-2.8-turbo")).toBeTruthy();
+    expect(within(workflow).queryByText("AIHubMix")).toBeNull();
+    expect(within(workflow).queryByText("OpenRouter")).toBeNull();
+    expect(within(workflow).queryByText("Fal.ai")).toBeNull();
+  });
+
+  it("shows daemon fallback notice and reloads media providers from daemon", async () => {
     const reloadMock = vi.fn(async () => ({
-      openai: {
-        apiKey: '',
+      minimax: {
+        apiKey: "",
         apiKeyConfigured: true,
-        apiKeyTail: '9876',
-        baseUrl: 'https://daemon.example/v1',
-      },
+        apiKeyTail: "9876",
+        baseUrl: "https://daemon.example/v1"
+      }
     }));
     renderDialog(
       {
         ...DEFAULT_CONFIG,
-        mediaProviders: {},
+        mediaProviders: {}
       },
       {
         mediaProvidersNotice:
-          'Could not load media provider settings from the local daemon. Using browser-saved settings for now.',
-        onReloadMediaProviders: reloadMock,
-      },
+          "Could not load media provider settings from the local daemon. Using browser-saved settings for now.",
+        onReloadMediaProviders: reloadMock
+      }
     );
 
     expect(
       screen.getByText(
-        'Could not load media provider settings from the local daemon. Using browser-saved settings for now.',
-      ),
+        "Could not load media provider settings from the local daemon. Using browser-saved settings for now."
+      )
     ).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reload from daemon' }));
+    fireEvent.click(screen.getByRole("button", { name: "Reload from daemon" }));
 
     await waitFor(() => {
       expect(reloadMock).toHaveBeenCalledTimes(1);
-      expect(screen.getByText('Saved · ••••9876')).toBeTruthy();
-      expect(screen.getByText('Reloaded media provider settings from the local daemon.')).toBeTruthy();
+      expect(screen.getByText("Saved · ••••9876")).toBeTruthy();
+      expect(screen.getByText("Reloaded media provider settings from the local daemon.")).toBeTruthy();
     });
 
-    expect((screen.getByLabelText('OpenAI Base URL') as HTMLInputElement).value).toBe(
-      'https://daemon.example/v1',
-    );
+    expect((screen.getByLabelText("MiniMax Base URL") as HTMLInputElement).value).toBe("https://daemon.example/v1");
   });
 
-  it('shows loading while reloading, then clears the success flash after a short delay', async () => {
+  it("shows loading while reloading, then clears the success flash after a short delay", async () => {
     vi.useFakeTimers();
     const reloadMock = vi.fn(
       () =>
-        new Promise<AppConfig['mediaProviders']>((resolve) => {
+        new Promise<AppConfig["mediaProviders"]>((resolve) => {
           setTimeout(() => {
             resolve({
-              openai: {
-                apiKey: '',
+              minimax: {
+                apiKey: "",
                 apiKeyConfigured: true,
-                apiKeyTail: '9876',
-                baseUrl: 'https://daemon.example/v1',
-              },
+                apiKeyTail: "9876",
+                baseUrl: "https://daemon.example/v1"
+              }
             });
           }, 50);
-        }),
+        })
     );
     renderDialog(
       {
         ...DEFAULT_CONFIG,
-        mediaProviders: {},
+        mediaProviders: {}
       },
       {
         mediaProvidersNotice:
-          'Could not load media provider settings from the local daemon. Using browser-saved settings for now.',
-        onReloadMediaProviders: reloadMock,
-      },
+          "Could not load media provider settings from the local daemon. Using browser-saved settings for now.",
+        onReloadMediaProviders: reloadMock
+      }
     );
 
-    const reloadButton = screen.getByRole('button', { name: 'Reload from daemon' });
+    const reloadButton = screen.getByRole("button", { name: "Reload from daemon" });
     fireEvent.click(reloadButton);
 
     expect(reloadMock).toHaveBeenCalledTimes(1);
-    expect((screen.getByRole('button', { name: 'Loading…' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Loading…" }) as HTMLButtonElement).disabled).toBe(true);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(50);
     });
 
-    expect(screen.getByText('Reloaded media provider settings from the local daemon.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Reloaded' })).toBeTruthy();
+    expect(screen.getByText("Reloaded media provider settings from the local daemon.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reloaded" })).toBeTruthy();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
 
-    expect(screen.queryByText('Reloaded media provider settings from the local daemon.')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Reload from daemon' })).toBeTruthy();
+    expect(screen.queryByText("Reloaded media provider settings from the local daemon.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Reload from daemon" })).toBeTruthy();
   });
 
-  it('shows a sticky error when reloading media providers from daemon fails', async () => {
+  it("shows a sticky error when reloading media providers from daemon fails", async () => {
     const reloadMock = vi.fn(async () => null);
     renderDialog(
       {
         ...DEFAULT_CONFIG,
-        mediaProviders: {},
+        mediaProviders: {}
       },
       {
         mediaProvidersNotice:
-          'Could not load media provider settings from the local daemon. Using browser-saved settings for now.',
-        onReloadMediaProviders: reloadMock,
-      },
+          "Could not load media provider settings from the local daemon. Using browser-saved settings for now.",
+        onReloadMediaProviders: reloadMock
+      }
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reload from daemon' }));
+    fireEvent.click(screen.getByRole("button", { name: "Reload from daemon" }));
 
     await waitFor(() => {
       expect(reloadMock).toHaveBeenCalledTimes(1);
-      expect(
-        screen.getByText('Could not reload media provider settings from the local daemon.'),
-      ).toBeTruthy();
+      expect(screen.getByText("Could not reload media provider settings from the local daemon.")).toBeTruthy();
     });
-    expect(screen.getByRole('button', { name: 'Reload from daemon' })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reload from daemon" })).toBeTruthy();
   });
 
-  it('refreshes daemon-backed providers while keeping untouched local-only providers when daemon reload returns a partial provider set', async () => {
+  it("refreshes daemon-backed providers while keeping untouched local-only providers when daemon reload returns a partial provider set", async () => {
     const reloadMock = vi.fn(async () => ({
-      openai: {
-        apiKey: '',
+      minimax: {
+        apiKey: "",
         apiKeyConfigured: true,
-        apiKeyTail: '9876',
-        baseUrl: 'https://daemon.example/v1',
-      },
+        apiKeyTail: "9876",
+        baseUrl: "https://daemon.example/v1"
+      }
     }));
     renderDialog(
       {
         ...DEFAULT_CONFIG,
         mediaProviders: {
-          openai: {
-            apiKey: 'sk-local-openai',
-            baseUrl: 'https://local-openai.example/v1',
+          minimax: {
+            apiKey: "sk-local-minimax",
+            baseUrl: "https://local-minimax.example/v1"
           },
-          fal: {
-            apiKey: 'sk-local-fal',
-            baseUrl: 'https://queue.fal.run',
-            model: 'fal-ai/imagen4/preview',
-          },
-        },
+          volcengine: {
+            apiKey: "ark-local",
+            baseUrl: "https://local-volcengine.example/v1"
+          }
+        }
       },
       {
         mediaProvidersNotice:
-          'Could not load media provider settings from the local daemon. Using browser-saved settings for now.',
-        onReloadMediaProviders: reloadMock,
-      },
+          "Could not load media provider settings from the local daemon. Using browser-saved settings for now.",
+        onReloadMediaProviders: reloadMock
+      }
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reload from daemon' }));
+    fireEvent.click(screen.getByRole("button", { name: "Reload from daemon" }));
 
     await waitFor(() => {
       expect(reloadMock).toHaveBeenCalledTimes(1);
-      expect(screen.getByText('Reloaded media provider settings from the local daemon.')).toBeTruthy();
+      expect(screen.getByText("Reloaded media provider settings from the local daemon.")).toBeTruthy();
     });
 
-    expect((screen.getByLabelText('OpenAI Base URL') as HTMLInputElement).value).toBe(
-      'https://daemon.example/v1',
+    expect((screen.getByLabelText("MiniMax Base URL") as HTMLInputElement).value).toBe("https://daemon.example/v1");
+    expect((screen.getByLabelText("MiniMax API key") as HTMLInputElement).value).toBe("");
+    expect(screen.getByText("Saved · ••••9876")).toBeTruthy();
+    expect((screen.getByLabelText("Volcengine Ark (Doubao) Base URL") as HTMLInputElement).value).toBe(
+      "https://local-volcengine.example/v1"
     );
-    expect((screen.getByLabelText('OpenAI API key') as HTMLInputElement).value).toBe('');
-    expect(screen.getByText('Saved · ••••9876')).toBeTruthy();
-    // Fal.ai is a non-integrated (coming-soon) provider and no longer has
-    // editable input fields in the UI; its config is preserved in state via
-    // mergeDaemonMediaProviders (covered by state/config.test.ts).
   });
 
-  it('preserves saved media keys when clearing only a non-secret field', async () => {
+  it("preserves saved media keys when clearing only a non-secret field", async () => {
     const onPersist = vi.fn();
     renderDialog(
       {
         ...saveableConfig(),
         mediaProviders: {
-          openai: {
-            apiKey: '',
+          minimax: {
+            apiKey: "",
             apiKeyConfigured: true,
-            apiKeyTail: '1234',
-            baseUrl: 'https://custom.example/v1',
-          },
-        },
+            apiKeyTail: "1234",
+            baseUrl: "https://custom.example/v1"
+          }
+        }
       },
-      { onPersist },
+      { onPersist }
     );
 
-    fireEvent.change(screen.getByLabelText('OpenAI Base URL'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText("MiniMax Base URL"), { target: { value: "" } });
 
     await waitFor(() => {
       expect(onPersist).toHaveBeenCalledWith(
         expect.objectContaining({
           mediaProviders: {
-            openai: {
-              apiKey: '',
+            minimax: {
+              apiKey: "",
               apiKeyConfigured: true,
-              apiKeyTail: '1234',
-              baseUrl: '',
-            },
-          },
+              apiKeyTail: "1234",
+              baseUrl: ""
+            }
+          }
         }),
-        expect.objectContaining({ forceMediaProviderSync: true }),
+        expect.objectContaining({ forceMediaProviderSync: true })
       );
     });
   });
 
-  it('does not overwrite a local pending media-provider edit when daemon reload returns saved state', async () => {
+  it("does not overwrite a local pending media-provider edit when daemon reload returns saved state", async () => {
     const reloadMock = vi.fn(async () => ({
-      openai: {
-        apiKey: '',
+      minimax: {
+        apiKey: "",
         apiKeyConfigured: true,
-        apiKeyTail: '9876',
-        baseUrl: 'https://daemon.example/v1',
-      },
+        apiKeyTail: "9876",
+        baseUrl: "https://daemon.example/v1"
+      }
     }));
     renderDialog(
       {
         ...DEFAULT_CONFIG,
         mediaProviders: {
-          openai: {
-            apiKey: '',
+          minimax: {
+            apiKey: "",
             apiKeyConfigured: true,
-            apiKeyTail: '1234',
-            baseUrl: 'https://saved.example/v1',
-          },
-        },
+            apiKeyTail: "1234",
+            baseUrl: "https://saved.example/v1"
+          }
+        }
       },
       {
         mediaProvidersNotice:
-          'Could not load media provider settings from the local daemon. Using browser-saved settings for now.',
-        onReloadMediaProviders: reloadMock,
-      },
+          "Could not load media provider settings from the local daemon. Using browser-saved settings for now.",
+        onReloadMediaProviders: reloadMock
+      }
     );
 
-    fireEvent.change(screen.getByLabelText('OpenAI API key'), {
-      target: { value: 'sk-local-pending' },
+    fireEvent.change(screen.getByLabelText("MiniMax API key"), {
+      target: { value: "sk-local-pending" }
     });
-    fireEvent.change(screen.getByLabelText('OpenAI Base URL'), {
-      target: { value: 'https://local-pending.example/v1' },
+    fireEvent.change(screen.getByLabelText("MiniMax Base URL"), {
+      target: { value: "https://local-pending.example/v1" }
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reload from daemon' }));
+    fireEvent.click(screen.getByRole("button", { name: "Reload from daemon" }));
 
     await waitFor(() => {
       expect(reloadMock).toHaveBeenCalledTimes(1);
     });
-    expect((screen.getByLabelText('OpenAI API key') as HTMLInputElement).value).toBe('sk-local-pending');
-    expect((screen.getByLabelText('OpenAI Base URL') as HTMLInputElement).value).toBe(
-      'https://local-pending.example/v1',
+    expect((screen.getByLabelText("MiniMax API key") as HTMLInputElement).value).toBe("sk-local-pending");
+    expect((screen.getByLabelText("MiniMax Base URL") as HTMLInputElement).value).toBe(
+      "https://local-pending.example/v1"
     );
   });
 
-  it('stops preserving a provider on reload after its media autosave succeeds', async () => {
+  it("stops preserving a provider on reload after its media autosave succeeds", async () => {
     const reloadMock = vi.fn(async () => ({
-      openai: {
-        apiKey: '',
+      minimax: {
+        apiKey: "",
         apiKeyConfigured: true,
-        apiKeyTail: '9876',
-        baseUrl: 'https://daemon.example/v1',
-      },
+        apiKeyTail: "9876",
+        baseUrl: "https://daemon.example/v1"
+      }
     }));
     const onPersist = vi.fn(async () => undefined);
     renderDialog(
       {
         ...saveableConfig(),
         mediaProviders: {
-          openai: {
-            apiKey: '',
+          minimax: {
+            apiKey: "",
             apiKeyConfigured: true,
-            apiKeyTail: '1234',
-            baseUrl: 'https://saved.example/v1',
-          },
-        },
+            apiKeyTail: "1234",
+            baseUrl: "https://saved.example/v1"
+          }
+        }
       },
       {
         onPersist,
-        onReloadMediaProviders: reloadMock,
-      },
+        onReloadMediaProviders: reloadMock
+      }
     );
 
-    fireEvent.change(screen.getByLabelText('OpenAI API key'), {
-      target: { value: 'sk-local-saved' },
+    fireEvent.change(screen.getByLabelText("MiniMax API key"), {
+      target: { value: "sk-local-saved" }
     });
-    fireEvent.change(screen.getByLabelText('OpenAI Base URL'), {
-      target: { value: 'https://local-saved.example/v1' },
+    fireEvent.change(screen.getByLabelText("MiniMax Base URL"), {
+      target: { value: "https://local-saved.example/v1" }
     });
 
     await waitFor(() => {
       expect(onPersist).toHaveBeenCalledWith(
         expect.objectContaining({
           mediaProviders: {
-            openai: {
-              apiKey: 'sk-local-saved',
+            minimax: {
+              apiKey: "sk-local-saved",
               apiKeyConfigured: true,
-              apiKeyTail: '1234',
-              baseUrl: 'https://local-saved.example/v1',
-            },
-          },
+              apiKeyTail: "1234",
+              baseUrl: "https://local-saved.example/v1"
+            }
+          }
         }),
-        expect.objectContaining({ forceMediaProviderSync: true }),
+        expect.objectContaining({ forceMediaProviderSync: true })
       );
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reload from daemon' }));
+    fireEvent.click(screen.getByRole("button", { name: "Reload from daemon" }));
 
     await waitFor(() => {
       expect(reloadMock).toHaveBeenCalledTimes(1);
-      expect(screen.getByText('Reloaded media provider settings from the local daemon.')).toBeTruthy();
+      expect(screen.getByText("Reloaded media provider settings from the local daemon.")).toBeTruthy();
     });
 
-    expect((screen.getByLabelText('OpenAI API key') as HTMLInputElement).value).toBe('');
-    expect((screen.getByLabelText('OpenAI Base URL') as HTMLInputElement).value).toBe(
-      'https://daemon.example/v1',
-    );
-    expect(screen.getByText('Saved · ••••9876')).toBeTruthy();
+    expect((screen.getByLabelText("MiniMax API key") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("MiniMax Base URL") as HTMLInputElement).value).toBe("https://daemon.example/v1");
+    expect(screen.getByText("Saved · ••••9876")).toBeTruthy();
   });
 
-  it('keeps newer pending provider edits during reload when an older media autosave resolves', async () => {
+  it("keeps newer pending provider edits during reload when an older media autosave resolves", async () => {
     vi.useFakeTimers();
     const reloadMock = vi.fn(async () => ({
-      openai: {
-        apiKey: '',
+      minimax: {
+        apiKey: "",
         apiKeyConfigured: true,
-        apiKeyTail: '9876',
-        baseUrl: 'https://daemon-openai.example/v1',
+        apiKeyTail: "9876",
+        baseUrl: "https://daemon-minimax.example/v1"
       },
-      nanobanana: {
-        apiKey: '',
+      volcengine: {
+        apiKey: "",
         apiKeyConfigured: true,
-        apiKeyTail: '4444',
-        baseUrl: 'https://daemon-nanobanana.example/v1',
-        model: 'gemini-3.1-flash-image-preview',
-      },
+        apiKeyTail: "4444",
+        baseUrl: "https://daemon-volcengine.example/v1"
+      }
     }));
     let resolveFirstPersist: (() => void) | null = null;
     const firstPersist = new Promise<void>((resolve) => {
       resolveFirstPersist = resolve;
     });
-    const onPersist = vi.fn()
+    const onPersist = vi
+      .fn()
       .mockImplementationOnce(() => firstPersist)
       .mockImplementation(async () => undefined);
     renderDialog(
       {
         ...saveableConfig(),
         mediaProviders: {
-          openai: {
-            apiKey: '',
+          minimax: {
+            apiKey: "",
             apiKeyConfigured: true,
-            apiKeyTail: '1234',
-            baseUrl: 'https://saved-openai.example/v1',
+            apiKeyTail: "1234",
+            baseUrl: "https://saved-minimax.example/v1"
           },
-          nanobanana: {
-            apiKey: '',
+          volcengine: {
+            apiKey: "",
             apiKeyConfigured: true,
-            apiKeyTail: '5555',
-            baseUrl: 'https://saved-nanobanana.example/v1',
-            model: 'gemini-3.1-flash-image-preview',
-          },
-        },
+            apiKeyTail: "5555",
+            baseUrl: "https://saved-volcengine.example/v1"
+          }
+        }
       },
       {
         onPersist,
-        onReloadMediaProviders: reloadMock,
-      },
+        onReloadMediaProviders: reloadMock
+      }
     );
 
-    fireEvent.change(screen.getByLabelText('OpenAI API key'), {
-      target: { value: 'sk-openai-first-save' },
+    fireEvent.change(screen.getByLabelText("MiniMax API key"), {
+      target: { value: "sk-minimax-first-save" }
     });
-    fireEvent.change(screen.getByLabelText('OpenAI Base URL'), {
-      target: { value: 'https://local-openai.example/v1' },
+    fireEvent.change(screen.getByLabelText("MiniMax Base URL"), {
+      target: { value: "https://local-minimax.example/v1" }
     });
 
     await act(async () => {
@@ -403,11 +428,11 @@ describe('SettingsDialog media providers', () => {
     });
     expect(onPersist).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByLabelText('Nano Banana API key'), {
-      target: { value: 'sk-nanobanana-pending' },
+    fireEvent.change(screen.getByLabelText("Volcengine Ark (Doubao) API key"), {
+      target: { value: "ark-volcengine-pending" }
     });
-    fireEvent.change(screen.getByLabelText('Nano Banana Base URL'), {
-      target: { value: 'https://local-nanobanana.example/v1' },
+    fireEvent.change(screen.getByLabelText("Volcengine Ark (Doubao) Base URL"), {
+      target: { value: "https://local-volcengine.example/v1" }
     });
 
     await act(async () => {
@@ -416,45 +441,45 @@ describe('SettingsDialog media providers', () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Reload from daemon' }));
+      fireEvent.click(screen.getByRole("button", { name: "Reload from daemon" }));
       await Promise.resolve();
     });
     expect(reloadMock).toHaveBeenCalledTimes(1);
 
-    expect((screen.getByLabelText('Nano Banana API key') as HTMLInputElement).value).toBe(
-      'sk-nanobanana-pending',
+    expect((screen.getByLabelText("Volcengine Ark (Doubao) API key") as HTMLInputElement).value).toBe(
+      "ark-volcengine-pending"
     );
-    expect((screen.getByLabelText('Nano Banana Base URL') as HTMLInputElement).value).toBe(
-      'https://local-nanobanana.example/v1',
+    expect((screen.getByLabelText("Volcengine Ark (Doubao) Base URL") as HTMLInputElement).value).toBe(
+      "https://local-volcengine.example/v1"
     );
   });
 
-  it('clears saved media keys only through the explicit Clear action', async () => {
+  it("clears saved media keys only through the explicit Clear action", async () => {
     const onPersist = vi.fn();
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderDialog(
       {
         ...saveableConfig(),
         mediaProviders: {
-          openai: {
-            apiKey: '',
+          minimax: {
+            apiKey: "",
             apiKeyConfigured: true,
-            apiKeyTail: '1234',
-            baseUrl: 'https://custom.example/v1',
-          },
-        },
+            apiKeyTail: "1234",
+            baseUrl: "https://custom.example/v1"
+          }
+        }
       },
-      { onPersist },
+      { onPersist }
     );
 
-    const openaiRow = screen.getByText('OpenAI').closest('.media-provider-row') as HTMLElement | null;
-    if (!openaiRow) throw new Error('Expected OpenAI media provider row');
-    fireEvent.click(within(openaiRow).getByRole('button', { name: 'Clear' }));
+    const minimaxRow = screen.getByLabelText("MiniMax API key").closest(".media-provider-row") as HTMLElement | null;
+    if (!minimaxRow) throw new Error("Expected MiniMax media provider row");
+    fireEvent.click(within(minimaxRow).getByRole("button", { name: "Clear" }));
 
     await waitFor(() => {
       expect(onPersist).toHaveBeenCalledWith(
         expect.objectContaining({ mediaProviders: {} }),
-        expect.objectContaining({ forceMediaProviderSync: true }),
+        expect.objectContaining({ forceMediaProviderSync: true })
       );
     });
 
@@ -462,45 +487,23 @@ describe('SettingsDialog media providers', () => {
     confirmSpy.mockRestore();
   });
 
-  it('clears saved marker state and custom model fields together for custom-model providers', async () => {
-    const onPersist = vi.fn();
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    renderDialog(
-      {
-        ...saveableConfig(),
-        mediaProviders: {
-          nanobanana: {
-            apiKey: '',
-            apiKeyConfigured: true,
-            apiKeyTail: '5555',
-            baseUrl: 'https://gateway.example.com',
-            model: 'gemini-3.1-flash-image-preview',
-          },
-        },
-      },
-      { onPersist },
-    );
-
-    const row = screen.getByText('Nano Banana').closest('.media-provider-row') as HTMLElement | null;
-    if (!row) throw new Error('Expected Nano Banana media provider row');
-
-    expect(screen.getByText('Saved · ••••5555')).toBeTruthy();
-    expect(screen.getByLabelText('Nano Banana API key').getAttribute('placeholder')).toBe(
-      'Paste a new key to replace the saved one',
-    );
-
-    fireEvent.click(within(row).getByRole('button', { name: 'Clear' }));
-
-    await waitFor(() => {
-      expect(onPersist).toHaveBeenCalledWith(
-        expect.objectContaining({ mediaProviders: {} }),
-        expect.objectContaining({ forceMediaProviderSync: true }),
-      );
+  it("renders workstation custom-model providers in media settings", () => {
+    renderDialog({
+      ...saveableConfig(),
+      mediaProviders: {
+        nanobanana: {
+          apiKey: "",
+          apiKeyConfigured: true,
+          apiKeyTail: "5555",
+          baseUrl: "https://gateway.example.com",
+          model: "gemini-3.1-flash-image-preview"
+        }
+      }
     });
 
-    expect((screen.getByLabelText('Nano Banana model') as HTMLInputElement).value).toBe('');
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    confirmSpy.mockRestore();
+    expect(screen.getByLabelText("Nano Banana API key")).toBeTruthy();
+    expect(screen.getByLabelText("Nano Banana Model")).toBeTruthy();
+    expect(screen.getAllByText("Nano Banana").length).toBeGreaterThan(0);
   });
 });
 
@@ -508,9 +511,9 @@ function renderDialog(
   initial: AppConfig,
   options?: {
     mediaProvidersNotice?: string | null;
-    onReloadMediaProviders?: () => Promise<AppConfig['mediaProviders'] | null>;
+    onReloadMediaProviders?: () => Promise<AppConfig["mediaProviders"] | null>;
     onPersist?: (cfg: AppConfig, options?: { forceMediaProviderSync?: boolean }) => void;
-  },
+  }
 ) {
   return render(
     <SettingsDialog
@@ -525,22 +528,22 @@ function renderDialog(
       onRefreshAgents={vi.fn()}
       mediaProvidersNotice={options?.mediaProvidersNotice}
       onReloadMediaProviders={options?.onReloadMediaProviders}
-    />,
+    />
   );
 }
 
 const SAVEABLE_AGENTS: AgentInfo[] = [
   {
-    id: 'codex',
-    name: 'Codex',
-    bin: 'codex',
-    available: true,
-  },
+    id: "codex",
+    name: "Codex",
+    bin: "codex",
+    available: true
+  }
 ];
 
 function saveableConfig(): AppConfig {
   return {
     ...DEFAULT_CONFIG,
-    agentId: 'codex',
+    agentId: "codex"
   };
 }

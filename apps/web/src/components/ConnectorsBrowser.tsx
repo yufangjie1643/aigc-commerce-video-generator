@@ -300,16 +300,32 @@ const PROVIDER_TABS: ReadonlyArray<{
   match: (connector: ConnectorDetail) => boolean;
 }> = [
   {
+    id: 'all',
+    label: 'All',
+    match: () => true,
+  },
+  {
+    id: 'video-crawler',
+    label: 'Video crawler',
+    match: (connector) => connectorProvider(connector) === 'cookie'
+      || connector.provider === 'open-design-video-crawler',
+  },
+  {
     id: 'composio',
     label: 'Composio',
-    match: (connector) => {
-      const provider = connector.auth?.provider ?? connector.provider.toLowerCase();
-      return provider === 'composio';
-    },
+    match: (connector) => connectorProvider(connector) === 'composio',
   },
 ];
 
-const DEFAULT_PROVIDER_TAB_ID = 'composio';
+const DEFAULT_PROVIDER_TAB_ID = 'all';
+
+function connectorProvider(connector: ConnectorDetail): string {
+  return connector.auth?.provider ?? connector.provider.toLowerCase();
+}
+
+function connectorNeedsComposioKey(connector: ConnectorDetail, composioConfigured: boolean): boolean {
+  return connectorProvider(connector) === 'composio' && !composioConfigured;
+}
 
 const CONNECTOR_CATEGORY_KEYS = {
   'accounting': 'connectors.category.accounting',
@@ -620,9 +636,10 @@ export function ConnectorsBrowser({
     };
   }, [reloadConnectorStatuses, cancelStaleAuthorizations]);
 
-  // The local Composio API-key state is authoritative for masking. Cached
-  // connector auth can be stale immediately after the user clears the key.
-  const needsComposioKey = !composioConfigured;
+  // The local Composio API-key state is authoritative only for Composio rows.
+  // Video crawler connectors use cookie sessions and remain usable without a
+  // Composio API key.
+  const showComposioGate = selectedProvider === 'composio' && !composioConfigured;
 
   // Filter and rank connectors by user-visible fields. Exact/prefix matches
   // on connector name/provider are strongest; broad description matches stay
@@ -894,7 +911,7 @@ export function ConnectorsBrowser({
               }}
               placeholder={t('connectors.searchPlaceholder')}
               aria-label={t('connectors.searchAriaLabel')}
-              disabled={needsComposioKey}
+              disabled={showComposioGate}
               data-testid="connectors-search-input"
             />
             {hasQuery ? (
@@ -944,10 +961,10 @@ export function ConnectorsBrowser({
         <CenteredLoader label={t('common.loading')} />
       ) : (
         <div
-          className={`connector-grid-wrap${needsComposioKey ? ' is-masked' : ''}`}
+          className={`connector-grid-wrap${showComposioGate ? ' is-masked' : ''}`}
           data-testid="connector-grid-wrap"
         >
-          {hasNoResults && !needsComposioKey ? (
+          {hasNoResults && !showComposioGate ? (
             <div
               className="tab-empty connectors-empty"
               role="status"
@@ -972,13 +989,13 @@ export function ConnectorsBrowser({
           ) : (
             <div
               className="connector-grid"
-              aria-hidden={needsComposioKey || undefined}
+              aria-hidden={showComposioGate || undefined}
             >
               {filteredConnectors.map((connector) => (
                 <ConnectorCard
                   key={connector.id}
                   connector={connector}
-                  disabled={needsComposioKey}
+                  disabled={showComposioGate || connectorNeedsComposioKey(connector, composioConfigured)}
                   pendingAction={
                     pendingConnectorAction?.connectorId === connector.id
                       ? pendingConnectorAction.action
@@ -997,7 +1014,7 @@ export function ConnectorsBrowser({
               ))}
             </div>
           )}
-          {needsComposioKey ? (
+          {showComposioGate ? (
             <div
               className="connector-gate"
               role="region"
@@ -1018,7 +1035,7 @@ export function ConnectorsBrowser({
       {detailConnector ? (
         <ConnectorDetailDrawer
           connector={detailConnector}
-          disabled={needsComposioKey}
+          disabled={showComposioGate || connectorNeedsComposioKey(detailConnector, composioConfigured)}
           pendingAction={
             pendingConnectorAction?.connectorId === detailConnector.id
               ? pendingConnectorAction.action

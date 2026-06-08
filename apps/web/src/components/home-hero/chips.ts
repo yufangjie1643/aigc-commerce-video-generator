@@ -53,11 +53,10 @@ export type ChipAction =
   | { kind: 'create-plugin' }
   | { kind: 'open-template-picker' };
 
-// Two intent groups: "create" = produce a design artifact, "migrate" =
-// lower-row starter shortcuts such as plugin authoring, imports, and
-// templates. The grouping is structural only — HomeHero renders the two
-// groups in separate flex containers so they wrap onto separate rows on
-// narrow viewports without horizontal scrolling.
+// Two intent groups: "create" = ecommerce video workflow steps, "migrate" =
+// lower-row starter shortcuts such as templates. The grouping is structural
+// only — HomeHero renders the two groups in separate flex containers so they
+// wrap onto separate rows on narrow viewports without horizontal scrolling.
 export type ChipGroup = 'create' | 'migrate';
 
 export interface HomeHeroChip {
@@ -71,95 +70,8 @@ export interface HomeHeroChip {
 
 export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
   {
-    id: 'prototype',
-    label: 'Prototype',
-    icon: 'palette',
-    group: 'create',
-    // Prototype now binds to the bundled `example-web-prototype` plugin,
-    // which ships `assets/template.html` (single-file HTML prototype
-    // seed), `references/layouts.md` (paste-ready section layouts), and
-    // a P0 checklist. The previous routing to the generic
-    // od-new-generation router left the agent to invent every section's
-    // CSS, producing inconsistent type scales and density between turns.
-    // Web-prototype's manifest owns the editable `{{fidelity}}`,
-    // `{{artifactKind}}`, `{{audience}}`, `{{designSystem}}`, and
-    // `{{template}}` slots; Home renders those placeholders inline.
-    action: {
-      kind: 'apply-scenario',
-      pluginId: 'example-web-prototype',
-      projectKind: 'prototype',
-    },
-  },
-  {
-    id: 'deck',
-    label: 'Slide deck',
-    icon: 'present',
-    group: 'create',
-    // Slide deck binds to `example-simple-deck`, which ships a 353-line
-    // `assets/template.html` (the 1920×1080 + scale-to-fit + nav + print
-    // framework paired with proven slide CSS), 8 paste-ready layouts in
-    // `references/layouts.md` (cover, body, big-stat, three-point,
-    // pipeline, dark quote, before/after, closing), and a P0/P1/P2
-    // checklist that catches overflow at 1280×800 / 1440×900. The
-    // previous routing to od-new-generation gave the agent only the
-    // generic deck-framework directive — which fixed nav but not slide
-    // layout — so density bugs (168px headline + absolute footer
-    // collision) shipped on default decks.
-    action: {
-      kind: 'apply-scenario',
-      pluginId: 'example-simple-deck',
-      projectKind: 'deck',
-    },
-  },
-  {
-    id: 'hyperframes',
-    label: 'HyperFrames',
-    icon: 'orbit',
-    group: 'create',
-    hint: 'Author HTML-based motion: captions, audio-reactive visuals, scene transitions.',
-    // HyperFrames is its own bundled scenario (motion-graphics
-    // specialisation of Video). It surfaces in PluginsHomeSection's
-    // primary category list, so the rail picks it up too rather than
-    // hiding the specialised bucket behind the generic Video chip.
-    action: { kind: 'apply-scenario', pluginId: 'example-hyperframes', projectKind: 'video' },
-  },
-  {
-    id: 'live-artifact',
-    label: 'Live artifact',
-    icon: 'refresh',
-    group: 'create',
-    hint: 'Build a refreshable artifact backed by connector or local data.',
-    action: {
-      kind: 'apply-scenario',
-      pluginId: 'example-live-artifact',
-      projectKind: 'prototype',
-      projectMetadata: {
-        kind: 'prototype',
-        intent: 'live-artifact',
-        fidelity: 'high-fidelity',
-      },
-    },
-  },
-  {
-    id: 'image',
-    label: 'Image',
-    icon: 'image',
-    group: 'create',
-    action: {
-      kind: 'apply-scenario',
-      pluginId: 'od-media-generation',
-      projectKind: 'image',
-      inputs: {
-        mediaKind: 'image',
-        subject: 'a polished product concept',
-        style: 'cinematic, high-quality, on-brand',
-        aspect: '16:9',
-      },
-    },
-  },
-  {
     id: 'video',
-    label: 'Video',
+    label: 'Ecommerce video',
     icon: 'play',
     group: 'create',
     action: {
@@ -168,15 +80,40 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
       projectKind: 'video',
       inputs: {
         mediaKind: 'video',
-        subject: 'a short product reveal',
-        style: 'cinematic, high-quality, on-brand',
-        aspect: '16:9',
+        subject: 'a conversion-focused ecommerce product video',
+        style: 'short-form, benefit-led, platform-ready',
+        aspect: '9:16',
       },
     },
   },
   {
+    id: 'image',
+    label: 'Product assets',
+    icon: 'image',
+    group: 'create',
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'od-media-generation',
+      projectKind: 'image',
+      inputs: {
+        mediaKind: 'image',
+        subject: 'product materials, reference frames, and cover visuals',
+        style: 'clean ecommerce, high-conversion, on-brand',
+        aspect: '1:1',
+      },
+    },
+  },
+  {
+    id: 'hyperframes',
+    label: 'Storyboard motion',
+    icon: 'orbit',
+    group: 'create',
+    hint: 'Plan shot structure, captions, transitions, and render-ready motion.',
+    action: { kind: 'apply-scenario', pluginId: 'example-hyperframes', projectKind: 'video' },
+  },
+  {
     id: 'audio',
-    label: 'Audio',
+    label: 'Voice / captions',
     icon: 'mic',
     group: 'create',
     action: {
@@ -185,42 +122,18 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
       projectKind: 'audio',
       inputs: {
         mediaKind: 'audio',
-        subject: 'a concise audio identity for a product',
-        style: 'clear, polished, modern',
+        subject: 'voiceover, subtitle timing, and audio identity for a product video',
+        style: 'clear, persuasive, platform-ready',
         aspect: '16:9',
       },
     },
   },
   {
-    id: 'create-plugin',
-    label: 'Create plugin',
-    icon: 'edit',
-    group: 'migrate',
-    hint: 'Author a reusable Open Design plugin and add it to My plugins.',
-    action: { kind: 'create-plugin' },
-  },
-  {
-    id: 'figma',
-    label: 'From Figma',
-    icon: 'import',
-    group: 'migrate',
-    hint: 'Migrate a Figma frame into the active design system.',
-    action: {
-      kind: 'apply-figma-migration',
-      pluginId: 'od-figma-migration',
-      projectKind: 'prototype',
-      inputs: {
-        figmaUrl: 'the Figma file URL you provide',
-        targetStack: 'React 18 + Tailwind',
-      },
-    },
-  },
-  {
     id: 'template',
-    label: 'From template',
+    label: 'Template library',
     icon: 'file-code',
     group: 'migrate',
-    hint: 'Start from a bundled template.',
+    hint: 'Start from an ecommerce video script, storyboard, platform, or reference template.',
     action: { kind: 'open-template-picker' },
   },
 ];

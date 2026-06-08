@@ -79,8 +79,6 @@ export type QuestionFormOpenRequest = {
   submittedAnswers?: Record<string, string | string[]>;
 };
 
-const DISCORD_INVITE_URL = "https://discord.gg/mHAjSMV6gz";
-
 interface ActionNotice {
   message: string;
   url?: string;
@@ -275,11 +273,6 @@ interface Props {
   ) => Promise<{ message?: string; url?: string } | void> | { message?: string; url?: string } | void;
   activePluginActionPaths?: Set<string>;
   hiddenPluginActionPaths?: Set<string>;
-  // Click handler for the "Share to Open Design" button rendered next to
-  // the post-completion Discord prompt. ProjectView wires this to
-  // handleSend with the bundled `od-share-to-community` trigger prompt.
-  onShareToOpenDesign?: () => void;
-  shareToOpenDesignBusy?: boolean;
   // True only for the most recent assistant message.
   isLast?: boolean;
   // Assistant message id whose run-failure error is rendered as ChatPane's
@@ -337,7 +330,6 @@ const ASSISTANT_MESSAGE_COMPARED_PROPS: Array<keyof Props> = [
   'errorCardOwnerId',
   'nextUserContent',
   'forking',
-  'shareToOpenDesignBusy',
   'suppressDirectionForms',
   'hasDesignSystemContext',
   // Live streaming tool input changes identity on every `tool_input_delta`.
@@ -383,8 +375,6 @@ function AssistantMessageImpl({
   onRequestPluginFolderAgentAction,
   activePluginActionPaths = new Set(),
   hiddenPluginActionPaths = new Set(),
-  onShareToOpenDesign,
-  shareToOpenDesignBusy = false,
   isLast,
   errorCardOwnerId = null,
   nextUserContent,
@@ -812,28 +802,6 @@ function AssistantMessageImpl({
                 isLast={!!isLast}
               />
             )}
-            {/*
-              "Share to Open Design" — pairs with the post-feedback Discord
-              prompt (assistant-feedback-discord-note). Only shows on the most
-              recent assistant message after a successful run, gated on the
-              same isFeedbackEligible signal so it appears alongside the
-              thumbs-up/down + Discord CTA — not on errored runs, partial
-              streams, or empty responses. Click hands the user a packaged
-              plugin via the bundled od-share-to-community scenario.
-            */}
-            {onShareToOpenDesign && isLast && showFeedback ? (
-              <button
-                type="button"
-                className="assistant-share-to-od-btn"
-                data-testid="assistant-share-to-od"
-                disabled={shareToOpenDesignBusy}
-                onClick={onShareToOpenDesign}
-              >
-                {shareToOpenDesignBusy
-                  ? t('assistant.shareToOpenDesignBusy')
-                  : t('assistant.shareToOpenDesign')}
-              </button>
-            ) : null}
           </div>
         ) : null}
       </div>
@@ -1509,29 +1477,9 @@ function AssistantFeedback({
               onChange={(event) => setCustomReason(event.target.value)}
             />
           ) : null}
-          {reasonRating === "positive" ? (
-            <p className="assistant-feedback-discord-note">
-              Share what you made with the{" "}
-              <a
-                href={DISCORD_INVITE_URL}
-                data-testid="assistant-feedback-discord-positive"
-              >
-                Discord
-              </a>{" "}
-              community, or drop a screenshot and tell us what worked well.
-            </p>
-          ) : (
-            <p className="assistant-feedback-discord-note">
-              Share more context in{" "}
-              <a
-                href={DISCORD_INVITE_URL}
-                data-testid="assistant-feedback-discord-negative"
-              >
-                Discord
-              </a>{" "}
-              so the team can understand what went wrong and follow up directly.
-            </p>
-          )}
+          <p className="assistant-feedback-discord-note">
+            {t("assistant.feedbackReasonNote")}
+          </p>
           <div className="assistant-feedback-actions">
             <button
               type="button"

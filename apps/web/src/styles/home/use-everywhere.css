@@ -1,8 +1,6 @@
 /* ============================================================
-   Use Open Design Everywhere — modal that documents Open Design's
-   non-UI surfaces (CLI, MCP, HTTP, Skills) and lets the user copy
-   a one-shot guide into their agent (Claude Code, Codex, openclaw,
-   hermes, etc.).
+   Use Everywhere — WeChat/OpenClaw automation status bridge. The panel makes
+   the QR connection the primary affordance and keeps setup notes behind copy.
 
    Block names follow the same BEM convention as `.plugin-details-modal`
    so the visual language stays consistent inside the entry shell.
@@ -97,155 +95,162 @@
   border-color: var(--border);
 }
 
-/* Tab strip — one row of pill buttons for the five surfaces. */
-.use-everywhere-modal__tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 10px 22px 0;
-  border-bottom: 1px dashed var(--border);
-  background: var(--bg-panel);
-}
-.use-everywhere-modal__tab {
-  appearance: none;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 500;
-  padding: 6px 12px 8px;
-  margin-bottom: -1px;
-  border-radius: 8px 8px 0 0;
-  cursor: pointer;
-  transition: color 120ms var(--ease-out), background-color 120ms var(--ease-out),
-    border-color 120ms var(--ease-out);
-}
-.use-everywhere-modal__tab:hover {
-  color: var(--text);
-  background: var(--bg-subtle);
-}
-.use-everywhere-modal__tab.is-active {
-  color: var(--text-strong);
-  background: var(--bg);
-  border-color: var(--border);
-  border-bottom-color: var(--bg);
-}
-
 .use-everywhere-modal__body {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 18px 22px 6px;
+  padding: 22px;
   background: var(--bg);
 }
 
-.use-everywhere-section {
+.wechat-bridge {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  align-items: center;
+  gap: 26px;
+}
+.wechat-bridge__qr-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  align-items: center;
+  gap: 10px;
 }
-.use-everywhere-section__head {
+.wechat-bridge__qr-frame {
+  width: min(240px, 100%);
+  aspect-ratio: 1;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: #141414;
+  box-shadow: var(--shadow-sm);
+}
+.wechat-bridge__qr-frame--terminal {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
 }
-.use-everywhere-section__heading {
+.wechat-bridge__terminal-qr {
   margin: 0;
-  font-size: 15px;
+  max-width: 100%;
+  color: #111;
+  background: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 7px;
+  line-height: 0.88;
+  white-space: pre;
+}
+.wechat-bridge__qr-placeholder {
+  min-height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #4a4a4a;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.wechat-bridge__qr-caption {
+  font-size: 11px;
   font-weight: 600;
-  color: var(--text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.wechat-bridge__content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.wechat-bridge__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, #07c160 44%, var(--border));
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, #07c160 12%, var(--bg-panel));
+  color: color-mix(in srgb, #07c160 70%, var(--text-strong));
+  font-size: 12px;
+  font-weight: 600;
+}
+.wechat-bridge__heading {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-strong);
   letter-spacing: -0.005em;
 }
-.use-everywhere-section__intro {
+.wechat-bridge__intro {
   margin: 0;
   font-size: 13px;
   line-height: 1.6;
   color: var(--text-muted);
 }
-.use-everywhere-section__bullets {
-  margin: 0;
-  padding-left: 18px;
+.wechat-bridge__actions {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--text);
+  flex-wrap: wrap;
+  gap: 8px;
 }
-.use-everywhere-section__bullets li::marker {
-  color: var(--text-faint);
-}
-.use-everywhere-section__snippets {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.use-everywhere-section__footer {
+.wechat-bridge__error {
   margin: 0;
+  color: var(--danger, #b42318);
   font-size: 12px;
-  line-height: 1.55;
-  color: var(--text-muted);
-  background: var(--bg-subtle);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-sm, 6px);
-  padding: 8px 10px;
+  line-height: 1.45;
 }
-
-.use-everywhere-snippet {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm, 6px);
-  background: var(--bg-panel);
-  overflow: hidden;
-}
-.use-everywhere-snippet__head {
+.wechat-bridge__links {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-subtle);
-  font-size: 11.5px;
-  color: var(--text-muted);
+  flex-wrap: wrap;
+  gap: 8px;
 }
-.use-everywhere-snippet__label {
-  font-weight: 500;
-  color: var(--text);
-}
-.use-everywhere-snippet__copy {
-  appearance: none;
+.wechat-bridge__links a {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text-muted);
-  padding: 3px 8px;
-  border-radius: var(--radius-pill);
-  font-size: 11px;
-  cursor: pointer;
-  transition: color 120ms var(--ease-out), border-color 120ms var(--ease-out);
-}
-.use-everywhere-snippet__copy:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-.use-everywhere-snippet__pre {
-  margin: 0;
-  padding: 12px 14px;
-  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: var(--accent-strong, var(--accent));
   font-size: 12px;
-  line-height: 1.55;
-  color: var(--text);
-  overflow-x: auto;
-  white-space: pre;
-  background: var(--bg-panel);
+  text-decoration: none;
 }
-.use-everywhere-snippet__pre code {
-  font: inherit;
-  color: inherit;
-  background: transparent;
-  padding: 0;
+.wechat-bridge__links a:hover {
+  text-decoration: underline;
+}
+.wechat-bridge__log {
+  max-height: 132px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.wechat-bridge__capabilities {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+.wechat-bridge__capabilities span {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-panel);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .use-everywhere-modal__foot {
@@ -284,7 +289,9 @@
   padding: 8px 14px;
   border-radius: var(--radius-sm, 6px);
   cursor: pointer;
-  transition: background-color 120ms var(--ease-out), color 120ms var(--ease-out),
+  transition:
+    background-color 120ms var(--ease-out),
+    color 120ms var(--ease-out),
     border-color 120ms var(--ease-out);
 }
 .use-everywhere-modal__secondary {
@@ -304,11 +311,14 @@
   background: var(--accent-strong, var(--accent));
   border-color: var(--accent-strong, var(--accent));
 }
+.use-everywhere-modal__primary:disabled,
+.use-everywhere-modal__secondary:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
 
-/* Top-bar entry chip — sibling of the existing settings cog avatar.
-   The chip wraps an icon + label so the affordance reads like an
-   intentional doc/help entry rather than a generic icon button. On
-   tight viewports the label collapses and the chip acts as an icon. */
+/* Top-bar entry chip — sibling of the existing settings cog avatar. On tight
+   viewports the label collapses and the chip acts as an icon. */
 .use-everywhere-chip {
   appearance: none;
   display: inline-flex;
@@ -325,7 +335,9 @@
   line-height: 1;
   cursor: pointer;
   box-shadow: var(--shadow-xs);
-  transition: background-color 120ms var(--ease-out), border-color 120ms var(--ease-out),
+  transition:
+    background-color 120ms var(--ease-out),
+    border-color 120ms var(--ease-out),
     color 120ms var(--ease-out);
 }
 .use-everywhere-chip:hover {
@@ -348,6 +360,28 @@
 }
 
 @media (max-width: 700px) {
+  .use-everywhere-modal-backdrop {
+    padding: 16px;
+  }
+  .use-everywhere-modal__body {
+    padding: 18px;
+  }
+  .wechat-bridge {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .wechat-bridge__qr-frame {
+    width: min(220px, 100%);
+  }
+  .wechat-bridge__heading {
+    font-size: 18px;
+  }
+  .wechat-bridge__capabilities {
+    grid-template-columns: 1fr;
+  }
+  .wechat-bridge__capabilities span {
+    min-height: 0;
+  }
   .use-everywhere-chip__label {
     display: none;
   }

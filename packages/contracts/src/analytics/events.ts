@@ -1335,6 +1335,8 @@ export interface IntegrationsUseEverywhereTabClickProps {
     | 'http_api'
     | 'skills_headless'
     | 'configure_mcp_server'
+    | 'wechat_agent_connect'
+    | 'wechat_agent_refresh'
     | 'copy_guide_for_agent'
     | 'copy';
 }
@@ -1612,7 +1614,7 @@ export interface SettingsByokFieldClickProps {
 export interface SettingsMediaProvidersClickProps {
   page_name: TrackingSettingsPage;
   area: 'media_providers';
-  element: 'reload' | 'key_input' | 'url_input' | 'clear';
+  element: 'reload' | 'key_input' | 'url_input' | 'test' | 'clear';
   providers_id?: string;
   is_configured?: boolean;
 }

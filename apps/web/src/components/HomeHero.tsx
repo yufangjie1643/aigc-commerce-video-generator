@@ -57,6 +57,7 @@ import {
 } from '../i18n/content';
 import { PreviewSurface } from './plugins-home/cards/PreviewSurface';
 import { curatedPluginPriorityForChip } from './plugins-home/curatedPriority';
+import { isCommerceVideoTemplate } from './plugins-home/facets';
 import { inferPluginPreview } from './plugins-home/preview';
 import { SessionModeToggle } from './SessionModeToggle';
 import { ComposerPlusMenu } from './ComposerPlusMenu';
@@ -200,6 +201,7 @@ const EMPTY_STAGED_FILES: File[] = [];
 const EMPTY_SKILLS: SkillSummary[] = [];
 const EMPTY_MCP_OPTIONS: McpServerConfig[] = [];
 const EMPTY_CONNECTOR_OPTIONS: ConnectorDetail[] = [];
+const HOME_PROMPT_EXAMPLE_LIMIT = 2;
 
 export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
   {
@@ -269,7 +271,7 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
   const [hoveredPlugin, setHoveredPlugin] = useState<InstalledPluginRecord | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  // Selected second-level sub-category slug (Prototype / Slide deck rail).
+  // Selected second-level sub-category slug for the ecommerce video template rail.
   // Local-only: it filters the example-prompt cards below the rail. It never
   // binds a plugin or stamps an active badge.
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
@@ -713,8 +715,8 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
     });
     onExamplePromptStatusChange?.({
       title: promptExampleChipLabel(example),
-      artifactType: activeChipId ?? 'prototype',
-      brief: briefForChipId(activeChipId ?? 'prototype'),
+      artifactType: activeChipId ?? 'video',
+      brief: briefForChipId(activeChipId ?? 'video'),
     });
     onPromptChange(example);
     editorRef.current?.setText(example);
@@ -764,7 +766,7 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
         <span className="home-hero__brand-mark">
           <img src="/app-icon.svg" alt="" draggable={false} />
         </span>
-        <span className="home-hero__brand-name">Open Design</span>
+        <span className="home-hero__brand-name">{t('app.brand')}</span>
       </div>
       <h1 className="home-hero__title">{t('homeHero.title')}</h1>
       <p className="home-hero__subtitle">
@@ -2500,7 +2502,8 @@ function homeHeroExamplePluginsForChip(
   plugins: InstalledPluginRecord[],
   locale: Locale,
 ): InstalledPluginRecord[] {
-  const presets = plugins
+  return plugins
+    .filter(isCommerceVideoTemplate)
     .filter((plugin) => (
       pluginMatchesExampleChip(plugin, chipId) ||
       curatedPluginPriorityForChip(plugin, chipId) !== null
@@ -2510,11 +2513,7 @@ function homeHeroExamplePluginsForChip(
       curatedPluginPriorityForChip(plugin, chipId) !== null
     ))
     .sort((a, b) => comparePluginPresetOrder(a, b, chipId))
-    .slice(0, 18);
-  if (chipId === 'image') {
-    return movePluginPresetToEnd(presets, 'example-hatch-pet');
-  }
-  return presets;
+    .slice(0, HOME_PROMPT_EXAMPLE_LIMIT);
 }
 
 function comparePluginPresetOrder(
@@ -2534,22 +2533,15 @@ function comparePluginPresetOrder(
   return (a.title || a.id).localeCompare(b.title || b.id);
 }
 
-function movePluginPresetToEnd(
-  records: InstalledPluginRecord[],
-  pluginId: string,
-): InstalledPluginRecord[] {
-  const index = records.findIndex((record) => record.id === pluginId);
-  if (index < 0 || index === records.length - 1) return records;
-  const record = records[index]!;
-  return [
-    ...records.slice(0, index),
-    ...records.slice(index + 1),
-    record,
-  ];
-}
-
 function pluginMatchesExampleChip(record: InstalledPluginRecord, chipId: string): boolean {
   const slugs = pluginRecordSlugs(record);
+  if (
+    record.id === 'example-hatch-pet' ||
+    slugs.has('hatch-pet') ||
+    slugs.has('desktop-pet')
+  ) {
+    return false;
+  }
   const has = (...values: string[]) => values.some((value) => slugs.has(value));
   const hasPart = (...values: string[]) => {
     const all = [...slugs];
@@ -3586,20 +3578,62 @@ const HOME_PROMPT_EXAMPLES: Record<Locale, Record<string, string[]>> = {
   },
 };
 
+const ECOMMERCE_PROMPT_EXAMPLES: Record<'en' | 'zh-CN', Record<string, string[]>> = {
+  en: {
+    image: [
+      "Create ecommerce product cover assets for a portable blender: white-background SKU shot, lifestyle kitchen scene, benefit callouts, and before/after comparison",
+      "Analyze these product photos and produce a reusable visual direction for vertical selling videos: hero frame, detail close-ups, proof shot, and CTA frame",
+    ],
+    video: [
+      "Create a 20-second vertical ecommerce video for a portable blender: 3-second hook, pain point, product demo, benefit proof, limited offer, and CTA",
+      "Convert these product assets into a short-form selling video plan with scene timing, captions, camera moves, music mood, and render settings for 9:16",
+    ],
+    hyperframes: [
+      "Create a storyboard for a 15-second product-selling video with shot list, caption hierarchy, transition notes, and final CTA frame",
+      "Build a motion structure for a beauty product short: macro texture shot, application demo, before/after proof, creator testimonial, and offer reveal",
+    ],
+    audio: [
+      "Write a concise voiceover for a 20-second ecommerce video with hook, product proof, offer, and CTA, plus caption timing marks",
+      "Create a bilingual Chinese/English subtitle plan for a product short with line breaks, beat timing, and mobile-safe copy length",
+    ],
+  },
+  'zh-CN': {
+    image: [
+      "为便携榨汁杯生成电商商品素材：白底 SKU 图、厨房生活方式场景、卖点标注和前后对比图",
+      "分析这些商品照片，输出竖屏带货视频可复用的视觉方向：首帧、细节特写、效果证明和 CTA 画面",
+    ],
+    video: [
+      "为便携榨汁杯创作 20 秒竖屏带货视频：3 秒钩子、痛点、产品演示、效果证明、限时优惠和 CTA",
+      "把这些商品素材转成短视频带货方案，包含场景时长、字幕、运镜、音乐情绪和 9:16 渲染设置",
+    ],
+    hyperframes: [
+      "为 15 秒商品带货视频生成分镜：镜头列表、字幕层级、转场说明和最终 CTA 画面",
+      "为美妆产品短视频设计动效结构：质地微距、上脸演示、前后对比、达人证言和优惠揭示",
+    ],
+    audio: [
+      "为 20 秒带货视频写一版简洁旁白，包含钩子、产品证明、优惠和 CTA，并补充字幕时间点",
+      "为商品短视频生成中英文双语字幕方案，包含断句、节奏点和移动端安全字数",
+    ],
+  },
+};
+
 export const HOME_PROMPT_EXAMPLE_CHIP_IDS = [
-  'prototype',
-  'deck',
   'image',
   'video',
   'hyperframes',
   'audio',
 ] as const;
 
-// Every supported locale must resolve its own localized example prompts; a
-// missing locale entry would silently bleed English into the home composer,
-// which is the regression this table exists to prevent.
+// First-step product trim keeps zh-CN as the source locale and lets all
+// non-Chinese locales use the concise English ecommerce prompts.
 export function homeHeroChipPromptExamplesForLocale(chipId: string, locale: Locale): string[] {
-  return HOME_PROMPT_EXAMPLES[locale]?.[chipId] ?? HOME_PROMPT_EXAMPLES.en[chipId] ?? [];
+  const commerceLocale = locale === 'zh-CN' ? 'zh-CN' : 'en';
+  return (
+    ECOMMERCE_PROMPT_EXAMPLES[commerceLocale][chipId] ??
+    HOME_PROMPT_EXAMPLES[locale]?.[chipId] ??
+    HOME_PROMPT_EXAMPLES.en[chipId] ??
+    []
+  );
 }
 
 function homeHeroChipPromptExamples(chipId: string, locale: Locale): string[] {
@@ -3621,13 +3655,13 @@ function briefForChipId(chipId: string): Record<string, string> {
     case 'deck':
       return { artifact_type: 'pitch deck / presentation', audience: 'decision makers', slide_count: '10-15 pages' };
     case 'image':
-      return { artifact_type: 'image', style: 'cinematic, high-quality, on-brand' };
+      return { artifact_type: 'ecommerce product assets', workflow_stage: 'assets_ready', style: 'platform-ready, conversion-focused' };
     case 'video':
-      return { artifact_type: 'video', style: 'cinematic, high-quality, on-brand' };
+      return { artifact_type: 'ecommerce product video', workflow_stage: 'render_running', aspect_ratio: '9:16' };
     case 'hyperframes':
-      return { artifact_type: 'motion graphic / animated sequence', style: 'cinematic, polished transitions' };
+      return { artifact_type: 'storyboard / motion plan', workflow_stage: 'storyboard_ready', style: 'caption-safe, mobile-first' };
     case 'audio':
-      return { artifact_type: 'audio', style: 'professional, polished, brand-appropriate' };
+      return { artifact_type: 'voiceover / captions', workflow_stage: 'script_ready', style: 'concise, conversion-focused' };
     default:
       return { artifact_type: chipId };
   }

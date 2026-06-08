@@ -145,13 +145,14 @@ describe('NewProjectModal layout', () => {
         onCreate={() => {}}
         onImportFolderResponse={onImportFolderResponse}
         onClose={() => {}}
+        initialTab="other"
       />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Open folder' }));
 
     await waitFor(() => {
-      expect(pickAndImportHostProject).toHaveBeenCalledWith({ skillId: 'prototype-skill' });
+      expect(pickAndImportHostProject).toHaveBeenCalledWith({ skillId: null });
     });
     await waitFor(() => {
       expect(onImportFolderResponse).toHaveBeenCalledWith(importResult);
@@ -163,10 +164,10 @@ describe('NewProjectModal template deletion plumbing', () => {
   it('forwards onDeleteTemplate to the inner panel', async () => {
     const templates: ProjectTemplate[] = [
       {
-        id: 'tmpl-landing',
-        name: 'Landing Page',
-        description: 'A saved landing page starter.',
-        files: [{ name: 'prototype/App.jsx', content: '' }],
+        id: 'tmpl-product-video',
+        name: 'Product Video',
+        description: 'A saved product video starter.',
+        files: [{ name: 'storyboard.md', content: '' }],
         createdAt: 1714867200000,
       },
     ];
@@ -183,14 +184,15 @@ describe('NewProjectModal template deletion plumbing', () => {
         onDeleteTemplate={onDelete}
         onCreate={() => {}}
         onClose={() => {}}
+        initialTab="template"
       />,
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: 'From template' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Templates' }));
     fireEvent.click(screen.getByLabelText(/delete template/i));
     await screen.findByRole('alertdialog');
     fireEvent.click(screen.getByRole('button', { name: 'Delete template' }));
 
-    expect(onDelete).toHaveBeenCalledWith('tmpl-landing');
+    expect(onDelete).toHaveBeenCalledWith('tmpl-product-video');
   });
 });

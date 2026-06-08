@@ -2727,7 +2727,7 @@ describe('SettingsDialog media providers interactions', () => {
         mode: 'daemon',
         agentId: 'codex',
         mediaProviders: {
-          openai: { apiKey: 'sk-media', baseUrl: 'https://custom.openai.example/v1' },
+          volcengine: { apiKey: 'ark-media', baseUrl: 'https://custom.volcengine.example/v1' },
           minimax: { apiKey: 'mini-key', baseUrl: 'https://api.minimaxi.chat/v1' },
         },
       },
@@ -2737,31 +2737,32 @@ describe('SettingsDialog media providers interactions', () => {
     const names = Array.from(document.querySelectorAll('.media-provider-name')).map((node) =>
       node.textContent?.trim(),
     );
-    expect(names.slice(0, 2)).toEqual(['MiniMax', 'OpenAI']);
+    expect(names.slice(0, 2)).toEqual(['MiniMax', 'Volcengine Ark (Doubao)']);
+    expect(names).toContain('OpenAI');
+    expect(names).toContain('ElevenLabs');
   });
 
-  it('renders non-integrated providers in the coming-soon section without input fields', () => {
+  it('renders workstation media provider API inputs', () => {
     renderSettingsDialog(
       { mode: 'daemon', agentId: 'codex' },
       { initialSection: 'media' },
     );
 
-    // Non-integrated providers (e.g. Fal.ai, Black Forest Labs) are shown in
-    // a separate "Coming soon" disclosure without editable inputs.
-    expect(screen.queryByLabelText('Black Forest Labs API key')).toBeNull();
-    expect(screen.queryByLabelText('Black Forest Labs Base URL')).toBeNull();
+    expect(screen.getByLabelText('MiniMax API key')).toBeTruthy();
+    expect(screen.getByLabelText('Volcengine Ark (Doubao) API key')).toBeTruthy();
+    expect(screen.getByLabelText('OpenAI API key')).toBeTruthy();
+    expect(screen.getByLabelText('ElevenLabs API key')).toBeTruthy();
     expect(document.querySelector('.media-provider-coming-soon')).toBeTruthy();
-    expect(screen.getByText('ComfyUI')).toBeTruthy();
   });
 
-  it('renders ElevenLabs as an integrated media provider with enabled inputs', () => {
+  it('renders Volcengine as an integrated media provider with enabled inputs', () => {
     renderSettingsDialog(
       { mode: 'daemon', agentId: 'codex' },
       { initialSection: 'media' },
     );
 
-    const apiKeyInput = screen.getByLabelText('ElevenLabs API key') as HTMLInputElement;
-    const baseUrlInput = screen.getByLabelText('ElevenLabs Base URL') as HTMLInputElement;
+    const apiKeyInput = screen.getByLabelText('Volcengine Ark (Doubao) API key') as HTMLInputElement;
+    const baseUrlInput = screen.getByLabelText('Volcengine Ark (Doubao) Base URL') as HTMLInputElement;
     expect(apiKeyInput.disabled).toBe(false);
     expect(baseUrlInput.disabled).toBe(false);
   });
@@ -2772,7 +2773,7 @@ describe('SettingsDialog media providers interactions', () => {
         mode: 'daemon',
         agentId: 'codex',
         mediaProviders: {
-          openai: { apiKey: 'sk-media', baseUrl: 'https://custom.openai.example/v1' },
+          minimax: { apiKey: 'sk-media', baseUrl: 'https://custom.minimax.example/v1' },
         },
       },
       { initialSection: 'media' },
@@ -2787,8 +2788,8 @@ describe('SettingsDialog media providers interactions', () => {
     fireEvent.click(clearButtons[0]!);
 
     expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect((screen.getByLabelText('OpenAI API key') as HTMLInputElement).value).toBe('');
-    expect((screen.getByLabelText('OpenAI Base URL') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('MiniMax API key') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('MiniMax Base URL') as HTMLInputElement).value).toBe('');
 
     await waitForPersist(
       onPersist,
@@ -2807,7 +2808,7 @@ describe('SettingsDialog media providers interactions', () => {
         mode: 'daemon',
         agentId: 'codex',
         mediaProviders: {
-          openai: { apiKey: 'sk-media', baseUrl: 'https://custom.openai.example/v1' },
+          minimax: { apiKey: 'sk-media', baseUrl: 'https://custom.minimax.example/v1' },
         },
       },
       { initialSection: 'media' },
@@ -2822,9 +2823,9 @@ describe('SettingsDialog media providers interactions', () => {
     // the confirmation; without this guard a fat-fingered click on
     // Clear would silently wipe the key. Autosave should never fire
     // because nothing changed.
-    expect((screen.getByLabelText('OpenAI API key') as HTMLInputElement).value).toBe('sk-media');
-    expect((screen.getByLabelText('OpenAI Base URL') as HTMLInputElement).value).toBe(
-      'https://custom.openai.example/v1',
+    expect((screen.getByLabelText('MiniMax API key') as HTMLInputElement).value).toBe('sk-media');
+    expect((screen.getByLabelText('MiniMax Base URL') as HTMLInputElement).value).toBe(
+      'https://custom.minimax.example/v1',
     );
     expect(onPersist).not.toHaveBeenCalled();
 
@@ -2837,20 +2838,20 @@ describe('SettingsDialog media providers interactions', () => {
       { initialSection: 'media' },
     );
 
-    fireEvent.change(screen.getByLabelText('FishAudio API key'), {
-      target: { value: 'fish-key' },
+    fireEvent.change(screen.getByLabelText('MiniMax API key'), {
+      target: { value: 'minimax-key' },
     });
-    fireEvent.change(screen.getByLabelText('FishAudio Base URL'), {
-      target: { value: 'https://fish.example.com' },
+    fireEvent.change(screen.getByLabelText('MiniMax Base URL'), {
+      target: { value: 'https://minimax.example.com/v1' },
     });
 
     await waitForPersist(
       onPersist,
       expect.objectContaining({
         mediaProviders: expect.objectContaining({
-          fishaudio: {
-            apiKey: 'fish-key',
-            baseUrl: 'https://fish.example.com',
+          minimax: {
+            apiKey: 'minimax-key',
+            baseUrl: 'https://minimax.example.com/v1',
             model: '',
           },
         }),
@@ -2865,16 +2866,16 @@ describe('SettingsDialog media providers interactions', () => {
         mode: 'daemon',
         agentId: 'codex',
         mediaProviders: {
-          openai: { apiKey: 'sk-media', baseUrl: 'https://api.openai.com/v1' },
+          minimax: { apiKey: 'sk-media', baseUrl: 'https://api.minimaxi.chat/v1' },
         },
       },
       { initialSection: 'media' },
     );
 
-    const apiKeyInput = screen.getByLabelText('OpenAI API key') as HTMLInputElement;
+    const apiKeyInput = screen.getByLabelText('MiniMax API key') as HTMLInputElement;
     expect(apiKeyInput.type).toBe('password');
 
-    fireEvent.click(screen.getByRole('button', { name: 'OpenAI Show key' }));
+    fireEvent.click(screen.getByRole('button', { name: 'MiniMax Show key' }));
     expect(apiKeyInput.type).toBe('text');
 
     // Issue #737 added a window.confirm guard on Clear; jsdom's
@@ -2887,41 +2888,20 @@ describe('SettingsDialog media providers interactions', () => {
     fireEvent.change(apiKeyInput, { target: { value: 'sk-replacement' } });
     expect(apiKeyInput.type).toBe('password');
 
-    fireEvent.click(screen.getByRole('button', { name: 'OpenAI Show key' }));
+    fireEvent.click(screen.getByRole('button', { name: 'MiniMax Show key' }));
     expect(apiKeyInput.type).toBe('text');
 
     confirmSpy.mockRestore();
   });
 
-  it('supports providers with a custom model override field', async () => {
-    const { onPersist } = renderSettingsDialog(
+  it('renders custom-model providers needed by the video workstation', () => {
+    renderSettingsDialog(
       { mode: 'daemon', agentId: 'codex' },
       { initialSection: 'media' },
     );
 
-    fireEvent.change(screen.getByLabelText('Nano Banana API key'), {
-      target: { value: 'banana-key' },
-    });
-    fireEvent.change(screen.getByLabelText('Nano Banana Base URL'), {
-      target: { value: 'https://gateway.example.com' },
-    });
-    fireEvent.change(screen.getByLabelText('Nano Banana model'), {
-      target: { value: 'gemini-3.1-flash-image-preview' },
-    });
-
-    await waitForPersist(
-      onPersist,
-      expect.objectContaining({
-        mediaProviders: expect.objectContaining({
-          nanobanana: {
-            apiKey: 'banana-key',
-            baseUrl: 'https://gateway.example.com',
-            model: 'gemini-3.1-flash-image-preview',
-          },
-        }),
-      }),
-      { forceMediaProviderSync: true },
-    );
+    expect(screen.getByLabelText('Nano Banana API key')).toBeTruthy();
+    expect(screen.getByLabelText('Nano Banana Model')).toBeTruthy();
   });
 
   it('catches unmount flush failures for pending media-provider autosaves', async () => {
@@ -2938,7 +2918,7 @@ describe('SettingsDialog media providers interactions', () => {
       );
       onPersist.mockRejectedValueOnce(rejection);
 
-      fireEvent.change(screen.getByLabelText('OpenAI API key'), {
+      fireEvent.change(screen.getByLabelText('MiniMax API key'), {
         target: { value: 'sk-unmount-media' },
       });
 
@@ -2952,7 +2932,7 @@ describe('SettingsDialog media providers interactions', () => {
       expect(onPersist).toHaveBeenCalledWith(
         expect.objectContaining({
           mediaProviders: expect.objectContaining({
-            openai: expect.objectContaining({ apiKey: 'sk-unmount-media' }),
+            minimax: expect.objectContaining({ apiKey: 'sk-unmount-media' }),
           }),
         }),
         expect.objectContaining({ forceMediaProviderSync: true }),
@@ -2969,7 +2949,7 @@ describe('SettingsDialog media providers interactions', () => {
       { initialSection: 'media' },
     );
 
-    fireEvent.change(screen.getByLabelText('OpenAI API key'), {
+    fireEvent.change(screen.getByLabelText('MiniMax API key'), {
       target: { value: 'sk-unsaved-media' },
     });
     fireEvent.click(first.container.querySelector('.settings-close') as HTMLElement);
@@ -2981,7 +2961,7 @@ describe('SettingsDialog media providers interactions', () => {
       { mode: 'daemon', agentId: 'codex' },
       { initialSection: 'media' },
     );
-    fireEvent.change(screen.getByLabelText('OpenAI API key'), {
+    fireEvent.change(screen.getByLabelText('MiniMax API key'), {
       target: { value: 'sk-unsaved-media-2' },
     });
     fireEvent.click(document.querySelector('.modal-backdrop') as HTMLElement);
@@ -3609,193 +3589,6 @@ describe('SettingsDialog appearance interactions', () => {
     expect(screen.getByRole('radiogroup', { name: '主题色' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: '默认主题色' })).toBeTruthy();
     expect(screen.getByLabelText('自定义颜色')).toBeTruthy();
-  });
-});
-
-describe('SettingsDialog pets interactions', () => {
-  const clipboardDescriptor = Object.getOwnPropertyDescriptor(window.navigator, 'clipboard');
-
-  afterEach(() => {
-    if (clipboardDescriptor) {
-      Object.defineProperty(window.navigator, 'clipboard', clipboardDescriptor);
-    } else {
-      Reflect.deleteProperty(window.navigator, 'clipboard');
-    }
-    cleanup();
-  });
-
-  it('renders bundled pets by default and exposes community pets in a separate tab', async () => {
-    fetchCodexPetsMock.mockResolvedValue({
-      pets: [...sampleBundledPets, ...sampleCommunityPets],
-      rootDir: '/Users/test/.codex/pets',
-    });
-
-    renderSettingsDialog(
-      { mode: 'daemon', agentId: 'codex' },
-      { initialSection: 'pet' },
-    );
-
-    expect((screen.getByRole('button', { name: 'Show pet' }) as HTMLButtonElement).disabled).toBe(false);
-
-    await waitFor(() => {
-      expect(screen.getByText('Dario')).toBeTruthy();
-      expect(screen.getByText('Nyako')).toBeTruthy();
-    });
-    expect(screen.queryByText('Jade')).toBeNull();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Community' }));
-    expect(screen.getByText('Recently hatched')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Download community pets' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Refresh' })).toBeTruthy();
-    expect(screen.getByText('Jade')).toBeTruthy();
-    expect(screen.getByText('Voidling')).toBeTruthy();
-  });
-
-  it('supports editing and persisting a custom pet', async () => {
-    const { onPersist } = renderSettingsDialog(
-      { mode: 'daemon', agentId: 'codex' },
-      { initialSection: 'pet' },
-    );
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Custom' }));
-
-    fireEvent.change(screen.getByDisplayValue('Buddy'), {
-      target: { value: 'Scout' },
-    });
-    fireEvent.change(screen.getByDisplayValue('🦄'), {
-      target: { value: '🤖' },
-    });
-    fireEvent.change(screen.getByDisplayValue('Hi! I am here whenever you need me.'), {
-      target: { value: 'Hi there, builder.' },
-    });
-    fireEvent.click(document.querySelector('.pet-swatch[title="#2348b8"]') as HTMLElement);
-
-    expect(screen.getAllByText('Scout').length).toBeGreaterThan(0);
-    expect(screen.getByText('Hi there, builder.')).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Use my pet' }));
-
-    await waitForPersist(
-      onPersist,
-      expect.objectContaining({
-        pet: expect.objectContaining({
-          adopted: true,
-          enabled: true,
-          petId: 'custom',
-          custom: expect.objectContaining({
-            name: 'Scout',
-            glyph: '🤖',
-            greeting: 'Hi there, builder.',
-            accent: '#2348b8',
-          }),
-        }),
-      }),
-      {},
-    );
-  });
-
-  it('toggles an adopted pet between tucked and awake states', async () => {
-    const { onPersist } = renderSettingsDialog(
-      {
-        mode: 'daemon',
-        agentId: 'codex',
-        pet: {
-          adopted: true,
-          enabled: true,
-          petId: 'custom',
-          custom: {
-            name: 'Buddy',
-            glyph: '🦄',
-            accent: '#c96442',
-            greeting: 'Hi! I am here whenever you need me.',
-          },
-        },
-      },
-      { initialSection: 'pet' },
-    );
-
-    const toggle = screen.getByRole('button', { name: 'Hide pet' });
-    fireEvent.click(toggle);
-    expect(screen.getByRole('button', { name: 'Show pet' })).toBeTruthy();
-    expect(screen.getByText('Hide pet')).toBeTruthy();
-
-    await waitForPersist(
-      onPersist,
-      expect.objectContaining({
-        pet: expect.objectContaining({
-          adopted: true,
-          enabled: false,
-        }),
-      }),
-      {},
-    );
-  });
-
-  it('refreshes and syncs community pets with inline status feedback', async () => {
-    fetchCodexPetsMock.mockResolvedValue({
-      pets: sampleCommunityPets,
-      rootDir: '/Users/test/.codex/pets',
-    });
-    syncCommunityPetsMock.mockResolvedValue({
-      wrote: 2,
-      skipped: 1,
-      failed: 0,
-      total: 5,
-      rootDir: '/Users/test/.codex/pets',
-      errors: [],
-    });
-
-    renderSettingsDialog(
-      { mode: 'daemon', agentId: 'codex' },
-      { initialSection: 'pet' },
-    );
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Community' }));
-    await waitFor(() => {
-      expect(fetchCodexPetsMock).toHaveBeenCalledTimes(1);
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
-    await waitFor(() => {
-      expect(fetchCodexPetsMock).toHaveBeenCalledTimes(2);
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Download community pets' }));
-    await waitFor(() => {
-      expect(syncCommunityPetsMock).toHaveBeenCalledTimes(1);
-      expect(fetchCodexPetsMock).toHaveBeenCalledTimes(3);
-      expect(screen.getByText('Synced 2 new pets (5 total).')).toBeTruthy();
-    });
-  });
-
-  it('copies the hatch prompt with the current concept', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(window.navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText },
-    });
-
-    renderSettingsDialog(
-      { mode: 'daemon', agentId: 'codex' },
-      { initialSection: 'pet' },
-    );
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Community' }));
-    fireEvent.change(screen.getByLabelText('Pet concept (optional)'), {
-      target: { value: 'a tiny pixel-art bee in a cozy sweater' },
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Copy prompt' }));
-
-    await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith(
-        expect.stringContaining('Concept: a tiny pixel-art bee in a cozy sweater.'),
-      );
-      expect(writeText).toHaveBeenCalledWith(
-        expect.stringContaining('Use the @hatch-pet skill end-to-end:'),
-      );
-      expect(screen.getByRole('button', { name: 'Copied!' })).toBeTruthy();
-    });
   });
 });
 

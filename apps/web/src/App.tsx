@@ -21,9 +21,6 @@ import { PluginDetailView } from './components/PluginDetailView';
 import type { CreateInput, ImportClaudeDesignOutcome } from './components/NewProjectPanel';
 import { MemoryToast } from './components/MemoryToast';
 import { Toast } from './components/Toast';
-import { PetOverlay, type PetTaskCenter } from './components/pet/PetOverlay';
-import { buildPetTaskCenter } from './components/pet/taskCenter';
-import { migrateCustomPetAtlas } from './components/pet/pets';
 import { ProjectView } from './components/ProjectView';
 import { TooltipLayer } from './components/TooltipLayer';
 import { openWorkspaceTab, WorkspaceTabsBar } from './components/WorkspaceTabsBar';
@@ -55,15 +52,12 @@ import {
   replaceProjectWorkingDir,
 } from './providers/registry';
 import {
-  RUNS_CHANGED_EVENT,
   fetchAmrModels,
-  listProjectRuns,
   type VelaLoginStatus,
 } from './providers/daemon';
 import { navigate, useRoute } from './router';
 import {
   fetchDaemonConfig,
-  DEFAULT_PET,
   fetchMediaProvidersFromDaemon,
   hasAnyConfiguredProvider,
   fetchComposioConfigFromDaemon,
@@ -304,7 +298,7 @@ function AppInner() {
   // Observability marker. `apps/web/src/observability/white-screen.ts`
   // keys its "app actually mounted" success condition on this attribute
   // because the dynamic-import loading shell (`<div class="od-loading-shell">
-  // Loading Open Design…</div>`) is itself >MIN_VISIBLE_TEXT and would
+  // 正在加载带货视频工作台…</div>`) is itself >MIN_VISIBLE_TEXT and would
   // otherwise be mistaken for a real mount. Survives subsequent render
   // crashes — once App has mounted at least once, it's no longer a white
   // screen (subsequent failures show up as `$exception`).
@@ -348,11 +342,6 @@ function AppInner() {
     Record<string, DesignSystemGenerationJob>
   >({});
   const [projects, setProjects] = useState<Project[]>([]);
-  const [petTaskCenter, setPetTaskCenter] = useState<PetTaskCenter>({
-    running: [],
-    queued: [],
-    recent: [],
-  });
   const pendingLocalProjectIdsRef = useRef<Set<string>>(new Set());
   const locallyDeletedProjectIdsRef = useRef<Map<string, number>>(new Map());
   const projectListMutationVersionRef = useRef(0);
@@ -899,34 +888,6 @@ function AppInner() {
     });
   }, [daemonConfigLoaded, dsLoading, designSystems, config.designSystemId]);
 
-  // One-shot self-healing migration for pets adopted before the
-  // overlay learned atlas-row switching. If the stored pet is a
-  // custom / codex pet whose imageUrl is a single-row strip
-  // (no atlas), we silently re-download the full spritesheet so
-  // hover, drag, and idle-ambient variety all light up on next render.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const upgraded = await migrateCustomPetAtlas(config);
-      if (!upgraded || cancelled) return;
-      setConfig((prev) => {
-        if (!prev.pet) return prev;
-        const next: AppConfig = {
-          ...prev,
-          pet: { ...prev.pet, custom: upgraded },
-        };
-        saveConfig(next);
-        return next;
-      });
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // Snapshot the config at mount; migration is one-shot per session
-    // and should not re-run every time config changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const refreshProjects = useCallback(async () => {
     const request = beginProjectListRequest();
     const list = await listProjects();
@@ -1460,32 +1421,6 @@ function AppInner() {
     navigate({ kind: 'project', projectId: id, fileName: null });
   }, []);
 
-  useEffect(() => {
-    if (!config.pet?.enabled || !daemonLive) {
-      setPetTaskCenter({ running: [], queued: [], recent: [] });
-      return;
-    }
-
-    let cancelled = false;
-    const refresh = async () => {
-      const runs = await listProjectRuns();
-      if (cancelled) return;
-      setPetTaskCenter(buildPetTaskCenter(projects, runs));
-    };
-    const handleRunsChanged = () => {
-      void refresh();
-    };
-
-    void refresh();
-    window.addEventListener(RUNS_CHANGED_EVENT, handleRunsChanged);
-    const id = window.setInterval(refresh, 2000);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(RUNS_CHANGED_EVENT, handleRunsChanged);
-      window.clearInterval(id);
-    };
-  }, [config.pet?.enabled, daemonLive, projects]);
-
   const handleOpenLiveArtifact = useCallback((projectId: string, artifactId: string) => {
     navigate({ kind: 'project', projectId, fileName: liveArtifactTabId(artifactId) });
   }, []);
@@ -1694,12 +1629,6 @@ function AppInner() {
     openSettings('execution', { highlight: 'amr' });
   }, [openSettings]);
 
-  const openPetSettings = useCallback(() => {
-    setSettingsWelcome(false);
-    setSettingsInitialSection('pet');
-    setSettingsOpen(true);
-  }, []);
-
   const openMcpSettings = useCallback(() => {
     setIntegrationInitialTab('mcp');
     navigate({ kind: 'home', view: 'integrations' });
@@ -1741,52 +1670,6 @@ function AppInner() {
     window.addEventListener('keydown', onKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
   }, [openSettings]);
-
-  // Explicit enabled toggle — true = wake, false = tuck. Persists to
-  // localStorage so the overlay state survives across reloads. We keep
-  // `adopted` untouched so the entry-view CTA does not regress to
-  // "adopt me" once the user has already chosen.
-  const handleSetPetEnabled = useCallback((enabled: boolean) => {
-    setConfig((curr) => {
-      const prev = curr.pet ?? DEFAULT_PET;
-      const next: AppConfig = { ...curr, pet: { ...prev, enabled } };
-      saveConfig(next);
-      return next;
-    });
-  }, []);
-
-  const handleTuckPet = useCallback(
-    () => handleSetPetEnabled(false),
-    [handleSetPetEnabled],
-  );
-
-  // Toggle wake/tuck — used by the pet rail and the composer button.
-  const handleTogglePet = useCallback(() => {
-    setConfig((curr) => {
-      const prev = curr.pet ?? DEFAULT_PET;
-      const next: AppConfig = {
-        ...curr,
-        pet: { ...prev, enabled: !prev.enabled },
-      };
-      saveConfig(next);
-      return next;
-    });
-  }, []);
-
-  // Inline adopt — the right-hand pet rail and the composer's pet menu
-  // both call this to switch pets without bouncing the user into
-  // Settings. It always wakes the overlay so the change is visible.
-  const handleAdoptPet = useCallback((petId: string) => {
-    setConfig((curr) => {
-      const prev = curr.pet ?? DEFAULT_PET;
-      const next: AppConfig = {
-        ...curr,
-        pet: { ...prev, adopted: true, enabled: true, petId },
-      };
-      saveConfig(next);
-      return next;
-    });
-  }, []);
 
   // When the user lands on the entry view (route.kind === 'home'), pull
   // a fresh template list. The template store is global — if they just
@@ -1916,9 +1799,6 @@ function AppInner() {
         onOpenMcpSettings={openMcpSettings}
         onBrowsePlugins={openPluginRegistry}
         onOpenConnectors={openConnectorIntegrations}
-        onAdoptPetInline={handleAdoptPet}
-        onTogglePet={handleTogglePet}
-        onOpenPetSettings={openPetSettings}
         onBack={handleBack}
         onClearPendingPrompt={handleClearPendingPrompt}
         onTouchProject={handleTouchProject}
@@ -1991,13 +1871,6 @@ function AppInner() {
           {appMain}
         </div>
       </div>
-      {clientType === 'desktop' ? null : (
-        <PetOverlay
-          pet={config.pet?.enabled ? config.pet : undefined}
-          taskCenter={petTaskCenter}
-          onOpenProject={handleOpenProject}
-        />
-      )}
       <TooltipLayer />
       <AnimatePresence>
       {settingsOpen ? (

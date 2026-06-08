@@ -1,4 +1,4 @@
-// Sticky 'Star · <count>' pill in the entry top bar.
+// Legacy GitHub repository badge component; no longer mounted in the entry top bar.
 //
 // Mirrors the marketing landing-page header: fetches the live star
 // count via `useGithubStars` (shared module-scoped cache) and

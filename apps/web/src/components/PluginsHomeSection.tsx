@@ -1,10 +1,9 @@
-// Plugins discovery section on Home.
+// Ecommerce video template discovery section on Home.
 //
-// Renders an artifact-kind bar over the plugin catalog: Prototype ·
-// Slides · Image · Video · HyperFrames · Audio. Prototype, Slides,
-// Image, and Video can reveal scene buckets from the user-prompt
-// taxonomy; HyperFrames and Audio stay flat. A small Saved chip
-// sits orthogonal to the rows for quick access to user-saved picks.
+// Renders the product-video workflow bar over the plugin catalog:
+// Video · Product assets · Storyboard motion · Voice / captions. A small
+// Saved chip sits orthogonal to the rows for quick access to user-saved
+// picks.
 //
 // The category list is curated — finer metadata (surface, role tags,
 // scenario domains) lives on each plugin card and detail surface.
@@ -46,8 +45,8 @@ interface Props {
   onBrowseRegistry?: () => void;
   preferDefaultFacet?: boolean;
   // Optional external selection. When the Home chip rail picks
-  // "Slide deck", HomeView passes { category: 'deck', subcategory:
-  // null } so the Community grid scrolls to the matching
+  // "Ecommerce video", HomeView passes { category: 'video', subcategory:
+              // null } so the template grid scrolls to the matching
   // slice instead of staying on its default. The hook only re-applies
   // when this identity changes, so manual facet clicks still win.
   presetSelection?: FacetSelection | null;
@@ -175,7 +174,7 @@ export function PluginsHomeSection({
           <div
             className="plugins-home__facets"
             role="group"
-            aria-label="Plugin filters"
+            aria-label={t('pluginsHome.modeAria')}
           >
             <CategoryRow
               options={catalog.category}
@@ -446,6 +445,19 @@ function pluginFacetLabel(slug: string, fallback: string, t: ReturnType<typeof u
     case 'image': return t('homeHero.chip.image');
     case 'video': return t('homeHero.chip.video');
     case 'audio': return t('homeHero.chip.audio');
+    case 'video-hooks': return t('pluginsHome.facet.videoHooks');
+    case 'video-product-demo': return t('pluginsHome.facet.videoProductDemo');
+    case 'video-platform-shorts': return t('pluginsHome.facet.videoPlatformShorts');
+    case 'video-reference-breakdown': return t('pluginsHome.facet.videoReferenceBreakdown');
+    case 'image-product-assets': return t('pluginsHome.facet.imageProductAssets');
+    case 'image-lifestyle-scenes': return t('pluginsHome.facet.imageLifestyleScenes');
+    case 'image-before-after': return t('pluginsHome.facet.imageBeforeAfter');
+    case 'hyperframes-storyboards': return t('pluginsHome.facet.hyperframesStoryboards');
+    case 'hyperframes-captions': return t('pluginsHome.facet.hyperframesCaptions');
+    case 'hyperframes-transitions': return t('pluginsHome.facet.hyperframesTransitions');
+    case 'audio-voiceover': return t('pluginsHome.facet.audioVoiceover');
+    case 'audio-caption-timing': return t('pluginsHome.facet.audioCaptionTiming');
+    case 'audio-sonic-brand': return t('pluginsHome.facet.audioSonicBrand');
     case 'public-link': return t('pluginsHome.facet.publicLink');
     case 'github-pr': return t('pluginsHome.facet.githubPr');
     case 'github-gist': return t('pluginsHome.facet.githubGist');

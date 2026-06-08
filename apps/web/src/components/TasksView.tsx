@@ -6,45 +6,30 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AutomationEvolutionProposal,
   AutomationEvolutionProposalListResponse,
-  AutomationTemplate as ContractAutomationTemplate,
-  AutomationTemplateListResponse,
   ConnectorDetail,
   Routine,
   RoutineRun,
-  RoutineRunCrystallizeResponse,
+  RoutineRunCrystallizeResponse
 } from '@open-design/contracts';
 
 import { Icon, type IconName } from './Icon';
 import { navigate } from '../router';
-import { useT } from '../i18n';
+import { useI18n } from '../i18n';
 import type { SkillSummary } from '../types';
-
-type TranslateFn = ReturnType<typeof useT>;
 import { useAnalytics } from '../analytics/provider';
 import { trackAutomationsClick, trackPageView } from '../analytics/events';
 import {
   NewAutomationModal,
   describeScheduleSummary,
   type AutomationTemplate,
-  type AutomationTemplateKind,
+  type AutomationTemplateKind
 } from './NewAutomationModal';
 
 type ProjectSummary = { id: string; name: string };
-type TemplateFilter =
-  | 'all'
-  | AutomationTemplateKind
-  | 'memory'
-  | 'design-system'
-  | 'skills'
-  | 'connectors'
-  | 'compression'
-  | 'release'
-  | 'quality';
+type TranslateFn = ReturnType<typeof useI18n>['t'];
+type TemplateFilter = 'all' | 'assets' | 'script' | 'storyboard' | 'generation' | 'analytics';
 
-type Modal =
-  | { kind: 'create'; template?: AutomationTemplate }
-  | { kind: 'edit'; routine: Routine }
-  | null;
+type Modal = { kind: 'create'; template?: AutomationTemplate } | { kind: 'edit'; routine: Routine } | null;
 
 interface Props {
   projects?: ProjectSummary[];
@@ -57,114 +42,66 @@ interface Props {
 function buildStaticTemplates(t: TranslateFn): ReadonlyArray<AutomationTemplate> {
   return [
     {
-      id: 'memory-refresh',
-      category: 'memory',
+      id: 'video-assets-readiness',
+      category: 'assets',
       kind: 'routine',
-      icon: 'sparkles',
+      icon: 'upload',
       title: t('automations.tpl.memoryRefresh.title'),
       description: t('automations.tpl.memoryRefresh.desc'),
-      defaultName: 'Memory refresh',
-      prompt:
-        'Review recent chats, PR comments, design feedback, and project changes. Extract durable preferences, repeated decisions, and workflow lessons. Propose concise memory updates with source links and separate one-off notes from reusable guidance.',
+      defaultName: t('automations.tpl.memoryRefresh.title'),
+      prompt: t('automations.tpl.memoryRefresh.prompt')
     },
     {
-      id: 'design-system-refresh',
-      category: 'design-system',
+      id: 'video-script-polish',
+      category: 'script',
       kind: 'routine',
-      icon: 'sliders',
+      icon: 'pencil',
       title: t('automations.tpl.designSystemRefresh.title'),
       description: t('automations.tpl.designSystemRefresh.desc'),
-      defaultName: 'Design system maintainer',
-      prompt:
-        'Inspect recent generated artifacts, review feedback, and accepted revisions. Identify patterns that should become design-system tokens, component rules, examples, or anti-patterns. Draft precise updates to DESIGN.md and call out anything that needs human approval.',
+      defaultName: t('automations.tpl.designSystemRefresh.title'),
+      prompt: t('automations.tpl.designSystemRefresh.prompt')
     },
     {
-      id: 'live-artifact-registry',
-      category: 'live-artifact',
+      id: 'video-storyboard-plan',
+      category: 'storyboard',
       kind: 'routine',
-      icon: 'file-code',
+      icon: 'kanban',
       title: t('automations.tpl.liveArtifactRegistry.title'),
       description: t('automations.tpl.liveArtifactRegistry.desc'),
-      defaultName: 'Live artifact maintainer',
-      prompt:
-        'List live artifacts for this project, find stale or failed refreshes, and update the highest-value artifact in place. Preserve artifact ids, summarize what changed, and flag artifacts that need connector access or human review.',
+      defaultName: t('automations.tpl.liveArtifactRegistry.title'),
+      prompt: t('automations.tpl.liveArtifactRegistry.prompt')
     },
     {
-      id: 'orbit-dashboard',
-      category: 'orbit',
+      id: 'video-render-diagnostics',
+      category: 'generation',
       kind: 'routine',
-      icon: 'orbit',
+      icon: 'alert-triangle',
       title: t('automations.tpl.orbitDashboard.title'),
       description: t('automations.tpl.orbitDashboard.desc'),
-      defaultName: 'Connector activity dashboard',
-      prompt:
-        'Use the selected connectors to build or refresh a live dashboard of recent activity. Group by people, projects, decisions, risks, and follow-ups. Prefer connected read-only tools, cite sources, and keep the dashboard refreshable.',
+      defaultName: t('automations.tpl.orbitDashboard.title'),
+      prompt: t('automations.tpl.orbitDashboard.prompt')
     },
     {
-      id: 'release-notes',
-      category: 'release',
+      id: 'video-analytics-review',
+      category: 'analytics',
       kind: 'routine',
-      icon: 'present',
-      title: t('automations.tpl.releaseNotes.title'),
-      description: t('automations.tpl.releaseNotes.desc'),
-      defaultName: 'Weekly release notes',
-      prompt:
-        "Draft user-facing release notes covering merged PRs, updated artifacts, and design-system changes from the last 7 days. Group by 'New', 'Improved', and 'Fixed'. Include links when available and keep the copy user-readable.",
-    },
-    {
-      id: 'quality-regression-watch',
-      category: 'quality',
-      kind: 'routine',
-      icon: 'bell',
+      icon: 'history',
       title: t('automations.tpl.qualityRegressionWatch.title'),
       description: t('automations.tpl.qualityRegressionWatch.desc'),
-      defaultName: 'Regression watch',
-      prompt:
-        'Compare recent project changes against accepted artifacts, design-system rules, benchmarks, and traces. Flag regressions in behavior, layout, accessibility, or product intent. Suggest the smallest fix and cite the evidence.',
-    },
+      defaultName: t('automations.tpl.qualityRegressionWatch.title'),
+      prompt: t('automations.tpl.qualityRegressionWatch.prompt')
+    }
   ];
-}
-
-function fallbackOrbitTemplate(t: TranslateFn): AutomationTemplate {
-  return {
-    id: 'orbit-daily',
-    category: 'orbit',
-    kind: 'orbit',
-    icon: 'orbit',
-    title: t('automations.tpl.orbitDaily.title'),
-    description: t('automations.tpl.orbitDaily.desc'),
-    defaultName: 'Daily connector digest',
-    prompt:
-      'Survey every connected integration and produce a daily digest of what changed in the last 24 hours. Group the result by people, projects, decisions, and follow-ups. Save the output as a live artifact named `daily_digest.md` and update it in place on each run.',
-  };
-}
-
-function fallbackLiveTemplate(t: TranslateFn): AutomationTemplate {
-  return {
-    id: 'live-status-board',
-    category: 'live-artifact',
-    kind: 'live-artifact',
-    icon: 'file-code',
-    title: t('automations.tpl.liveStatusBoard.title'),
-    description: t('automations.tpl.liveStatusBoard.desc'),
-    defaultName: 'Live status board',
-    prompt:
-      "Maintain a single live artifact named `status_board.md`. On each run, update the sections for 'In flight', 'Shipped this week', 'Risks', and 'Decisions made'. Edit in place so the artifact stays stable.",
-  };
 }
 
 function templateFilters(t: TranslateFn): ReadonlyArray<{ id: TemplateFilter; label: string }> {
   return [
     { id: 'all', label: t('automations.filterAll') },
-    { id: 'orbit', label: t('automations.filterOrbit') },
-    { id: 'live-artifact', label: t('automations.filterLiveArtifacts') },
-    { id: 'memory', label: t('automations.filterMemory') },
-    { id: 'design-system', label: t('automations.filterDesignSystems') },
-    { id: 'skills', label: t('automations.filterSkills') },
-    { id: 'connectors', label: t('automations.filterConnectors') },
-    { id: 'compression', label: t('automations.filterCompression') },
-    { id: 'release', label: t('automations.filterRelease') },
-    { id: 'quality', label: t('automations.filterQuality') },
+    { id: 'assets', label: t('automations.filterMemory') },
+    { id: 'script', label: t('automations.filterDesignSystems') },
+    { id: 'storyboard', label: t('automations.filterSkills') },
+    { id: 'generation', label: t('automations.filterConnectors') },
+    { id: 'analytics', label: t('automations.filterQuality') }
   ];
 }
 
@@ -178,7 +115,7 @@ function nextRunLabel(routine: Routine, t: TranslateFn): string {
   if (!routine.nextRunAt) return t('automations.nextRunScheduled');
   const date = new Date(routine.nextRunAt);
   return t('automations.nextRunAt', {
-    time: date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }),
+    time: date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
   });
 }
 
@@ -186,7 +123,7 @@ function formatAutomationTimestamp(ts: number | null | undefined): string {
   if (!ts) return '—';
   return new Date(ts).toLocaleString(undefined, {
     dateStyle: 'medium',
-    timeStyle: 'short',
+    timeStyle: 'short'
   });
 }
 
@@ -211,87 +148,6 @@ function StatusPill({ status, t }: { status: RoutineRun['status']; t: TranslateF
   return <span className={`automation-status is-${status}`}>{statusLabel(status, t)}</span>;
 }
 
-function templateFromSkill(skill: SkillSummary, kind: AutomationTemplateKind): AutomationTemplate {
-  const category = kind === 'orbit' ? 'orbit' : 'live-artifact';
-  return {
-    id: `skill-${skill.id}`,
-    category,
-    kind,
-    icon: kind === 'orbit' ? 'orbit' : 'file-code',
-    title: skill.name,
-    description: skill.description || skill.id,
-    defaultName: skill.name,
-    prompt: skill.examplePrompt || skill.description || `Run ${skill.name}.`,
-    skillId: skill.id,
-  };
-}
-
-function automationTemplateCategory(template: ContractAutomationTemplate): string {
-  const tags = new Set(template.tags ?? []);
-  if (template.outputSinks.includes('design-system') || tags.has('design-system')) {
-    return 'design-system';
-  }
-  if (template.outputSinks.includes('skill') || tags.has('skills')) {
-    return 'skills';
-  }
-  if (
-    tags.has('connectors') ||
-    (template.sourceKinds.length > 0 && template.sourceKinds.every((kind) => kind === 'connector'))
-  ) {
-    return 'connectors';
-  }
-  if (
-    template.tokenCompression === 'aggressive' ||
-    tags.has('compression') ||
-    tags.has('tokens')
-  ) {
-    return 'compression';
-  }
-  if (template.outputSinks.includes('memory') || tags.has('memory')) {
-    return 'memory';
-  }
-  return 'routine';
-}
-
-function automationTemplateIcon(category: string): IconName {
-  if (category === 'design-system') return 'sliders';
-  if (category === 'skills') return 'sparkles';
-  if (category === 'connectors') return 'link';
-  if (category === 'compression') return 'reload';
-  if (category === 'memory') return 'history';
-  return 'history';
-}
-
-function automationTemplatePrompt(template: ContractAutomationTemplate): string {
-  const stages = template.stages.map((stage) => stage.title).join(' -> ');
-  return [
-    `Use Automation template "${template.id}".`,
-    `Purpose: ${template.purpose}`,
-    `Sources: ${template.sourceKinds.join(', ')}.`,
-    `Trigger modes: ${template.triggerKinds.join(', ')}.`,
-    `Pipeline: ${stages}.`,
-    `Outputs: ${template.outputSinks.join(', ')}.`,
-    `Review policy: ${template.reviewPolicy}. Token compression: ${template.tokenCompression}.`,
-    'Produce reviewable proposals with provenance before applying durable memory, skill, automation, or design-system changes.',
-  ].join('\n');
-}
-
-function templateFromAutomationCatalog(
-  template: ContractAutomationTemplate,
-): AutomationTemplate {
-  const category = automationTemplateCategory(template);
-  return {
-    id: template.id,
-    category,
-    kind: 'routine',
-    icon: automationTemplateIcon(category),
-    title: template.title,
-    description: template.description,
-    defaultName: template.title,
-    prompt: automationTemplatePrompt(template),
-  };
-}
-
 function dedupeTemplates(templates: AutomationTemplate[]): AutomationTemplate[] {
   const seen = new Set<string>();
   return templates.filter((template) => {
@@ -301,31 +157,12 @@ function dedupeTemplates(templates: AutomationTemplate[]): AutomationTemplate[] 
   });
 }
 
-function buildAutomationTemplates(
-  designTemplates: SkillSummary[],
-  automationCatalog: ContractAutomationTemplate[],
-  t: TranslateFn,
-): AutomationTemplate[] {
-  const orbit = designTemplates
-    .filter((skill) => skill.scenario === 'orbit')
-    .map((skill) => templateFromSkill(skill, 'orbit'));
-  const live = designTemplates
-    .filter((skill) => skill.scenario === 'live')
-    .map((skill) => templateFromSkill(skill, 'live-artifact'));
-
-  return dedupeTemplates([
-    ...automationCatalog.map(templateFromAutomationCatalog),
-    ...(orbit.length > 0 ? orbit : [fallbackOrbitTemplate(t)]),
-    ...(live.length > 0 ? live : [fallbackLiveTemplate(t)]),
-    ...buildStaticTemplates(t),
-  ]);
+function buildAutomationTemplates(t: TranslateFn): AutomationTemplate[] {
+  return dedupeTemplates([...buildStaticTemplates(t)]);
 }
 
 function filterTemplates(templates: AutomationTemplate[], filter: TemplateFilter) {
   if (filter === 'all') return templates;
-  if (filter === 'orbit' || filter === 'live-artifact') {
-    return templates.filter((template) => template.kind === filter);
-  }
   return templates.filter((template) => template.category === filter);
 }
 
@@ -357,8 +194,8 @@ function proposalActionLabel(action: AutomationEvolutionProposal['action'], t: T
   return t('automations.proposalActionPromote');
 }
 
-export function TasksView({ skills = [], designTemplates = [], connectors = [] }: Props) {
-  const t = useT();
+export function TasksView({ skills = [], connectors = [] }: Props) {
+  const { t } = useI18n();
   const analytics = useAnalytics();
   // P2 page_view page_name=automations. Ref-keyed so re-renders don't
   // double-fire while the user is on the page.
@@ -375,7 +212,6 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
   const [busyId, setBusyId] = useState<string | null>(null);
   const [modal, setModal] = useState<Modal>(null);
   const [templateFilter, setTemplateFilter] = useState<TemplateFilter>('all');
-  const [automationCatalog, setAutomationCatalog] = useState<ContractAutomationTemplate[]>([]);
   const [proposals, setProposals] = useState<AutomationEvolutionProposal[]>([]);
   const [proposalBusyId, setProposalBusyId] = useState<string | null>(null);
   const [crystallizingRunId, setCrystallizingRunId] = useState<string | null>(null);
@@ -384,34 +220,21 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
   const routineRowRefs = useRef<Record<string, HTMLLIElement | null>>({});
   const [historyTick, setHistoryTick] = useState(0);
 
-  const templates = useMemo(
-    () => buildAutomationTemplates(designTemplates, automationCatalog, t),
-    [automationCatalog, designTemplates, t],
-  );
-  const filteredTemplates = useMemo(
-    () => filterTemplates(templates, templateFilter),
-    [templates, templateFilter],
-  );
+  const templates = useMemo(() => buildAutomationTemplates(t), [t]);
+  const filteredTemplates = useMemo(() => filterTemplates(templates, templateFilter), [templates, templateFilter]);
 
   const refresh = useCallback(async () => {
     try {
-      const templateRequest = fetch('/api/automation-templates')
-        .then(async (res) => {
-          if (!res.ok) return null;
-          return (await res.json()) as AutomationTemplateListResponse;
-        })
-        .catch(() => null);
       const proposalRequest = fetch('/api/automation-proposals?status=pending-review')
         .then(async (res) => {
           if (!res.ok) return null;
           return (await res.json()) as AutomationEvolutionProposalListResponse;
         })
         .catch(() => null);
-      const [rRes, pRes, tJson, proposalJson] = await Promise.all([
+      const [rRes, pRes, proposalJson] = await Promise.all([
         fetch('/api/routines'),
         fetch('/api/projects'),
-        templateRequest,
-        proposalRequest,
+        proposalRequest
       ]);
       if (!rRes.ok) throw new Error(`routines: ${rRes.status}`);
       const rJson = await rRes.json();
@@ -421,12 +244,9 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
         setProjects(
           (pJson.projects ?? []).map((p: ProjectSummary) => ({
             id: p.id,
-            name: p.name,
-          })),
+            name: p.name
+          }))
         );
-      }
-      if (tJson) {
-        setAutomationCatalog(Array.isArray(tJson.templates) ? tJson.templates : []);
       }
       if (proposalJson) {
         setProposals(Array.isArray(proposalJson.proposals) ? proposalJson.proposals : []);
@@ -450,10 +270,7 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
   }, [projects]);
 
   // Sort routines by creation time, newest first
-  const sortedRoutines = useMemo(
-    () => sortRoutinesNewestFirst(routines),
-    [routines],
-  );
+  const sortedRoutines = useMemo(() => sortRoutinesNewestFirst(routines), [routines]);
 
   useEffect(() => {
     if (!focusRoutineId) return;
@@ -473,7 +290,7 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
       const res = await fetch(`/api/automation-proposals/${id}/${action}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: action === 'reject' ? JSON.stringify({ reason: t('automations.proposalsDismissReason') }) : '{}',
+        body: action === 'reject' ? JSON.stringify({ reason: t('automations.proposalsDismissReason') }) : '{}'
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -502,7 +319,7 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
           kind: 'project',
           projectId: j.projectId,
           conversationId: j.conversationId ?? null,
-          fileName: null,
+          fileName: null
         });
         return;
       }
@@ -521,7 +338,7 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
     setError(null);
     try {
       const res = await fetch(`/api/routines/${routineId}/runs/${runId}/crystallize`, {
-        method: 'POST',
+        method: 'POST'
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -541,7 +358,7 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
       const res = await fetch(`/api/routines/${routine.id}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ enabled: !routine.enabled }),
+        body: JSON.stringify({ enabled: !routine.enabled })
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -556,8 +373,7 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm(t('automations.deleteConfirm')))
-      return;
+    if (!window.confirm(t('automations.deleteConfirm'))) return;
     setBusyId(id);
     try {
       const res = await fetch(`/api/routines/${id}`, { method: 'DELETE' });
@@ -582,9 +398,7 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
           <h1 id="automations-title" className="automations-hero__title">
             {t('automations.title')}
           </h1>
-          <p className="automations-hero__lede">
-            {t('automations.lede')}
-          </p>
+          <p className="automations-hero__lede">{t('automations.lede')}</p>
         </div>
         <div className="automations-hero__actions">
           <div className="automations-metrics" aria-label={t('automations.summaryAria')}>
@@ -616,11 +430,7 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
           {loading ? <span className="automations-section__meta">{t('automations.loading')}</span> : null}
         </div>
         {!loading && sortedRoutines.length === 0 ? (
-          <button
-            type="button"
-            className="automation-empty"
-            onClick={() => setModal({ kind: 'create' })}
-          >
+          <button type="button" className="automation-empty" onClick={() => setModal({ kind: 'create' })}>
             <span className="automation-empty__icon">
               <Icon name="plus" size={16} />
             </span>
@@ -636,7 +446,7 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
               const isBusy = busyId === r.id;
               const targetLabel =
                 r.target.mode === 'reuse'
-                  ? projectsById.get(r.target.projectId) ?? r.target.projectId
+                  ? (projectsById.get(r.target.projectId) ?? r.target.projectId)
                   : t('automations.targetNewEachRun');
               const isExpanded = expandedId === r.id;
               return (
@@ -661,13 +471,13 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
                         <span aria-hidden="true">·</span>
                         <span>{nextRunLabel(r, t)}</span>
                       </span>
-                      {r.prompt ? (
-                        <span className="automation-row__prompt">{r.prompt}</span>
-                      ) : null}
+                      {r.prompt ? <span className="automation-row__prompt">{r.prompt}</span> : null}
                       {r.lastRun ? (
                         <span className="automation-row__last-run">
                           <StatusPill status={r.lastRun.status} t={t} />
-                          <span>{t('automations.lastRun', { time: formatAutomationTimestamp(r.lastRun.startedAt) })}</span>
+                          <span>
+                            {t('automations.lastRun', { time: formatAutomationTimestamp(r.lastRun.startedAt) })}
+                          </span>
                           <span aria-hidden="true">·</span>
                           <button
                             type="button"
@@ -677,7 +487,7 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
                                 kind: 'project',
                                 projectId: r.lastRun!.projectId,
                                 conversationId: r.lastRun!.conversationId,
-                                fileName: null,
+                                fileName: null
                               })
                             }
                           >
@@ -759,11 +569,11 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
           <div className="automations-section-head">
             <div>
               <h2 className="automations-section__label">{t('automations.proposalsTitle')}</h2>
-              <p className="automations-section__sub">
-                {t('automations.proposalsSub')}
-              </p>
+              <p className="automations-section__sub">{t('automations.proposalsSub')}</p>
             </div>
-            <span className="automations-section__meta">{t('automations.proposalsPending', { n: proposals.length })}</span>
+            <span className="automations-section__meta">
+              {t('automations.proposalsPending', { n: proposals.length })}
+            </span>
           </div>
           <ul className="automations-saved__list">
             {proposals.map((proposal) => {
@@ -772,10 +582,7 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
                 <li key={proposal.id} className="automation-row">
                   <div className="automation-row__main">
                     <span className="automation-row__icon">
-                      <Icon
-                        name={proposal.targetKind === 'design-system' ? 'sliders' : 'sparkles'}
-                        size={15}
-                      />
+                      <Icon name={proposal.targetKind === 'design-system' ? 'sliders' : 'sparkles'} size={15} />
                     </span>
                     <span className="automation-row__content">
                       <span className="automation-row__title">{proposal.title}</span>
@@ -788,9 +595,7 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
                       </span>
                       <span className="automation-row__prompt">{proposal.summary}</span>
                       {proposal.patch.diffSummary ? (
-                        <span className="automation-row__last-run">
-                          {proposal.patch.diffSummary}
-                        </span>
+                        <span className="automation-row__last-run">{proposal.patch.diffSummary}</span>
                       ) : null}
                     </span>
                   </div>
@@ -824,19 +629,13 @@ export function TasksView({ skills = [], designTemplates = [], connectors = [] }
         <div className="automations-templates__head">
           <div className="automations-templates__head-copy">
             <h2 className="automations-section__label">{t('automations.templatesTitle')}</h2>
-            <p className="automations-section__sub">
-              {t('automations.templatesSub')}
-            </p>
+            <p className="automations-section__sub">{t('automations.templatesSub')}</p>
           </div>
           <span className="automations-section__meta">
             {t('automations.templatesCount', { filtered: filteredTemplates.length, total: templates.length })}
           </span>
         </div>
-        <div
-          className="automations-template-tabs"
-          role="tablist"
-          aria-label={t('automations.templateFiltersAria')}
-        >
+        <div className="automations-template-tabs" role="tablist" aria-label={t('automations.templateFiltersAria')}>
           {templateFilters(t).map((filter) => {
             const count = filterTemplates(templates, filter.id).length;
             const isActive = templateFilter === filter.id;
@@ -939,7 +738,7 @@ function AutomationRunHistory({
   refreshKey,
   crystallizingRunId,
   onCrystallizeRun,
-  t,
+  t
 }: {
   routineId: string;
   refreshKey: number;
@@ -1010,7 +809,9 @@ function AutomationRunHistory({
                   title={t('automations.crystallizeTitle')}
                 >
                   <Icon name="sparkles" size={12} />
-                  <span>{crystallizingRunId === run.id ? t('automations.crystallizing') : t('automations.crystallize')}</span>
+                  <span>
+                    {crystallizingRunId === run.id ? t('automations.crystallizing') : t('automations.crystallize')}
+                  </span>
                 </button>
               ) : null}
               <button
@@ -1021,7 +822,7 @@ function AutomationRunHistory({
                     kind: 'project',
                     projectId: run.projectId,
                     conversationId: run.conversationId,
-                    fileName: null,
+                    fileName: null
                   })
                 }
               >

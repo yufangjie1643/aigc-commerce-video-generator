@@ -86,10 +86,13 @@ function renderUiLocalePrompt(locale: string | undefined): string {
     '# UI locale override',
     '',
     `The Open Design UI locale for this run is \`${normalized}\` (${languageName}). All user-visible chat prose and generated UI controls must follow this locale, especially \`<question-form>\` titles, descriptions, labels, placeholders, helper text, and option labels. Keep machine-readable ids and object option \`value\` fields exact and unlocalized.`,
+    `This locale is the user's Settings → Language choice, not merely a UI translation hint. Use ${languageName} as the default conversation language for every direct reply to the user, including plans, progress updates, clarifying questions, error explanations, and final summaries. Preserve code, shell commands, file names, API fields, provider/model ids, and machine-readable values in their original language.`,
     'Exception: for the default task-type form, keep the `taskType` option labels as the canonical routing choices: `Prototype`, `Live artifact`, `Slide deck`, `Image`, `Video`, `HyperFrames`, `Audio`, `Other`. Do not translate, reorder, or rewrite those option labels.',
   ];
   if (normalized === 'zh-CN') {
     lines.push(
+      '',
+      '中文沟通要求：默认用简体中文和用户交流；即使参考模板、工具输出或系统示例是英文，也不要切回英文。只有用户明确要求其它语言时才切换。',
       '',
       'For the default quick brief in Simplified Chinese, use copy like:',
       '- title: `快速简报 — 30 秒`',
@@ -258,9 +261,9 @@ const MEDIA_DISPATCH_HINT = `
 
 ## Media generation (if asked)
 
-If the user asks you to generate an image, video, or audio file — regardless of which provider or model they mention (fal, Replicate, OpenAI, etc.) — use the daemon dispatcher via your **Bash tool**. Do NOT call provider REST APIs directly.
+If the user asks you to generate an image, video, or audio file — regardless of which provider or model they mention (fal, Replicate, OpenAI, etc.) — use the daemon dispatcher via your shell tool. Do NOT call provider REST APIs directly.
 
-The daemon injects these env vars into your shell (**POSIX bash — not PowerShell**):
+The daemon injects these env vars into your shell:
 
 - \`OD_NODE_BIN\`   — absolute path to the Node runtime
 - \`OD_BIN\`        — absolute path to the OD CLI script
@@ -268,7 +271,11 @@ The daemon injects these env vars into your shell (**POSIX bash — not PowerShe
 
 **Always use the generate→wait loop below.** \`media generate\` always exits 0 — either with \`{"file":{...}}\` if done within ~25s, or with \`{"taskId":"..."}\` as a handoff for slow models (flux-pro-ultra ~60–180s, veo-3-fal longer). Whenever the output contains a \`taskId\`, keep polling with \`media wait\` until exit 0 (done) or exit 5 (failed).
 
-Use **POSIX \`$VAR\` syntax** — do NOT translate to PowerShell (\`$env:VAR\`, \`&\` operator). Uses \`python3\` for JSON parsing (do NOT use \`jq\`):
+Use the syntax for the shell you are actually running. POSIX shells use
+\`"$OD_NODE_BIN" "$OD_BIN"\`; PowerShell uses
+\`& $env:OD_NODE_BIN $env:OD_BIN\`. The loop below is POSIX; if your tool is
+PowerShell, translate only the shell syntax and keep the same generate→wait
+logic. Uses \`python3\` for JSON parsing on POSIX (do NOT use \`jq\`):
 
 \`\`\`bash
 # POSIX bash — do NOT convert to PowerShell
@@ -1157,7 +1164,11 @@ function renderMetadataBlock(
       '`"$OD_NODE_BIN" "$OD_BIN" media generate --surface video --model <videoModel> --length <seconds> --aspect <ratio>`',
       mediaExecution,
     ));
-    if (metadata.videoModel === 'hyperframes-html') {
+    const mediaMode = mediaExecution?.mode ?? 'enabled';
+    if (mediaMode === 'enabled') {
+      lines.push(ECOMMERCE_VIDEO_CONFIGURATION_DIRECTIVE);
+    }
+    if (mediaMode === 'enabled' && metadata.videoModel === 'hyperframes-html') {
       lines.push(
         'Special case: `hyperframes-html` is a local HTML-to-MP4 renderer, not a photoreal text-to-video model. Treat it like a motion design renderer, ask at most one clarifying question, then dispatch immediately.',
       );
@@ -1353,6 +1364,30 @@ function renderMetadataBlock(
   return lines.join('\n');
 }
 
+const ECOMMERCE_VIDEO_CONFIGURATION_DIRECTIVE = `\
+### Ecommerce selling-video configuration workflow
+
+When the video brief is for ecommerce, product selling, 带货, product demo, product promo, offer/CTA, or a product asset/reference-video workflow, normalize the brief through this production chain before dispatching generation:
+
+1. **Project** — identify the product, channel, target customer, platform, current workflow stage, and the single next action. Respect explicit user render settings first; if aspect is unknown for short-form commerce video, prefer 9:16 and state the assumption.
+2. **Assets** — inventory product photo/video, package, logo, reference video, SKU/detail/lifestyle/proof shots. Produce an \`asset_manifest\`, note missing assets, and state whether generation can continue with placeholders.
+3. **Script** — derive hook, pain point, selling points, proof, offer, CTA, safety/brand constraints, and a 3-6 shot structure. If reference videos or templates are present, extract method, not subject copy.
+4. **Creation** — turn the script into an editable composition: each shot needs duration, visual goal, camera/motion, caption, voiceover, required asset, image/video prompt, match reason, and QA checks. Keep total duration within the selected \`lengthSeconds\`; if no length is selected, keep short-form commerce videos within 15-20 seconds.
+5. **Generate / diagnose** — carry render settings, queue state, validation, asset matching, subtitle/TTS prep, per-shot render, full composition, export, and QA as explicit stages. For failures, name the failed stage, last successful output, likely cause, and retry path.
+
+Before calling the media generation contract, assemble a compact \`Ecommerce video config\` with:
+- \`project_goal\`
+- \`product_inputs\`
+- \`asset_manifest\`
+- \`script_strategy\`
+- \`storyboard[]\`
+- \`render_settings\`
+- \`qa_checklist\`
+- \`missing_inputs\`
+- \`retry_or_diagnostics\`
+
+Ask at most one concise question only when a missing field blocks generation. Otherwise make a stated assumption, assemble the config, and continue to the media generation contract.`;
+
 function renderMediaMetadataAction(
   surface: MediaSurface,
   command: string,
@@ -1362,6 +1397,9 @@ function renderMediaMetadataAction(
   const mode = mediaExecution?.mode ?? 'enabled';
   if (mode === 'disabled') {
     return `This is ${article} **${surface}** project, but Open Design-owned media execution is disabled for this run. Plan the creative brief only unless an external MCP media tool is explicitly configured. Do NOT call OD media generation tools and do NOT emit \`<artifact>\` HTML for media surfaces.`;
+  }
+  if (mode === 'question') {
+    return `This is ${article} **${surface}** project, but this conversation is in Question / chat mode. Do NOT dispatch generation, author production files, or write a full script/storyboard unless the user explicitly asks for text-only planning materials. Answer briefly, ask at most one concise clarification if useful, and tell the user to switch back to Design / generation mode before rendering media.`;
   }
   return `This is ${article} **${surface}** project. Plan the creative brief carefully, then dispatch via the **media generation contract** using ${command}. Do NOT emit \`<artifact>\` HTML for media surfaces.`;
 }

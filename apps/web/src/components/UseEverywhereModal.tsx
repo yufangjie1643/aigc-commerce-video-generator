@@ -1,49 +1,25 @@
-// Use Open Design Everywhere — modal entry that documents Open Design's
-// non-UI surfaces (CLI, MCP, HTTP, Skills) and ships a one-click "copy
-// guide for an agent" payload. Reachable from the entry top-bar and
-// from Settings → Integrations as a sibling of the existing MCP install
-// snippets.
-//
-// The technical content lives in ./use-everywhere/sections.ts and the
-// agent-handoff markdown blob in ./use-everywhere/agent-guide.ts so the
-// modal only owns rendering + clipboard interactions.
-
-import { useEffect, useMemo, useRef, useState } from 'react';
+// Use Everywhere — modal entry for the WeChat/internal-agent automation status bridge.
+// Reachable from the entry top-bar and from Settings → Integrations as a
+// sibling of the existing external MCP configuration surface.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
+import type { WeChatAgentBridgeSnapshot, WeChatAgentBridgeStatusResponse } from '@open-design/contracts';
 import { useAnalytics } from '../analytics/provider';
 import { trackIntegrationsUseEverywhereTabClick } from '../analytics/events';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 import { useT } from '../i18n';
 import { modalOverlay, modalContent } from '../motion';
 import type { Dict } from '../i18n/types';
 import {
-  buildAgentGuideMarkdown,
-  type AgentGuideOptions,
-} from './use-everywhere/agent-guide';
-import {
-  GUIDE_SECTIONS,
-  type CodeSnippet,
-  type GuideSection,
-} from './use-everywhere/sections';
-
-// Map GuideSection.id ('cli' / 'mcp' / 'http' / 'skills') to the analytics
-// element vocabulary defined in `IntegrationsUseEverywhereTabClickProps`.
-function useEverywhereSectionToElement(
-  id: 'overview' | 'cli' | 'mcp' | 'http' | 'skills',
-): 'overview' | 'cli_od' | 'mcp_server' | 'http_api' | 'skills_headless' {
-  switch (id) {
-    case 'overview': return 'overview';
-    case 'cli': return 'cli_od';
-    case 'mcp': return 'mcp_server';
-    case 'http': return 'http_api';
-    case 'skills': return 'skills_headless';
-  }
-}
+  cancelWeChatAgentBridge,
+  connectWeChatAgentBridge,
+  fetchWeChatAgentBridgeStatus,
+  refreshWeChatAgentBridge,
+} from '../providers/daemon';
+import { buildAgentGuideMarkdown, type AgentGuideOptions } from './use-everywhere/agent-guide';
 
 interface Props {
   onClose: () => void;
-  /** Deep-link to Settings → Integrations (existing MCP install snippets). */
-  onOpenSettings?: () => void;
   /** Live daemon URL when known (e.g. http://127.0.0.1:7456). */
   daemonUrl?: string;
   /** Optional Open Design version string surfaced in the agent guide header. */
@@ -51,15 +27,12 @@ interface Props {
 }
 
 type CopyState = 'idle' | 'copied' | 'failed';
+type WeChatAction = 'connect' | 'refresh' | 'cancel' | null;
 
 const COPY_RESET_MS = 1600;
+const WECHAT_STATUS_POLL_MS = 1200;
 
-export function UseEverywhereModal({
-  onClose,
-  onOpenSettings,
-  daemonUrl,
-  versionHint,
-}: Props) {
+export function UseEverywhereModal({ onClose, daemonUrl, versionHint }: Props) {
   const t = useT();
   const closeRef = useRef<HTMLButtonElement | null>(null);
 
@@ -108,12 +81,8 @@ export function UseEverywhereModal({
         <header className="use-everywhere-modal__head">
           <div className="use-everywhere-modal__head-titles">
             <span className="use-everywhere-modal__kicker">{t('integrations.kicker')}</span>
-            <h2 className="use-everywhere-modal__title">
-              {t('useEverywhere.modalTitle')}
-            </h2>
-            <p className="use-everywhere-modal__subtitle">
-              {t('useEverywhere.modalSubtitle')}
-            </p>
+            <h2 className="use-everywhere-modal__title">{t('useEverywhere.modalTitle')}</h2>
+            <p className="use-everywhere-modal__subtitle">{t('useEverywhere.modalSubtitle')}</p>
           </div>
           <button
             ref={closeRef}
@@ -127,27 +96,19 @@ export function UseEverywhereModal({
           </button>
         </header>
 
-        <UseEverywhereGuidePanel
-          onOpenSettings={onOpenSettings}
-          daemonUrl={daemonUrl}
-          versionHint={versionHint}
-        />
+        <UseEverywhereGuidePanel daemonUrl={daemonUrl} versionHint={versionHint} />
       </motion.div>
     </motion.div>
   );
 }
 
-export function UseEverywhereGuidePanel({
-  onOpenSettings,
-  daemonUrl,
-  versionHint,
-}: Omit<Props, 'onClose'>) {
+export function UseEverywhereGuidePanel({ daemonUrl, versionHint }: Omit<Props, 'onClose'>) {
   const t = useT();
   const analytics = useAnalytics();
-  const [activeId, setActiveId] = useState<GuideSection['id']>('overview');
   const [guideCopy, setGuideCopy] = useState<CopyState>('idle');
-  const [snippetCopy, setSnippetCopy] = useState<{ key: string; state: CopyState } | null>(null);
-  const guideSections = useMemo(() => localizeGuideSections(t), [t]);
+  const [wechatStatus, setWechatStatus] = useState<WeChatAgentBridgeStatusResponse | null>(null);
+  const [wechatAction, setWechatAction] = useState<WeChatAction>(null);
+  const [wechatError, setWechatError] = useState<string>('');
 
   const guideOptions: AgentGuideOptions = useMemo(() => {
     const opts: AgentGuideOptions = {};
@@ -156,25 +117,65 @@ export function UseEverywhereGuidePanel({
     return opts;
   }, [daemonUrl, versionHint]);
 
-  const fullGuide = useMemo(
-    () => buildAgentGuideMarkdown(guideOptions),
-    [guideOptions],
-  );
+  const fullGuide = useMemo(() => buildAgentGuideMarkdown(guideOptions), [guideOptions]);
 
-  // GUIDE_SECTIONS is non-empty by construction (`sections.ts` ships the
-  // five tab definitions) but TS narrows `GUIDE_SECTIONS[0]` to a
-  // possibly-undefined value under strict index access. Resolve the
-  // active section through an explicit lookup that never returns
-  // `undefined` so callsites can assume a present section.
-  const activeSection = useMemo<GuideSection>(() => {
-    const found = guideSections.find((s) => s.id === activeId);
-    if (found) return found;
-    const first = guideSections[0];
-    if (!first) {
-      throw new Error('GUIDE_SECTIONS must define at least one section');
+  const refreshWeChatStatus = useCallback(async () => {
+    const next = await fetchWeChatAgentBridgeStatus();
+    if (next) {
+      setWechatStatus(next);
+      if (next.login.phase !== 'failed' && next.agentAvailable !== false) {
+        setWechatError('');
+      }
     }
-    return first;
-  }, [activeId, guideSections]);
+  }, []);
+
+  useEffect(() => {
+    void refreshWeChatStatus();
+  }, [refreshWeChatStatus]);
+
+  useEffect(() => {
+    if (!wechatStatus?.login.running) return undefined;
+    const id = window.setInterval(() => {
+      void refreshWeChatStatus();
+    }, WECHAT_STATUS_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [refreshWeChatStatus, wechatStatus?.login.running]);
+
+  const login = wechatStatus?.login ?? null;
+  const isRunning = login?.running === true;
+  const busy = wechatAction !== null;
+  const terminalQr = login?.terminalQr?.trim() ?? '';
+  const output = login?.output?.trim() ?? '';
+  const statusLabel = wechatStatusLabel(wechatStatus, login);
+  const statusIcon: IconName = isRunning ? 'spinner' : wechatStatus?.connected ? 'check' : 'terminal';
+  const displayWechatError =
+    wechatError ||
+    (login?.phase === 'failed' ? login.error ?? '' : '') ||
+    (wechatStatus?.agentAvailable === false ? wechatStatus.error ?? '' : '');
+  const qrPlaceholderText = wechatQrPlaceholderText(wechatStatus, login, isRunning, displayWechatError);
+
+  function applyLoginSnapshot(snapshot: WeChatAgentBridgeSnapshot) {
+    const clearsConnection = snapshot.phase === 'canceled' || snapshot.phase === 'failed';
+    setWechatStatus((prev) => ({
+      agentAvailable: snapshot.agentId ? true : clearsConnection ? false : prev?.agentAvailable ?? false,
+      selectedAgent: snapshot.agentId
+        ? {
+            id: snapshot.agentId,
+            name: snapshot.agentName ?? snapshot.agentId,
+            available: true,
+            ...(snapshot.agentVersion !== undefined ? { version: snapshot.agentVersion } : {}),
+          }
+        : clearsConnection
+          ? undefined
+          : prev?.selectedAgent,
+      connected: snapshot.phase === 'connected' ? true : clearsConnection ? false : prev?.connected === true,
+      bridgeStatus: prev?.bridgeStatus,
+      agents: prev?.agents ?? [],
+      checkedAt: new Date().toISOString(),
+      login: snapshot,
+      error: prev?.error,
+    }));
+  }
 
   async function onCopyGuide() {
     const state = await copyText(fullGuide);
@@ -184,83 +185,155 @@ export function UseEverywhereGuidePanel({
     }
   }
 
-  async function onCopySnippet(key: string, snippet: CodeSnippet) {
+  async function runWeChatConnect() {
+    setWechatAction('connect');
+    setWechatError('');
     trackIntegrationsUseEverywhereTabClick(analytics.track, {
       page_name: 'integrations',
       area: 'use_everywhere_tab',
-      element: 'copy',
+      element: 'wechat_agent_connect',
     });
-    const text = applyDaemonUrl(snippet.body, daemonUrl);
-    const state = await copyText(text);
-    setSnippetCopy({ key, state });
-    if (state !== 'idle') {
-      window.setTimeout(() => setSnippetCopy(null), COPY_RESET_MS);
+    const result = await connectWeChatAgentBridge();
+    applyLoginSnapshot(result.login);
+    if (!result.ok && result.error) setWechatError(result.error);
+    setWechatAction(null);
+    window.setTimeout(() => void refreshWeChatStatus(), 400);
+  }
+
+  async function refreshWeChatBridge() {
+    setWechatAction('refresh');
+    setWechatError('');
+    trackIntegrationsUseEverywhereTabClick(analytics.track, {
+      page_name: 'integrations',
+      area: 'use_everywhere_tab',
+      element: 'wechat_agent_refresh',
+    });
+    const result = await refreshWeChatAgentBridge();
+    const nextLogin: WeChatAgentBridgeSnapshot = {
+      phase: result.ok ? 'connected' : 'failed',
+      running: false,
+      commandKind: 'refresh',
+      command: result.command,
+      output: result.stdout || result.stderr,
+      detectedUrls: [],
+      ...(result.error ? { error: result.error } : {}),
+    };
+    applyLoginSnapshot(nextLogin);
+    if (!result.ok) {
+      setWechatError(result.error || result.stderr || '内置 Agent 桥刷新失败');
     }
+    setWechatAction(null);
+    await refreshWeChatStatus();
+  }
+
+  async function cancelWeChatBridge() {
+    setWechatAction('cancel');
+    setWechatError('');
+    const result = await cancelWeChatAgentBridge();
+    applyLoginSnapshot(result.login);
+    if (!result.ok) setWechatError('取消微信登录进程失败');
+    setWechatAction(null);
   }
 
   return (
     <>
-      <nav className="use-everywhere-modal__tabs" role="tablist" aria-label={t('useEverywhere.tabsAria')}>
-        {guideSections.map((section) => {
-          const active = section.id === activeId;
-          return (
-            <button
-              key={section.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              className={`use-everywhere-modal__tab${active ? ' is-active' : ''}`}
-              onClick={() => {
-                trackIntegrationsUseEverywhereTabClick(analytics.track, {
-                  page_name: 'integrations',
-                  area: 'use_everywhere_tab',
-                  element: useEverywhereSectionToElement(section.id),
-                });
-                setActiveId(section.id);
-              }}
-              data-testid={`use-everywhere-tab-${section.id}`}
-            >
-              {section.tabLabel}
-            </button>
-          );
-        })}
-      </nav>
-
       <div className="use-everywhere-modal__body">
-        <SectionView
-          section={activeSection}
-          daemonUrl={daemonUrl}
-          snippetCopy={snippetCopy}
-          onCopySnippet={onCopySnippet}
-        />
+        <section
+          className="wechat-bridge"
+          aria-labelledby="wechat-bridge-heading"
+          data-testid="use-everywhere-wechat-qr"
+        >
+          <div className="wechat-bridge__qr-panel">
+            <div className="wechat-bridge__qr-frame wechat-bridge__qr-frame--terminal">
+              {terminalQr ? (
+                <pre className="wechat-bridge__terminal-qr" aria-label="WeChat agent bridge code">
+                  {terminalQr}
+                </pre>
+              ) : (
+                <div className="wechat-bridge__qr-placeholder">
+                  <Icon name={isRunning ? 'spinner' : 'terminal'} size={22} />
+                  <span>{qrPlaceholderText}</span>
+                </div>
+              )}
+            </div>
+            <span className="wechat-bridge__qr-caption">
+              {terminalQr ? '微信连接码' : wechatStatus?.selectedAgent?.name ?? '内置 Agent 桥'}
+            </span>
+          </div>
+          <div className="wechat-bridge__content">
+            <div className="wechat-bridge__status">
+              <Icon name={statusIcon} size={13} />
+              <span>{statusLabel}</span>
+            </div>
+            <h3 id="wechat-bridge-heading" className="wechat-bridge__heading">
+              {t('useEverywhere.section.overview.heading')}
+            </h3>
+            <p className="wechat-bridge__intro">{t('useEverywhere.section.overview.intro')}</p>
+            <div className="wechat-bridge__actions" aria-label="WeChat agent bridge actions">
+              <button
+                type="button"
+                className="use-everywhere-modal__primary"
+                onClick={() => void runWeChatConnect()}
+                disabled={busy || isRunning}
+              >
+                <Icon name={wechatAction === 'connect' ? 'spinner' : 'play'} size={13} />
+                连接内置 Agent
+              </button>
+              <button
+                type="button"
+                className="use-everywhere-modal__secondary"
+                onClick={() => void refreshWeChatBridge()}
+                disabled={busy || isRunning}
+              >
+                <Icon name={wechatAction === 'refresh' ? 'spinner' : 'refresh'} size={13} />
+                刷新 Agent 状态
+              </button>
+              {isRunning ? (
+                <button
+                  type="button"
+                  className="use-everywhere-modal__secondary"
+                  onClick={() => void cancelWeChatBridge()}
+                  disabled={wechatAction === 'cancel'}
+                >
+                  <Icon name={wechatAction === 'cancel' ? 'spinner' : 'stop'} size={13} />
+                  取消
+                </button>
+              ) : null}
+            </div>
+            {displayWechatError ? (
+              <p className="wechat-bridge__error" role="status">
+                {displayWechatError}
+              </p>
+            ) : null}
+            {login?.detectedUrls?.length ? (
+              <div className="wechat-bridge__links">
+                {login.detectedUrls.map((url) => (
+                  <a key={url} href={url} target="_blank" rel="noreferrer">
+                    登录链接
+                    <Icon name="external-link" size={12} />
+                  </a>
+                ))}
+              </div>
+            ) : null}
+            {output ? (
+              <pre className="wechat-bridge__log" aria-label="WeChat agent bridge output">
+                {output}
+              </pre>
+            ) : null}
+            <div className="wechat-bridge__capabilities" aria-label={t('useEverywhere.tabsAria')}>
+              <span>{t('useEverywhere.section.overview.bullet2')}</span>
+              <span>{t('useEverywhere.section.overview.bullet3')}</span>
+              <span>{t('useEverywhere.section.overview.bullet4')}</span>
+            </div>
+          </div>
+        </section>
       </div>
 
       <footer className="use-everywhere-modal__foot">
         <div className="use-everywhere-modal__foot-info">
-          <strong>{t('useEverywhere.footStrong')}</strong>{' '}
-          <span>
-            {t('useEverywhere.footBody')}
-          </span>
+          <strong>{t('useEverywhere.footStrong')}</strong> <span>{t('useEverywhere.footBody')}</span>
         </div>
         <div className="use-everywhere-modal__foot-actions">
-          {onOpenSettings ? (
-            <button
-              type="button"
-              className="use-everywhere-modal__secondary"
-              onClick={() => {
-                trackIntegrationsUseEverywhereTabClick(analytics.track, {
-                  page_name: 'integrations',
-                  area: 'use_everywhere_tab',
-                  element: 'configure_mcp_server',
-                });
-                onOpenSettings();
-              }}
-              data-testid="use-everywhere-open-settings"
-            >
-              <Icon name="settings" size={13} />
-              {t('useEverywhere.configureMcp')}
-            </button>
-          ) : null}
           <button
             type="button"
             className="use-everywhere-modal__primary"
@@ -295,110 +368,38 @@ async function copyText(text: string): Promise<CopyState> {
   }
 }
 
-interface SectionViewProps {
-  section: GuideSection;
-  daemonUrl: string | undefined;
-  snippetCopy: { key: string; state: CopyState } | null;
-  onCopySnippet: (key: string, snippet: CodeSnippet) => void;
-}
-
-function SectionView({
-  section,
-  daemonUrl,
-  snippetCopy,
-  onCopySnippet,
-}: SectionViewProps) {
-  const t = useT();
-  return (
-    <section
-      className="use-everywhere-section"
-      data-testid={`use-everywhere-section-${section.id}`}
-    >
-      <header className="use-everywhere-section__head">
-        <h3 className="use-everywhere-section__heading">
-          {applyDaemonUrl(section.heading, daemonUrl)}
-        </h3>
-        <p className="use-everywhere-section__intro">
-          {applyDaemonUrl(section.intro, daemonUrl)}
-        </p>
-      </header>
-
-      {section.bullets.length > 0 ? (
-        <ul className="use-everywhere-section__bullets">
-          {section.bullets.map((bullet) => (
-            <li key={bullet}>{applyDaemonUrl(bullet, daemonUrl)}</li>
-          ))}
-        </ul>
-      ) : null}
-
-      <div className="use-everywhere-section__snippets">
-        {section.snippets.map((snippet, idx) => {
-          const key = `${section.id}-${idx}`;
-          const isThis = snippetCopy?.key === key;
-          const state: CopyState = isThis ? snippetCopy.state : 'idle';
-          return (
-            <div key={key} className="use-everywhere-snippet">
-              <div className="use-everywhere-snippet__head">
-                <span className="use-everywhere-snippet__label">
-                  {snippet.label}
-                </span>
-                <button
-                  type="button"
-                  className="use-everywhere-snippet__copy"
-                  onClick={() => onCopySnippet(key, snippet)}
-                  aria-label={t('useEverywhere.copySnippetAria', { label: snippet.label })}
-                >
-                  <Icon name="copy" size={11} />
-                  {copyLabel(state, t('useEverywhere.copy'), t)}
-                </button>
-              </div>
-              <pre
-                className="use-everywhere-snippet__pre"
-                data-language={snippet.language}
-              >
-                <code>{applyDaemonUrl(snippet.body, daemonUrl)}</code>
-              </pre>
-            </div>
-          );
-        })}
-      </div>
-
-      {section.footer ? (
-        <p className="use-everywhere-section__footer">
-          {applyDaemonUrl(section.footer, daemonUrl)}
-        </p>
-      ) : null}
-    </section>
-  );
-}
-
 function copyLabel(state: CopyState, idle: string, t: (key: keyof Dict) => string): string {
   if (state === 'copied') return t('useEverywhere.copied');
   if (state === 'failed') return t('useEverywhere.copyFailed');
   return idle;
 }
 
-function localizeGuideSections(t: (key: keyof Dict) => string): GuideSection[] {
-  return GUIDE_SECTIONS.map((section) => ({
-    ...section,
-    tabLabel: t(`useEverywhere.section.${section.id}.tab` as keyof Dict),
-    heading: t(`useEverywhere.section.${section.id}.heading` as keyof Dict),
-    intro: t(`useEverywhere.section.${section.id}.intro` as keyof Dict),
-    bullets: section.bullets.map((_, idx) => (
-      t(`useEverywhere.section.${section.id}.bullet${idx + 1}` as keyof Dict)
-    )),
-    snippets: section.snippets.map((snippet, idx) => ({
-      ...snippet,
-      label: t(`useEverywhere.section.${section.id}.snippet${idx + 1}` as keyof Dict),
-    })),
-    footer: section.footer
-      ? t(`useEverywhere.section.${section.id}.footer` as keyof Dict)
-      : undefined,
-  }));
+function wechatStatusLabel(
+  status: WeChatAgentBridgeStatusResponse | null,
+  login: WeChatAgentBridgeSnapshot | null,
+): string {
+  if (login?.running) {
+    if (login.phase === 'selecting_agent') return '正在选择内置 Agent';
+    return '正在连接微信桥';
+  }
+  if (status?.connected || login?.phase === 'connected') {
+    const agentName = status?.selectedAgent?.name ?? login?.agentName;
+    return agentName ? `已连接 ${agentName}` : '微信桥已连接';
+  }
+  if (login?.phase === 'failed') return '微信连接失败';
+  if (status?.agentAvailable === false) return '需要连接内置 Agent';
+  return '微信状态入口';
 }
 
-function applyDaemonUrl(body: string, daemonUrl: string | undefined): string {
-  if (!daemonUrl) return body;
-  const cleaned = daemonUrl.replace(/\/$/, '');
-  return body.replace(/http:\/\/127\.0\.0\.1:7456/g, cleaned);
+function wechatQrPlaceholderText(
+  status: WeChatAgentBridgeStatusResponse | null,
+  login: WeChatAgentBridgeSnapshot | null,
+  isRunning: boolean,
+  error: string,
+): string {
+  if (isRunning) return '正在连接内置 Agent';
+  if (login?.phase === 'connected' || status?.connected) return '内置 Agent 桥已就绪';
+  if (login?.phase === 'failed' || error) return '连接失败，查看下方错误原因';
+  if (status?.agentAvailable === false) return '先连接 OpenCode 等内置 Agent';
+  return '点击按钮连接内置 Agent';
 }

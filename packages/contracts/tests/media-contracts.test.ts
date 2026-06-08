@@ -10,7 +10,7 @@ import type { ChatRunStatusResponse } from '../src/api/chat';
 describe('media execution contracts', () => {
   it('keeps enabled as the default run policy', () => {
     expect(DEFAULT_MEDIA_EXECUTION_POLICY).toEqual({ mode: 'enabled' });
-    expect(MEDIA_EXECUTION_MODES).toEqual(['enabled', 'disabled']);
+    expect(MEDIA_EXECUTION_MODES).toEqual(['enabled', 'question', 'disabled']);
   });
 
   it('allows run status responses to carry the effective media policy', () => {

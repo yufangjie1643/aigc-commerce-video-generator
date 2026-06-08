@@ -220,11 +220,11 @@ describe('HomeHero plugin picker', () => {
 
     expect(screen.getByTestId('home-hero-plugin-picker')).toBeTruthy();
     expect(screen.getByRole('tab', { name: /design files/i })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /plugins/i })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /creation/i })).toBeTruthy();
     expect(screen.getByRole('tab', { name: /skills/i })).toBeTruthy();
     expect(screen.getByRole('tab', { name: /mcp/i })).toBeTruthy();
     expect(screen.getByRole('tab', { name: /connectors/i })).toBeTruthy();
-    expect(screen.getByText('Search files, plugins, skills, MCP servers, and connectors.')).toBeTruthy();
+    expect(screen.getByText('Search files, creation workflows, skills, MCP servers, and connectors.')).toBeTruthy();
   });
 
   it('can mention staged files from the home @ picker and keeps removal in sync', async () => {

@@ -11,7 +11,7 @@ import { homeHeroPromptText } from '../helpers/home-hero-lexical';
 
 const PLUGIN_ROW = {
   id: 'localized-plugin',
-  title: 'Localized Plugin',
+  title: 'Localized Video Workflow',
   version: '1.0.0',
   trust: 'trusted' as const,
   sourceKind: 'bundled' as const,
@@ -22,16 +22,18 @@ const PLUGIN_ROW = {
   updatedAt: 0,
   manifest: {
     name: 'localized-plugin',
-    title: 'Localized Plugin',
+    title: 'Localized Video Workflow',
     version: '1.0.0',
-    description: 'A localized fixture',
+    description: 'A localized ecommerce video fixture',
+    tags: ['product-promo'],
     od: {
       kind: 'scenario',
+      mode: 'video',
       taskKind: 'new-generation',
       useCase: {
         query: {
-          en: 'Make a {{topic}} brief.',
-          'zh-CN': '生成一份关于 {{topic}} 的简报。',
+          en: 'Make a {{topic}} ecommerce video brief.',
+          'zh-CN': '生成一份关于 {{topic}} 的带货视频简报。',
         },
       },
       inputs: [{ name: 'topic', type: 'string', default: '设计系统' }],
@@ -41,7 +43,7 @@ const PLUGIN_ROW = {
 
 const APPLY_RESULT = {
   ok: true,
-  query: '生成一份关于 {{topic}} 的简报。',
+  query: '生成一份关于 {{topic}} 的带货视频简报。',
   contextItems: [],
   inputs: [{ name: 'topic', type: 'string', default: '设计系统' }],
   assets: [],
@@ -167,7 +169,7 @@ describe('HomeView plugin i18n', () => {
     // caret-at-end assertion is dropped: a contenteditable has no
     // selectionStart/End, and the caret is placed by the editor's own model.
     await waitFor(() => {
-      expect(homeHeroPromptText()).toBe('生成一份关于 设计系统 的简报。');
+      expect(homeHeroPromptText()).toBe('生成一份关于 设计系统 的带货视频简报。');
     });
     // use-with-query now also routes the plugin as the active driver, so it
     // applies (binding its pipeline/context for submit).
