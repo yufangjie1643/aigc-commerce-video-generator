@@ -411,7 +411,7 @@ describe('connector routes', () => {
     });
     mockComposioFetch({
       authConfigs: [],
-      linkResponse: { connected_account_id: 'ca_github', status: 'ACTIVE', account_label: 'octocat@example.com' },
+      linkResponse: { connected_account_id: 'ca_youtube', status: 'ACTIVE', account_label: 'youtube@example.com' },
     });
     composioConnectorProvider.clearDiscoveryCache();
     const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
@@ -757,7 +757,7 @@ describe('connector routes', () => {
     });
     mockComposioFetch({
       authConfigs: [],
-      linkResponse: { connected_account_id: 'ca_github', status: 'ACTIVE', account_label: 'octocat@example.com' },
+      linkResponse: { connected_account_id: 'ca_youtube', status: 'ACTIVE', account_label: 'youtube@example.com' },
     });
     composioConnectorProvider.clearDiscoveryCache();
     const started = await startServer({ port: 0, returnServer: true }) as StartedServer;
@@ -1313,12 +1313,16 @@ describe('connector routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.connectors.map((connector: ConnectorDetail) => connector.id)).toEqual(['github']);
-    expect(response.body.connectors[0].tools).toEqual([
+    expect(response.body.connectors[0].tools).toEqual(expect.arrayContaining([
       expect.objectContaining({
         name: 'github.github_get_issue',
         curation: expect.objectContaining({ useCases: ['personal_daily_digest'] }),
       }),
-    ]);
+      expect.objectContaining({
+        name: 'github.github_list_pull_requests',
+        curation: expect.objectContaining({ useCases: ['personal_daily_digest'] }),
+      }),
+    ]));
   });
 
   it('rejects invalid connector tool useCase filters', async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { createQrSvg } from '../src/qr-code.js';
 import { chooseWeChatBridgeAgent } from '../src/routes/wechat-agent.js';
 import type { AgentInfo } from '@open-design/contracts';
 
@@ -39,5 +40,17 @@ describe('wechat internal agent bridge', () => {
         agent({ id: 'codex', name: 'Codex CLI', available: true, authStatus: 'missing' }),
       ]),
     ).toBeNull();
+  });
+
+  it('generates a QR SVG for the pairing payload', () => {
+    const svg = createQrSvg('open-design-wechat:test-token');
+
+    expect(svg).toMatch(/^<svg /);
+    expect(svg).toContain('<path fill="#111827"');
+    expect(svg).toContain('viewBox="0 0 45 45"');
+  });
+
+  it('rejects pairing payloads that do not fit the built-in QR version', () => {
+    expect(() => createQrSvg('x'.repeat(140))).toThrow(/QR payload is too long/);
   });
 });

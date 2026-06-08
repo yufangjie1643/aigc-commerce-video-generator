@@ -145,6 +145,8 @@ export function UseEverywhereGuidePanel({ daemonUrl, versionHint }: Omit<Props, 
   const isRunning = login?.running === true;
   const busy = wechatAction !== null;
   const terminalQr = login?.terminalQr?.trim() ?? '';
+  const qrSvg = login?.qrSvg?.trim() ?? '';
+  const qrImageSrc = qrSvg ? `data:image/svg+xml;utf8,${encodeURIComponent(qrSvg)}` : '';
   const output = login?.output?.trim() ?? '';
   const statusLabel = wechatStatusLabel(wechatStatus, login);
   const statusIcon: IconName = isRunning ? 'spinner' : wechatStatus?.connected ? 'check' : 'terminal';
@@ -245,7 +247,9 @@ export function UseEverywhereGuidePanel({ daemonUrl, versionHint }: Omit<Props, 
         >
           <div className="wechat-bridge__qr-panel">
             <div className="wechat-bridge__qr-frame wechat-bridge__qr-frame--terminal">
-              {terminalQr ? (
+              {qrImageSrc ? (
+                <img className="wechat-bridge__qr-image" src={qrImageSrc} alt="微信内置 Agent 连接二维码" />
+              ) : terminalQr ? (
                 <pre className="wechat-bridge__terminal-qr" aria-label="WeChat agent bridge code">
                   {terminalQr}
                 </pre>
@@ -257,7 +261,7 @@ export function UseEverywhereGuidePanel({ daemonUrl, versionHint }: Omit<Props, 
               )}
             </div>
             <span className="wechat-bridge__qr-caption">
-              {terminalQr ? '微信连接码' : wechatStatus?.selectedAgent?.name ?? '内置 Agent 桥'}
+              {qrImageSrc || terminalQr ? '微信连接码' : wechatStatus?.selectedAgent?.name ?? '内置 Agent 桥'}
             </span>
           </div>
           <div className="wechat-bridge__content">

@@ -123,7 +123,7 @@ function crawlerTool(
     description,
     inputSchemaJson,
     outputSchemaJson: VIDEO_LIST_OUTPUT_SCHEMA,
-    requiredScopes: ["cookie"],
+    requiredScopes: ['read'],
     safety: VIDEO_CRAWLER_READ_SAFETY,
     refreshEligible: true
   });

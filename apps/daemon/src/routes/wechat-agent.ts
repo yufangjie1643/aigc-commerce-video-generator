@@ -1,4 +1,5 @@
 import type { Express, RequestHandler } from "express";
+import { randomBytes } from "node:crypto";
 import type {
   AgentInfo,
   WeChatAgentBridgeAgent,
@@ -11,6 +12,7 @@ import type {
 
 import { readAppConfig } from "../app-config.js";
 import { detectAgents } from "../agents.js";
+import { createQrSvg } from "../qr-code.js";
 import type { PathDeps, RouteDeps } from "../server-context.js";
 
 export interface RegisterWeChatAgentRoutesDeps extends RouteDeps<"http"> {
@@ -18,6 +20,7 @@ export interface RegisterWeChatAgentRoutesDeps extends RouteDeps<"http"> {
 }
 
 const PREFERRED_WECHAT_AGENT_IDS = ["opencode", "amr", "claude", "codex", "gemini", "cursor-agent", "qwen", "deepseek"];
+const PAIRING_TOKEN_TTL_MS = 10 * 60 * 1000;
 
 let bridgeSnapshot: WeChatAgentBridgeSnapshot = idleSnapshot();
 
@@ -91,6 +94,17 @@ function bridgeOutput(agent: AgentInfo): string {
     "后续微信网关收到问题时，应把消息转发给 Open Design daemon，由该 Agent 读取自动化运行状态、Orbit 摘要进度和实时看板新鲜度后回复。",
     "当前桥保持只读状态；需要触发自动化动作时，应先在产品里显式启用写入权限。"
   ].join("\n");
+}
+
+function createPairingCode(): { pairingToken: string; qrPayload: string; qrSvg: string; expiresAt: string } {
+  const pairingToken = randomBytes(18).toString("base64url");
+  const qrPayload = `open-design-wechat:${pairingToken}`;
+  return {
+    pairingToken,
+    qrPayload,
+    qrSvg: createQrSvg(qrPayload),
+    expiresAt: new Date(Date.now() + PAIRING_TOKEN_TTL_MS).toISOString()
+  };
 }
 
 async function readBridgeStatus(runtimeDataDir: string): Promise<WeChatAgentBridgeStatusResponse> {
@@ -174,6 +188,7 @@ async function connectBridge(runtimeDataDir: string): Promise<WeChatAgentBridgeS
     return { ok: false, login: currentSnapshot(), error: message };
   }
 
+  const pairing = createPairingCode();
   setSnapshot({
     phase: "connected",
     running: false,
@@ -184,6 +199,10 @@ async function connectBridge(runtimeDataDir: string): Promise<WeChatAgentBridgeS
     agentVersion: selectedAgent.version ?? null,
     startedAt,
     completedAt: new Date().toISOString(),
+    pairingToken: pairing.pairingToken,
+    qrPayload: pairing.qrPayload,
+    qrSvg: pairing.qrSvg,
+    expiresAt: pairing.expiresAt,
     output: bridgeOutput(selectedAgent),
     detectedUrls: ["/api/integrations/wechat/agent/status", "/api/routines", "/api/orbit/status"]
   });
