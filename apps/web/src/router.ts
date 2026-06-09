@@ -12,6 +12,7 @@ import { useSyncExternalStore } from 'react';
 export type EntryHomeView =
   | 'home'
   | 'onboarding'
+  | 'asset-library'
   | 'projects'
   | 'tasks'
   | 'plugins'
@@ -43,6 +44,9 @@ export function parseRoute(pathname: string): Route {
   if (parts.length === 0) return { kind: 'home', view: 'home' };
   if (parts[0] === 'onboarding') {
     return { kind: 'home', view: 'onboarding' };
+  }
+  if (parts[0] === 'asset-library') {
+    return { kind: 'home', view: 'asset-library' };
   }
   if (parts[0] === 'projects') {
     if (parts[1]) {
@@ -108,6 +112,7 @@ export function parseRoute(pathname: string): Route {
 export function buildPath(route: Route): string {
   if (route.kind === 'home') {
     if (route.view === 'onboarding') return '/onboarding';
+    if (route.view === 'asset-library') return '/asset-library';
     if (route.view === 'projects') return '/projects';
     if (route.view === 'tasks') return '/automations';
     if (route.view === 'plugins') return '/plugins';

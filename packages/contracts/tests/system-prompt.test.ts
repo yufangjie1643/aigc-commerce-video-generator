@@ -44,6 +44,29 @@ describe("DISCOVERY_AND_PHILOSOPHY (contracts copy) — TodoWrite plan item coun
       prompt.indexOf(DISCOVERY_AND_PHILOSOPHY)
     );
   });
+
+  it("uses a top-level Comprehensive mode override for business workbench sessions", () => {
+    const prompt = composeSystemPrompt({ sessionMode: "comprehensive" });
+
+    expect(prompt).toContain("# Comprehensive mode — business workbench orchestration");
+    expect(prompt).toContain("do not emit the default Design discovery `<question-form>`");
+    expect(prompt).toContain("od assets commerce-videos search");
+    expect(prompt).toContain("video-generation-pipeline");
+    expect(prompt).not.toContain("# Chat mode — standard conversation");
+    expect(prompt.indexOf("# Comprehensive mode — business workbench orchestration")).toBeLessThan(
+      prompt.indexOf(DISCOVERY_AND_PHILOSOPHY)
+    );
+  });
+
+  it("uses question-form follow-up choices instead of markdown option tables", () => {
+    const prompt = composeSystemPrompt({ sessionMode: "comprehensive" });
+
+    expect(prompt).toContain("# Follow-up choice UI");
+    expect(prompt).toContain("interactive choice UI instead of a markdown A/B/C table");
+    expect(prompt).toContain("Use a single renderable `<question-form>` block for follow-up choices");
+    expect(prompt).toContain('<question-form id="follow-up" title="选择下一步">');
+    expect(prompt.indexOf("# Follow-up choice UI")).toBeLessThan(prompt.indexOf(DISCOVERY_AND_PHILOSOPHY));
+  });
 });
 
 describe("DISCOVERY_AND_PHILOSOPHY (contracts copy) — prompt routing parity", () => {

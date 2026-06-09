@@ -15,6 +15,7 @@ import { useT } from '../i18n';
 export type EntryView =
   | 'home'
   | 'onboarding'
+  | 'asset-library'
   | 'projects'
   | 'tasks'
   | 'plugins'
@@ -60,6 +61,7 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose }
   const t = useT();
   const brandLabel = t('app.brand');
   const homeLabel = t('entry.navHome');
+  const assetLibraryLabel = '素材库';
   const isHome = view === 'home';
 
   // Once opened the rail stays docked (Manus-style); navigating between
@@ -136,6 +138,15 @@ export function EntryNavRail({ view, onViewChange, onNewProject, open, onClose }
           testId="entry-nav-home"
         >
           <Icon name="home" size={18} />
+        </NavButton>
+        <NavButton
+          active={view === 'asset-library'}
+          ariaLabel={assetLibraryLabel}
+          tooltip={assetLibraryLabel}
+          onClick={() => selectView('asset-library')}
+          testId="entry-nav-asset-library"
+        >
+          <Icon name="layers-filled" size={18} />
         </NavButton>
         <NavButton
           active={view === 'projects'}

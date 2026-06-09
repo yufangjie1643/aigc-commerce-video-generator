@@ -7,6 +7,7 @@ import type { ConnectorDetail } from '@open-design/contracts';
 import { ConnectorsBrowser } from '../../src/components/ConnectorsBrowser';
 import {
   cancelConnectorAuthorization,
+  captureConnectorAuthorization,
   connectConnector,
   disconnectConnector,
   fetchConnectorDetail,
@@ -22,6 +23,7 @@ vi.mock('../../src/providers/registry', async () => {
   return {
     ...actual,
     cancelConnectorAuthorization: vi.fn(),
+    captureConnectorAuthorization: vi.fn(),
     connectConnector: vi.fn(),
     disconnectConnector: vi.fn(),
     fetchConnectorDetail: vi.fn(),
@@ -49,7 +51,7 @@ const bilibiliCookieConnector: ConnectorDetail = {
   category: 'Video',
   status: 'available',
   auth: { provider: 'cookie', configured: false },
-  toolCount: 4,
+  toolCount: 6,
   tools: [],
 };
 
@@ -74,6 +76,7 @@ describe('ConnectorsBrowser', () => {
   afterEach(() => {
     cleanup();
     vi.mocked(cancelConnectorAuthorization).mockReset();
+    vi.mocked(captureConnectorAuthorization).mockReset();
     vi.mocked(connectConnector).mockReset();
     vi.mocked(disconnectConnector).mockReset();
     vi.mocked(fetchConnectors).mockReset();
@@ -82,6 +85,7 @@ describe('ConnectorsBrowser', () => {
     vi.mocked(fetchConnectorStatuses).mockReset();
     vi.mocked(openExternalUrl).mockReset();
     vi.mocked(cancelConnectorAuthorization).mockResolvedValue(null);
+    vi.mocked(captureConnectorAuthorization).mockResolvedValue(null);
     vi.mocked(connectConnector).mockResolvedValue({ connector: null });
     vi.mocked(disconnectConnector).mockResolvedValue(null);
     vi.mocked(fetchConnectorDetail).mockResolvedValue(null);
@@ -125,6 +129,42 @@ describe('ConnectorsBrowser', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
 
     await waitFor(() => expect(connectConnector).toHaveBeenCalledWith('bilibili'));
+  });
+
+  it('captures cookie authorization for video crawler connectors after controlled browser login', async () => {
+    const connectedBilibili: ConnectorDetail = {
+      ...bilibiliCookieConnector,
+      status: 'connected',
+      accountLabel: 'Bilibili browser session',
+      auth: { provider: 'cookie', configured: true },
+    };
+    vi.mocked(fetchConnectors).mockResolvedValue([bilibiliCookieConnector]);
+    vi.mocked(fetchConnectorDiscovery).mockResolvedValue([bilibiliCookieConnector]);
+    vi.mocked(fetchConnectorStatuses).mockResolvedValue({});
+    vi.mocked(connectConnector).mockResolvedValue({
+      connector: bilibiliCookieConnector,
+      auth: {
+        kind: 'pending',
+        providerConnectionId: 'browser_bilibili_test',
+        expiresAt: '2099-05-08T10:00:00.000Z',
+      },
+    });
+    vi.mocked(captureConnectorAuthorization).mockResolvedValue(connectedBilibili);
+
+    render(<ConnectorsBrowser composioConfigured={false} />);
+
+    await screen.findByText('Bilibili');
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+
+    const captureButton = await screen.findByRole('button', { name: 'Capture cookies' });
+    expect(screen.queryByRole('button', { name: 'Continue in browser' })).toBeNull();
+    fireEvent.click(captureButton);
+
+    await waitFor(() => expect(captureConnectorAuthorization).toHaveBeenCalledWith('bilibili'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy());
+    expect(JSON.parse(window.sessionStorage.getItem('od-connectors-authorization-pending') ?? '{}')).not.toHaveProperty(
+      'bilibili',
+    );
   });
 
   it('broadcasts connector changes when a connect action completes immediately', async () => {

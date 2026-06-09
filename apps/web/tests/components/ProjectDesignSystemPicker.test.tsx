@@ -25,11 +25,46 @@ const designSystems: DesignSystemSummary[] = [
     swatches: ['#f4efe7', '#25211d'],
   },
   {
-    id: 'noir',
-    title: 'Editorial Noir',
-    summary: 'High-contrast editorial system.',
-    category: 'Editorial',
-    swatches: ['#111111', '#f7f0e8'],
+    id: 'xiaohongshu',
+    title: 'Xiaohongshu',
+    summary: 'Social commerce notes.',
+    category: 'Media & Consumer',
+    swatches: ['#ff2442', '#fff5f7'],
+  },
+  {
+    id: 'luxury',
+    title: 'Luxury',
+    summary: 'Premium dark commerce.',
+    category: 'Professional & Corporate',
+    swatches: ['#12100c', '#c8a15a'],
+  },
+  {
+    id: 'energetic',
+    title: 'Energetic',
+    summary: 'High-impact promotional UI.',
+    category: 'Expressive',
+    swatches: ['#ff4d00', '#ffe600'],
+  },
+  {
+    id: 'minimal',
+    title: 'Minimal',
+    summary: 'Clear white product shelf.',
+    category: 'Utility',
+    swatches: ['#ffffff', '#111827'],
+  },
+  {
+    id: 'neon',
+    title: 'Neon',
+    summary: 'Dark neon launch UI.',
+    category: 'Trend',
+    swatches: ['#09090f', '#00f5ff'],
+  },
+  {
+    id: 'cafe',
+    title: 'Cafe',
+    summary: 'Warm lifestyle commerce.',
+    category: 'Lifestyle',
+    swatches: ['#f4e7d3', '#8b4a2f'],
   },
 ];
 
@@ -49,27 +84,25 @@ describe('ProjectDesignSystemPicker', () => {
   ) {
     return render(
       <I18nProvider initial={locale}>
-        <ProjectDesignSystemPicker
-          designSystems={designSystems}
-          selectedId="noir"
-          onChange={vi.fn()}
-          {...props}
-        />
+        <ProjectDesignSystemPicker designSystems={designSystems} selectedId="luxury" onChange={vi.fn()} {...props} />
       </I18nProvider>,
     );
   }
 
-  it('checks the active project design system and previews it by default', async () => {
+  it('checks the active commerce style and previews it by default', async () => {
     renderPicker();
 
     fireEvent.click(screen.getByTestId('project-ds-picker-trigger'));
 
-    const activeOption = await screen.findByTestId('project-ds-picker-option-noir');
+    expect(screen.getAllByText('高端质感').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Clay')).toBeNull();
+
+    const activeOption = await screen.findByTestId('project-ds-picker-option-luxury');
     expect(activeOption.getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByTestId('project-ds-picker-option-noir-check')).toBeTruthy();
+    expect(screen.getByTestId('project-ds-picker-option-luxury-check')).toBeTruthy();
 
     await waitFor(() => {
-      expect(fetchDesignSystemPreviewMock).toHaveBeenCalledWith('noir');
+      expect(fetchDesignSystemPreviewMock).toHaveBeenCalledWith('luxury');
     });
     expect(await screen.findByTestId('project-ds-picker-preview-frame')).toBeTruthy();
   });
@@ -80,33 +113,33 @@ describe('ProjectDesignSystemPicker', () => {
     fireEvent.click(screen.getByTestId('project-ds-picker-trigger'));
     await screen.findByTestId('project-ds-picker-preview-frame');
 
-    fireEvent.mouseEnter(screen.getByTestId('project-ds-picker-option-clay'));
+    fireEvent.mouseEnter(screen.getByTestId('project-ds-picker-option-xiaohongshu'));
     await waitFor(() => {
-      expect(fetchDesignSystemPreviewMock).toHaveBeenCalledWith('clay');
+      expect(fetchDesignSystemPreviewMock).toHaveBeenCalledWith('xiaohongshu');
     });
 
     fireEvent.click(await screen.findByTestId('project-ds-picker-preview-expand'));
     expect(screen.getByRole('dialog')).toBeTruthy();
-    expect(screen.getAllByText('Clay').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('小红书种草').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByLabelText('关闭全屏预览'));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('selects a design system option with keyboard activation', async () => {
+  it('selects a commerce style option with keyboard activation', async () => {
     const onChange = vi.fn();
     renderPicker({ onChange });
 
     fireEvent.click(screen.getByTestId('project-ds-picker-trigger'));
-    const option = await screen.findByTestId('project-ds-picker-option-clay');
+    const option = await screen.findByTestId('project-ds-picker-option-xiaohongshu');
     option.focus();
     fireEvent.keyDown(option, { key: 'Enter' });
 
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith('clay');
+    expect(onChange).toHaveBeenCalledWith('xiaohongshu');
   });
 
-  it('selects the no-design-system option with keyboard activation', async () => {
+  it('selects the no-commerce-style option with keyboard activation', async () => {
     const onChange = vi.fn();
     renderPicker({ onChange });
 
@@ -120,14 +153,12 @@ describe('ProjectDesignSystemPicker', () => {
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
-  it('uses localized picker copy', async () => {
-    renderPicker({}, 'fr');
+  it('uses commerce style picker copy', async () => {
+    renderPicker();
 
     fireEvent.click(screen.getByTestId('project-ds-picker-trigger'));
 
-    // Category chips were removed from the list/preview per design; only the
-    // surrounding picker copy needs to localize.
-    expect(screen.getByPlaceholderText('Rechercher des systèmes de design')).toBeTruthy();
-    expect(screen.getByText('Aucun système de design')).toBeTruthy();
+    expect(screen.getByPlaceholderText('搜索带货风格')).toBeTruthy();
+    expect(screen.getByText('不套用带货风格')).toBeTruthy();
   });
 });

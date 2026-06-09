@@ -12,7 +12,7 @@
  * here so the user can pick from the same surface area without us
  * re-implementing every provider's transport. For provider integrations
  * we ship the tested ecommerce paths first — OpenAI (gpt-image-*),
- * MiniMax image/TTS, and Volcengine Ark (Seedance 1.5 Pro) — while
+ * MiniMax image/i2v/TTS, and Volcengine Ark (Seedance 1.5 Pro) — while
  * unsupported pairs fall back to a placeholder
  * with a clear "no provider integration yet" note. The contract the
  * code agent follows is identical regardless.
@@ -31,6 +31,7 @@ import type { AudioKind, MediaAspect } from "../types";
 export type MediaProviderId =
   | "openai"
   | "volcengine"
+  | "mimo"
   | "grok"
   | "hyperframes"
   | "nanobanana"
@@ -75,6 +76,18 @@ export interface MediaProvider {
   supportsCustomModel?: boolean;
   /** Placeholder text for custom model override fields in Settings. */
   customModelPlaceholder?: string;
+  /** Whether Settings should expose native image-understanding model setup. */
+  supportsImageUnderstanding?: boolean;
+  /** Default model id used by the provider's image-understanding endpoint. */
+  defaultImageUnderstandingModel?: string;
+  /** Whether Settings should expose native audio-understanding model setup. */
+  supportsAudioUnderstanding?: boolean;
+  /** Default model id used by the provider's audio-understanding endpoint. */
+  defaultAudioUnderstandingModel?: string;
+  /** Whether Settings should expose the provider's native video-understanding model. */
+  supportsVideoUnderstanding?: boolean;
+  /** Default model id used by the provider's video-understanding endpoint. */
+  defaultVideoUnderstandingModel?: string;
 }
 
 /**
@@ -98,7 +111,23 @@ export const MEDIA_PROVIDERS: MediaProvider[] = [
     hint: "Seedance 1.5 Pro",
     integrated: true,
     defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3",
-    docsUrl: "https://console.volcengine.com/ark"
+    docsUrl: "https://console.volcengine.com/ark",
+    supportsVideoUnderstanding: true,
+    defaultVideoUnderstandingModel: "doubao-seed-2-0-lite-260215"
+  },
+  {
+    id: "mimo",
+    label: "Xiaomi MiMo",
+    hint: "mimo-v2.5 multimodal understanding",
+    integrated: true,
+    defaultBaseUrl: "https://api.xiaomimimo.com/v1",
+    docsUrl: "https://platform.xiaomimimo.com/docs/zh-CN/welcome",
+    supportsImageUnderstanding: true,
+    supportsAudioUnderstanding: true,
+    supportsVideoUnderstanding: true,
+    defaultImageUnderstandingModel: "mimo-v2.5",
+    defaultAudioUnderstandingModel: "mimo-v2.5",
+    defaultVideoUnderstandingModel: "mimo-v2.5"
   },
   {
     id: "grok",
@@ -221,7 +250,7 @@ export const MEDIA_PROVIDERS: MediaProvider[] = [
   {
     id: "minimax",
     label: "MiniMax",
-    hint: "Speech 2.8 / image-01",
+    hint: "Speech 2.8 / image-01 / i2v",
     integrated: true,
     defaultBaseUrl: "https://api.minimaxi.com/v1",
     docsUrl: "https://platform.minimaxi.com"
@@ -608,6 +637,14 @@ export const VIDEO_MODELS: MediaModel[] = [
     default: true
   },
 
+  {
+    id: "minimax-video-01",
+    label: "minimax-video-01",
+    hint: "MiniMax · image-to-video",
+    provider: "minimax",
+    caps: ["i2v"]
+  },
+
   // xAI Grok Imagine — 720p t2v + i2v with natively generated audio.
   {
     id: "grok-imagine-video",
@@ -623,8 +660,7 @@ export const VIDEO_MODELS: MediaModel[] = [
     label: "seedance-2.0 1080p (OR)",
     hint: "OpenRouter · ByteDance · 1080p",
     provider: "openrouter",
-    caps: ["t2v", "i2v"],
-    default: true
+    caps: ["t2v", "i2v"]
   },
   {
     id: "openrouter/bytedance/seedance-2.0",

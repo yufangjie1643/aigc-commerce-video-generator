@@ -37,7 +37,8 @@
 //   * provider 'custom-image'→ user-supplied OpenAI-compatible
 //                              /v1/images/generations + /v1/images/edits
 //                              endpoints
-//   * provider 'minimax'    → MiniMax /v1/image_generation and /v1/t2a_v2
+//   * provider 'minimax'    → MiniMax /v1/image_generation,
+//                              /v1/video_generation for i2v, and /v1/t2a_v2
 //
 // The fallback stub handlers are gated behind OD_MEDIA_ALLOW_STUBS=1; in
 // release builds they throw StubProviderDisabledError (mapped to HTTP
@@ -48,10 +49,9 @@
 // placeholder as the final result.
 
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { execFile as execFileCb, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import { Agent as UndiciAgent } from "undici";
 import {
   AUDIO_DURATIONS_SEC,
@@ -76,8 +76,14 @@ import {
   classifyAIHubMixModel
 } from "./aihubmix.js";
 
-const execFile = promisify(execFileCb);
-type ProviderConfig = { apiKey?: string; baseUrl?: string; model?: string };
+type ProviderConfig = {
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  imageUnderstandingModel?: string;
+  audioUnderstandingModel?: string;
+  videoUnderstandingModel?: string;
+};
 type ProgressFn = (message: string) => void;
 type ImageRef = { path: string; abs: string; mime: string; size: number; dataUrl: string };
 type MediaRequestInit = Pick<RequestInit, "dispatcher">;
@@ -603,6 +609,11 @@ export async function generateMedia(args: {
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
+    } else if (def.provider === "minimax" && surface === "video") {
+      const result = await renderMinimaxVideo(ctx, credentials, args.onProgress);
+      bytes = result.bytes;
+      providerNote = result.providerNote;
+      suggestedExt = result.suggestedExt;
     } else if (def.provider === "leonardo" && surface === "image") {
       const result = await renderLeonardoImage(ctx, credentials);
       bytes = result.bytes;
@@ -793,6 +804,397 @@ function withMediaRequestInit(ctx: Pick<MediaContext, "requestInit">, init: Requ
     ...ctx.requestInit,
     ...init
   };
+}
+
+const DEFAULT_MIMO_UNDERSTANDING_MODEL = "mimo-v2.5";
+const DEFAULT_MIMO_BASE_URL = "https://api.xiaomimimo.com/v1";
+const DEFAULT_VOLCENGINE_VIDEO_UNDERSTANDING_MODEL = "doubao-seed-2-0-lite-260215";
+
+export type UnderstandingKind = "image" | "audio" | "video";
+
+export interface UnderstandMediaInput {
+  projectRoot: string;
+  kind: UnderstandingKind;
+  mediaUrl: string;
+  providerId?: string;
+  prompt?: string;
+  model?: string;
+  fps?: number;
+  mediaResolution?: "default" | "max";
+  requestInit?: MediaRequestInit;
+}
+
+export interface UnderstandVideoInput {
+  projectRoot: string;
+  videoUrl: string;
+  providerId?: string;
+  prompt?: string;
+  model?: string;
+  fps?: number;
+  mediaResolution?: "default" | "max";
+  requestInit?: MediaRequestInit;
+}
+
+export interface UnderstandMediaResult {
+  ok: true;
+  providerId: string;
+  kind: UnderstandingKind;
+  model: string;
+  content: string;
+  finishReason?: string;
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+}
+
+export type UnderstandVideoResult = UnderstandMediaResult & { kind: "video" };
+
+function mediaUrlField(kind: UnderstandingKind): string {
+  if (kind === "image") return "imageUrl";
+  if (kind === "audio") return "audioUrl";
+  return "videoUrl";
+}
+
+function assertSupportedMediaUrl(kind: UnderstandingKind, mediaUrl: string): string {
+  const trimmed = mediaUrl.trim();
+  if (!trimmed) {
+    throw Object.assign(new Error(`${mediaUrlField(kind)} is required`), { status: 400, code: "BAD_REQUEST" });
+  }
+  if (new RegExp(`^data:${kind}/[a-z0-9.+-]+;base64,`, "i").test(trimmed)) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.toString();
+  } catch {
+    // Fall through to the explicit error below.
+  }
+  throw Object.assign(new Error(`${mediaUrlField(kind)} must be an http(s) URL or a data:${kind}/*;base64 URI`), {
+    status: 400,
+    code: "BAD_REQUEST"
+  });
+}
+
+function clampVideoUnderstandingFps(value: unknown, max = 10): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 2;
+  return Math.min(max, Math.max(0.1, n));
+}
+
+function normalizeMediaResolution(value: unknown): "default" | "max" {
+  return value === "max" ? "max" : "default";
+}
+
+function defaultUnderstandingPrompt(kind: UnderstandingKind): string {
+  if (kind === "image") {
+    return [
+      "请原生理解这张图片，并用中文输出：",
+      "1. 一句话概述图片内容。",
+      "2. 画面、场景、人物、商品、动作、文字或可见细节。",
+      "3. 如果这是服饰鞋包类图片，判断主推品类、穿搭风格、可用商品标签、卖点。",
+      "4. 标出不确定或无法确认的地方。",
+      "要求：只说图片中能确认的信息，不要编造看不见的内容。"
+    ].join("\n");
+  }
+  if (kind === "audio") {
+    return [
+      "请原生理解这段音频，并用中文输出：",
+      "1. 一句话概述音频内容。",
+      "2. 可听到的人声、语言、口播/歌词/对话要点、背景声、音乐氛围或情绪。",
+      "3. 如果这是商品短视频音频，提取可用卖点、口播文案、商品标签。",
+      "4. 标出听不清或无法确认的地方。",
+      "要求：只说音频中能确认的信息，不要编造听不清的内容。"
+    ].join("\n");
+  }
+  return [
+    "请原生理解这个短视频，并用中文输出：",
+    "1. 一句话概述视频内容。",
+    "2. 画面、场景、人物、商品、动作、字幕或口播的关键点。",
+    "3. 如果这是服饰鞋包类短视频，判断主推品类、穿搭风格、可用商品标签、卖点。",
+    "4. 标出不确定或模型无法确认的地方。",
+    "要求：只说视频中能确认的信息，不要编造看不见或听不清的内容。"
+  ].join("\n");
+}
+
+function understandingModelForKind(
+  kind: UnderstandingKind,
+  credentials: ProviderConfig,
+  override: string | undefined,
+  fallback: string
+): string {
+  if (override?.trim()) return override.trim();
+  if (kind === "image" && credentials.imageUnderstandingModel?.trim()) {
+    return credentials.imageUnderstandingModel.trim();
+  }
+  if (kind === "audio" && credentials.audioUnderstandingModel?.trim()) {
+    return credentials.audioUnderstandingModel.trim();
+  }
+  if (kind === "video" && credentials.videoUnderstandingModel?.trim()) {
+    return credentials.videoUnderstandingModel.trim();
+  }
+  return credentials.model?.trim() || fallback;
+}
+
+async function defaultUnderstandingProvider(projectRoot: string, kind: UnderstandingKind): Promise<string> {
+  if (kind === "video") {
+    const mimoCredentials = await resolveProviderConfig(projectRoot, "mimo");
+    return mimoCredentials.apiKey ? "mimo" : "volcengine";
+  }
+  return "mimo";
+}
+
+function messageContentToText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => {
+      if (part && typeof part === "object" && typeof (part as any).text === "string") {
+        return (part as any).text;
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function chatCompletionChoiceText(choice: any): string {
+  const content = messageContentToText(choice?.message?.content).trim();
+  if (content) return content;
+  return typeof choice?.message?.reasoning_content === "string" ? choice.message.reasoning_content.trim() : "";
+}
+
+function usageFromChatCompletion(data: any): UnderstandMediaResult["usage"] {
+  const usage =
+    data?.usage && typeof data.usage === "object"
+      ? {
+          ...(typeof data.usage.prompt_tokens === "number" ? { promptTokens: data.usage.prompt_tokens } : {}),
+          ...(typeof data.usage.completion_tokens === "number"
+            ? { completionTokens: data.usage.completion_tokens }
+            : {}),
+          ...(typeof data.usage.total_tokens === "number" ? { totalTokens: data.usage.total_tokens } : {})
+        }
+      : undefined;
+  return usage && Object.keys(usage).length > 0 ? usage : undefined;
+}
+
+async function parseUnderstandingResponse(
+  resp: Response,
+  providerId: string,
+  kind: UnderstandingKind
+): Promise<{
+  content: string;
+  finishReason?: string;
+  usage?: UnderstandMediaResult["usage"];
+}> {
+  const text = await resp.text();
+  if (!resp.ok) {
+    throw Object.assign(new Error(`${providerId} ${kind} understanding ${resp.status}: ${truncate(text, 240)}`), {
+      status: resp.status,
+      code: "UPSTREAM_ERROR"
+    });
+  }
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw Object.assign(new Error(`${providerId} ${kind} understanding non-JSON: ${truncate(text, 200)}`), {
+      status: 502,
+      code: "UPSTREAM_NON_JSON"
+    });
+  }
+
+  const choice = Array.isArray(data?.choices) ? data.choices[0] : null;
+  const content = chatCompletionChoiceText(choice);
+  if (!content) {
+    throw Object.assign(
+      new Error(`${providerId} ${kind} understanding response missing message content: ${truncate(text, 200)}`),
+      { status: 502, code: "UPSTREAM_MISSING_CONTENT" }
+    );
+  }
+
+  return {
+    content,
+    ...(typeof choice?.finish_reason === "string" ? { finishReason: choice.finish_reason } : {}),
+    ...(usageFromChatCompletion(data) ? { usage: usageFromChatCompletion(data) } : {})
+  };
+}
+
+function mimoUnderstandingMediaPart(input: UnderstandMediaInput, mediaUrl: string): Record<string, unknown> {
+  if (input.kind === "image") {
+    return {
+      type: "image_url",
+      image_url: { url: mediaUrl }
+    };
+  }
+  if (input.kind === "audio") {
+    return {
+      type: "input_audio",
+      input_audio: { data: mediaUrl }
+    };
+  }
+  return {
+    type: "video_url",
+    video_url: { url: mediaUrl },
+    fps: clampVideoUnderstandingFps(input.fps, 10),
+    media_resolution: normalizeMediaResolution(input.mediaResolution)
+  };
+}
+
+async function understandWithMimo(
+  input: UnderstandMediaInput,
+  credentials: ProviderConfig
+): Promise<UnderstandMediaResult> {
+  if (!credentials.apiKey) {
+    throw Object.assign(new Error("no Xiaomi MiMo API key — configure it in Settings or set MIMO_API_KEY"), {
+      status: 400,
+      code: "MISSING_API_KEY"
+    });
+  }
+  const mediaUrl = assertSupportedMediaUrl(input.kind, input.mediaUrl);
+  const baseUrl = (credentials.baseUrl || DEFAULT_MIMO_BASE_URL).replace(/\/$/, "");
+  const model = understandingModelForKind(input.kind, credentials, input.model, DEFAULT_MIMO_UNDERSTANDING_MODEL);
+  const prompt = input.prompt?.trim() || defaultUnderstandingPrompt(input.kind);
+  const body = {
+    model,
+    messages: [
+      {
+        role: "user",
+        content: [mimoUnderstandingMediaPart(input, mediaUrl), { type: "text", text: prompt }]
+      }
+    ],
+    temperature: 0.1,
+    max_completion_tokens: 1800
+  };
+
+  const resp = await fetch(
+    `${baseUrl}/chat/completions`,
+    withMediaRequestInit(
+      { requestInit: input.requestInit ?? {} },
+      {
+        method: "POST",
+        headers: {
+          "api-key": credentials.apiKey,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(body)
+      }
+    )
+  );
+  const parsed = await parseUnderstandingResponse(resp, "mimo", input.kind);
+  return {
+    ok: true,
+    providerId: "mimo",
+    kind: input.kind,
+    model,
+    content: parsed.content,
+    ...(parsed.finishReason ? { finishReason: parsed.finishReason } : {}),
+    ...(parsed.usage ? { usage: parsed.usage } : {})
+  };
+}
+
+async function understandVideoWithVolcengine(
+  input: UnderstandMediaInput,
+  credentials: ProviderConfig
+): Promise<UnderstandVideoResult> {
+  if (!credentials.apiKey) {
+    throw Object.assign(new Error("no Volcengine Ark API key — configure it in Settings or set ARK_API_KEY"), {
+      status: 400,
+      code: "MISSING_API_KEY"
+    });
+  }
+
+  if (input.kind !== "video") {
+    throw Object.assign(new Error("Volcengine Ark understanding currently supports video only in Open Design"), {
+      status: 400,
+      code: "UNSUPPORTED_PROVIDER"
+    });
+  }
+
+  const videoUrl = assertSupportedMediaUrl("video", input.mediaUrl);
+  const baseUrl = (credentials.baseUrl || "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "");
+  const model = understandingModelForKind(
+    "video",
+    credentials,
+    input.model,
+    DEFAULT_VOLCENGINE_VIDEO_UNDERSTANDING_MODEL
+  );
+  const fps = clampVideoUnderstandingFps(input.fps, 8);
+  const prompt = input.prompt?.trim() || defaultUnderstandingPrompt("video");
+
+  const body = {
+    model,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          {
+            type: "video_url",
+            video_url: { url: videoUrl, fps }
+          }
+        ]
+      }
+    ],
+    temperature: 0.1,
+    max_tokens: 1800
+  };
+
+  const resp = await fetch(
+    `${baseUrl}/chat/completions`,
+    withMediaRequestInit(
+      { requestInit: input.requestInit ?? {} },
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${credentials.apiKey}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(body)
+      }
+    )
+  );
+  const parsed = await parseUnderstandingResponse(resp, "volcengine", "video");
+
+  return {
+    ok: true,
+    providerId: "volcengine",
+    kind: "video",
+    model,
+    content: parsed.content,
+    ...(parsed.finishReason ? { finishReason: parsed.finishReason } : {}),
+    ...(parsed.usage ? { usage: parsed.usage } : {})
+  };
+}
+
+export async function understandMedia(input: UnderstandMediaInput): Promise<UnderstandMediaResult> {
+  const providerId = input.providerId?.trim() || (await defaultUnderstandingProvider(input.projectRoot, input.kind));
+  if (providerId === "mimo") {
+    const credentials = await resolveProviderConfig(input.projectRoot, "mimo");
+    return understandWithMimo(input, credentials);
+  }
+  if (providerId === "volcengine") {
+    const credentials = await resolveProviderConfig(input.projectRoot, "volcengine");
+    return understandVideoWithVolcengine(input, credentials);
+  }
+  throw Object.assign(new Error(`unsupported understanding provider: ${providerId}`), {
+    status: 400,
+    code: "UNSUPPORTED_PROVIDER"
+  });
+}
+
+export async function understandVideo(input: UnderstandVideoInput): Promise<UnderstandVideoResult> {
+  const result = await understandMedia({
+    projectRoot: input.projectRoot,
+    kind: "video",
+    mediaUrl: input.videoUrl,
+    ...(input.providerId ? { providerId: input.providerId } : {}),
+    ...(input.prompt ? { prompt: input.prompt } : {}),
+    ...(input.model ? { model: input.model } : {}),
+    ...(input.fps !== undefined ? { fps: input.fps } : {}),
+    ...(input.mediaResolution ? { mediaResolution: input.mediaResolution } : {}),
+    ...(input.requestInit ? { requestInit: input.requestInit } : {})
+  });
+  return { ...result, kind: "video" };
 }
 
 async function renderOpenAIImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
@@ -2593,6 +2995,175 @@ async function renderMinimaxImage(ctx: MediaContext, credentials: ProviderConfig
 }
 
 // ---------------------------------------------------------------------------
+// Provider: MiniMax — video generation (image-to-video only).
+//
+// Docs: https://platform.minimaxi.com — POST /video_generation,
+// GET /query/video_generation, then GET /files/retrieve. This route is
+// intentionally only registered as `minimax-video-01` with i2v caps; the
+// default t2v path stays on Volcengine Ark Seedance 1.5 Pro.
+// ---------------------------------------------------------------------------
+
+const MINIMAX_DEFAULT_BASE_URL = "https://api.minimaxi.com/v1";
+
+const MINIMAX_VIDEO_MODEL_MAP: Record<string, string> = {
+  "minimax-video-01": "MiniMax-Hailuo-2.3"
+};
+
+function minimaxVideoWireModel(ctx: MediaContext): string {
+  if (ctx.wireModel !== ctx.model) return ctx.wireModel;
+  return MINIMAX_VIDEO_MODEL_MAP[ctx.model] || ctx.model;
+}
+
+function minimaxVideoDurationFor(length?: number): 6 | 10 {
+  if (!length || length <= 6) return 6;
+  return 10;
+}
+
+function minimaxVideoResolutionFor(wireModel: string): "720P" | "768P" {
+  return wireModel.startsWith("I2V-01") ? "720P" : "768P";
+}
+
+function minimaxUrl(baseUrl: string, pathName: string, query?: Record<string, string>): string {
+  const search = query ? `?${new URLSearchParams(query).toString()}` : "";
+  return `${baseUrl}${pathName.startsWith("/") ? pathName : `/${pathName}`}${search}`;
+}
+
+function assertMinimaxBaseResp(data: any, label: string): void {
+  if (!data?.base_resp) return;
+  const statusCode = Number(data.base_resp.status_code ?? 0);
+  if (statusCode !== 0) {
+    throw new Error(`${label} api error ${statusCode}: ${data.base_resp.status_msg || "unknown"}`);
+  }
+}
+
+async function minimaxJson(resp: Response, label: string): Promise<any> {
+  const text = await resp.text();
+  if (!resp.ok) {
+    throw new Error(`${label} ${resp.status}: ${truncate(text, 240)}`);
+  }
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`${label} non-JSON: ${truncate(text, 200)}`);
+  }
+  assertMinimaxBaseResp(data, label);
+  return data;
+}
+
+async function renderMinimaxVideo(
+  ctx: MediaContext,
+  credentials: ProviderConfig,
+  onProgress?: ProgressFn
+): Promise<RenderResult> {
+  if (!credentials.apiKey) {
+    throw new Error("no MiniMax API key — configure it in Settings or set OD_MINIMAX_API_KEY");
+  }
+  if (!ctx.imageRef?.dataUrl) {
+    throw new Error(
+      `${ctx.model} is image-to-video only and requires --image <project-relative-path>. ` +
+        "For text-to-video, use doubao-seedance-1.5-pro."
+    );
+  }
+
+  const baseUrl = (credentials.baseUrl || MINIMAX_DEFAULT_BASE_URL).replace(/\/$/, "");
+  const wireModel = minimaxVideoWireModel(ctx);
+  const durationSec = minimaxVideoDurationFor(ctx.length);
+  const resolution = minimaxVideoResolutionFor(wireModel);
+  const body = {
+    model: wireModel,
+    first_frame_image: ctx.imageRef.dataUrl,
+    prompt: (ctx.prompt && ctx.prompt.trim()) || "Animate this image into a short cinematic clip.",
+    duration: durationSec,
+    resolution,
+    prompt_optimizer: false
+  };
+
+  const submitResp = await fetch(
+    minimaxUrl(baseUrl, "/video_generation"),
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
+  const submitData = await minimaxJson(submitResp, "minimax video submit");
+  const taskId = submitData?.task_id || submitData?.data?.task_id;
+  if (!taskId) {
+    throw new Error("minimax video submit response missing task_id");
+  }
+
+  const startedAt = Date.now();
+  const configuredMaxMs = Number(process.env.OD_MINIMAX_VIDEO_MAX_POLL_MS);
+  const maxMs = Number.isFinite(configuredMaxMs) && configuredMaxMs >= 60_000 ? configuredMaxMs : 12 * 60 * 1000;
+  let fileId: string | null = null;
+  let lastStatus = "";
+
+  if (typeof onProgress === "function") {
+    onProgress(`minimax i2v task ${taskId} accepted; polling status…`);
+  }
+
+  while (Date.now() - startedAt < maxMs) {
+    await sleep(4000);
+    const pollResp = await fetch(
+      minimaxUrl(baseUrl, "/query/video_generation", { task_id: String(taskId) }),
+      withMediaRequestInit(ctx, {
+        headers: { authorization: `Bearer ${credentials.apiKey}` }
+      })
+    );
+    const pollData = await minimaxJson(pollResp, "minimax video poll");
+    lastStatus = String(pollData?.status || pollData?.data?.status || "").toLowerCase();
+    if (typeof onProgress === "function") {
+      const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
+      onProgress(`minimax task ${taskId} status=${lastStatus || "pending"} (elapsed ${elapsedSec}s)`);
+    }
+    if (lastStatus === "success" || lastStatus === "succeeded" || lastStatus === "completed") {
+      const rawFileId = pollData?.file_id || pollData?.data?.file_id;
+      fileId = rawFileId ? String(rawFileId) : null;
+      break;
+    }
+    if (lastStatus === "fail" || lastStatus === "failed" || lastStatus === "error") {
+      const reasonRaw = pollData?.error?.message || pollData?.error || pollData?.message || lastStatus;
+      const reason = typeof reasonRaw === "string" ? reasonRaw : JSON.stringify(reasonRaw);
+      throw new Error(`minimax video task ${lastStatus}: ${reason}`);
+    }
+  }
+
+  if (!fileId) {
+    throw new Error(`minimax video task did not finish in time (last status: ${lastStatus || "unknown"})`);
+  }
+
+  const retrieveResp = await fetch(
+    minimaxUrl(baseUrl, "/files/retrieve", { file_id: fileId }),
+    withMediaRequestInit(ctx, {
+      headers: { authorization: `Bearer ${credentials.apiKey}` }
+    })
+  );
+  const retrieveData = await minimaxJson(retrieveResp, "minimax video retrieve");
+  const downloadUrl =
+    retrieveData?.file?.download_url || retrieveData?.data?.file?.download_url || retrieveData?.download_url;
+  if (typeof downloadUrl !== "string" || downloadUrl.length === 0) {
+    throw new Error("minimax video retrieve response missing file.download_url");
+  }
+
+  const dlResp = await fetch(downloadUrl, withMediaRequestInit(ctx));
+  if (!dlResp.ok) throw new Error(`minimax video fetch ${dlResp.status}`);
+  const bytes = Buffer.from(await dlResp.arrayBuffer());
+  if (bytes.length === 0) {
+    throw new Error("minimax video returned zero bytes");
+  }
+
+  return {
+    bytes,
+    providerNote: `minimax/${wireModel} · i2v · ${resolution} · ${durationSec}s · ${bytes.length} bytes`,
+    suggestedExt: ".mp4"
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Provider: MiniMax — Speech 2.8 family text-to-speech (synchronous).
 //
 // Docs: https://platform.minimaxi.com — POST /t2a_v2 with a JSON body
@@ -2601,8 +3172,6 @@ async function renderMinimaxImage(ctx: MediaContext, credentials: ProviderConfig
 // neutral Mandarin voice but the agent can override via the model
 // registry's `voice` slot.
 // ---------------------------------------------------------------------------
-
-const MINIMAX_DEFAULT_BASE_URL = "https://api.minimaxi.com/v1";
 
 const MINIMAX_TTS_MODEL_MAP = {
   "minimax-tts": "speech-2.8-turbo"

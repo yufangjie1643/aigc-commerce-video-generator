@@ -882,6 +882,14 @@ export async function refreshWeChatAgentBridge(): Promise<WeChatAgentBridgeComma
       command: body?.command ?? ['od', 'wechat', 'refresh'],
       stdout: body?.stdout ?? '',
       stderr: body?.stderr ?? '',
+      login: body?.login ?? {
+        phase: resp.ok ? 'connected' : 'failed',
+        running: false,
+        command: body?.command ?? ['od', 'wechat', 'refresh'],
+        output: body?.stdout || body?.stderr || '',
+        detectedUrls: [],
+        ...(body?.error ? { error: body.error } : {}),
+      },
       exitCode: body?.exitCode,
       signal: body?.signal,
       error: body?.error,
@@ -892,6 +900,13 @@ export async function refreshWeChatAgentBridge(): Promise<WeChatAgentBridgeComma
       command: ['od', 'wechat', 'refresh'],
       stdout: '',
       stderr: '',
+      login: {
+        phase: 'failed',
+        running: false,
+        command: ['od', 'wechat', 'refresh'],
+        output: '',
+        detectedUrls: [],
+      },
       error: err instanceof Error ? err.message : String(err),
     };
   }

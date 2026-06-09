@@ -2,7 +2,10 @@
 // @ts-nocheck
 import { runDaemonCliStartup, startDaemonRuntime } from "./daemon-startup.js";
 import { runLiveArtifactsMcpServer } from "./mcp-live-artifacts-server.js";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { runArtifactsCli } from "./artifacts-cli.js";
+import { runAssetsCli } from "./asset-library-cli.js";
 import { runProjectHandoff } from "./handoff-cli.js";
 import { runConnectorsToolCli } from "./tools-connectors-cli.js";
 import { runDesignSystemsToolCli } from "./tools-design-systems-cli.js";
@@ -11,11 +14,7 @@ import { parseDesignSystemRenameArgs } from "./design-system-rename-args.js";
 import { runLiveArtifactsToolCli } from "./tools-live-artifacts-cli.js";
 import { splitResearchSubcommand } from "./research/cli-args.js";
 import { resolveDaemonUrl } from "./daemon-url.js";
-import {
-  AUDIO_MODELS_BY_KIND,
-  IMAGE_MODELS,
-  VIDEO_MODELS
-} from "./media-models.js";
+import { AUDIO_MODELS_BY_KIND, IMAGE_MODELS, VIDEO_MODELS } from "./media-models.js";
 import { requestJsonIpc } from "@open-design/sidecar";
 import { SIDECAR_ENV, SIDECAR_MESSAGES } from "@open-design/sidecar-proto";
 import {
@@ -72,6 +71,23 @@ const MEDIA_TEST_STRING_FLAGS = new Set(["provider", "api-key", "base-url", "mod
 const MEDIA_TEST_BOOLEAN_FLAGS = new Set(["help", "h", "json"]);
 const MEDIA_MODELS_STRING_FLAGS = new Set(["surface", "audio-kind"]);
 const MEDIA_MODELS_BOOLEAN_FLAGS = new Set(["help", "h", "json"]);
+const MEDIA_UNDERSTAND_STRING_FLAGS = new Set([
+  "kind",
+  "image",
+  "image-url",
+  "audio",
+  "audio-url",
+  "video",
+  "video-url",
+  "provider",
+  "provider-id",
+  "prompt",
+  "model",
+  "fps",
+  "media-resolution",
+  "daemon-url"
+]);
+const MEDIA_UNDERSTAND_BOOLEAN_FLAGS = new Set(["help", "h", "json"]);
 
 const MCP_STRING_FLAGS = new Set(["daemon-url"]);
 const MCP_BOOLEAN_FLAGS = new Set(["help", "h"]);
@@ -262,6 +278,7 @@ const PLUGIN_LIST_BOOLEAN_FLAGS = new Set([...PLUGIN_BOOLEAN_FLAGS, "bundled", "
 
 const SUBCOMMAND_MAP = {
   artifacts: runArtifacts,
+  assets: runAssets,
   media: runMedia,
   mcp: runMcp,
   research: runResearch,
@@ -308,8 +325,9 @@ const first = argv.find((a) => !a.startsWith("-"));
 if (first && SUBCOMMAND_MAP[first]) {
   const idx = argv.indexOf(first);
   const rest = [...argv.slice(0, idx), ...argv.slice(idx + 1)];
-  await SUBCOMMAND_MAP[first](rest);
-  process.exit(0);
+  const exitCode = await SUBCOMMAND_MAP[first](rest);
+  if (typeof exitCode === "number") process.exit(exitCode);
+  else process.exit(0);
 }
 
 if (argv[0] === "tools" && argv[1] === "live-artifacts") {
@@ -356,6 +374,10 @@ function printRootHelp() {
 
   od artifacts create --name <path> --input <file> [--project <id-or-name>]
       Create a normal project artifact through the local daemon.
+
+  od assets <tools|embedding|products|commerce-videos> ...
+      Manage the global asset library, vectorization provider, local ffmpeg
+      paths, product assets, and commerce video methodology sources.
 
   od tools connectors <list|execute|github-design-context> [options]
       Discover and execute configured connectors.
@@ -502,6 +524,25 @@ async function runArtifacts(args) {
   process.exit(exitCode);
 }
 
+async function runAssets(args) {
+  try {
+    const { exitCode } = await runAssetsCli(args);
+    return exitCode;
+  } finally {
+    await closeFetchDispatcher();
+  }
+}
+
+async function closeFetchDispatcher() {
+  try {
+    const { getGlobalDispatcher } = await import("undici");
+    const dispatcher = getGlobalDispatcher();
+    if (dispatcher && typeof dispatcher.close === "function") await dispatcher.close();
+  } catch {
+    // Best-effort CLI cleanup only.
+  }
+}
+
 function printResearchHelp() {
   console.log(`Usage:
   od research search --query <text> [--max-sources 5] [--daemon-url <url>]
@@ -526,7 +567,7 @@ async function runMedia(args) {
     printMediaHelp();
     return;
   }
-  if (sub !== "generate" && sub !== "wait" && sub !== "test" && sub !== "models") {
+  if (sub !== "generate" && sub !== "wait" && sub !== "test" && sub !== "models" && sub !== "understand") {
     console.error(`unknown subcommand: od media ${sub}`);
     printMediaHelp();
     process.exit(1);
@@ -537,6 +578,7 @@ async function runMedia(args) {
   if (sub === "wait") return runMediaWait(subArgs);
   if (sub === "test") return runMediaTest(subArgs);
   if (sub === "models") return runMediaModels(subArgs);
+  if (sub === "understand") return runMediaUnderstand(subArgs);
   return runMediaGenerate(subArgs);
 }
 
@@ -680,6 +722,164 @@ async function runMediaTest(rawArgs) {
   const detail = data.detail ? ` detail=${data.detail}` : "";
   console.log(`[media test] ${providerId}: ${status} (${data.latencyMs ?? 0}ms)${count}${detail}`);
   process.exit(data.ok ? 0 : 5);
+}
+
+function inferUnderstandingKindFromValue(value) {
+  const trimmed = String(value || "").trim();
+  if (/^data:image\//i.test(trimmed)) return "image";
+  if (/^data:audio\//i.test(trimmed)) return "audio";
+  if (/^data:video\//i.test(trimmed)) return "video";
+  const ext = path.extname(trimmed).toLowerCase();
+  if ([".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"].includes(ext)) return "image";
+  if ([".mp3", ".wav", ".flac", ".m4a", ".ogg"].includes(ext)) return "audio";
+  if ([".mp4", ".m4v", ".mov", ".qt", ".webm", ".avi", ".wmv", ".mpeg", ".mpg"].includes(ext)) return "video";
+  return "";
+}
+
+function normalizeUnderstandingKind(value) {
+  const kind = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (kind === "image" || kind === "audio" || kind === "video") return kind;
+  if (kind) throw new Error("--kind must be one of: image | audio | video");
+  return "";
+}
+
+function mimeForMediaPath(kind, filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (kind === "image") {
+    if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+    if (ext === ".png") return "image/png";
+    if (ext === ".gif") return "image/gif";
+    if (ext === ".webp") return "image/webp";
+    if (ext === ".bmp") return "image/bmp";
+    return "image/jpeg";
+  }
+  if (kind === "audio") {
+    if (ext === ".mp3") return "audio/mpeg";
+    if (ext === ".wav") return "audio/wav";
+    if (ext === ".flac") return "audio/flac";
+    if (ext === ".m4a") return "audio/mp4";
+    if (ext === ".ogg") return "audio/ogg";
+    return "audio/mpeg";
+  }
+  if (ext === ".mp4" || ext === ".m4v") return "video/mp4";
+  if (ext === ".mov" || ext === ".qt") return "video/quicktime";
+  if (ext === ".webm") return "video/webm";
+  if (ext === ".avi") return "video/x-msvideo";
+  if (ext === ".wmv") return "video/x-ms-wmv";
+  if (ext === ".mpeg" || ext === ".mpg") return "video/mpeg";
+  return "video/mp4";
+}
+
+function isInlineOrRemoteMedia(kind, value) {
+  return new RegExp(`^data:${kind}/[a-z0-9.+-]+;base64,`, "i").test(value) || /^https?:\/\//i.test(value);
+}
+
+async function resolveMediaUnderstandingInput(flags, rawArgs) {
+  const positional = positionalArgs(rawArgs, MEDIA_UNDERSTAND_STRING_FLAGS);
+  const flaggedKind =
+    flags.image || flags["image-url"]
+      ? "image"
+      : flags.audio || flags["audio-url"]
+        ? "audio"
+        : flags.video || flags["video-url"]
+          ? "video"
+          : "";
+  const positionalValue = positional[0];
+  const kind =
+    normalizeUnderstandingKind(flags.kind) || flaggedKind || inferUnderstandingKindFromValue(positionalValue);
+  if (!kind) {
+    throw new Error("media input required. Pass --image, --audio, --video, or --kind <image|audio|video> <path|url>");
+  }
+  const rawMedia =
+    kind === "image"
+      ? flags["image-url"] || flags.image || positionalValue
+      : kind === "audio"
+        ? flags["audio-url"] || flags.audio || positionalValue
+        : flags["video-url"] || flags.video || positionalValue;
+  if (!rawMedia) {
+    throw new Error(`${kind} input required. Pass --${kind} <path|url> or --${kind}-url <url>`);
+  }
+  const value = String(rawMedia).trim();
+  if (isInlineOrRemoteMedia(kind, value)) return { kind, mediaUrl: value };
+
+  const abs = path.resolve(value);
+  const bytes = await readFile(abs);
+  const mime = mimeForMediaPath(kind, abs);
+  return { kind, mediaUrl: `data:${mime};base64,${bytes.toString("base64")}` };
+}
+
+async function runMediaUnderstand(rawArgs) {
+  let flags;
+  try {
+    flags = parseFlags(rawArgs, {
+      string: MEDIA_UNDERSTAND_STRING_FLAGS,
+      boolean: MEDIA_UNDERSTAND_BOOLEAN_FLAGS
+    });
+  } catch (err) {
+    console.error(err.message);
+    printMediaHelp();
+    process.exit(2);
+  }
+  if (flags.help || flags.h) {
+    printMediaHelp();
+    return;
+  }
+
+  let mediaInput;
+  try {
+    mediaInput = await resolveMediaUnderstandingInput(flags, rawArgs);
+  } catch (err) {
+    console.error(err.message);
+    process.exit(2);
+  }
+
+  const daemonUrl = await cliDaemonUrl(flags);
+  const token = process.env.OD_TOOL_TOKEN;
+  const providerId = flags["provider-id"] || flags.provider;
+  const body = {
+    kind: mediaInput.kind,
+    mediaUrl: mediaInput.mediaUrl,
+    [`${mediaInput.kind}Url`]: mediaInput.mediaUrl,
+    ...(providerId ? { providerId } : {}),
+    prompt: flags.prompt,
+    model: flags.model,
+    ...(flags.fps != null ? { fps: Number(flags.fps) } : {}),
+    ...(flags["media-resolution"] ? { mediaResolution: flags["media-resolution"] } : {})
+  };
+  const url = token
+    ? `${daemonUrl.replace(/\/$/, "")}/api/tools/media/understand-${mediaInput.kind}`
+    : `${daemonUrl.replace(/\/$/, "")}/api/media/understand-${mediaInput.kind}`;
+
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (err) {
+    surfaceFetchError(err, daemonUrl);
+    process.exit(3);
+  }
+  const respText = await resp.text();
+  let data;
+  try {
+    data = respText ? JSON.parse(respText) : {};
+  } catch {
+    data = { error: respText };
+  }
+  if (!resp.ok) {
+    console.error(`daemon ${resp.status}: ${JSON.stringify(data)}`);
+    process.exit(4);
+  }
+  if (flags.json) {
+    process.stdout.write(JSON.stringify(data, null, 2) + "\n");
+    return;
+  }
+  process.stdout.write(String(data.content || "") + "\n");
 }
 
 async function runMediaGenerate(rawArgs) {
@@ -980,6 +1180,7 @@ async function cliDaemonBaseUrl(flags) {
 function printMediaHelp() {
   console.log(`Usage: od media generate --surface <image|video|audio> --model <id> [opts]
        "$OD_NODE_BIN" "$OD_BIN" media generate --surface <image|video|audio> --model <id> [opts]
+       od media understand --image|--audio|--video <path|url> [--provider mimo] [--prompt <text>] [--model <id>] [--json]
        od media models [--surface image|video|audio] [--audio-kind music|speech|sfx] [--json]
        od media test <provider> [--base-url <url>] [--model <id>] [--api-key <key>] [--json]
 
@@ -1005,10 +1206,12 @@ Common options:
                             meta.json / index.html. The daemon runs
                             \`npx hyperframes render\` against it.
   --image <path>            Project-relative path to a reference image
-                            (image-to-video for Seedance i2v models, or
-                            future image-edit endpoints). Daemon reads
-                            the file from the project, base64-encodes
-                            it, and forwards it to the upstream API.
+                            (MiniMax image-to-video / first-frame flows,
+                            or future image-edit endpoints). Default
+                            text-to-video uses doubao-seedance-1.5-pro.
+                            Daemon reads the file from the project,
+                            base64-encodes it, and forwards it to the
+                            upstream API.
   --daemon-url <url>
 
 Validation:
@@ -1019,8 +1222,18 @@ Validation:
       auth/connectivity probe without generating media.
   od media test minimax --api-key <key> --base-url <url>
       Test a not-yet-saved key/base URL. Secrets are never echoed.
+  od media understand --image ./product.png --provider mimo --json
+  od media understand --audio ./voice.wav --provider mimo --json
+  od media understand --video ./reference.mp4 --provider mimo --json
+      Native image/audio/video understanding. Local files are converted
+      to data:<kind>/*;base64 before the daemon calls the provider. Agents
+      can use the same command through OD_TOOL_TOKEN. Xiaomi MiMo defaults
+      to mimo-v2.5; Volcengine Ark remains available for video with
+      --provider volcengine and a saved endpoint/model when needed.
 
-Output: a single line of JSON: {"file": { name, size, kind, mime, ... }}
+Output:
+  generate emits a single line of JSON: {"file": { name, size, kind, mime, ... }}
+  understand prints the model's text result; add --json for { content, model, usage }.
 
 Skills should call this and then reference the returned filename in their
 artifact / message body. The daemon writes the bytes into the project's
@@ -5125,8 +5338,8 @@ async function runShare(args) {
 function normalizeChatSessionModeFlag(value) {
   if (value == null) return undefined;
   const mode = String(value).trim().toLowerCase();
-  if (mode === "design" || mode === "chat") return mode;
-  console.error("--mode must be one of: design, chat");
+  if (mode === "design" || mode === "chat" || mode === "comprehensive") return mode;
+  console.error("--mode must be one of: design, chat, comprehensive");
   process.exit(2);
 }
 

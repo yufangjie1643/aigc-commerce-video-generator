@@ -60,6 +60,30 @@ const MEDIA_PLUGIN = {
   },
 };
 
+const NEW_GENERATION_PLUGIN = {
+  ...MEDIA_PLUGIN,
+  id: 'od-new-generation',
+  title: 'New generation',
+  source: '/tmp/new-generation',
+  fsPath: '/tmp/new-generation',
+  manifest: {
+    ...MEDIA_PLUGIN.manifest,
+    name: 'od-new-generation',
+    title: 'New generation',
+    description: 'Run a prompt-driven workbench task',
+    tags: ['workflow'],
+    od: {
+      ...MEDIA_PLUGIN.manifest.od,
+      taskKind: 'new-generation',
+      mode: 'other',
+      useCase: {
+        query: '{{prompt}}',
+      },
+      inputs: [],
+    },
+  },
+};
+
 const HIDDEN_DEFAULT_PLUGIN = {
   ...MEDIA_PLUGIN,
   id: 'od-default',
@@ -112,6 +136,37 @@ const MEDIA_APPLY_RESULT = {
   },
 };
 
+const NEW_GENERATION_APPLY_RESULT = {
+  query: NEW_GENERATION_PLUGIN.manifest.od.useCase.query,
+  contextItems: [],
+  inputs: [],
+  assets: [],
+  mcpServers: [],
+  trust: 'trusted',
+  capabilitiesGranted: ['prompt:inject'],
+  capabilitiesRequired: ['prompt:inject'],
+  appliedPlugin: {
+    snapshotId: 'snap-new-generation',
+    pluginId: 'od-new-generation',
+    pluginVersion: '0.1.0',
+    manifestSourceDigest: 'b'.repeat(64),
+    inputs: {},
+    resolvedContext: { items: [] },
+    capabilitiesGranted: ['prompt:inject'],
+    capabilitiesRequired: ['prompt:inject'],
+    assetsStaged: [],
+    taskKind: 'new-generation',
+    appliedAt: 0,
+    connectorsRequired: [],
+    connectorsResolved: [],
+    mcpServers: [],
+    status: 'fresh',
+  },
+  projectMetadata: {
+    kind: 'video',
+  },
+};
+
 function stubAnimationFrame() {
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
     const id = window.setTimeout(() => cb(window.performance.now()), 0);
@@ -136,6 +191,12 @@ function mockPluginFetch(plugins = [HIDDEN_DEFAULT_PLUGIN, MEDIA_PLUGIN]) {
         headers: { 'content-type': 'application/json' },
       });
     }
+    if (typeof url === 'string' && url.includes('/api/plugins/od-new-generation/apply')) {
+      return new Response(JSON.stringify(NEW_GENERATION_APPLY_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
     throw new Error(`unexpected fetch ${url}`);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -148,7 +209,7 @@ describe('HomeView prompt handoff', () => {
     cleanup();
   });
 
-  it('routes free-form submits through the hidden default plugin without applying a visible chip', async () => {
+  it('routes design-mode free-form submits through the hidden default plugin without applying a visible chip', async () => {
     mockPluginFetch();
     const onSubmit = vi.fn();
 
@@ -162,6 +223,7 @@ describe('HomeView prompt handoff', () => {
     );
 
     await screen.findByTestId('home-hero-input');
+    selectDesignMode();
     await setPromptAndSettle('Create a launch video plan for a portable blender');
     fireEvent.click(screen.getByTestId('home-hero-submit'));
 
@@ -175,8 +237,8 @@ describe('HomeView prompt handoff', () => {
     }));
   });
 
-  it('binds the Home rail video chip and applies it on submit', async () => {
-    const fetchMock = mockPluginFetch([MEDIA_PLUGIN]);
+  it('binds the Home rail video-generation chip and applies it on submit', async () => {
+    const fetchMock = mockPluginFetch([NEW_GENERATION_PLUGIN]);
     stubAnimationFrame();
     const onSubmit = vi.fn();
 
@@ -189,21 +251,22 @@ describe('HomeView prompt handoff', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByTestId('home-hero-rail-video'));
+    fireEvent.click(await screen.findByTestId('home-hero-rail-video-generation'));
     await waitFor(() => {
-      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('Ecommerce video');
+      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('视频生成');
     });
+    selectDesignMode();
     await setPromptAndSettle('Generate a 20-second product-selling video for a portable blender.');
     fireEvent.click(screen.getByTestId('home-hero-submit'));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      '/api/plugins/od-media-generation/apply',
+      '/api/plugins/od-new-generation/apply',
       expect.anything(),
     ));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       prompt: 'Generate a 20-second product-selling video for a portable blender.',
-      pluginId: 'od-media-generation',
-      appliedPluginSnapshotId: 'snap-media',
+      pluginId: 'od-new-generation',
+      appliedPluginSnapshotId: 'snap-new-generation',
       projectKind: 'video',
       projectMetadata: expect.objectContaining({ kind: 'video' }),
     })));
@@ -250,6 +313,7 @@ describe('HomeView prompt handoff', () => {
       '/api/plugins/od-media-generation/apply',
       expect.anything(),
     ));
+    selectDesignMode();
 
     await setPromptAndSettle('Use the selected video workflow as the driver');
     await waitFor(() => {
@@ -271,6 +335,11 @@ async function clickHomeShortcut(id: string) {
   await waitFor(() => expect((trigger as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(trigger);
   fireEvent.click(await screen.findByTestId(`home-hero-rail-${id}`));
+}
+
+function selectDesignMode() {
+  fireEvent.click(screen.getByTestId('session-mode-trigger'));
+  fireEvent.click(screen.getByRole('menuitemradio', { name: /Design Agent mode/i }));
 }
 
 async function setPromptAndSettle(value: string): Promise<void> {

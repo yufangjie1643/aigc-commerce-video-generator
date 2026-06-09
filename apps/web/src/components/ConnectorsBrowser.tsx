@@ -14,6 +14,7 @@ import type { Dict } from '../i18n/types';
 import {
   cancelConnectorAuthorization as cancelConnectorAuthorizationRequest,
   connectConnector,
+  captureConnectorAuthorization as captureConnectorAuthorizationRequest,
   disconnectConnector,
   fetchConnectorDetail,
   fetchConnectorDiscovery,
@@ -33,6 +34,7 @@ const CONNECTOR_AUTH_PENDING_POLL_MS = 2_000;
 const CONNECTOR_TOOL_PREVIEW_LIMIT = 50;
 const AUTHORIZATION_CANCEL_FAILED_MESSAGE = "Couldn't cancel authorization. Try again.";
 const CONNECTOR_AUTH_CONTINUE_LABEL = 'Continue in browser';
+const CONNECTOR_AUTH_CAPTURE_LABEL = 'Capture cookies';
 
 interface ConnectorAuthorizationPending {
   expiresAt?: string;
@@ -40,6 +42,7 @@ interface ConnectorAuthorizationPending {
 }
 
 type ConnectorAuthorizationPendingState = Record<string, ConnectorAuthorizationPending>;
+type ConnectorPendingAction = 'connect' | 'disconnect' | 'capture';
 
 function mergeConnectors(current: ConnectorDetail[], incoming: ConnectorDetail[]): ConnectorDetail[] {
   if (current.length === 0) return incoming;
@@ -326,6 +329,10 @@ function connectorNeedsComposioKey(connector: ConnectorDetail, composioConfigure
   return connectorProvider(connector) === 'composio' && !composioConfigured;
 }
 
+function connectorUsesCookieAuth(connector: ConnectorDetail): boolean {
+  return connectorProvider(connector) === 'cookie' || connector.provider === 'open-design-video-crawler';
+}
+
 const CONNECTOR_CATEGORY_KEYS = {
   accounting: 'connectors.category.accounting',
   admin: 'connectors.category.admin',
@@ -456,7 +463,7 @@ export function ConnectorsBrowser({
   const [toolsLoaded, setToolsLoaded] = useState(false);
   const [pendingConnectorAction, setPendingConnectorAction] = useState<{
     connectorId: string;
-    action: 'connect' | 'disconnect';
+    action: ConnectorPendingAction;
   } | null>(null);
   const [connectorAuthorizationPending, setConnectorAuthorizationPending] =
     useState<ConnectorAuthorizationPendingState>(() => loadConnectorAuthorizationPending());
@@ -776,6 +783,50 @@ export function ConnectorsBrowser({
     }
   }
 
+  async function captureConnectorAuthorization(connectorId: string) {
+    if (pendingConnectorAction) return;
+    setPendingConnectorAction({ connectorId, action: 'capture' });
+    try {
+      setConnectorAuthorizationError((curr) => {
+        if (curr[connectorId] === undefined) return curr;
+        const next = { ...curr };
+        delete next[connectorId];
+        return next;
+      });
+      const connector = await captureConnectorAuthorizationRequest(connectorId);
+      if (!connector) {
+        throw new Error('Cookie capture did not return a connector status.');
+      }
+      updateConnector(connector);
+      if (connector.status === 'connected') {
+        setConnectorAuthorizationPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
+        setConnectorAuthorizationCancelFailed((curr) => {
+          if (curr[connectorId] === undefined) return curr;
+          const next = { ...curr };
+          delete next[connectorId];
+          return next;
+        });
+        notifyConnectorsChanged();
+        onConnectorAuthResult?.({
+          connectorId,
+          action: 'connect',
+          result: 'success',
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setConnectorAuthorizationError((curr) => ({ ...curr, [connectorId]: message }));
+      onConnectorAuthResult?.({
+        connectorId,
+        action: 'connect',
+        result: 'failed',
+        errorCode: message,
+      });
+    } finally {
+      setPendingConnectorAction(null);
+    }
+  }
+
   const detailConnector = useMemo(
     () => (detailConnectorId ? (connectors.find((c) => c.id === detailConnectorId) ?? null) : null),
     [detailConnectorId, connectors],
@@ -1006,6 +1057,7 @@ export function ConnectorsBrowser({
                   onConnect={(connectorId) => runConnectorAction(connectorId, 'connect')}
                   onDisconnect={(connectorId) => runConnectorAction(connectorId, 'disconnect')}
                   onCancelAuthorization={cancelConnectorAuthorization}
+                  onCaptureAuthorization={captureConnectorAuthorization}
                   onOpenDetails={openConnectorDetails}
                 />
               ))}
@@ -1051,6 +1103,7 @@ export function ConnectorsBrowser({
           onConnect={(connectorId) => runConnectorAction(connectorId, 'connect')}
           onDisconnect={(connectorId) => runConnectorAction(connectorId, 'disconnect')}
           onCancelAuthorization={cancelConnectorAuthorization}
+          onCaptureAuthorization={captureConnectorAuthorization}
           onLoadMoreTools={(connectorId, cursor) => hydrateToolPreview(connectorId, cursor)}
         />
       ) : null}
@@ -1070,11 +1123,12 @@ function ConnectorCard({
   onConnect,
   onDisconnect,
   onCancelAuthorization,
+  onCaptureAuthorization,
   onOpenDetails,
 }: {
   connector: ConnectorDetail;
   disabled?: boolean;
-  pendingAction: 'connect' | 'disconnect' | null;
+  pendingAction: ConnectorPendingAction | null;
   authorizationPending?: ConnectorAuthorizationPending;
   authorizationCancelFailed: boolean;
   toolsLoading: boolean;
@@ -1083,14 +1137,18 @@ function ConnectorCard({
   onConnect: (connectorId: string) => Promise<void> | void;
   onDisconnect: (connectorId: string) => Promise<void> | void;
   onCancelAuthorization: (connectorId: string) => void;
+  onCaptureAuthorization: (connectorId: string) => Promise<void> | void;
   onOpenDetails: (connectorId: string) => void;
 }) {
   const t = useT();
   const isConnecting = pendingAction === 'connect';
   const isDisconnecting = pendingAction === 'disconnect';
+  const isCapturing = pendingAction === 'capture';
   const isConnected = connector.status === 'connected';
   const isAuthorizationPending = !isConnected && authorizationPending !== undefined;
   const isPending = pendingAction !== null || isAuthorizationPending;
+  const canCaptureAuthorization =
+    !disabled && isAuthorizationPending && pendingAction === null && connectorUsesCookieAuth(connector);
   const canConnect = !disabled && !isPending && connector.status === 'available';
   const canDisconnect = !disabled && !isPending && isConnected;
   const toolCount = getConnectorDisplayToolCount(connector);
@@ -1118,6 +1176,12 @@ function ConnectorCard({
     stop(event);
     if (!authorizationPending?.redirectUrl) return;
     void openExternalUrl(authorizationPending.redirectUrl);
+  }
+
+  function captureAuthorization(event: SyntheticEvent) {
+    stop(event);
+    if (!canCaptureAuthorization && !isCapturing) return;
+    onCaptureAuthorization(connector.id);
   }
 
   return (
@@ -1257,6 +1321,19 @@ function ConnectorCard({
           {CONNECTOR_AUTH_CONTINUE_LABEL}
         </button>
       ) : null}
+      {isAuthorizationPending && connectorUsesCookieAuth(connector) ? (
+        <button
+          type="button"
+          className="connector-authorization-link"
+          title={t('connectors.authorizationPendingHint')}
+          disabled={!canCaptureAuthorization}
+          aria-busy={isCapturing || undefined}
+          onClick={captureAuthorization}
+        >
+          {isCapturing ? <Icon name="spinner" size={12} /> : null}
+          <span>{CONNECTOR_AUTH_CAPTURE_LABEL}</span>
+        </button>
+      ) : null}
     </article>
   );
 }
@@ -1301,11 +1378,12 @@ function ConnectorDetailDrawer({
   onConnect,
   onDisconnect,
   onCancelAuthorization,
+  onCaptureAuthorization,
   onLoadMoreTools,
 }: {
   connector: ConnectorDetail;
   disabled: boolean;
-  pendingAction: 'connect' | 'disconnect' | null;
+  pendingAction: ConnectorPendingAction | null;
   authorizationPending?: ConnectorAuthorizationPending;
   authorizationCancelFailed: boolean;
   authorizationError: string | null;
@@ -1317,14 +1395,18 @@ function ConnectorDetailDrawer({
   onConnect: (connectorId: string) => Promise<void> | void;
   onDisconnect: (connectorId: string) => Promise<void> | void;
   onCancelAuthorization: (connectorId: string) => void;
+  onCaptureAuthorization: (connectorId: string) => Promise<void> | void;
   onLoadMoreTools: (connectorId: string, cursor: string) => Promise<void> | void;
 }) {
   const t = useT();
   const isConnected = connector.status === 'connected';
   const isConnecting = pendingAction === 'connect';
   const isDisconnecting = pendingAction === 'disconnect';
+  const isCapturing = pendingAction === 'capture';
   const isAuthorizationPending = !isConnected && authorizationPending !== undefined;
   const isPending = pendingAction !== null || isAuthorizationPending;
+  const canCaptureAuthorization =
+    !disabled && isAuthorizationPending && pendingAction === null && connectorUsesCookieAuth(connector);
   const canConnect = !disabled && !isPending && connector.status === 'available';
   const canDisconnect = !disabled && !isPending && isConnected;
   const accountLabel = getDisplayableConnectorAccountLabel(connector);
@@ -1341,6 +1423,12 @@ function ConnectorDetailDrawer({
     event.stopPropagation();
     if (!authorizationPending?.redirectUrl) return;
     void openExternalUrl(authorizationPending.redirectUrl);
+  }
+
+  function captureAuthorization(event: SyntheticEvent) {
+    event.stopPropagation();
+    if (!canCaptureAuthorization && !isCapturing) return;
+    onCaptureAuthorization(connector.id);
   }
 
   useEffect(() => {
@@ -1424,6 +1512,18 @@ function ConnectorDetailDrawer({
                   {authorizationPending.redirectUrl ? (
                     <button type="button" className="connector-authorization-link" onClick={continueAuthorization}>
                       {CONNECTOR_AUTH_CONTINUE_LABEL}
+                    </button>
+                  ) : null}
+                  {connectorUsesCookieAuth(connector) ? (
+                    <button
+                      type="button"
+                      className="connector-authorization-link"
+                      disabled={!canCaptureAuthorization}
+                      aria-busy={isCapturing || undefined}
+                      onClick={captureAuthorization}
+                    >
+                      {isCapturing ? <Icon name="spinner" size={12} /> : null}
+                      <span>{CONNECTOR_AUTH_CAPTURE_LABEL}</span>
                     </button>
                   ) : null}
                 </div>
@@ -1534,16 +1634,29 @@ function ConnectorDetailDrawer({
 
         {!isConnected ? (
           <footer className="connector-drawer-foot">
-            <button
-              type="button"
-              className={`primary connector-action is-connect${isConnecting || isAuthorizationPending ? ' is-loading' : ''}`}
-              disabled={!canConnect}
-              aria-busy={isConnecting || isAuthorizationPending || undefined}
-              onClick={() => onConnect(connector.id)}
-            >
-              {isConnecting || isAuthorizationPending ? <Icon name="spinner" size={12} /> : null}
-              <span>{isAuthorizationPending ? t('connectors.authorizationPending') : t('connectors.connect')}</span>
-            </button>
+            {isAuthorizationPending && connectorUsesCookieAuth(connector) ? (
+              <button
+                type="button"
+                className={`primary connector-action is-connect${isCapturing ? ' is-loading' : ''}`}
+                disabled={!canCaptureAuthorization}
+                aria-busy={isCapturing || undefined}
+                onClick={() => onCaptureAuthorization(connector.id)}
+              >
+                {isCapturing ? <Icon name="spinner" size={12} /> : null}
+                <span>{CONNECTOR_AUTH_CAPTURE_LABEL}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={`primary connector-action is-connect${isConnecting || isAuthorizationPending ? ' is-loading' : ''}`}
+                disabled={!canConnect}
+                aria-busy={isConnecting || isAuthorizationPending || undefined}
+                onClick={() => onConnect(connector.id)}
+              >
+                {isConnecting || isAuthorizationPending ? <Icon name="spinner" size={12} /> : null}
+                <span>{isAuthorizationPending ? t('connectors.authorizationPending') : t('connectors.connect')}</span>
+              </button>
+            )}
             {isAuthorizationPending ? (
               <button
                 type="button"

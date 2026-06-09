@@ -36,6 +36,7 @@ function makeSkill(overrides: Partial<SkillSummary>): SkillSummary {
     examplePrompt: '',
     aggregatesExamples: false,
     source: 'built-in',
+    category: 'web-artifacts',
     ...overrides,
   };
 }
@@ -155,6 +156,40 @@ describe('SkillsSection', () => {
 
     expect(within(row).queryByTestId('skills-delete')).toBeNull();
     expect(within(row).queryByTestId('skills-delete-confirm')).toBeNull();
+  });
+
+  it('shows only video and web-related built-in skills in the library', async () => {
+    renderSkillsSection([
+      makeSkill({
+        id: 'video-skill',
+        name: 'Video skill',
+        mode: 'video',
+        category: 'video-generation',
+      }),
+      makeSkill({
+        id: 'web-skill',
+        name: 'Web skill',
+        category: 'web-artifacts',
+      }),
+      makeSkill({
+        id: 'document-skill',
+        name: 'Document skill',
+        mode: 'prototype',
+        category: 'documents',
+      }),
+      makeSkill({
+        id: 'user-doc-skill',
+        name: 'User document skill',
+        mode: 'prototype',
+        category: 'documents',
+        source: 'user',
+      }),
+    ]);
+
+    expect(await screen.findByTestId('skill-row-video-skill')).toBeTruthy();
+    expect(screen.getByTestId('skill-row-web-skill')).toBeTruthy();
+    expect(screen.getByTestId('skill-row-user-doc-skill')).toBeTruthy();
+    expect(screen.queryByTestId('skill-row-document-skill')).toBeNull();
   });
 
   it('keeps delete confirmation and commit available for user skills', async () => {

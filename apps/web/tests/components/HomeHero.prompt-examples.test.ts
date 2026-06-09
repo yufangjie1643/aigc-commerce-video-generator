@@ -6,7 +6,7 @@ import {
 import { LOCALES } from '../../src/i18n/types';
 
 describe('home hero prompt examples localization', () => {
-  it('resolves two ecommerce example prompts for every chip in every supported locale', () => {
+  it('resolves two workbench example prompts for every chip in every supported locale', () => {
     for (const locale of LOCALES) {
       for (const chipId of HOME_PROMPT_EXAMPLE_CHIP_IDS) {
         const examples = homeHeroChipPromptExamplesForLocale(chipId, locale);

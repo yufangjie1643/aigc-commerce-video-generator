@@ -41,6 +41,7 @@ export type ChipAction =
       pluginId: ChipScenarioPluginId;
       projectKind: ProjectKind;
       inputs?: Record<string, unknown>;
+      queryTemplate?: string;
       projectMetadata?: ProjectMetadata;
     }
   | {
@@ -53,8 +54,8 @@ export type ChipAction =
   | { kind: 'create-plugin' }
   | { kind: 'open-template-picker' };
 
-// Two intent groups: "create" = ecommerce video workflow steps, "migrate" =
-// lower-row starter shortcuts such as templates. The grouping is structural
+// Two intent groups: "create" = integrated commerce workbench tasks, "migrate"
+// = lower-row starter shortcuts such as templates. The grouping is structural
 // only — HomeHero renders the two groups in separate flex containers so they
 // wrap onto separate rows on narrow viewports without horizontal scrolling.
 export type ChipGroup = 'create' | 'migrate';
@@ -68,72 +69,123 @@ export interface HomeHeroChip {
   action: ChipAction;
 }
 
+function newGenerationStarterInputs(
+  artifactKind: string,
+  topic: string,
+): Record<string, string> {
+  return {
+    artifactKind,
+    audience: 'commerce video workflow operator',
+    topic,
+  };
+}
+
+function newGenerationProjectMetadata(kind: ProjectKind): ProjectMetadata {
+  return { kind, skipDiscoveryBrief: true };
+}
+
 export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
   {
-    id: 'video',
-    label: 'Ecommerce video',
+    id: 'video-crawler',
+    label: '视频爬取',
+    icon: 'search',
+    group: 'create',
+    hint: '用已连接的搜索或平台连接器收集高热度带货视频样本。',
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'od-new-generation',
+      projectKind: 'other',
+      inputs: newGenerationStarterInputs(
+        'commerce video crawler workflow',
+        'collecting public high-performing selling video samples',
+      ),
+      projectMetadata: newGenerationProjectMetadata('other'),
+      queryTemplate:
+        '你是带货视频数据采集助手。围绕用户给出的商品、关键词、平台或类目，由 agent 调用后台素材库/连接器工具完成：先用 commerce-videos search 预览公开视频候选，再根据相关性、播放/点赞/收藏/评论/分享等热度信号、疑似带货证据、重复风险和数据限制筛选，最后只把选中的样本写入素材库。优先返回标题、作者、链接、平台 ID、发布时间、可获得互动指标、选择/淘汰理由和采集限制。不要在首页直接 mock 成功，不要默认批量导入全部结果，不要承诺绕过登录、验证码或平台风控。',
+    },
+  },
+  {
+    id: 'asset-analysis',
+    label: '素材库分析',
+    icon: 'grid',
+    group: 'create',
+    hint: '盘点商品图、参考视频、卖点、品牌约束和缺口。',
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'od-new-generation',
+      projectKind: 'other',
+      inputs: newGenerationStarterInputs(
+        'commerce asset library analysis',
+        'assessing product materials for selling video readiness',
+      ),
+      projectMetadata: newGenerationProjectMetadata('other'),
+      queryTemplate:
+        '你是带货视频素材库分析助手。通过 agent 调用素材库接口完成真实流程：先用 od assets commerce-videos batch-process --query/--ids --wait --json 批量解析并观察进度，再用 od assets commerce-videos methodology-summary --query/--ids --json 取得结构化上下文；参考 video-storyboard-analysis 的切片/关键帧分析流程和 video-generation-pipeline 的方法论格式，汇总多条参考视频的爆款打法。基于商品素材库和带货视频库，输出：1）商品维度；2）视频维度；3）slice 维度；4）可直接用于生成的素材；5）缺失素材；6）素材质量风险；7）适合的镜头/首帧/卖点用法；8）可复用方法论和下一步补齐/向量化建议。不要在首页 mock 成功。',
+    },
+  },
+  {
+    id: 'script-storyboard',
+    label: '脚本分镜',
+    icon: 'kanban',
+    group: 'create',
+    hint: '把商品资料转成钩子、口播、镜头和生成提示词。',
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'od-new-generation',
+      projectKind: 'other',
+      inputs: newGenerationStarterInputs(
+        'commerce video script and storyboard',
+        'turning product materials into shot-level selling video plans',
+      ),
+      projectMetadata: newGenerationProjectMetadata('other'),
+      queryTemplate:
+        '你是带货视频脚本与分镜助手。基于用户给出的商品、素材、目标平台和时长，输出可执行的短视频方案：开场钩子、痛点/卖点结构、口播稿、字幕节奏、镜头清单、每镜头时长、画面目标、所需素材、图片/视频生成提示词、音效/音乐建议、CTA 和质检要点。',
+    },
+  },
+  {
+    id: 'video-generation',
+    label: '视频生成',
     icon: 'play',
     group: 'create',
+    hint: '根据素材、脚本或分镜组织竖屏带货视频生成任务。',
     action: {
       kind: 'apply-scenario',
-      pluginId: 'od-media-generation',
+      pluginId: 'od-new-generation',
       projectKind: 'video',
-      inputs: {
-        mediaKind: 'video',
-        subject: 'a conversion-focused ecommerce product video',
-        style: 'short-form, benefit-led, platform-ready',
-        aspect: '9:16',
-      },
+      inputs: newGenerationStarterInputs(
+        'vertical commerce video generation brief',
+        'preparing product-selling video generation tasks',
+      ),
+      projectMetadata: newGenerationProjectMetadata('video'),
+      queryTemplate:
+        '你是带货视频生成助手。根据用户提供的商品素材、脚本、分镜或参考视频，组织一次可执行的视频生成任务。先确认平台、比例、时长、模型、是否需要参考图/首帧、字幕和配音；再输出镜头级生成提示词、负面约束、画面连续性要求、渲染参数和失败重试建议。',
     },
   },
   {
-    id: 'image',
-    label: 'Product assets',
-    icon: 'image',
+    id: 'generation-diagnostics',
+    label: '生成诊断',
+    icon: 'sliders',
     group: 'create',
+    hint: '检查生成结果、错误信息、素材缺口和重试方案。',
     action: {
       kind: 'apply-scenario',
-      pluginId: 'od-media-generation',
-      projectKind: 'image',
-      inputs: {
-        mediaKind: 'image',
-        subject: 'product materials, reference frames, and cover visuals',
-        style: 'clean ecommerce, high-conversion, on-brand',
-        aspect: '1:1',
-      },
-    },
-  },
-  {
-    id: 'hyperframes',
-    label: 'Storyboard motion',
-    icon: 'orbit',
-    group: 'create',
-    hint: 'Plan shot structure, captions, transitions, and render-ready motion.',
-    action: { kind: 'apply-scenario', pluginId: 'example-hyperframes', projectKind: 'video' },
-  },
-  {
-    id: 'audio',
-    label: 'Voice / captions',
-    icon: 'mic',
-    group: 'create',
-    action: {
-      kind: 'apply-scenario',
-      pluginId: 'od-media-generation',
-      projectKind: 'audio',
-      inputs: {
-        mediaKind: 'audio',
-        subject: 'voiceover, subtitle timing, and audio identity for a product video',
-        style: 'clear, persuasive, platform-ready',
-        aspect: '16:9',
-      },
+      pluginId: 'od-new-generation',
+      projectKind: 'other',
+      inputs: newGenerationStarterInputs(
+        'commerce video generation diagnostics',
+        'debugging failed or low-quality selling video generations',
+      ),
+      projectMetadata: newGenerationProjectMetadata('other'),
+      queryTemplate:
+        '你是带货视频生成诊断助手。检查用户当前项目的生成记录、失败日志、模型配置、素材输入、提示词、时长/比例/分辨率、字幕/配音和输出结果。区分素材缺失、提示词不清、模型能力、配置、额度或网络问题，输出可执行的修复步骤、重试提示词和需要用户补充的信息。',
     },
   },
   {
     id: 'template',
-    label: 'Template library',
+    label: '任务模板',
     icon: 'file-code',
     group: 'migrate',
-    hint: 'Start from an ecommerce video script, storyboard, platform, or reference template.',
+    hint: 'Start from a crawler, asset-analysis, storyboard, generation, or diagnostics template.',
     action: { kind: 'open-template-picker' },
   },
 ];

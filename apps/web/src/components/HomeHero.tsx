@@ -35,6 +35,7 @@ import { useAnalytics } from '../analytics/provider';
 import { trackHomeChatComposerClick } from '../analytics/events';
 import {
   chipsForGroup,
+  findChip,
   type ChipGroup,
   type HomeHeroChip,
 } from './home-hero/chips';
@@ -146,6 +147,7 @@ interface Props {
   onPickChip: (chip: HomeHeroChip) => void;
   contextItemCount: number;
   error: string | null;
+  workflowStatus?: string | null;
   showActivePluginChip?: boolean;
   workingDir?: string | null;
   onPickWorkingDir?: () => void;
@@ -191,8 +193,6 @@ interface SelectedPromptExample {
 }
 
 const EMPTY_PLUGIN_CONTEXTS: InstalledPluginRecord[] = [];
-const EMPTY_MCP_CONTEXTS: McpServerConfig[] = [];
-const EMPTY_CONNECTOR_CONTEXTS: ConnectorDetail[] = [];
 const EMPTY_INPUT_FIELDS: InputFieldSpec[] = [];
 const EMPTY_PLUGIN_INPUT_VALUES: Record<string, unknown> = {};
 const EMPTY_INPUT_NAMES: string[] = [];
@@ -208,7 +208,7 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
     prompt,
     onPromptChange,
     onSubmit,
-    sessionMode = 'design',
+    sessionMode = 'comprehensive',
     onSessionModeChange,
     activePluginTitle,
     activePluginRecord = null,
@@ -255,6 +255,7 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
     onPickChip,
     contextItemCount,
     error,
+    workflowStatus = null,
     showActivePluginChip = true,
     workingDir = null,
     onPickWorkingDir,
@@ -456,10 +457,6 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
   const fieldByName = useMemo(
     () => new Map(pluginInputFields.map((field) => [field.name, field])),
     [pluginInputFields],
-  );
-  const footerInputNameSet = useMemo(
-    () => new Set(footerInputNames),
-    [footerInputNames],
   );
   const footerInputFields = useMemo(
     () => footerInputNames
@@ -1322,6 +1319,12 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
               </button>
             ))}
           </div>
+        </div>
+      ) : null}
+
+      {workflowStatus ? (
+        <div role="status" className="home-hero__workflow-status" data-testid="home-hero-workflow-status">
+          {workflowStatus}
         </div>
       ) : null}
 
@@ -2482,7 +2485,7 @@ function homeHeroChipLabel(chipId: string, t: ReturnType<typeof useT>): string {
     case 'create-plugin': return t('homeHero.chip.createPlugin');
     case 'figma': return t('homeHero.chip.figma');
     case 'template': return t('homeHero.chip.template');
-    default: return chipId;
+    default: return findChip(chipId)?.label ?? chipId;
   }
 }
 
@@ -2493,7 +2496,7 @@ function homeHeroChipTitle(chip: HomeHeroChip, t: ReturnType<typeof useT>): stri
     case 'create-plugin': return t('homeHero.chip.createPluginHint');
     case 'figma': return t('homeHero.chip.figmaHint');
     case 'template': return t('homeHero.chip.templateHint');
-    default: return homeHeroChipLabel(chip.id, t);
+    default: return chip.hint ?? homeHeroChipLabel(chip.id, t);
   }
 }
 
@@ -3578,58 +3581,67 @@ const HOME_PROMPT_EXAMPLES: Record<Locale, Record<string, string[]>> = {
   },
 };
 
-const ECOMMERCE_PROMPT_EXAMPLES: Record<'en' | 'zh-CN', Record<string, string[]>> = {
+const WORKBENCH_PROMPT_EXAMPLES: Record<'en' | 'zh-CN', Record<string, string[]>> = {
   en: {
-    image: [
-      "Create ecommerce product cover assets for a portable blender: white-background SKU shot, lifestyle kitchen scene, benefit callouts, and before/after comparison",
-      "Analyze these product photos and produce a reusable visual direction for vertical selling videos: hero frame, detail close-ups, proof shot, and CTA frame",
+    'video-crawler': [
+      "Search connected public-video sources for high-performing selling videos about a portable blender. Return title, author, link, platform id, available engagement metrics, selling evidence, and source limitations.",
+      "Use connected Bilibili/Douyin/Xiaohongshu-style connectors where available to collect 20 AI digital-human selling videos and rank them by available heat signals.",
     ],
-    video: [
-      "Create a 20-second vertical ecommerce video for a portable blender: 3-second hook, pain point, product demo, benefit proof, limited offer, and CTA",
-      "Convert these product assets into a short-form selling video plan with scene timing, captions, camera moves, music mood, and render settings for 9:16",
+    'asset-analysis': [
+      "Batch-process the selected commerce-video assets, watch the job progress, then call methodology-summary and use the agent to produce reusable selling-video methods, missing assets, risks, and vectorization needs.",
+      "Turn these product photos, reference videos, and selling points into a reusable asset map with product/video/slice dimensions for vertical commerce videos.",
     ],
-    hyperframes: [
-      "Create a storyboard for a 15-second product-selling video with shot list, caption hierarchy, transition notes, and final CTA frame",
-      "Build a motion structure for a beauty product short: macro texture shot, application demo, before/after proof, creator testimonial, and offer reveal",
+    'script-storyboard': [
+      "Create a 15-second selling-video script and storyboard with hook, voiceover, captions, shot list, required assets, generation prompts, sound notes, and CTA.",
+      "Convert this product brief into three short-video angles: pain-point demo, creator testimonial, and before/after proof, each with storyboard timing.",
     ],
-    audio: [
-      "Write a concise voiceover for a 20-second ecommerce video with hook, product proof, offer, and CTA, plus caption timing marks",
-      "Create a bilingual Chinese/English subtitle plan for a product short with line breaks, beat timing, and mobile-safe copy length",
+    'video-generation': [
+      "Generate a 20-second vertical selling video plan for a portable blender: 3-second hook, demo, proof, offer, CTA, model questions, and shot-level prompts.",
+      "Use these assets and storyboard to prepare a render-ready commerce video generation brief with ratio, duration, reference-frame needs, captions, and retry guidance.",
+    ],
+    'generation-diagnostics': [
+      "Diagnose why this selling-video generation failed. Check inputs, prompt clarity, model settings, ratio/duration, media provider status, and propose a retry plan.",
+      "Review the generated video against the script and assets. Identify visual, caption, voiceover, continuity, and conversion issues, then propose the next version.",
     ],
   },
   'zh-CN': {
-    image: [
-      "为便携榨汁杯生成电商商品素材：白底 SKU 图、厨房生活方式场景、卖点标注和前后对比图",
-      "分析这些商品照片，输出竖屏带货视频可复用的视觉方向：首帧、细节特写、效果证明和 CTA 画面",
+    'video-crawler': [
+      "围绕「便携榨汁杯」爬取公开高热度带货视频样本，返回标题、作者、链接、平台 ID、可获得互动指标、疑似带货证据和数据限制。",
+      "使用已连接的 Bilibili/抖音/小红书类连接器，搜索「AI 数字人 带货」，抓取前 20 个公开视频并按热度信号排序。",
     ],
-    video: [
-      "为便携榨汁杯创作 20 秒竖屏带货视频：3 秒钩子、痛点、产品演示、效果证明、限时优惠和 CTA",
-      "把这些商品素材转成短视频带货方案，包含场景时长、字幕、运镜、音乐情绪和 9:16 渲染设置",
+    'asset-analysis': [
+      "批量解析带货视频库中当前筛选的视频，展示任务进度；完成后调用 methodology-summary 获取结构化上下文，再由 agent 总结可复用爆款方法论、缺失素材、风险点和向量化需求。",
+      "把这些商品图、参考视频和卖点整理成包含商品/视频/slice 维度的竖屏带货视频素材地图，标注首帧、细节特写、效果证明和 CTA 画面用途。",
     ],
-    hyperframes: [
-      "为 15 秒商品带货视频生成分镜：镜头列表、字幕层级、转场说明和最终 CTA 画面",
-      "为美妆产品短视频设计动效结构：质地微距、上脸演示、前后对比、达人证言和优惠揭示",
+    'script-storyboard': [
+      "为 15 秒商品带货视频生成脚本和分镜：开场钩子、口播、字幕、镜头列表、所需素材、生成提示词、音效建议和 CTA。",
+      "把这个商品 brief 拆成 3 个短视频方向：痛点演示、达人证言、前后对比，并分别给出分镜时长。",
     ],
-    audio: [
-      "为 20 秒带货视频写一版简洁旁白，包含钩子、产品证明、优惠和 CTA，并补充字幕时间点",
-      "为商品短视频生成中英文双语字幕方案，包含断句、节奏点和移动端安全字数",
+    'video-generation': [
+      "为便携榨汁杯准备 20 秒竖屏带货视频生成任务：3 秒钩子、演示、证明、优惠、CTA、模型问题和镜头级提示词。",
+      "基于这些素材和分镜，整理一份可执行的视频生成 brief：比例、时长、参考图/首帧需求、字幕、配音和失败重试建议。",
+    ],
+    'generation-diagnostics': [
+      "诊断这次带货视频生成失败的原因，检查素材、提示词、模型配置、比例/时长、媒体服务状态，并输出重试方案。",
+      "复盘当前生成视频与脚本/素材的偏差，指出画面、字幕、口播、连续性和转化表达问题，并给出下一版改法。",
     ],
   },
 };
 
 export const HOME_PROMPT_EXAMPLE_CHIP_IDS = [
-  'image',
-  'video',
-  'hyperframes',
-  'audio',
+  'video-crawler',
+  'asset-analysis',
+  'script-storyboard',
+  'video-generation',
+  'generation-diagnostics',
 ] as const;
 
-// First-step product trim keeps zh-CN as the source locale and lets all
-// non-Chinese locales use the concise English ecommerce prompts.
+// First-step workbench prompts keep zh-CN as the source locale and let all
+// non-Chinese locales use the concise English prompts.
 export function homeHeroChipPromptExamplesForLocale(chipId: string, locale: Locale): string[] {
   const commerceLocale = locale === 'zh-CN' ? 'zh-CN' : 'en';
   return (
-    ECOMMERCE_PROMPT_EXAMPLES[commerceLocale][chipId] ??
+    WORKBENCH_PROMPT_EXAMPLES[commerceLocale][chipId] ??
     HOME_PROMPT_EXAMPLES[locale]?.[chipId] ??
     HOME_PROMPT_EXAMPLES.en[chipId] ??
     []
@@ -3654,6 +3666,16 @@ function briefForChipId(chipId: string): Record<string, string> {
       return { artifact_type: 'web prototype', audience: 'product evaluators', fidelity: 'high-fidelity' };
     case 'deck':
       return { artifact_type: 'pitch deck / presentation', audience: 'decision makers', slide_count: '10-15 pages' };
+    case 'video-crawler':
+      return { artifact_type: 'commerce video crawl report', workflow_stage: 'crawler_research', style: 'source-cited, metrics-first' };
+    case 'asset-analysis':
+      return { artifact_type: 'asset library analysis', workflow_stage: 'asset_audit', style: 'gap-focused, production-ready' };
+    case 'script-storyboard':
+      return { artifact_type: 'selling video script / storyboard', workflow_stage: 'storyboard_ready', style: 'shot-level, mobile-first' };
+    case 'video-generation':
+      return { artifact_type: 'commerce video generation brief', workflow_stage: 'render_ready', aspect_ratio: '9:16' };
+    case 'generation-diagnostics':
+      return { artifact_type: 'generation diagnostics', workflow_stage: 'diagnostics', style: 'actionable retry plan' };
     case 'image':
       return { artifact_type: 'ecommerce product assets', workflow_stage: 'assets_ready', style: 'platform-ready, conversion-focused' };
     case 'video':

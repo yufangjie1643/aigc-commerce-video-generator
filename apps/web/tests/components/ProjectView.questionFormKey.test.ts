@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildQuestionFormKey } from '../../src/components/ProjectView';
+import {
+  buildQuestionFormKey,
+  isLatestUnansweredQuestionFormRequest,
+} from '../../src/components/ProjectView';
 
 describe('buildQuestionFormKey', () => {
   it('is stable across a streaming form-id change (no remount mid-answer)', () => {
@@ -28,5 +31,17 @@ describe('buildQuestionFormKey', () => {
     expect(buildQuestionFormKey(null, 'msg-1', true)).toBeNull();
     expect(buildQuestionFormKey('conv-1', null, true)).toBeNull();
     expect(buildQuestionFormKey('conv-1', 'msg-1', false)).toBeNull();
+  });
+});
+
+describe('isLatestUnansweredQuestionFormRequest', () => {
+  it('keeps the latest unanswered banner-opened form interactive', () => {
+    expect(isLatestUnansweredQuestionFormRequest('msg-1', 'msg-1', undefined)).toBe(true);
+  });
+
+  it('does not treat answered or older forms as active', () => {
+    expect(isLatestUnansweredQuestionFormRequest('msg-1', 'msg-1', { platform: 'Bilibili' })).toBe(false);
+    expect(isLatestUnansweredQuestionFormRequest('msg-1', 'msg-2', undefined)).toBe(false);
+    expect(isLatestUnansweredQuestionFormRequest(null, 'msg-2', undefined)).toBe(false);
   });
 });

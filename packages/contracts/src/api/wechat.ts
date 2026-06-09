@@ -68,6 +68,7 @@ export interface WeChatAgentBridgeCommandResponse {
   command: string[];
   stdout: string;
   stderr: string;
+  login: WeChatAgentBridgeSnapshot;
   exitCode?: number | null;
   signal?: string | null;
   error?: string;

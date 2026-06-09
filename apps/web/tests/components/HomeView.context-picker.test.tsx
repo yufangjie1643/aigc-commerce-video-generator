@@ -3,7 +3,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID,
   type InstalledPluginRecord,
   type ConnectorDetail,
   type McpServerConfig,
@@ -56,7 +55,7 @@ const DECK_SKILL: SkillSummary = {
   examplePrompt: 'Design a focused investor deck.',
 };
 
-const MEDIA_PLUGIN = makePlugin('od-media-generation', 'Media Generation');
+const NEW_GENERATION_PLUGIN = makePlugin('od-new-generation', 'New Generation');
 const MCP_SERVER: McpServerConfig = {
   id: 'linear',
   label: 'Linear',
@@ -164,7 +163,7 @@ describe('HomeView context picker', () => {
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       prompt: '',
-      pluginId: DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID,
+      pluginId: null,
       attachments: [file],
     }));
   });
@@ -236,7 +235,7 @@ describe('HomeView context picker', () => {
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       prompt: 'Build @Chart Plugin @Deck Plugin',
-      pluginId: DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID,
+      pluginId: null,
       contextPlugins: [
         expect.objectContaining({ id: 'chart-plugin', title: 'Chart Plugin' }),
         expect.objectContaining({ id: 'deck-plugin', title: 'Deck Plugin' }),
@@ -291,7 +290,7 @@ describe('HomeView context picker', () => {
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       prompt: '@Prototype Lab',
-      pluginId: DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID,
+      pluginId: null,
       skillId: SKILL.id,
       projectKind: 'prototype',
     }));
@@ -300,7 +299,21 @@ describe('HomeView context picker', () => {
   it('clears an active type chip when the user picks a skill (#2972)', async () => {
     const fetchMock = vi.fn<typeof fetch>(async (url) => {
       if (typeof url === 'string' && url === '/api/plugins') {
-        return new Response(JSON.stringify({ plugins: [MEDIA_PLUGIN] }), {
+        return new Response(JSON.stringify({ plugins: [NEW_GENERATION_PLUGIN] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (typeof url === 'string' && url.includes('/apply')) {
+        return new Response(JSON.stringify({
+          appliedPlugin: {
+            snapshotId: 'snap-new-generation',
+            pluginId: 'od-new-generation',
+            pluginVersion: '1.0.0',
+            inputs: {},
+          },
+          contextItems: [],
+        }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         });
@@ -330,9 +343,9 @@ describe('HomeView context picker', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByTestId('home-hero-rail-video'));
+    fireEvent.click(await screen.findByTestId('home-hero-rail-video-generation'));
     await waitFor(() => {
-      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('Ecommerce video');
+      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('视频生成');
     });
 
     screen.getByTestId('home-hero-input');
@@ -348,17 +361,17 @@ describe('HomeView context picker', () => {
     fireEvent.click(screen.getByTestId('home-hero-submit'));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
-      pluginId: DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID,
+      pluginId: null,
       skillId: DECK_SKILL.id,
       projectKind: 'deck',
     }));
-    expect(onSubmit.mock.calls[0]?.[0]?.pluginId).not.toBe('od-media-generation');
+    expect(onSubmit.mock.calls[0]?.[0]?.pluginId).not.toBe('od-new-generation');
   });
 
   it('clears an active skill when the user picks a type chip (#2972)', async () => {
     const fetchMock = vi.fn<typeof fetch>(async (url) => {
       if (typeof url === 'string' && url === '/api/plugins') {
-        return new Response(JSON.stringify({ plugins: [MEDIA_PLUGIN] }), {
+        return new Response(JSON.stringify({ plugins: [NEW_GENERATION_PLUGIN] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         });
@@ -366,8 +379,8 @@ describe('HomeView context picker', () => {
       if (typeof url === 'string' && url.includes('/apply')) {
         return new Response(JSON.stringify({
           appliedPlugin: {
-            snapshotId: 'snap-media-generation',
-            pluginId: 'od-media-generation',
+            snapshotId: 'snap-new-generation',
+            pluginId: 'od-new-generation',
             pluginVersion: '1.0.0',
             inputs: {},
           },
@@ -410,9 +423,9 @@ describe('HomeView context picker', () => {
       expect(screen.getByTestId('home-hero-active-skill')).toBeTruthy();
     });
 
-    fireEvent.click(await screen.findByTestId('home-hero-rail-video'));
+    fireEvent.click(await screen.findByTestId('home-hero-rail-video-generation'));
     await waitFor(() => {
-      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('Ecommerce video');
+      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('视频生成');
       expect(screen.queryByTestId('home-hero-active-skill')).toBeNull();
     });
 
@@ -421,7 +434,7 @@ describe('HomeView context picker', () => {
     fireEvent.click(screen.getByTestId('home-hero-submit'));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
-      pluginId: 'od-media-generation',
+      pluginId: null,
       skillId: null,
       projectKind: 'video',
     })));
@@ -479,7 +492,7 @@ describe('HomeView context picker', () => {
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       prompt: '@Linear @Slack',
-      pluginId: DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID,
+      pluginId: null,
       contextMcpServers: [
         expect.objectContaining({ id: 'linear', label: 'Linear', transport: 'stdio' }),
       ],
@@ -547,7 +560,7 @@ describe('HomeView context picker', () => {
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       prompt: 'Summarize @Slack, then draft follow-ups',
-      pluginId: DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID,
+      pluginId: null,
       contextConnectors: [
         expect.objectContaining({ id: 'slack', name: 'Slack' }),
       ],

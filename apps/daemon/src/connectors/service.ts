@@ -21,8 +21,12 @@ import {
   isVideoCrawlerDefinition,
   normalizeVideoCrawlerCredentials,
   videoCrawlerConnectorProvider,
-  videoCrawlerLoginStart,
 } from './video-crawler.js';
+import {
+  cancelVideoCrawlerControlledBrowserLogin,
+  captureVideoCrawlerControlledBrowserCookies,
+  startVideoCrawlerControlledBrowserLogin,
+} from './video-crawler-browser.js';
 
 export interface ConnectorExecuteRequest {
   connectorId: string;
@@ -702,7 +706,7 @@ export class ConnectorService {
     return this.statusService.getCredential(connectorId);
   }
 
-  async listConnectors(signal?: AbortSignal): Promise<ConnectorDetail[]> {
+  async listConnectors(): Promise<ConnectorDetail[]> {
     return this.listFastDefinitions().map((definition) => this.toDetail(definition));
   }
 
@@ -829,9 +833,10 @@ export class ConnectorService {
     }
     if (definition.authentication === 'cookie') {
       if (options.credentials === undefined) {
-        auth = videoCrawlerLoginStart(definition.id);
-        return { connector: this.toDetail(detailDefinition), auth };
+        auth = await startVideoCrawlerControlledBrowserLogin(definition.id);
+        return { connector: this.toDetail(detailDefinition), auth: publicComposioAuthStart(auth) };
       }
+      cancelVideoCrawlerControlledBrowserLogin(definition.id);
       const normalizedCredentials = normalizeVideoCrawlerCredentials(definition, options.credentials);
       const accountLabel =
         typeof normalizedCredentials.accountLabel === 'string'
@@ -854,6 +859,31 @@ export class ConnectorService {
     };
   }
 
+  async capturePendingAuthorization(connectorId: string): Promise<ConnectorDetail> {
+    const definition = this.getFastDefinition(connectorId) ?? (await this.getDefinition(connectorId));
+    if (!definition) {
+      throw new ConnectorServiceError('CONNECTOR_NOT_FOUND', 'connector not found', 404);
+    }
+    if (definition.authentication !== 'cookie') {
+      throw new ConnectorServiceError(
+        'CONNECTOR_EXECUTION_FAILED',
+        'connector does not use browser cookie capture',
+        400,
+        { connectorId },
+      );
+    }
+
+    const credentials = await captureVideoCrawlerControlledBrowserCookies(definition.id);
+    const normalizedCredentials = normalizeVideoCrawlerCredentials(definition, credentials);
+    const accountLabel =
+      typeof normalizedCredentials.accountLabel === 'string' ? normalizedCredentials.accountLabel : undefined;
+    const status = this.statusService.connect(definition, accountLabel, normalizedCredentials);
+    if (status.status === 'disabled') {
+      throw new ConnectorServiceError('CONNECTOR_DISABLED', 'connector is disabled', 403);
+    }
+    return this.toDetail(definition);
+  }
+
   async disconnect(connectorId: string): Promise<ConnectorDetail> {
     const definition = this.getFastDefinition(connectorId) ?? (await this.getDefinition(connectorId));
     if (!definition) {
@@ -873,6 +903,8 @@ export class ConnectorService {
     }
     if (definition.authentication === 'composio') {
       composioConnectorProvider.cancelPendingConnections(connectorId);
+    } else if (definition.authentication === 'cookie') {
+      cancelVideoCrawlerControlledBrowserLogin(connectorId);
     }
     return this.toDetail(definition);
   }
@@ -1054,7 +1086,11 @@ export class ConnectorService {
         tool,
         request.input,
         this.getCredential(request.connectorId)?.credentials,
-        context.signal,
+        {
+          projectsRoot: context.projectsRoot,
+          projectId: context.projectId,
+          ...(context.signal === undefined ? {} : { signal: context.signal }),
+        },
       );
     }
 

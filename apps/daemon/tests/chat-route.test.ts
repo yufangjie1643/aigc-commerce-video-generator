@@ -11,7 +11,7 @@ import {
   realpathSync,
   rmSync,
   symlinkSync,
-  writeFileSync,
+  writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
@@ -22,8 +22,9 @@ import {
   resolveCodexGeneratedImagesDir,
   resolveChatExtraAllowedDirs,
   resolveResearchCommandContract,
+  inferComprehensiveSkillIds,
   startServer,
-  validateCodexGeneratedImagesDir,
+  validateCodexGeneratedImagesDir
 } from '../src/server.js';
 import { skillCwdAliasSegment } from '../src/cwd-aliases.js';
 import { getAgentDef } from '../src/agents.js';
@@ -33,25 +34,43 @@ import { renderCodexImagegenOverride } from '../src/prompts/system.js';
 
 const FAKE_VELA_FIXTURE = resolve(process.cwd(), 'tests', 'fixtures', 'fake-vela.mjs');
 
+describe('inferComprehensiveSkillIds', () => {
+  it('exposes video analysis and generation skills only for matching comprehensive tasks', () => {
+    expect(
+      inferComprehensiveSkillIds({
+        sessionMode: 'comprehensive',
+        currentPrompt: '生成一个便携榨汁杯带货视频，并提取素材库方法论。'
+      })
+    ).toEqual(['video-storyboard-analysis', 'video-generation-pipeline']);
+
+    expect(
+      inferComprehensiveSkillIds({
+        sessionMode: 'comprehensive',
+        currentPrompt: '使用 Bilibili 连接器爬取 20 个热视频标题。'
+      })
+    ).toEqual([]);
+
+    expect(
+      inferComprehensiveSkillIds({
+        sessionMode: 'design',
+        currentPrompt: '生成一个带货视频。'
+      })
+    ).toEqual([]);
+  });
+});
+
 function symlinkDir(target: string, link: string): void {
   symlinkSync(target, link, process.platform === 'win32' ? 'junction' : 'dir');
 }
 
-async function withFakeAgent<T>(
-  binName: string,
-  script: string,
-  run: () => Promise<T>,
-): Promise<T> {
+async function withFakeAgent<T>(binName: string, script: string, run: () => Promise<T>): Promise<T> {
   const dir = await fsp.mkdtemp(join(tmpdir(), 'od-chat-route-bin-'));
   const oldPath = process.env.PATH;
   try {
     if (process.platform === 'win32') {
       const runner = join(dir, `${binName}-test-runner.cjs`);
       await fsp.writeFile(runner, script);
-      await fsp.writeFile(
-        join(dir, `${binName}.cmd`),
-        `@echo off\r\nnode "${runner}" %*\r\n`,
-      );
+      await fsp.writeFile(join(dir, `${binName}.cmd`), `@echo off\r\nnode "${runner}" %*\r\n`);
     } else {
       const bin = join(dir, binName);
       await fsp.writeFile(bin, `#!/usr/bin/env node\n${script}`);
@@ -81,13 +100,7 @@ describe('/api/chat', () => {
     const root = await fsp.mkdtemp(join(tmpdir(), 'od-plugin-fixture-'));
     tempDirs.push(root);
     const fixtureDir = resolve(root, args.dirName);
-    const baseFixtureDir = resolve(
-      process.cwd(),
-      'tests',
-      'fixtures',
-      'plugin-fixtures',
-      'sample-plugin',
-    );
+    const baseFixtureDir = resolve(process.cwd(), 'tests', 'fixtures', 'plugin-fixtures', 'sample-plugin');
     await fsp.cp(baseFixtureDir, fixtureDir, { recursive: true });
     const manifestPath = resolve(fixtureDir, 'open-design.json');
     const manifest = JSON.parse(await fsp.readFile(manifestPath, 'utf8')) as {
@@ -111,10 +124,10 @@ describe('/api/chat', () => {
       originalMemoryConfig = await readMemoryConfig(process.env.OD_DATA_DIR);
       await writeMemoryConfig(process.env.OD_DATA_DIR, {
         enabled: false,
-        extraction: null,
+        extraction: null
       });
     }
-    const started = await startServer({ port: 0, returnServer: true }) as {
+    const started = (await startServer({ port: 0, returnServer: true })) as {
       url: string;
       server: http.Server;
     };
@@ -145,7 +158,7 @@ describe('/api/chat', () => {
     if (process.env.OD_DATA_DIR && originalMemoryConfig) {
       await writeMemoryConfig(process.env.OD_DATA_DIR, {
         enabled: originalMemoryConfig.enabled,
-        extraction: originalMemoryConfig.extraction,
+        extraction: originalMemoryConfig.extraction
       });
     }
   });
@@ -161,8 +174,8 @@ describe('/api/chat', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         agentId: 'claude',
-        message: 'hello',
-      }),
+        message: 'hello'
+      })
     });
     const body = await response.text();
 
@@ -190,8 +203,8 @@ process.exit(0);
           body: JSON.stringify({
             agentId: 'opencode',
             conversationId,
-            message: 'hello',
-          }),
+            message: 'hello'
+          })
         });
         const body = await response.text();
 
@@ -201,9 +214,7 @@ process.exit(0);
         expect(body).toContain('"status":"failed"');
         expect(body).not.toContain('"status":"succeeded"');
 
-        const runsResponse = await fetch(
-          `${baseUrl}/api/runs?conversationId=${encodeURIComponent(conversationId)}`,
-        );
+        const runsResponse = await fetch(`${baseUrl}/api/runs?conversationId=${encodeURIComponent(conversationId)}`);
         const runsBody = (await runsResponse.json()) as {
           runs: Array<{ conversationId: string | null; status: string; exitCode: number | null }>;
         };
@@ -212,12 +223,11 @@ process.exit(0);
         expect(runsBody.runs[0]).toMatchObject({
           conversationId,
           status: 'failed',
-          exitCode: 0,
+          exitCode: 0
         });
-      },
+      }
     );
   });
-
 
   it('reuses an existing assistant message row instead of creating a duplicate when assistantMessageId is supplied', async () => {
     if (!process.env.OD_DATA_DIR) {
@@ -229,13 +239,13 @@ process.exit(0);
     const createProjectResponse = await fetch(`${baseUrl}/api/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: projectId, name: 'Assistant row reuse fixture' }),
+      body: JSON.stringify({ id: projectId, name: 'Assistant row reuse fixture' })
     });
     expect(createProjectResponse.ok).toBe(true);
 
     const conversationsResponse = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`);
     expect(conversationsResponse.ok).toBe(true);
-    const conversationsBody = await conversationsResponse.json() as {
+    const conversationsBody = (await conversationsResponse.json()) as {
       conversations: Array<{ id: string }>;
     };
     const conversationId = conversationsBody.conversations[0]?.id;
@@ -250,7 +260,7 @@ process.exit(0);
         content: '',
         runStatus: 'failed',
         startedAt: Date.now() - 1_000,
-        endedAt: Date.now() - 500,
+        endedAt: Date.now() - 500
       });
     } finally {
       sqlite.close();
@@ -276,13 +286,13 @@ process.stdin.on('end', () => {
             projectId,
             conversationId,
             assistantMessageId,
-            message: 'retry this turn',
-          }),
+            message: 'retry this turn'
+          })
         });
         const body = await response.text();
         expect(response.ok).toBe(true);
         expect(body).toContain('reused-assistant-row-ok');
-      },
+      }
     );
 
     const verifyDb = new Database(dbFile, { readonly: true });
@@ -291,7 +301,9 @@ process.stdin.on('end', () => {
         .prepare(`SELECT id, content, run_id FROM messages WHERE conversation_id = ? AND role = 'assistant'`)
         .all(conversationId) as Array<{ id: string; content: string; run_id: string | null }>;
       expect(rows.filter((row) => row.id === assistantMessageId)).toHaveLength(1);
-      expect(rows.some((row) => row.id !== assistantMessageId && row.content.includes('reused-assistant-row-ok'))).toBe(false);
+      expect(rows.some((row) => row.id !== assistantMessageId && row.content.includes('reused-assistant-row-ok'))).toBe(
+        false
+      );
       const reused = rows.find((row) => row.id === assistantMessageId);
       expect(reused?.content).toContain('reused-assistant-row-ok');
     } finally {
@@ -315,8 +327,8 @@ process.exit(1);
           body: JSON.stringify({
             agentId: 'opencode',
             conversationId,
-            message: 'hello',
-          }),
+            message: 'hello'
+          })
         });
         const body = await response.text();
 
@@ -325,7 +337,7 @@ process.exit(1);
         expect(body).toContain('The run failed due to an unknown upstream streaming error. Please retry.');
         expect(body).toContain('event: stderr');
         expect(body).toContain('"status":"failed"');
-      },
+      }
     );
   });
 
@@ -372,8 +384,8 @@ child.on('exit', (code, signal) => {
             body: JSON.stringify({
               agentId: 'amr',
               message: 'hello',
-              model: 'deepseek-v3.2',
-            }),
+              model: 'deepseek-v3.2'
+            })
           });
           const body = await response.text();
 
@@ -383,7 +395,7 @@ child.on('exit', (code, signal) => {
           expect(body).not.toContain('model_catalog_unavailable');
           const attempts = JSON.parse(readFileSync(stateFile, 'utf8')) as { attempts: number };
           expect(attempts.attempts).toBe(3);
-        },
+        }
       );
     } finally {
       rmSync(stateFile, { force: true });
@@ -404,13 +416,13 @@ child.on('exit', (code, signal) => {
         id: projectId,
         name: 'Plugin authoring artifact success fixture',
         skillId: null,
-        designSystemId: null,
-      }),
+        designSystemId: null
+      })
     });
     expect(createProjectResponse.status).toBe(200);
     const conversationsResponse = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`);
     expect(conversationsResponse.status).toBe(200);
-    const conversationsBody = await conversationsResponse.json() as {
+    const conversationsBody = (await conversationsResponse.json()) as {
       conversations: Array<{ id: string }>;
     };
     const conversationId = conversationsBody.conversations[0]?.id;
@@ -442,11 +454,11 @@ process.stdin.on('end', () => {
             projectId,
             conversationId,
             pluginId: 'od-plugin-authoring',
-            message: '请创建一个可刷新、可审计、由 API 驱动的 Open Design 插件脚手架。',
-          }),
+            message: '请创建一个可刷新、可审计、由 API 驱动的 Open Design 插件脚手架。'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+        const { runId } = (await createResponse.json()) as { runId: string };
 
         const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`);
         const eventsBody = await readSseUntil(eventsResponse, 'event: final');
@@ -457,10 +469,10 @@ process.stdin.on('end', () => {
 
         const filesResponse = await fetch(`${baseUrl}/api/projects/${projectId}/files`);
         expect(filesResponse.status).toBe(200);
-        const filesBody = await filesResponse.json() as { files: Array<{ name: string }> };
+        const filesBody = (await filesResponse.json()) as { files: Array<{ name: string }> };
         expect(filesBody.files.some((file) => file.name === 'generated-plugin/open-design.json')).toBe(true);
         expect(filesBody.files.some((file) => file.name === 'generated-plugin/SKILL.md')).toBe(true);
-      },
+      }
     );
   });
 
@@ -474,13 +486,13 @@ process.stdin.on('end', () => {
         id: projectId,
         name: 'Plugin authoring completion fixture',
         skillId: null,
-        designSystemId: null,
-      }),
+        designSystemId: null
+      })
     });
     expect(createProjectResponse.status).toBe(200);
     const conversationsResponse = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`);
     expect(conversationsResponse.status).toBe(200);
-    const conversationsBody = await conversationsResponse.json() as {
+    const conversationsBody = (await conversationsResponse.json()) as {
       conversations: Array<{ id: string }>;
     };
     const conversationId = conversationsBody.conversations[0]?.id;
@@ -506,15 +518,11 @@ process.stdin.on('end', () => {
             projectId,
             conversationId,
             pluginId: 'od-plugin-authoring',
-            message: '请创建一个可刷新、可审计、由 API 驱动的 Open Design 插件脚手架。',
-          }),
+            message: '请创建一个可刷新、可审计、由 API 驱动的 Open Design 插件脚手架。'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const {
-          runId,
-          pluginId,
-          appliedPluginSnapshotId,
-        } = await createResponse.json() as {
+        const { runId, pluginId, appliedPluginSnapshotId } = (await createResponse.json()) as {
           runId: string;
           pluginId: string | null;
           appliedPluginSnapshotId: string | null;
@@ -531,9 +539,9 @@ process.stdin.on('end', () => {
 
         const filesResponse = await fetch(`${baseUrl}/api/projects/${projectId}/files`);
         expect(filesResponse.status).toBe(200);
-        const filesBody = await filesResponse.json() as { files: Array<{ name: string }> };
+        const filesBody = (await filesResponse.json()) as { files: Array<{ name: string }> };
         expect(filesBody.files.some((file) => file.name.startsWith('generated-plugin/'))).toBe(false);
-      },
+      }
     );
   });
   it('does not fail plugin authoring when the turn-1 reply is a clarifying question-form awaiting the brief', async () => {
@@ -552,13 +560,13 @@ process.stdin.on('end', () => {
         id: projectId,
         name: 'Plugin authoring question-form fixture',
         skillId: null,
-        designSystemId: null,
-      }),
+        designSystemId: null
+      })
     });
     expect(createProjectResponse.status).toBe(200);
     const conversationsResponse = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`);
     expect(conversationsResponse.status).toBe(200);
-    const conversationsBody = await conversationsResponse.json() as {
+    const conversationsBody = (await conversationsResponse.json()) as {
       conversations: Array<{ id: string }>;
     };
     const conversationId = conversationsBody.conversations[0]?.id;
@@ -584,11 +592,11 @@ process.stdin.on('end', () => {
             projectId,
             conversationId,
             pluginId: 'od-plugin-authoring',
-            message: '帮我做个插件。',
-          }),
+            message: '帮我做个插件。'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+        const { runId } = (await createResponse.json()) as { runId: string };
 
         const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`);
         const eventsBody = await readSseUntil(eventsResponse, 'event: final');
@@ -597,7 +605,7 @@ process.stdin.on('end', () => {
         expect(eventsBody).toContain('<question-form');
         expect(eventsBody).not.toContain('ended before generating the required generated-plugin artifacts');
         expect(statusBody.status).toBe('succeeded');
-      },
+      }
     );
   });
   it('does not fail plugin authoring when the clarifying form uses the <ask-question> alias', async () => {
@@ -616,13 +624,13 @@ process.stdin.on('end', () => {
         id: projectId,
         name: 'Plugin authoring ask-question alias fixture',
         skillId: null,
-        designSystemId: null,
-      }),
+        designSystemId: null
+      })
     });
     expect(createProjectResponse.status).toBe(200);
     const conversationsResponse = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`);
     expect(conversationsResponse.status).toBe(200);
-    const conversationsBody = await conversationsResponse.json() as {
+    const conversationsBody = (await conversationsResponse.json()) as {
       conversations: Array<{ id: string }>;
     };
     const conversationId = conversationsBody.conversations[0]?.id;
@@ -648,11 +656,11 @@ process.stdin.on('end', () => {
             projectId,
             conversationId,
             pluginId: 'od-plugin-authoring',
-            message: '帮我做个插件。',
-          }),
+            message: '帮我做个插件。'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+        const { runId } = (await createResponse.json()) as { runId: string };
 
         const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`);
         const eventsBody = await readSseUntil(eventsResponse, 'event: final');
@@ -661,7 +669,7 @@ process.stdin.on('end', () => {
         expect(eventsBody).toContain('<ask-question');
         expect(eventsBody).not.toContain('ended before generating the required generated-plugin artifacts');
         expect(statusBody.status).toBe('succeeded');
-      },
+      }
     );
   });
   it('still fails plugin authoring when a question-form tag wraps a non-renderable (non-JSON) body', async () => {
@@ -680,13 +688,13 @@ process.stdin.on('end', () => {
         id: projectId,
         name: 'Plugin authoring malformed-form fixture',
         skillId: null,
-        designSystemId: null,
-      }),
+        designSystemId: null
+      })
     });
     expect(createProjectResponse.status).toBe(200);
     const conversationsResponse = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`);
     expect(conversationsResponse.status).toBe(200);
-    const conversationsBody = await conversationsResponse.json() as {
+    const conversationsBody = (await conversationsResponse.json()) as {
       conversations: Array<{ id: string }>;
     };
     const conversationId = conversationsBody.conversations[0]?.id;
@@ -712,11 +720,11 @@ process.stdin.on('end', () => {
             projectId,
             conversationId,
             pluginId: 'od-plugin-authoring',
-            message: '帮我做个插件。',
-          }),
+            message: '帮我做个插件。'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+        const { runId } = (await createResponse.json()) as { runId: string };
 
         const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`);
         const eventsBody = await readSseUntil(eventsResponse, 'event: final');
@@ -724,7 +732,7 @@ process.stdin.on('end', () => {
 
         expect(eventsBody).toContain('ended before generating the required generated-plugin artifacts');
         expect(statusBody.status).not.toBe('succeeded');
-      },
+      }
     );
   });
   it('does not fail plugin authoring when a valid form follows a Unicode preamble that expands under toLowerCase', async () => {
@@ -742,13 +750,13 @@ process.stdin.on('end', () => {
         id: projectId,
         name: 'Plugin authoring unicode-preamble fixture',
         skillId: null,
-        designSystemId: null,
-      }),
+        designSystemId: null
+      })
     });
     expect(createProjectResponse.status).toBe(200);
     const conversationsResponse = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`);
     expect(conversationsResponse.status).toBe(200);
-    const conversationsBody = await conversationsResponse.json() as {
+    const conversationsBody = (await conversationsResponse.json()) as {
       conversations: Array<{ id: string }>;
     };
     const conversationId = conversationsBody.conversations[0]?.id;
@@ -774,11 +782,11 @@ process.stdin.on('end', () => {
             projectId,
             conversationId,
             pluginId: 'od-plugin-authoring',
-            message: '帮我做个插件。',
-          }),
+            message: '帮我做个插件。'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+        const { runId } = (await createResponse.json()) as { runId: string };
 
         const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`);
         const eventsBody = await readSseUntil(eventsResponse, 'event: final');
@@ -786,7 +794,7 @@ process.stdin.on('end', () => {
 
         expect(eventsBody).not.toContain('ended before generating the required generated-plugin artifacts');
         expect(statusBody.status).toBe('succeeded');
-      },
+      }
     );
   });
   it('closes the # Instructions block with an explicit "do not echo" guard so models do not parrot the prompt back', async () => {
@@ -822,15 +830,15 @@ process.stdin.on('end', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: 'opencode',
-            message: 'hello',
-          }),
+            message: 'hello'
+          })
         });
         const body = await response.text();
 
         expect(response.ok).toBe(true);
         expect(body).toContain('has-echo-guard');
         expect(body).not.toContain('missing-echo-guard');
-      },
+      }
     );
   });
 
@@ -862,8 +870,8 @@ process.stdin.on('end', () => {
           body: JSON.stringify({
             agentId: 'opencode',
             message: 'build an faq page',
-            skillIds: ['faq-page'],
-          }),
+            skillIds: ['faq-page']
+          })
         });
         const body = await response.text();
 
@@ -874,7 +882,7 @@ process.stdin.on('end', () => {
         expect(body).not.toContain('missing-composed-skill-header');
         expect(body).not.toContain('missing-faq-skill-body');
         expect(body).not.toContain('missing-faq-skill-content');
-      },
+      }
     );
   });
 
@@ -883,7 +891,7 @@ process.stdin.on('end', () => {
     const stagedRelativePath = `.od-skills/${skillCwdAliasSegment(resolve(process.cwd(), '..', '..', 'skills', 'release-notes-one-pager'))}/references/checklist.md`;
     const expectedChecklist = await fsp.readFile(
       resolve(process.cwd(), '..', '..', 'skills', 'release-notes-one-pager', 'references', 'checklist.md'),
-      'utf8',
+      'utf8'
     );
 
     const createProjectResponse = await fetch(`${baseUrl}/api/projects`, {
@@ -891,8 +899,8 @@ process.stdin.on('end', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: projectId,
-        name: 'Ad hoc staged skill project',
-      }),
+        name: 'Ad hoc staged skill project'
+      })
     });
 
     expect(createProjectResponse.ok).toBe(true);
@@ -913,30 +921,24 @@ process.stdin.on('end', () => {
 });
 `;
 
-    await withFakeAgent(
-      'opencode',
-      fakeAgentScript,
-      async () => {
-        const response = await fetch(`${baseUrl}/api/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            agentId: 'opencode',
-            projectId,
-            message: 'draft the release notes',
-            skillIds: ['release-notes-one-pager'],
-          }),
-        });
-        const body = await response.text();
+    await withFakeAgent('opencode', fakeAgentScript, async () => {
+      const response = await fetch(`${baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: 'opencode',
+          projectId,
+          message: 'draft the release notes',
+          skillIds: ['release-notes-one-pager']
+        })
+      });
+      const body = await response.text();
 
-        expect(response.ok).toBe(true);
-        expect(body).toContain('staged-skill-side-files-before-spawn');
-      },
-    );
+      expect(response.ok).toBe(true);
+      expect(body).toContain('staged-skill-side-files-before-spawn');
+    });
 
-    const stagedFileResponse = await fetch(
-      `${baseUrl}/api/projects/${projectId}/raw/${stagedRelativePath}`,
-    );
+    const stagedFileResponse = await fetch(`${baseUrl}/api/projects/${projectId}/raw/${stagedRelativePath}`);
     const stagedFileBody = await stagedFileResponse.text();
 
     expect(stagedFileResponse.ok).toBe(true);
@@ -947,13 +949,13 @@ process.stdin.on('end', () => {
     const projectId = `project-${randomUUID()}`;
     const stagedPaths = [
       `.od-skills/${skillCwdAliasSegment(resolve(process.cwd(), '..', '..', 'skills', 'release-notes-one-pager'))}/references/checklist.md`,
-      `.od-skills/${skillCwdAliasSegment(resolve(process.cwd(), '..', '..', 'skills', 'swiss-creative-mode-template'))}/references/checklist.md`,
+      `.od-skills/${skillCwdAliasSegment(resolve(process.cwd(), '..', '..', 'skills', 'swiss-creative-mode-template'))}/references/checklist.md`
     ] as const;
     const expectedBodies = await Promise.all(
       [
         resolve(process.cwd(), '..', '..', 'skills', 'release-notes-one-pager', 'references', 'checklist.md'),
-        resolve(process.cwd(), '..', '..', 'skills', 'swiss-creative-mode-template', 'references', 'checklist.md'),
-      ].map((file) => fsp.readFile(file, 'utf8')),
+        resolve(process.cwd(), '..', '..', 'skills', 'swiss-creative-mode-template', 'references', 'checklist.md')
+      ].map((file) => fsp.readFile(file, 'utf8'))
     );
 
     const createProjectResponse = await fetch(`${baseUrl}/api/projects`, {
@@ -961,8 +963,8 @@ process.stdin.on('end', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: projectId,
-        name: 'Multi staged skill project',
-      }),
+        name: 'Multi staged skill project'
+      })
     });
 
     expect(createProjectResponse.ok).toBe(true);
@@ -987,26 +989,22 @@ process.stdin.on('end', () => {
 });
 `;
 
-    await withFakeAgent(
-      'opencode',
-      fakeAgentScript,
-      async () => {
-        const response = await fetch(`${baseUrl}/api/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            agentId: 'opencode',
-            projectId,
-            message: 'compose multiple skills',
-            skillIds: ['release-notes-one-pager', 'swiss-creative-mode-template'],
-          }),
-        });
-        const body = await response.text();
+    await withFakeAgent('opencode', fakeAgentScript, async () => {
+      const response = await fetch(`${baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: 'opencode',
+          projectId,
+          message: 'compose multiple skills',
+          skillIds: ['release-notes-one-pager', 'swiss-creative-mode-template']
+        })
+      });
+      const body = await response.text();
 
-        expect(response.ok).toBe(true);
-        expect(body).toContain('multi-staged-skill-side-files-before-spawn');
-      },
-    );
+      expect(response.ok).toBe(true);
+      expect(body).toContain('multi-staged-skill-side-files-before-spawn');
+    });
   });
 
   it('propagates the composed skill mode for ad-hoc-only deck skills', async () => {
@@ -1036,8 +1034,8 @@ process.stdin.on('end', () => {
           body: JSON.stringify({
             agentId: 'opencode',
             message: 'build an editorial brand deck',
-            skillIds: ['open-design-landing-deck'],
-          }),
+            skillIds: ['open-design-landing-deck']
+          })
         });
         const body = await response.text();
 
@@ -1046,7 +1044,7 @@ process.stdin.on('end', () => {
         expect(body).toContain('has-deck-framework');
         expect(body).not.toContain('missing-deck-skill-header');
         expect(body).not.toContain('missing-deck-framework');
-      },
+      }
     );
   });
 
@@ -1080,8 +1078,8 @@ process.stdin.on('end', () => {
             agentId: 'opencode',
             message: 'generate an image while also referencing a deck template',
             skillId: 'imagegen',
-            skillIds: ['open-design-landing-deck'],
-          }),
+            skillIds: ['open-design-landing-deck']
+          })
         });
         const body = await response.text();
 
@@ -1094,7 +1092,7 @@ process.stdin.on('end', () => {
         expect(body).not.toContain('missing-composed-deck-skill-header');
         expect(body).not.toContain('missing-image-contract');
         expect(body).not.toContain('unexpected-deck-framework');
-      },
+      }
     );
   });
 
@@ -1111,25 +1109,23 @@ process.stdin.on('end', () => {
         skillId: 'imagegen',
         mediaExecution: {
           mode: 'disabled',
-          allowedSurfaces: ['image'],
-        },
-      }),
+          allowedSurfaces: ['image']
+        }
+      })
     });
     const body = await response.text();
 
     expect(response.ok).toBe(true);
     expect(body).toContain('unknown agent');
 
-    const runsResponse = await fetch(
-      `${baseUrl}/api/runs?conversationId=${encodeURIComponent(conversationId)}`,
-    );
-    const runsBody = await runsResponse.json() as {
+    const runsResponse = await fetch(`${baseUrl}/api/runs?conversationId=${encodeURIComponent(conversationId)}`);
+    const runsBody = (await runsResponse.json()) as {
       runs: Array<{ mediaExecution?: { mode?: string; allowedSurfaces?: string[] } }>;
     };
     expect(runsBody.runs).toHaveLength(1);
     expect(runsBody.runs[0]?.mediaExecution).toMatchObject({
       mode: 'disabled',
-      allowedSurfaces: ['image'],
+      allowedSurfaces: ['image']
     });
   });
 
@@ -1142,18 +1138,16 @@ process.stdin.on('end', () => {
         agentId: 'opencode',
         conversationId,
         message: 'generate an image',
-        mediaExecution: { mode: 'provider-router' },
-      }),
+        mediaExecution: { mode: 'provider-router' }
+      })
     });
     const body = await response.text();
 
     expect(response.status).toBe(400);
     expect(body).toContain('mediaExecution.mode');
 
-    const runsResponse = await fetch(
-      `${baseUrl}/api/runs?conversationId=${encodeURIComponent(conversationId)}`,
-    );
-    const runsBody = await runsResponse.json() as { runs: unknown[] };
+    const runsResponse = await fetch(`${baseUrl}/api/runs?conversationId=${encodeURIComponent(conversationId)}`);
+    const runsBody = (await runsResponse.json()) as { runs: unknown[] };
     expect(runsBody.runs).toEqual([]);
   });
 
@@ -1181,7 +1175,7 @@ od:
 
 This skill should suppress critique when selected through skillIds.
 `,
-      'utf8',
+      'utf8'
     );
 
     process.env.OD_CRITIQUE_ENABLED = 'true';
@@ -1214,8 +1208,8 @@ process.stdin.on('end', () => {
               agentId: 'opencode',
               designSystemId: 'default',
               message: 'draft an opt-out skill artifact',
-              skillIds: [skillId],
-            }),
+              skillIds: [skillId]
+            })
           });
           const body = await response.text();
 
@@ -1224,7 +1218,7 @@ process.stdin.on('end', () => {
           expect(body).toContain('critique-panel-disabled-by-skill-policy');
           expect(body).not.toContain('missing-opt-out-skill-header');
           expect(body).not.toContain('unexpected-critique-panel');
-        },
+        }
       );
     } finally {
       if (originalCritiqueEnabled == null) {
@@ -1241,12 +1235,12 @@ process.stdin.on('end', () => {
     const pluginFixtureDir = await createPluginFixture({
       pluginId,
       dirName: `plugin-local-${randomUUID()}`,
-      localSkillPath: './SKILL.md',
+      localSkillPath: './SKILL.md'
     });
     const installResponse = await fetch(`${baseUrl}/api/plugins/install`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', accept: 'text/event-stream' },
-      body: JSON.stringify({ source: pluginFixtureDir }),
+      body: JSON.stringify({ source: pluginFixtureDir })
     });
     const installBody = await installResponse.text();
 
@@ -1261,10 +1255,10 @@ process.stdin.on('end', () => {
         id: projectId,
         name: 'Plugin-bound skill composition project',
         pluginId,
-        pluginInputs: { topic: 'agentic design' },
-      }),
+        pluginInputs: { topic: 'agentic design' }
+      })
     });
-    const createProjectBody = await createProjectResponse.json() as {
+    const createProjectBody = (await createProjectResponse.json()) as {
       appliedPluginSnapshotId?: string;
     };
 
@@ -1300,10 +1294,10 @@ process.stdin.on('end', () => {
             projectId,
             message: 'build a plugin-backed faq page',
             appliedPluginSnapshotId: createProjectBody.appliedPluginSnapshotId,
-            skillIds: ['faq-page'],
-          }),
+            skillIds: ['faq-page']
+          })
         });
-        const createRunBody = await createRunResponse.json() as { runId: string };
+        const createRunBody = (await createRunResponse.json()) as { runId: string };
 
         expect(createRunResponse.status).toBe(202);
 
@@ -1316,7 +1310,7 @@ process.stdin.on('end', () => {
         expect(body).not.toContain('missing-plugin-skill-body');
         expect(body).not.toContain('missing-composed-skill-header');
         expect(body).not.toContain('missing-composed-skill-body');
-      },
+      }
     );
   });
 
@@ -1329,12 +1323,12 @@ process.stdin.on('end', () => {
     const pluginFixtureDir = await createPluginFixture({
       pluginId,
       dirName: 'sample-plugin',
-      localSkillPath: './SKILL.md',
+      localSkillPath: './SKILL.md'
     });
     const installResponse = await fetch(`${baseUrl}/api/plugins/install`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', accept: 'text/event-stream' },
-      body: JSON.stringify({ source: pluginFixtureDir }),
+      body: JSON.stringify({ source: pluginFixtureDir })
     });
     const installBody = await installResponse.text();
 
@@ -1350,7 +1344,7 @@ process.stdin.on('end', () => {
     await fsp.writeFile(
       resolve(userSkillDir, 'SKILL.md'),
       '# Sample-plugin side-file fixture\n\nRead references/checklist.md before drafting.',
-      'utf8',
+      'utf8'
     );
     await fsp.writeFile(resolve(userSkillDir, 'references', 'checklist.md'), userChecklist, 'utf8');
 
@@ -1362,14 +1356,14 @@ process.stdin.on('end', () => {
           id: projectId,
           name: 'Colliding skill-dir project',
           pluginId,
-          pluginInputs: { topic: 'agentic design' },
-        }),
+          pluginInputs: { topic: 'agentic design' }
+        })
       });
-      const createProjectBody = await createProjectResponse.json() as {
+      const createProjectBody = (await createProjectResponse.json()) as {
         appliedPluginSnapshotId?: string;
       };
       const installedPluginResponse = await fetch(`${baseUrl}/api/plugins/${pluginId}`);
-      const installedPluginBody = await installedPluginResponse.json() as { fsPath: string };
+      const installedPluginBody = (await installedPluginResponse.json()) as { fsPath: string };
       const pluginAlias = skillCwdAliasSegment(installedPluginBody.fsPath);
 
       expect(createProjectResponse.ok).toBe(true);
@@ -1408,10 +1402,10 @@ process.stdin.on('end', () => {
               projectId,
               message: 'use both plugin and user skill side files',
               appliedPluginSnapshotId: createProjectBody.appliedPluginSnapshotId,
-              skillIds: ['sample-plugin'],
-            }),
+              skillIds: ['sample-plugin']
+            })
           });
-          const createRunBody = await createRunResponse.json() as { runId: string };
+          const createRunBody = (await createRunResponse.json()) as { runId: string };
 
           expect(createRunResponse.status).toBe(202);
 
@@ -1419,7 +1413,7 @@ process.stdin.on('end', () => {
           const body = await readSseUntil(eventsResponse, 'event: final');
 
           expect(body).toContain('colliding-skill-dirs-staged');
-        },
+        }
       );
     } finally {
       await fsp.rm(userSkillDir, { recursive: true, force: true });
@@ -1455,8 +1449,8 @@ process.stdin.on('end', () => {
             agentId: 'opencode',
             message: 'build the Open Design landing page',
             skillId: 'editorial-collage',
-            skillIds: ['open-design-landing'],
-          }),
+            skillIds: ['open-design-landing']
+          })
         });
         const body = await response.text();
 
@@ -1465,7 +1459,7 @@ process.stdin.on('end', () => {
         expect(body).toContain('has-base-alias-skill-body');
         expect(body).not.toContain('duplicate-alias-composed-skill');
         expect(body).not.toContain('missing-base-alias-skill-body');
-      },
+      }
     );
   });
 
@@ -1491,15 +1485,15 @@ process.exit(1);
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: 'cursor-agent',
-            message: 'hello',
-          }),
+            message: 'hello'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+        const { runId } = (await createResponse.json()) as { runId: string };
 
         const eventsController = new AbortController();
         const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`, {
-          signal: eventsController.signal,
+          signal: eventsController.signal
         });
         const eventsBody = await readSseUntil(eventsResponse, 'AGENT_AUTH_REQUIRED');
         eventsController.abort();
@@ -1510,7 +1504,7 @@ process.exit(1);
         expect(eventsBody).toContain('cursor-agent login');
         expect(eventsBody).toContain('cursor-agent status');
         expect(statusBody.status).toBe('failed');
-      },
+      }
     );
   });
 
@@ -1536,15 +1530,15 @@ process.exit(1);
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: 'cursor-agent',
-            message: 'hello',
-          }),
+            message: 'hello'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+        const { runId } = (await createResponse.json()) as { runId: string };
 
         const eventsController = new AbortController();
         const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`, {
-          signal: eventsController.signal,
+          signal: eventsController.signal
         });
         const eventsBody = await readSseUntil(eventsResponse, 'AGENT_AUTH_REQUIRED');
         eventsController.abort();
@@ -1555,7 +1549,7 @@ process.exit(1);
         expect(eventsBody).toContain('cursor-agent login');
         expect(eventsBody).toContain('cursor-agent status');
         expect(statusBody.status).toBe('failed');
-      },
+      }
     );
   });
 
@@ -1581,15 +1575,15 @@ process.exit(1);
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: 'cursor-agent',
-            message: 'hello',
-          }),
+            message: 'hello'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+        const { runId } = (await createResponse.json()) as { runId: string };
 
         const eventsController = new AbortController();
         const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`, {
-          signal: eventsController.signal,
+          signal: eventsController.signal
         });
         const eventsBody = await readSseUntil(eventsResponse, 'AGENT_AUTH_REQUIRED');
         eventsController.abort();
@@ -1601,14 +1595,14 @@ process.exit(1);
         expect(eventsBody).toContain('cursor-agent status');
         expect(eventsBody).not.toContain('AGENT_EXECUTION_FAILED');
         expect(statusBody.status).toBe('failed');
-      },
+      }
     );
   });
 
   it('classifies Cursor Agent stdout error payloads as typed auth failures', async () => {
     const cursorErrorLine = JSON.stringify({
       type: 'error',
-      message: 'Error: [unauthenticated] Error',
+      message: 'Error: [unauthenticated] Error'
     });
     await withFakeAgent(
       'cursor-agent',
@@ -1631,15 +1625,15 @@ process.exit(1);
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: 'cursor-agent',
-            message: 'hello',
-          }),
+            message: 'hello'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+        const { runId } = (await createResponse.json()) as { runId: string };
 
         const eventsController = new AbortController();
         const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`, {
-          signal: eventsController.signal,
+          signal: eventsController.signal
         });
         const eventsBody = await readSseUntil(eventsResponse, 'AGENT_AUTH_REQUIRED');
         eventsController.abort();
@@ -1651,7 +1645,7 @@ process.exit(1);
         expect(eventsBody).toContain('cursor-agent status');
         expect(eventsBody).not.toContain('AGENT_EXECUTION_FAILED');
         expect(statusBody.status).toBe('failed');
-      },
+      }
     );
   });
 
@@ -1679,15 +1673,15 @@ process.exit(1);
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               agentId: 'deepseek',
-              message: 'hello',
-            }),
+              message: 'hello'
+            })
           });
           expect(createResponse.status).toBe(202);
-          const { runId } = await createResponse.json() as { runId: string };
+          const { runId } = (await createResponse.json()) as { runId: string };
 
           const eventsController = new AbortController();
           const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`, {
-            signal: eventsController.signal,
+            signal: eventsController.signal
           });
           const eventsBody = await readSseUntil(eventsResponse, 'AGENT_AUTH_REQUIRED');
           eventsController.abort();
@@ -1709,7 +1703,7 @@ process.exit(1);
             }
           }
         }
-      },
+      }
     );
   });
 
@@ -1734,15 +1728,15 @@ process.exit(0);
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: 'antigravity',
-            message: 'hello',
-          }),
+            message: 'hello'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+        const { runId } = (await createResponse.json()) as { runId: string };
 
         const eventsController = new AbortController();
         const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`, {
-          signal: eventsController.signal,
+          signal: eventsController.signal
         });
         const eventsBody = await readSseUntil(eventsResponse, 'AGENT_AUTH_REQUIRED');
         eventsController.abort();
@@ -1753,7 +1747,7 @@ process.exit(0);
         expect(eventsBody).not.toContain('event: stdout');
         expect(eventsBody).not.toContain('accounts.google.com');
         expect(statusBody.status).toBe('failed');
-      },
+      }
     );
   });
 
@@ -1761,37 +1755,33 @@ process.exit(0);
     const qoderErrorLine = JSON.stringify({
       type: 'assistant',
       message: { content: [] },
-      error: { message: 'Qoder authentication expired' },
+      error: { message: 'Qoder authentication expired' }
     });
-    await withFakeAgent(
-      'qodercli',
-      `console.log(${JSON.stringify(qoderErrorLine)});\nprocess.exit(0);\n`,
-      async () => {
-        const createResponse = await fetch(`${baseUrl}/api/runs`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            agentId: 'qoder',
-            message: 'hello',
-          }),
-        });
-        expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+    await withFakeAgent('qodercli', `console.log(${JSON.stringify(qoderErrorLine)});\nprocess.exit(0);\n`, async () => {
+      const createResponse = await fetch(`${baseUrl}/api/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: 'qoder',
+          message: 'hello'
+        })
+      });
+      expect(createResponse.status).toBe(202);
+      const { runId } = (await createResponse.json()) as { runId: string };
 
-        const eventsController = new AbortController();
-        const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`, {
-          signal: eventsController.signal,
-        });
-        const eventsBody = await readSseUntil(eventsResponse, 'event: error');
-        eventsController.abort();
-        const statusBody = await waitForRunStatus(baseUrl, runId);
+      const eventsController = new AbortController();
+      const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`, {
+        signal: eventsController.signal
+      });
+      const eventsBody = await readSseUntil(eventsResponse, 'event: error');
+      eventsController.abort();
+      const statusBody = await waitForRunStatus(baseUrl, runId);
 
-        expect(eventsBody).toContain('event: error');
-        expect(eventsBody).toContain('Qoder authentication expired');
-        expect(eventsBody).not.toContain('event: agent\\ndata: {"type":"error"');
-        expect(statusBody.status).toBe('failed');
-      },
-    );
+      expect(eventsBody).toContain('event: error');
+      expect(eventsBody).toContain('Qoder authentication expired');
+      expect(eventsBody).not.toContain('event: agent\\ndata: {"type":"error"');
+      expect(statusBody.status).toBe('failed');
+    });
   });
 
   it('fails Qoder runs when the result reports is_error with exit code 0', async () => {
@@ -1804,8 +1794,8 @@ process.exit(0);
       total_cost_usd: 0,
       usage: {
         input_tokens: 3,
-        output_tokens: 1,
-      },
+        output_tokens: 1
+      }
     });
     await withFakeAgent(
       'qodercli',
@@ -1816,15 +1806,15 @@ process.exit(0);
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: 'qoder',
-            message: 'hello',
-          }),
+            message: 'hello'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+        const { runId } = (await createResponse.json()) as { runId: string };
 
         const eventsController = new AbortController();
         const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`, {
-          signal: eventsController.signal,
+          signal: eventsController.signal
         });
         const eventsBody = await readSseUntil(eventsResponse, 'event: error');
         eventsController.abort();
@@ -1836,7 +1826,7 @@ process.exit(0);
         expect(eventsBody).toContain('event: error');
         expect(eventsBody).toContain('Qoder run failed: tool_use_failed');
         expect(statusBody.status).toBe('failed');
-      },
+      }
     );
   });
 
@@ -1857,15 +1847,15 @@ setInterval(() => {}, 1000);
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               agentId: 'opencode',
-              message: 'hello',
-            }),
+              message: 'hello'
+            })
           });
           expect(createResponse.status).toBe(202);
-          const { runId } = await createResponse.json() as { runId: string };
+          const { runId } = (await createResponse.json()) as { runId: string };
 
           const eventsController = new AbortController();
           const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`, {
-            signal: eventsController.signal,
+            signal: eventsController.signal
           });
           const eventsBody = await readSseUntil(eventsResponse, 'event: error');
           eventsController.abort();
@@ -1877,7 +1867,7 @@ setInterval(() => {}, 1000);
           expect(eventsBody).not.toContain('spawned agent binary');
           expect(eventsBody).toMatch(/stdout arrived: (yes|no)/);
           expect(statusBody.status).toBe('failed');
-        },
+        }
       );
     } finally {
       if (previous == null) {
@@ -1920,15 +1910,15 @@ const timer = setInterval(() => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               agentId: 'claude',
-              message: 'hello',
-            }),
+              message: 'hello'
+            })
           });
           expect(createResponse.status).toBe(202);
-          const { runId } = await createResponse.json() as { runId: string };
+          const { runId } = (await createResponse.json()) as { runId: string };
 
           const statusBody = await waitForRunStatus(baseUrl, runId);
           expect(statusBody.status).toBe('succeeded');
-        },
+        }
       );
     } finally {
       if (previous == null) {
@@ -1952,15 +1942,15 @@ process.exit(1);
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: 'claude',
-            message: 'hello',
-          }),
+            message: 'hello'
+          })
         });
         expect(createResponse.status).toBe(202);
-        const { runId } = await createResponse.json() as { runId: string };
+        const { runId } = (await createResponse.json()) as { runId: string };
 
         const eventsController = new AbortController();
         const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`, {
-          signal: eventsController.signal,
+          signal: eventsController.signal
         });
         const eventsBody = await readSseUntil(eventsResponse, 'event: error');
         eventsController.abort();
@@ -1970,7 +1960,7 @@ process.exit(1);
         expect(eventsBody).toContain('/login');
         expect(eventsBody).toContain('CLAUDE_CONFIG_DIR');
         expect(statusBody.status).toBe('failed');
-      },
+      }
     );
   });
 
@@ -1992,15 +1982,15 @@ setTimeout(() => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               agentId: 'opencode',
-              message: 'hello',
-            }),
+              message: 'hello'
+            })
           });
           expect(createResponse.status).toBe(202);
-          const { runId } = await createResponse.json() as { runId: string };
+          const { runId } = (await createResponse.json()) as { runId: string };
 
           const statusBody = await waitForRunStatus(baseUrl, runId);
           expect(statusBody.status).toBe('succeeded');
-        },
+        }
       );
     } finally {
       if (previous == null) {
@@ -2028,15 +2018,15 @@ setInterval(() => {}, 1000);
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               agentId: 'opencode',
-              message: 'hello',
-            }),
+              message: 'hello'
+            })
           });
           expect(createResponse.status).toBe(202);
-          const { runId } = await createResponse.json() as { runId: string };
+          const { runId } = (await createResponse.json()) as { runId: string };
 
           const eventsController = new AbortController();
           const eventsResponse = await fetch(`${baseUrl}/api/runs/${runId}/events`, {
-            signal: eventsController.signal,
+            signal: eventsController.signal
           });
           const eventsBody = await readSseUntil(eventsResponse, 'event: error');
           eventsController.abort();
@@ -2044,7 +2034,7 @@ setInterval(() => {}, 1000);
 
           expect(eventsBody).toContain('Agent stalled without emitting any new output');
           expect(statusBody.status).toBe('failed');
-        },
+        }
       );
     } finally {
       if (previous == null) {
@@ -2078,7 +2068,7 @@ process.stdin.on('end', () => {
           const formAnswers = [
             '[form answers — discovery]',
             '- output: Dashboard / tool UI',
-            '- brand: Pick a direction for me [value: pick_direction]',
+            '- brand: Pick a direction for me [value: pick_direction]'
           ].join('\n');
           const transcript = [
             '## user',
@@ -2088,7 +2078,7 @@ process.stdin.on('end', () => {
             '<question-form id="discovery" title="Quick brief — 30 seconds"></question-form>',
             '',
             '## user',
-            formAnswers,
+            formAnswers
           ].join('\n');
 
           const createResponse = await fetch(`${baseUrl}/api/runs`, {
@@ -2097,11 +2087,11 @@ process.stdin.on('end', () => {
             body: JSON.stringify({
               agentId: 'opencode',
               message: transcript,
-              currentPrompt: formAnswers,
-            }),
+              currentPrompt: formAnswers
+            })
           });
           expect(createResponse.status).toBe(202);
-          const { runId } = await createResponse.json() as { runId: string };
+          const { runId } = (await createResponse.json()) as { runId: string };
           const statusBody = await waitForRunStatus(baseUrl, runId);
 
           expect(statusBody.status).toBe('succeeded');
@@ -2114,7 +2104,7 @@ process.stdin.on('end', () => {
           expect(prompt).toContain('The user has answered the discovery form. Do not emit another discovery form.');
           expect(prompt).toContain('Continue with RULE 2 / RULE 3 now.');
           expect(prompt).toContain(formAnswers);
-        },
+        }
       );
     } finally {
       if (previousCapturePath == null) {
@@ -2130,7 +2120,7 @@ describe('daemon run creation during shutdown', () => {
   it('rejects new run creation while shutdown cleanup is still in flight', async () => {
     const previousGrace = process.env.OD_CHAT_RUN_SHUTDOWN_GRACE_MS;
     process.env.OD_CHAT_RUN_SHUTDOWN_GRACE_MS = '100';
-    const started = await startServer({ port: 0, returnServer: true }) as {
+    const started = (await startServer({ port: 0, returnServer: true })) as {
       url: string;
       server: http.Server;
       shutdown: () => Promise<void>;
@@ -2146,10 +2136,10 @@ setInterval(() => {}, 1000);
           const activeResponse = await fetch(`${started.url}/api/runs`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ agentId: 'opencode', message: 'hello' }),
+            body: JSON.stringify({ agentId: 'opencode', message: 'hello' })
           });
           expect(activeResponse.status).toBe(202);
-          const { runId } = await activeResponse.json() as { runId: string };
+          const { runId } = (await activeResponse.json()) as { runId: string };
           await waitForRunStatus(started.url, runId, (status) => status === 'running');
 
           const shutdownPromise = started.shutdown();
@@ -2157,18 +2147,18 @@ setInterval(() => {}, 1000);
           const runResponse = await fetch(`${started.url}/api/runs`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ agentId: 'opencode', message: 'late run' }),
+            body: JSON.stringify({ agentId: 'opencode', message: 'late run' })
           });
           const chatResponse = await fetch(`${started.url}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ agentId: 'opencode', message: 'late chat' }),
+            body: JSON.stringify({ agentId: 'opencode', message: 'late chat' })
           });
 
           expect(runResponse.status).toBe(503);
           expect(chatResponse.status).toBe(503);
           await shutdownPromise;
-        },
+        }
       );
     } finally {
       if (previousGrace == null) {
@@ -2197,12 +2187,12 @@ async function readSseUntil(response: Response, marker: string): Promise<string>
 async function waitForRunStatus(
   baseUrl: string,
   runId: string,
-  done: (status: string) => boolean = (status) => status !== 'queued' && status !== 'running',
+  done: (status: string) => boolean = (status) => status !== 'queued' && status !== 'running'
 ): Promise<{ status: string }> {
   let lastStatus = 'unknown';
   for (let attempt = 0; attempt < 500; attempt += 1) {
     const statusResponse = await fetch(`${baseUrl}/api/runs/${runId}`);
-    const statusBody = await statusResponse.json() as { status: string };
+    const statusBody = (await statusResponse.json()) as { status: string };
     lastStatus = statusBody.status;
     if (done(statusBody.status)) return statusBody;
     await new Promise((resolve) => setTimeout(resolve, 25));
@@ -2215,7 +2205,7 @@ describe('chat prompt helpers', () => {
     const override = renderCodexImagegenOverride('codex', {
       kind: 'image',
       imageModel: 'gpt-image-2',
-      imageAspect: '1:1',
+      imageAspect: '1:1'
     });
     const clientMediaContract =
       '## Media generation contract\nclient contract wins unless a later override says otherwise';
@@ -2224,7 +2214,7 @@ describe('chat prompt helpers', () => {
       daemonSystemPrompt: `daemon prompt\n${override}`,
       runtimeToolPrompt: 'runtime tools',
       clientSystemPrompt: clientMediaContract,
-      finalPromptOverride: override,
+      finalPromptOverride: override
     });
 
     const clientIdx = prompt.indexOf(clientMediaContract);
@@ -2238,18 +2228,18 @@ describe('chat prompt helpers', () => {
     const metadata = {
       kind: 'image',
       imageModel: 'gpt-image-2',
-      imageAspect: '1:1',
+      imageAspect: '1:1'
     };
     const mediaExecution = {
       mode: 'disabled',
-      allowedSurfaces: ['image'],
+      allowedSurfaces: ['image']
     };
     const generatedImagesDir = resolveCodexGeneratedImagesDir(
       'codex',
       metadata,
       { CODEX_HOME: '/tmp/custom-codex-home' },
       '/home/tester',
-      mediaExecution,
+      mediaExecution
     );
     const otherwiseGrantedDir = resolve('/tmp/custom-codex-home/generated_images');
     const override = resolveGrantedCodexImagegenOverride({
@@ -2257,13 +2247,13 @@ describe('chat prompt helpers', () => {
       metadata,
       codexGeneratedImagesDir: otherwiseGrantedDir,
       extraAllowedDirs: [otherwiseGrantedDir],
-      mediaExecution,
+      mediaExecution
     });
     const prompt = composeLiveInstructionPrompt({
       daemonSystemPrompt: 'daemon media policy prompt',
       runtimeToolPrompt: 'runtime tools',
       clientSystemPrompt: 'client instructions',
-      finalPromptOverride: override,
+      finalPromptOverride: override
     });
 
     expect(generatedImagesDir).toBeNull();
@@ -2272,10 +2262,7 @@ describe('chat prompt helpers', () => {
   });
 
   it('defaults enabled research without an explicit query to the current message', () => {
-    const prompt = resolveResearchCommandContract(
-      { enabled: true },
-      'EV market 2025 trends',
-    );
+    const prompt = resolveResearchCommandContract({ enabled: true }, 'EV market 2025 trends');
 
     expect(prompt).toContain('Canonical query for this run:');
     expect(prompt).toContain('EV market 2025 trends');
@@ -2288,8 +2275,8 @@ describe('chat prompt helpers', () => {
         'codex',
         { kind: 'image', imageModel: 'gpt-image-2' },
         { CODEX_HOME: '/tmp/custom-codex-home' },
-        '/home/tester',
-      ),
+        '/home/tester'
+      )
     ).toBe(resolve('/tmp/custom-codex-home/generated_images'));
 
     expect(
@@ -2297,8 +2284,8 @@ describe('chat prompt helpers', () => {
         'codex',
         { kind: 'image', imageModel: 'gpt-image-2-preview' },
         { CODEX_HOME: '/tmp/custom-codex-home' },
-        '/home/tester',
-      ),
+        '/home/tester'
+      )
     ).toBeNull();
 
     expect(
@@ -2306,8 +2293,8 @@ describe('chat prompt helpers', () => {
         'claude',
         { kind: 'image', imageModel: 'gpt-image-2' },
         { CODEX_HOME: '/tmp/custom-codex-home' },
-        '/home/tester',
-      ),
+        '/home/tester'
+      )
     ).toBeNull();
   });
 
@@ -2324,13 +2311,13 @@ describe('chat prompt helpers', () => {
         'codex',
         { kind: 'image', imageModel: 'gpt-image-2' },
         { CODEX_HOME: codexHome },
-        '/home/tester',
+        '/home/tester'
       );
 
       expect(
         validateCodexGeneratedImagesDir(generatedImagesDir, {
-          warn: () => undefined,
-        }),
+          warn: () => undefined
+        })
       ).toBeNull();
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -2350,14 +2337,14 @@ describe('chat prompt helpers', () => {
         'codex',
         { kind: 'image', imageModel: 'gpt-image-2' },
         { CODEX_HOME: codexHome },
-        '/home/tester',
+        '/home/tester'
       );
 
       expect(
         validateCodexGeneratedImagesDir(generatedImagesDir, {
           protectedDirs: [protectedRoot],
-          warn: () => undefined,
-        }),
+          warn: () => undefined
+        })
       ).toBeNull();
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -2376,39 +2363,37 @@ describe('chat prompt helpers', () => {
         'codex',
         { kind: 'image', imageModel: 'gpt-image-2' },
         { CODEX_HOME: symlinkCodexHome },
-        '/home/tester',
+        '/home/tester'
       );
-      const validatedDir = validateCodexGeneratedImagesDir(
-        generatedImagesDir,
-        { warn: () => undefined },
-      );
-      const canonicalGeneratedImagesDir = join(
-        realpathSync.native(actualCodexHome),
-        'generated_images',
-      );
+      const validatedDir = validateCodexGeneratedImagesDir(generatedImagesDir, { warn: () => undefined });
+      const canonicalGeneratedImagesDir = join(realpathSync.native(actualCodexHome), 'generated_images');
       const extraAllowedDirs = resolveChatExtraAllowedDirs({
         agentId: 'codex',
         skillsDir: '/repo/skills',
         designSystemsDir: '/repo/design-systems',
         linkedDirs: ['/linked/reference'],
         codexGeneratedImagesDir: validatedDir,
-        existsSync: () => true,
+        existsSync: () => true
       });
       const codex = getAgentDef('codex');
       if (!codex) throw new Error('Codex agent definition missing');
-      const args = codex.buildArgs('', [], extraAllowedDirs, {}, {
-        cwd: '/tmp/od-project',
-      });
+      const args = codex.buildArgs(
+        '',
+        [],
+        extraAllowedDirs,
+        {},
+        {
+          cwd: '/tmp/od-project'
+        }
+      );
 
       expect(generatedImagesDir).not.toBe(canonicalGeneratedImagesDir);
       expect(validatedDir).toBe(canonicalGeneratedImagesDir);
       expect(extraAllowedDirs).toEqual([canonicalGeneratedImagesDir]);
-      expect(
-        args.filter(
-          (arg, index) =>
-            arg === '--add-dir' || args[index - 1] === '--add-dir',
-        ),
-      ).toEqual(['--add-dir', canonicalGeneratedImagesDir]);
+      expect(args.filter((arg, index) => arg === '--add-dir' || args[index - 1] === '--add-dir')).toEqual([
+        '--add-dir',
+        canonicalGeneratedImagesDir
+      ]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -2422,7 +2407,7 @@ describe('chat prompt helpers', () => {
       designSystemsDir: '/repo/design-systems',
       linkedDirs: ['/linked/reference'],
       codexGeneratedImagesDir: generatedImagesDir,
-      existsSync: () => true,
+      existsSync: () => true
     });
 
     expect(dirs).toEqual([generatedImagesDir]);
@@ -2430,12 +2415,10 @@ describe('chat prompt helpers', () => {
     const codex = getAgentDef('codex');
     if (!codex) throw new Error('Codex agent definition missing');
     const args = codex.buildArgs('', [], dirs, {}, { cwd: '/tmp/od-project' });
-    expect(
-      args.filter(
-        (arg, index) =>
-          arg === '--add-dir' || args[index - 1] === '--add-dir',
-      ),
-    ).toEqual(['--add-dir', generatedImagesDir]);
+    expect(args.filter((arg, index) => arg === '--add-dir' || args[index - 1] === '--add-dir')).toEqual([
+      '--add-dir',
+      generatedImagesDir
+    ]);
     expect(args).not.toContain('/repo/skills');
     expect(args).not.toContain('/repo/design-systems');
     expect(args).not.toContain('/linked/reference');
@@ -2446,7 +2429,7 @@ describe('chat prompt helpers', () => {
       '/repo/skills',
       '/repo/design-systems',
       '/linked/reference',
-      '/home/tester/.codex/generated_images',
+      '/home/tester/.codex/generated_images'
     ]);
     const dirs = resolveChatExtraAllowedDirs({
       agentId: 'claude',
@@ -2454,14 +2437,10 @@ describe('chat prompt helpers', () => {
       designSystemsDir: '/repo/design-systems',
       linkedDirs: ['/linked/reference'],
       codexGeneratedImagesDir: '/home/tester/.codex/generated_images',
-      existsSync: (dir: string) => existingDirs.has(dir),
+      existsSync: (dir: string) => existingDirs.has(dir)
     });
 
-    expect(dirs).toEqual([
-      '/repo/skills',
-      '/repo/design-systems',
-      '/linked/reference',
-    ]);
+    expect(dirs).toEqual(['/repo/skills', '/repo/design-systems', '/linked/reference']);
   });
 
   it('does not add resource dirs for Codex when imagegen is not whitelisted', () => {
@@ -2471,7 +2450,7 @@ describe('chat prompt helpers', () => {
       designSystemsDir: '/repo/design-systems',
       linkedDirs: ['/linked/reference'],
       codexGeneratedImagesDir: null,
-      existsSync: () => true,
+      existsSync: () => true
     });
 
     expect(dirs).toEqual([]);
@@ -2491,39 +2470,34 @@ describe('chat prompt helpers', () => {
         'codex',
         metadata,
         { CODEX_HOME: codexHome },
-        '/home/tester',
+        '/home/tester'
       );
-      const validatedDir = validateCodexGeneratedImagesDir(
-        generatedImagesDir,
-        { warn: () => undefined },
-      );
+      const validatedDir = validateCodexGeneratedImagesDir(generatedImagesDir, { warn: () => undefined });
       const extraAllowedDirs = resolveChatExtraAllowedDirs({
         agentId: 'codex',
         skillsDir: '/repo/skills',
         designSystemsDir: '/repo/design-systems',
         linkedDirs: ['/linked/reference'],
         codexGeneratedImagesDir: validatedDir,
-        existsSync: () => true,
+        existsSync: () => true
       });
       const validationFailedOverride = resolveGrantedCodexImagegenOverride({
         agentId: 'codex',
         metadata,
         codexGeneratedImagesDir: validatedDir,
-        extraAllowedDirs,
+        extraAllowedDirs
       });
       const validationFailedPrompt = composeLiveInstructionPrompt({
         daemonSystemPrompt: 'daemon prompt',
         runtimeToolPrompt: 'runtime tools',
         clientSystemPrompt: 'client media contract',
-        finalPromptOverride: validationFailedOverride,
+        finalPromptOverride: validationFailedOverride
       });
 
       expect(validatedDir).toBeNull();
       expect(extraAllowedDirs).toEqual([]);
       expect(validationFailedOverride).toBeNull();
-      expect(validationFailedPrompt).not.toContain(
-        '## Codex built-in imagegen override',
-      );
+      expect(validationFailedPrompt).not.toContain('## Codex built-in imagegen override');
 
       const validDir = join(root, 'safe-codex-home', 'generated_images');
       mkdirSync(validDir, { recursive: true });
@@ -2531,7 +2505,7 @@ describe('chat prompt helpers', () => {
         agentId: 'codex',
         metadata,
         codexGeneratedImagesDir: validDir,
-        extraAllowedDirs: [],
+        extraAllowedDirs: []
       });
 
       expect(notGrantedOverride).toBeNull();

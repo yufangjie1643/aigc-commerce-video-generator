@@ -19,6 +19,15 @@ describe('SessionModeToggle', () => {
 
     expect(screen.getByRole('menuitemradio', { name: /Design Agent mode/i }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('menuitemradio', { name: /Ask mode/i }).getAttribute('aria-checked')).toBe('false');
+    expect(
+      screen.getByRole('menuitemradio', { name: /Comprehensive workbench mode/i }).getAttribute('aria-checked')
+    ).toBe('false');
+  });
+
+  it('falls back to comprehensive mode when the supplied mode is unknown', () => {
+    render(<SessionModeToggle mode={'unknown' as never} onChange={vi.fn()} />);
+
+    expect(screen.getByTestId('session-mode-trigger').textContent).toContain('Comprehensive');
   });
 
   it('switches mode from the menu', () => {
@@ -26,9 +35,9 @@ describe('SessionModeToggle', () => {
     render(<SessionModeToggle mode="design" onChange={onChange} />);
 
     fireEvent.click(screen.getByTestId('session-mode-trigger'));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /Ask mode/i }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Comprehensive workbench mode/i }));
 
-    expect(onChange).toHaveBeenCalledWith('chat');
+    expect(onChange).toHaveBeenCalledWith('comprehensive');
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
@@ -36,7 +45,7 @@ describe('SessionModeToggle', () => {
     render(
       <I18nProvider initial="zh-CN">
         <SessionModeToggle mode="chat" onChange={vi.fn()} />
-      </I18nProvider>,
+      </I18nProvider>
     );
 
     const trigger = screen.getByTestId('session-mode-trigger');
@@ -57,5 +66,10 @@ describe('SessionModeToggle', () => {
     expect(card.textContent).toContain('适合创建或修改具体设计产物');
     expect(card.textContent).toContain('图片、视频、HyperFrames、音频');
     expect(card.textContent).toContain('为这次 campaign 生成图片、视频和音频创意。');
+
+    const comprehensiveOption = screen.getByRole('menuitemradio', { name: /综合工作台模式/i });
+    fireEvent.pointerEnter(comprehensiveOption);
+    expect(screen.getByRole('tooltip').textContent).toContain('agent 串联视频爬取');
+    expect(screen.getByRole('tooltip').textContent).toContain('生成一条产品视频流水线');
   });
 });

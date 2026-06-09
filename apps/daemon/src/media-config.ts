@@ -35,16 +35,23 @@
 // We DO mask keys when reading via the GET endpoint so the UI doesn't
 // echo secrets back into the DOM.
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import { MEDIA_PROVIDERS } from './media-models.js';
-import { expandHomePrefix } from './home-expansion.js';
-import { resolveXAIBearer } from './xai-credentials.js';
-import { isSandboxModeEnabled } from './sandbox-mode.js';
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { MEDIA_PROVIDERS } from "./media-models.js";
+import { expandHomePrefix } from "./home-expansion.js";
+import { resolveXAIBearer } from "./xai-credentials.js";
+import { isSandboxModeEnabled } from "./sandbox-mode.js";
 
 const PROVIDER_IDS = MEDIA_PROVIDERS.map((p) => p.id);
-type ProviderEntry = { apiKey?: string; baseUrl?: string; model?: string };
+type ProviderEntry = {
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  imageUnderstandingModel?: string;
+  audioUnderstandingModel?: string;
+  videoUnderstandingModel?: string;
+};
 type ProviderMap = Record<string, ProviderEntry>;
 type ModelAliasMap = Record<string, string>;
 type JsonRecord = Record<string, unknown>;
@@ -58,14 +65,14 @@ type OAuthCredential = { apiKey: string; source: string };
 // their workflow:
 //
 //   OD_MEDIA_MODEL_ALIASES='{"doubao-seedream-3-0-t2i-250415":"doubao-seedream-5-0"}'
-const ENV_MODEL_ALIASES = 'OD_MEDIA_MODEL_ALIASES';
+const ENV_MODEL_ALIASES = "OD_MEDIA_MODEL_ALIASES";
 
 function isRecord(value: unknown): value is JsonRecord {
-  return value !== null && typeof value === 'object';
+  return value !== null && typeof value === "object";
 }
 
 function errorCode(err: unknown): string | undefined {
-  return isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
+  return isRecord(err) && typeof err.code === "string" ? err.code : undefined;
 }
 
 const ENV_KEYS: Record<string, string[]> = {
@@ -74,37 +81,33 @@ const ENV_KEYS: Record<string, string[]> = {
   // OpenAI examples use — we share the openai provider slot so a user
   // who pastes an Azure deployment URL into the OpenAI Base URL field
   // gets the credential picked up automatically.
-  openai: [
-    'OD_OPENAI_API_KEY',
-    'OPENAI_API_KEY',
-    'AZURE_API_KEY',
-    'AZURE_OPENAI_API_KEY',
-  ],
-  volcengine: ['OD_VOLCENGINE_API_KEY', 'ARK_API_KEY', 'VOLCENGINE_API_KEY'],
+  openai: ["OD_OPENAI_API_KEY", "OPENAI_API_KEY", "AZURE_API_KEY", "AZURE_OPENAI_API_KEY"],
+  volcengine: ["OD_VOLCENGINE_API_KEY", "ARK_API_KEY", "VOLCENGINE_API_KEY"],
+  mimo: ["OD_MIMO_API_KEY", "MIMO_API_KEY", "XIAOMI_MIMO_API_KEY"],
   // OD_GROK_API_KEY first (the project-reserved override, same shape as
   // every other provider above), then XAI_API_KEY as the canonical
   // upstream env per docs.x.ai quickstart — so users who already export
   // it for the official SDK don't have to re-paste into Settings.
-  grok: ['OD_GROK_API_KEY', 'XAI_API_KEY'],
-  nanobanana: ['OD_NANOBANANA_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'],
-  imagerouter: ['OD_IMAGEROUTER_API_KEY', 'IMAGEROUTER_API_KEY'],
-  openrouter: ['OD_OPENROUTER_API_KEY', 'OPENROUTER_API_KEY'],
-  'custom-image': ['OD_CUSTOM_IMAGE_API_KEY', 'CUSTOM_IMAGE_API_KEY'],
-  bfl: ['OD_BFL_API_KEY', 'BFL_API_KEY'],
-  fal: ['OD_FAL_KEY', 'FAL_KEY'],
-  replicate: ['OD_REPLICATE_API_TOKEN', 'REPLICATE_API_TOKEN'],
-  google: ['OD_GOOGLE_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'],
-  kling: ['OD_KLING_API_KEY', 'KLING_API_KEY'],
-  midjourney: ['OD_MIDJOURNEY_API_KEY'],
-  minimax: ['OD_MINIMAX_API_KEY', 'MINIMAX_API_KEY'],
-  suno: ['OD_SUNO_API_KEY'],
-  udio: ['OD_UDIO_API_KEY'],
-  elevenlabs: ['OD_ELEVENLABS_API_KEY', 'ELEVENLABS_API_KEY'],
-  fishaudio: ['OD_FISHAUDIO_API_KEY', 'FISH_AUDIO_API_KEY'],
-  senseaudio: ['OD_SENSEAUDIO_API_KEY', 'SENSEAUDIO_API_KEY'],
-  aihubmix: ['OD_AIHUBMIX_API_KEY', 'AIHUBMIX_API_KEY'],
-  tavily: ['OD_TAVILY_API_KEY', 'TAVILY_API_KEY'],
-  leonardo: ['OD_LEONARDO_API_KEY', 'LEONARDO_API_KEY'],
+  grok: ["OD_GROK_API_KEY", "XAI_API_KEY"],
+  nanobanana: ["OD_NANOBANANA_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY"],
+  imagerouter: ["OD_IMAGEROUTER_API_KEY", "IMAGEROUTER_API_KEY"],
+  openrouter: ["OD_OPENROUTER_API_KEY", "OPENROUTER_API_KEY"],
+  "custom-image": ["OD_CUSTOM_IMAGE_API_KEY", "CUSTOM_IMAGE_API_KEY"],
+  bfl: ["OD_BFL_API_KEY", "BFL_API_KEY"],
+  fal: ["OD_FAL_KEY", "FAL_KEY"],
+  replicate: ["OD_REPLICATE_API_TOKEN", "REPLICATE_API_TOKEN"],
+  google: ["OD_GOOGLE_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY"],
+  kling: ["OD_KLING_API_KEY", "KLING_API_KEY"],
+  midjourney: ["OD_MIDJOURNEY_API_KEY"],
+  minimax: ["OD_MINIMAX_API_KEY", "MINIMAX_API_KEY"],
+  suno: ["OD_SUNO_API_KEY"],
+  udio: ["OD_UDIO_API_KEY"],
+  elevenlabs: ["OD_ELEVENLABS_API_KEY", "ELEVENLABS_API_KEY"],
+  fishaudio: ["OD_FISHAUDIO_API_KEY", "FISH_AUDIO_API_KEY"],
+  senseaudio: ["OD_SENSEAUDIO_API_KEY", "SENSEAUDIO_API_KEY"],
+  aihubmix: ["OD_AIHUBMIX_API_KEY", "AIHUBMIX_API_KEY"],
+  tavily: ["OD_TAVILY_API_KEY", "TAVILY_API_KEY"],
+  leonardo: ["OD_LEONARDO_API_KEY", "LEONARDO_API_KEY"]
 };
 
 // Resolve an `OD_*_DIR` env override using the same semantics as
@@ -126,14 +129,12 @@ function resolveOverrideDir(raw: string, projectRoot: string): string {
   // <projectRoot>/$HOME/.open-design, leaving stored credentials
   // unreachable on the next read.
   const expanded = expandHomePrefix(raw);
-  return path.isAbsolute(expanded)
-    ? expanded
-    : path.resolve(projectRoot, expanded);
+  return path.isAbsolute(expanded) ? expanded : path.resolve(projectRoot, expanded);
 }
 
 function envOverrideDir(envName: string, projectRoot: string): string | null {
   const raw = process.env[envName];
-  if (typeof raw !== 'string') return null;
+  if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
   return trimmed ? resolveOverrideDir(trimmed, projectRoot) : null;
 }
@@ -145,14 +146,14 @@ function envOverrideDir(envName: string, projectRoot: string): string | null {
  */
 export function mediaConfigDir(projectRoot: string): string {
   return (
-    envOverrideDir('OD_MEDIA_CONFIG_DIR', projectRoot)
-    ?? envOverrideDir('OD_DATA_DIR', projectRoot)
-    ?? path.join(projectRoot, '.od')
+    envOverrideDir("OD_MEDIA_CONFIG_DIR", projectRoot) ??
+    envOverrideDir("OD_DATA_DIR", projectRoot) ??
+    path.join(projectRoot, ".od")
   );
 }
 
 function configFile(projectRoot: string): string {
-  return path.join(mediaConfigDir(projectRoot), 'media-config.json');
+  return path.join(mediaConfigDir(projectRoot), "media-config.json");
 }
 
 /**
@@ -165,8 +166,8 @@ function coerceAliasMap(raw: unknown): ModelAliasMap {
   if (!isRecord(raw)) return {};
   const out: ModelAliasMap = {};
   for (const [k, v] of Object.entries(raw)) {
-    if (typeof k !== 'string' || !k.trim()) continue;
-    if (typeof v !== 'string' || !v.trim()) continue;
+    if (typeof k !== "string" || !k.trim()) continue;
+    if (typeof v !== "string" || !v.trim()) continue;
     out[k.trim()] = v.trim();
   }
   return out;
@@ -174,11 +175,11 @@ function coerceAliasMap(raw: unknown): ModelAliasMap {
 
 async function readStoredFile(projectRoot: string): Promise<JsonRecord> {
   try {
-    const raw = await readFile(configFile(projectRoot), 'utf8');
+    const raw = await readFile(configFile(projectRoot), "utf8");
     const parsed = JSON.parse(raw);
     return isRecord(parsed) ? parsed : {};
   } catch (err) {
-    if (errorCode(err) === 'ENOENT') return {};
+    if (errorCode(err) === "ENOENT") return {};
     throw err;
   }
 }
@@ -193,11 +194,7 @@ async function readStoredAliases(projectRoot: string): Promise<ModelAliasMap> {
   return coerceAliasMap(parsed.aliases);
 }
 
-async function writeStored(
-  projectRoot: string,
-  providers: ProviderMap,
-  aliases?: ModelAliasMap,
-): Promise<void> {
+async function writeStored(projectRoot: string, providers: ProviderMap, aliases?: ModelAliasMap): Promise<void> {
   const file = configFile(projectRoot);
   await mkdir(path.dirname(file), { recursive: true });
   // Preserve any existing aliases when the caller doesn't pass them.
@@ -210,12 +207,12 @@ async function writeStored(
   if (Object.keys(resolvedAliases).length > 0) {
     body.aliases = resolvedAliases;
   }
-  await writeFile(file, JSON.stringify(body, null, 2), 'utf8');
+  await writeFile(file, JSON.stringify(body, null, 2), "utf8");
 }
 
 function readEnvAliases(): ModelAliasMap {
   const raw = process.env[ENV_MODEL_ALIASES];
-  if (typeof raw !== 'string' || !raw.trim()) return {};
+  if (typeof raw !== "string" || !raw.trim()) return {};
   try {
     return coerceAliasMap(JSON.parse(raw));
   } catch {
@@ -233,10 +230,7 @@ function readEnvAliases(): ModelAliasMap {
  * the precedence the rest of media-config uses for `apiKey` (issue
  * #1277). Pass-through when no alias is configured.
  */
-export async function resolveModelAlias(
-  projectRoot: string,
-  modelId: string,
-): Promise<string> {
+export async function resolveModelAlias(projectRoot: string, modelId: string): Promise<string> {
   const envAliases = readEnvAliases();
   if (envAliases[modelId]) return envAliases[modelId]!;
   const stored = await readStoredAliases(projectRoot);
@@ -249,7 +243,7 @@ export async function resolveModelAlias(
  * which aliases are active and where they came from.
  */
 export async function readAliasMap(
-  projectRoot: string,
+  projectRoot: string
 ): Promise<{ effective: ModelAliasMap; env: ModelAliasMap; stored: ModelAliasMap }> {
   const env = readEnvAliases();
   const stored = await readStoredAliases(projectRoot);
@@ -262,7 +256,7 @@ function readEnvKey(providerId: string): string | null {
   if (!keys) return null;
   for (const k of keys) {
     const v = process.env[k];
-    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (typeof v === "string" && v.trim()) return v.trim();
   }
   return null;
 }
@@ -270,19 +264,19 @@ function readEnvKey(providerId: string): string | null {
 function readNestedString(obj: unknown, keys: string[]): string {
   let cur: unknown = obj;
   for (const key of keys) {
-    if (!isRecord(cur)) return '';
+    if (!isRecord(cur)) return "";
     cur = cur[key];
   }
-  return typeof cur === 'string' && cur.trim() ? cur.trim() : '';
+  return typeof cur === "string" && cur.trim() ? cur.trim() : "";
 }
 
 async function readJsonIfPresent(file: string): Promise<JsonRecord | null> {
   try {
-    const raw = await readFile(file, 'utf8');
+    const raw = await readFile(file, "utf8");
     const parsed = JSON.parse(raw);
     return isRecord(parsed) ? parsed : null;
   } catch (err) {
-    if (errorCode(err) === 'ENOENT') return null;
+    if (errorCode(err) === "ENOENT") return null;
     // Auth files are best-effort fallbacks. A malformed local auth cache
     // should not break the Settings page or hide stored provider config.
     return null;
@@ -290,35 +284,29 @@ async function readJsonIfPresent(file: string): Promise<JsonRecord | null> {
 }
 
 function apiKeyFromCodexAuth(data: unknown): string {
-  return readNestedString(data, ['OPENAI_API_KEY']);
+  return readNestedString(data, ["OPENAI_API_KEY"]);
 }
 
 async function resolveOpenAIAuthFileCredential(): Promise<OAuthCredential | null> {
   if (isSandboxModeEnabled(process.env)) return null;
   const home = os.homedir();
-  const codexAuth = await readJsonIfPresent(
-    path.join(home, '.codex', 'auth.json'),
-  );
+  const codexAuth = await readJsonIfPresent(path.join(home, ".codex", "auth.json"));
   const apiKey = apiKeyFromCodexAuth(codexAuth);
   if (apiKey) {
-    return { apiKey, source: 'codex-auth' };
+    return { apiKey, source: "codex-auth" };
   }
 
   return null;
 }
 
-async function resolveXAIOAuthCredential(
-  projectRoot: string,
-): Promise<OAuthCredential | null> {
+async function resolveXAIOAuthCredential(projectRoot: string): Promise<OAuthCredential | null> {
   // 1. OD-native xAI OAuth tokens (written by the daemon's own
   //    xai-oauth.ts client when the user authorizes inside OD).
-  const odBearer = await resolveXAIBearer(mediaConfigDir(projectRoot)).catch(
-    () => null,
-  );
+  const odBearer = await resolveXAIBearer(mediaConfigDir(projectRoot)).catch(() => null);
   if (odBearer) {
     return {
       apiKey: odBearer.accessToken,
-      source: `oauth-xai-${odBearer.source}`,
+      source: `oauth-xai-${odBearer.source}`
     };
   }
 
@@ -330,17 +318,10 @@ async function resolveXAIOAuthCredential(
   //    (No proactive refresh here — Hermes itself maintains the token,
   //    and we only borrow what is currently fresh.)
   const home = os.homedir();
-  const hermesAuth = await readJsonIfPresent(
-    path.join(home, '.hermes', 'auth.json'),
-  );
-  const hermesXaiToken = readNestedString(hermesAuth, [
-    'providers',
-    'xai-oauth',
-    'tokens',
-    'access_token',
-  ]);
+  const hermesAuth = await readJsonIfPresent(path.join(home, ".hermes", "auth.json"));
+  const hermesXaiToken = readNestedString(hermesAuth, ["providers", "xai-oauth", "tokens", "access_token"]);
   if (hermesXaiToken) {
-    return { apiKey: hermesXaiToken, source: 'oauth-hermes-xai' };
+    return { apiKey: hermesXaiToken, source: "oauth-hermes-xai" };
   }
 
   return null;
@@ -359,18 +340,25 @@ export async function resolveProviderConfig(projectRoot: string, providerId: str
   const envKey = readEnvKey(providerId);
   const needsExternalCredential = !envKey && !entry.apiKey;
   const externalCredential = needsExternalCredential
-    ? providerId === 'openai'
+    ? providerId === "openai"
       ? await resolveOpenAIAuthFileCredential()
-      : providerId === 'grok'
+      : providerId === "grok"
         ? await resolveXAIOAuthCredential(projectRoot)
         : null
     : null;
   return {
-    apiKey: envKey || entry.apiKey || externalCredential?.apiKey || '',
-    baseUrl: entry.baseUrl || '',
-    ...(typeof entry.model === 'string' && entry.model.trim()
-      ? { model: entry.model.trim() }
+    apiKey: envKey || entry.apiKey || externalCredential?.apiKey || "",
+    baseUrl: entry.baseUrl || "",
+    ...(typeof entry.model === "string" && entry.model.trim() ? { model: entry.model.trim() } : {}),
+    ...(typeof entry.imageUnderstandingModel === "string" && entry.imageUnderstandingModel.trim()
+      ? { imageUnderstandingModel: entry.imageUnderstandingModel.trim() }
       : {}),
+    ...(typeof entry.audioUnderstandingModel === "string" && entry.audioUnderstandingModel.trim()
+      ? { audioUnderstandingModel: entry.audioUnderstandingModel.trim() }
+      : {}),
+    ...(typeof entry.videoUnderstandingModel === "string" && entry.videoUnderstandingModel.trim()
+      ? { videoUnderstandingModel: entry.videoUnderstandingModel.trim() }
+      : {})
   };
 }
 
@@ -380,7 +368,19 @@ export async function resolveProviderConfig(projectRoot: string, providerId: str
  * the secret back into the DOM.
  */
 export interface MaskedConfigResponse {
-  providers: Record<string, { configured: boolean; source: string; apiKeyTail: string; baseUrl: string; model?: string }>;
+  providers: Record<
+    string,
+    {
+      configured: boolean;
+      source: string;
+      apiKeyTail: string;
+      baseUrl: string;
+      model?: string;
+      imageUnderstandingModel?: string;
+      audioUnderstandingModel?: string;
+      videoUnderstandingModel?: string;
+    }
+  >;
   /**
    * Effective alias map plus source attribution. The Settings UI can
    * show "from env" vs "from media-config.json" badges next to each
@@ -392,30 +392,37 @@ export interface MaskedConfigResponse {
 
 export async function readMaskedConfig(projectRoot: string): Promise<MaskedConfigResponse> {
   const stored = await readStored(projectRoot);
-  const providers: MaskedConfigResponse['providers'] = {};
+  const providers: MaskedConfigResponse["providers"] = {};
   for (const id of PROVIDER_IDS) {
     const entry = stored[id] || {};
     const envKey = readEnvKey(id);
-    const hasStoredKey = typeof entry.apiKey === 'string' && entry.apiKey.length > 0;
+    const hasStoredKey = typeof entry.apiKey === "string" && entry.apiKey.length > 0;
     const needsExternalCredential = !envKey && !hasStoredKey;
     const externalCredential = needsExternalCredential
-      ? id === 'openai'
+      ? id === "openai"
         ? await resolveOpenAIAuthFileCredential()
-        : id === 'grok'
+        : id === "grok"
           ? await resolveXAIOAuthCredential(projectRoot)
           : null
       : null;
     providers[id] = {
       configured: Boolean(envKey || hasStoredKey || externalCredential?.apiKey),
-      source: envKey ? 'env' : hasStoredKey ? 'stored' : externalCredential?.source || 'unset',
+      source: envKey ? "env" : hasStoredKey ? "stored" : externalCredential?.source || "unset",
       // Show last 4 chars only when stored locally; never echo env-var
       // or borrowed auth-file/OAuth secrets so power users don't
       // accidentally see them in the DOM.
-      apiKeyTail: hasStoredKey && entry.apiKey ? entry.apiKey.slice(-4) : '',
-      baseUrl: entry.baseUrl || '',
-      ...(typeof entry.model === 'string' && entry.model.trim()
-        ? { model: entry.model.trim() }
+      apiKeyTail: hasStoredKey && entry.apiKey ? entry.apiKey.slice(-4) : "",
+      baseUrl: entry.baseUrl || "",
+      ...(typeof entry.model === "string" && entry.model.trim() ? { model: entry.model.trim() } : {}),
+      ...(typeof entry.imageUnderstandingModel === "string" && entry.imageUnderstandingModel.trim()
+        ? { imageUnderstandingModel: entry.imageUnderstandingModel.trim() }
         : {}),
+      ...(typeof entry.audioUnderstandingModel === "string" && entry.audioUnderstandingModel.trim()
+        ? { audioUnderstandingModel: entry.audioUnderstandingModel.trim() }
+        : {}),
+      ...(typeof entry.videoUnderstandingModel === "string" && entry.videoUnderstandingModel.trim()
+        ? { videoUnderstandingModel: entry.videoUnderstandingModel.trim() }
+        : {})
     };
   }
   const aliases = await readAliasMap(projectRoot);
@@ -442,46 +449,64 @@ export async function writeConfig(projectRoot: string, body: unknown) {
   for (const id of PROVIDER_IDS) {
     const entry = incoming[id];
     if (!isRecord(entry)) continue;
-    const incomingApiKey =
-      typeof entry.apiKey === 'string' && entry.apiKey.trim()
-        ? entry.apiKey.trim()
-        : '';
+    const incomingApiKey = typeof entry.apiKey === "string" && entry.apiKey.trim() ? entry.apiKey.trim() : "";
     const preserveApiKey = entry.preserveApiKey === true;
-    const priorApiKey =
-      typeof prior[id]?.apiKey === 'string' && prior[id].apiKey.trim()
-        ? prior[id].apiKey.trim()
-        : '';
-    const apiKey = incomingApiKey || (preserveApiKey ? priorApiKey : '');
-    const baseUrl =
-      typeof entry.baseUrl === 'string' && entry.baseUrl.trim()
-        ? entry.baseUrl.trim()
-        : '';
-    const model =
-      typeof entry.model === 'string' && entry.model.trim()
-        ? entry.model.trim()
-        : '';
-    if (!apiKey && !baseUrl && !model) continue;
+    const priorApiKey = typeof prior[id]?.apiKey === "string" && prior[id].apiKey.trim() ? prior[id].apiKey.trim() : "";
+    const apiKey = incomingApiKey || (preserveApiKey ? priorApiKey : "");
+    const baseUrl = typeof entry.baseUrl === "string" && entry.baseUrl.trim() ? entry.baseUrl.trim() : "";
+    const model = typeof entry.model === "string" && entry.model.trim() ? entry.model.trim() : "";
+    const imageUnderstandingModel =
+      typeof entry.imageUnderstandingModel === "string" && entry.imageUnderstandingModel.trim()
+        ? entry.imageUnderstandingModel.trim()
+        : "";
+    const audioUnderstandingModel =
+      typeof entry.audioUnderstandingModel === "string" && entry.audioUnderstandingModel.trim()
+        ? entry.audioUnderstandingModel.trim()
+        : "";
+    const videoUnderstandingModel =
+      typeof entry.videoUnderstandingModel === "string" && entry.videoUnderstandingModel.trim()
+        ? entry.videoUnderstandingModel.trim()
+        : "";
+    if (
+      !apiKey &&
+      !baseUrl &&
+      !model &&
+      !imageUnderstandingModel &&
+      !audioUnderstandingModel &&
+      !videoUnderstandingModel
+    )
+      continue;
     next[id] = {
       apiKey,
       baseUrl,
       ...(model ? { model } : {}),
+      ...(imageUnderstandingModel ? { imageUnderstandingModel } : {}),
+      ...(audioUnderstandingModel ? { audioUnderstandingModel } : {}),
+      ...(videoUnderstandingModel ? { videoUnderstandingModel } : {})
     };
   }
   if (Object.keys(next).length === 0) {
     const priorIds = Object.keys(prior).filter(
-      (id) => prior[id] && (prior[id].apiKey || prior[id].baseUrl),
+      (id) =>
+        prior[id] &&
+        (prior[id].apiKey ||
+          prior[id].baseUrl ||
+          prior[id].model ||
+          prior[id].imageUnderstandingModel ||
+          prior[id].audioUnderstandingModel ||
+          prior[id].videoUnderstandingModel)
     );
     if (priorIds.length > 0) {
       if (!force) {
         const err = new Error(
-          `refusing to wipe ${priorIds.length} configured provider(s) without force=true: ${priorIds.join(', ')}`,
+          `refusing to wipe ${priorIds.length} configured provider(s) without force=true: ${priorIds.join(", ")}`
         ) as Error & { status: number };
         err.status = 409;
         throw err;
       }
       try {
         console.error(
-          `[media-config] WARN: incoming PUT empty, would wipe ${priorIds.length} configured provider(s): ${priorIds.join(', ')}`,
+          `[media-config] WARN: incoming PUT empty, would wipe ${priorIds.length} configured provider(s): ${priorIds.join(", ")}`
         );
       } catch {
         // best-effort logging only
@@ -514,10 +539,10 @@ export async function writeConfig(projectRoot: string, body: unknown) {
 export async function seedProviderIfMissing(
   projectRoot: string,
   providerId: string,
-  entry: { apiKey?: string; baseUrl?: string; model?: string },
+  entry: { apiKey?: string; baseUrl?: string; model?: string }
 ): Promise<boolean> {
   if (!PROVIDER_IDS.includes(providerId)) return false;
-  const apiKey = entry.apiKey?.trim() ?? '';
+  const apiKey = entry.apiKey?.trim() ?? "";
   if (!apiKey) return false;
   // Env var wins at resolution time, so seeding when env is set would
   // be invisible to the user. Skip to avoid confusing on-disk state.
@@ -525,18 +550,18 @@ export async function seedProviderIfMissing(
 
   const prior = await readStored(projectRoot);
   const priorApiKey =
-    typeof prior[providerId]?.apiKey === 'string' && prior[providerId].apiKey.trim()
+    typeof prior[providerId]?.apiKey === "string" && prior[providerId].apiKey.trim()
       ? prior[providerId].apiKey.trim()
-      : '';
+      : "";
   if (priorApiKey) return false;
 
-  const baseUrl = entry.baseUrl?.trim() ?? '';
-  const model = entry.model?.trim() ?? '';
+  const baseUrl = entry.baseUrl?.trim() ?? "";
+  const model = entry.model?.trim() ?? "";
   const next: ProviderMap = { ...prior };
   next[providerId] = {
     apiKey,
     ...(baseUrl ? { baseUrl } : {}),
-    ...(model ? { model } : {}),
+    ...(model ? { model } : {})
   };
   await writeStored(projectRoot, next);
   return true;

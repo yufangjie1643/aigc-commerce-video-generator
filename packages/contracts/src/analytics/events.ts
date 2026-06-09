@@ -1549,6 +1549,7 @@ export type TrackingSettingsArea =
   | 'instructions'
   | 'memory'
   | 'media_providers'
+  | 'understanding_api'
   | 'skills'
   | 'external_mcp'
   | 'connectors'
@@ -2467,6 +2468,8 @@ export function settingsSectionToTracking(
       return 'instructions';
     case 'media':
       return 'media_providers';
+    case 'understanding':
+      return 'understanding_api';
     case 'language':
       return 'language';
     case 'appearance':

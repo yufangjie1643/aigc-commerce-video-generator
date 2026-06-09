@@ -75,6 +75,36 @@ describe("composeSystemPrompt — activeStageBlocks splice (spec §23.4)", () =>
 });
 
 describe("composeSystemPrompt", () => {
+  it("injects the Comprehensive mode orchestration override before discovery", () => {
+    const prompt = composeSystemPrompt({ sessionMode: "comprehensive" });
+
+    expect(prompt).toContain("# Comprehensive mode — business workbench orchestration");
+    expect(prompt).toContain("do not emit the default Design discovery `<question-form>`");
+    expect(prompt).toContain("od assets commerce-videos search");
+    expect(prompt).toContain("video-generation-pipeline");
+    expect(prompt.indexOf("# Comprehensive mode — business workbench orchestration")).toBeLessThan(
+      prompt.indexOf("RULE 1")
+    );
+  });
+
+  it("uses question-form follow-up choices for non-Claude adapters", () => {
+    const prompt = composeSystemPrompt({ agentId: "opencode", sessionMode: "comprehensive" });
+
+    expect(prompt).toContain("## Clarifying questions");
+    expect(prompt).toContain("use Open Design's interactive choice UI instead of a markdown A/B/C table");
+    expect(prompt).toContain("For this adapter, use a single renderable `<question-form>` block");
+    expect(prompt).toContain('<question-form id="follow-up" title="选择下一步">');
+    expect(prompt).not.toContain("call the `AskUserQuestion` tool instead of writing a bulleted list in markdown");
+  });
+
+  it("keeps AskUserQuestion as the follow-up choice UI for Claude", () => {
+    const prompt = composeSystemPrompt({ agentId: "claude", sessionMode: "comprehensive" });
+
+    expect(prompt).toContain("## Clarifying questions");
+    expect(prompt).toContain("call the `AskUserQuestion` tool instead of writing a bulleted list in markdown");
+    expect(prompt).toContain("that tool call is the entire response");
+  });
+
   it("injects Chinese quick brief guidance when the UI locale is zh-CN", () => {
     const prompt = composeSystemPrompt({ locale: "zh-CN" });
 
@@ -259,7 +289,7 @@ describe("composeSystemPrompt", () => {
     });
 
     expect(prompt).toContain("## Media question mode");
-    expect(prompt).toContain("Do not call\n`\"$OD_NODE_BIN\" \"$OD_BIN\" media generate`");
+    expect(prompt).toContain('Do not call\n`"$OD_NODE_BIN" "$OD_BIN" media generate`');
     expect(prompt).toContain("this conversation is in Question / chat mode");
     expect(prompt).not.toContain("Dispatch immediately when the brief is complete");
   });
@@ -287,7 +317,10 @@ describe("composeSystemPrompt", () => {
     expect(prompt).toContain("`storyboard[]`");
     expect(prompt).toContain("`retry_or_diagnostics`");
     expect(prompt).toContain("--image <project-relative-path>");
-    expect(prompt).toContain("do not call `\"$OD_NODE_BIN\" \"$OD_BIN\" media generate --surface video ...`");
+    expect(prompt).toContain("only choose image-to-video when the user explicitly asks");
+    expect(prompt).toContain("`minimax-video-01`");
+    expect(prompt).toContain("`doubao-seedance-1.5-pro`");
+    expect(prompt).toContain('do not call `"$OD_NODE_BIN" "$OD_BIN" media generate --surface video ...`');
     expect(prompt).not.toContain("Otherwise make a stated assumption");
     expect(prompt.indexOf("### Ecommerce selling-video configuration workflow")).toBeGreaterThan(
       prompt.indexOf("This is a **video** project")
@@ -297,10 +330,7 @@ describe("composeSystemPrompt", () => {
   it("ships the local ecommerce selling-video reference library for the default media scenario", () => {
     const mediaScenarioRoot = path.join(repoRoot, "plugins/_official/scenarios/od-media-generation");
     const scenarioSkill = readFileSync(path.join(mediaScenarioRoot, "SKILL.md"), "utf8");
-    const reference = readFileSync(
-      path.join(mediaScenarioRoot, "references/ecommerce-selling-video.md"),
-      "utf8"
-    );
+    const reference = readFileSync(path.join(mediaScenarioRoot, "references/ecommerce-selling-video.md"), "utf8");
 
     expect(scenarioSkill).toContain("references/ecommerce-selling-video.md");
     expect(reference).toContain("## Required Gates");

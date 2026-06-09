@@ -54,6 +54,8 @@ import {
 import { useProjectFileEvents, type ProjectEvent } from '../providers/project-events';
 import { useCoalescedCallback } from '../hooks/useCoalescedCallback';
 import {
+  appendCommerceStylePrompt,
+  commerceStyleDisplayForDesignSystemId,
   composeSystemPrompt,
   type AudioVoiceOption,
   type MemorySystemPromptResponse,
@@ -210,6 +212,7 @@ type ProjectChatSendMeta = ChatSendMeta & {
   retryOfAssistantId?: string;
   sessionMode?: ChatSessionMode;
 };
+type QuestionFormAnswers = Record<string, string | string[]>;
 
 export function mergeSavedPreviewComment(current: PreviewComment[], saved: PreviewComment): PreviewComment[] {
   const existingIndex = current.findIndex((comment) => comment.id === saved.id);
@@ -623,6 +626,18 @@ export function buildQuestionFormKey(
     : null;
 }
 
+export function isLatestUnansweredQuestionFormRequest(
+  requestMessageId: string | null,
+  latestAssistantMessageId: string | null,
+  submittedAnswers: QuestionFormAnswers | undefined,
+): boolean {
+  return Boolean(
+    requestMessageId
+      && requestMessageId === latestAssistantMessageId
+      && submittedAnswers === undefined,
+  );
+}
+
 type ProjectSplitStyle = CSSProperties & {
   '--project-chat-panel-width': string;
   '--project-workspace-panel-track': string;
@@ -810,7 +825,7 @@ export function ProjectView({
     () => conversations.find((conversation) => conversation.id === activeConversationId) ?? null,
     [conversations, activeConversationId],
   );
-  const activeSessionMode = activeConversation?.sessionMode ?? 'design';
+  const activeSessionMode = activeConversation?.sessionMode ?? 'comprehensive';
   const [messagesConversationId, setMessagesConversationId] = useState<string | null>(null);
   const [failedMessagesConversationId, setFailedMessagesConversationId] = useState<string | null>(null);
   const [conversationLoadError, setConversationLoadError] = useState<string | null>(null);
@@ -1155,11 +1170,42 @@ export function ProjectView({
   useEffect(() => {
     if (hasQuestions && questionFormKey) setManualQuestionFormRequest(null);
   }, [hasQuestions, questionFormKey]);
+  const submittedAnswersForQuestionFormRequest = useCallback((request: QuestionFormOpenRequest) => {
+    const assistantIndex = messages.findIndex((m) => m.id === request.messageId);
+    if (assistantIndex < 0) return null;
+    for (let i = assistantIndex + 1; i < messages.length; i++) {
+      const m = messages[i];
+      if (!m) continue;
+      if (m.role === 'assistant') break;
+      if (m.role !== 'user') continue;
+      const parsed = parseSubmittedAnswers(request.form, m.content ?? '');
+      if (parsed) return parsed;
+    }
+    return null;
+  }, [messages]);
+  const manualQuestionFormSubmittedAnswers = useMemo(
+    () =>
+      manualQuestionFormRequest
+        ? manualQuestionFormRequest.submittedAnswers
+          ?? submittedAnswersForQuestionFormRequest(manualQuestionFormRequest)
+          ?? undefined
+        : undefined,
+    [manualQuestionFormRequest, submittedAnswersForQuestionFormRequest],
+  );
+  const manualQuestionFormActive = manualQuestionFormRequest
+    ? isLatestUnansweredQuestionFormRequest(
+        manualQuestionFormRequest.messageId,
+        lastAssistantMessageId,
+        manualQuestionFormSubmittedAnswers,
+      )
+    : false;
   const displayedQuestionForm = manualQuestionFormRequest?.form ?? questionForm;
   const displayedQuestionFormPreview = manualQuestionFormRequest ? null : questionFormPreview;
   const displayedQuestionFormSubmittedAnswers =
-    manualQuestionFormRequest?.submittedAnswers ?? questionFormSubmittedAnswers;
-  const displayedQuestionFormActive = manualQuestionFormRequest ? false : questionFormActive;
+    manualQuestionFormRequest ? manualQuestionFormSubmittedAnswers : questionFormSubmittedAnswers;
+  const displayedQuestionFormActive = manualQuestionFormRequest
+    ? manualQuestionFormActive
+    : questionFormActive;
   const displayedQuestionsGenerating = manualQuestionFormRequest ? false : questionsGenerating;
   const displayedQuestionFormKey = manualQuestionFormRequest
     ? `${activeConversationId ?? 'conversation'}:${manualQuestionFormRequest.messageId}:${manualQuestionFormRequest.form.id}:manual`
@@ -1180,29 +1226,33 @@ export function ProjectView({
     () => (questionsFocusNonce > 0 ? { nonce: questionsFocusNonce } : null),
     [questionsFocusNonce],
   );
-  const submittedAnswersForQuestionFormRequest = useCallback((request: QuestionFormOpenRequest) => {
-    const assistantIndex = messages.findIndex((m) => m.id === request.messageId);
-    if (assistantIndex < 0) return null;
-    for (let i = assistantIndex + 1; i < messages.length; i++) {
-      const m = messages[i];
-      if (!m) continue;
-      if (m.role === 'assistant') break;
-      if (m.role !== 'user') continue;
-      const parsed = parseSubmittedAnswers(request.form, m.content ?? '');
-      if (parsed) return parsed;
-    }
-    return null;
-  }, [messages]);
   const openQuestionsTab = useCallback((request?: QuestionFormOpenRequest) => {
     if (request) {
-      setManualQuestionFormRequest({
-        ...request,
-        submittedAnswers:
-          request.submittedAnswers ?? submittedAnswersForQuestionFormRequest(request) ?? undefined,
-      });
+      const submittedAnswers =
+        request.submittedAnswers ?? submittedAnswersForQuestionFormRequest(request) ?? undefined;
+      if (
+        (questionForm || questionFormPreview)
+        && isLatestUnansweredQuestionFormRequest(
+          request.messageId,
+          lastAssistantMessageId,
+          submittedAnswers,
+        )
+      ) {
+        setManualQuestionFormRequest(null);
+      } else {
+        setManualQuestionFormRequest({
+          ...request,
+          submittedAnswers,
+        });
+      }
     }
     setQuestionsFocusNonce((n) => n + 1);
-  }, [submittedAnswersForQuestionFormRequest]);
+  }, [
+    lastAssistantMessageId,
+    questionForm,
+    questionFormPreview,
+    submittedAnswersForQuestionFormRequest,
+  ]);
 
   const currentConversationQueuedItems = activeConversationId
     ? queuedChatSends
@@ -1249,7 +1299,7 @@ export function ProjectView({
         const list = await listConversations(project.id);
         if (cancelled) return;
         if (list.length === 0) {
-          const fresh = await createConversation(project.id);
+          const fresh = await createConversation(project.id, undefined, { sessionMode: 'comprehensive' });
           if (cancelled) return;
           if (fresh) {
             setConversations([fresh]);
@@ -1992,7 +2042,8 @@ export function ProjectView({
     }
     if (project.designSystemId) {
       const summary = designSystems.find((d) => d.id === project.designSystemId);
-      designSystemTitle = summary?.title;
+      const commerceStyleDisplay = commerceStyleDisplayForDesignSystemId(project.designSystemId, locale);
+      designSystemTitle = commerceStyleDisplay?.title ?? summary?.title;
       const cached = designCache.current.get(project.designSystemId);
       if (cached !== undefined) {
         designSystemBody = cached;
@@ -2003,6 +2054,7 @@ export function ProjectView({
           designCache.current.set(project.designSystemId, detail.body);
         }
       }
+      designSystemBody = appendCommerceStylePrompt(project.designSystemId, designSystemBody);
     }
     let template: ProjectTemplate | undefined;
     const tplId = project.metadata?.templateId;
@@ -2367,10 +2419,6 @@ export function ProjectView({
     },
     [project.id, activeConversationId],
   );
-
-  const attachPreviewComment = useCallback((comment: PreviewComment) => {
-    setAttachedComments((current) => mergeAttachedComments(current, comment));
-  }, []);
 
   const detachPreviewComment = useCallback((commentId: string) => {
     setAttachedComments((current) => removeAttachedComment(current, commentId));
@@ -4281,7 +4329,7 @@ export function ProjectView({
     setCreatingConversation(true);
     setConversationLoadError(null);
     try {
-      const fresh = await createConversation(project.id);
+      const fresh = await createConversation(project.id, undefined, { sessionMode: 'comprehensive' });
       if (!fresh) throw new Error('Could not create a conversation for this project.');
       // Eagerly clear messages and update ref so rapid clicks don't create
       // duplicate empty conversations before the effect resolves.
@@ -4366,7 +4414,7 @@ export function ProjectView({
         if (next.length === 0) {
           // Re-seed so the project always has at least one conversation
           // to write into.
-          void createConversation(project.id).then((fresh) => {
+          void createConversation(project.id, undefined, { sessionMode: 'comprehensive' }).then((fresh) => {
             if (fresh) {
               setConversations([fresh]);
               setActiveConversationId(fresh.id);
@@ -5374,11 +5422,8 @@ export function ProjectView({
               projectFileNames={projectFileNames}
               skills={skills}
               onEnsureProject={handleEnsureProject}
-              previewComments={previewComments}
               attachedComments={attachedComments}
-              onAttachComment={attachPreviewComment}
               onDetachComment={detachPreviewComment}
-              onDeleteComment={(commentId) => void removePreviewComment(commentId)}
               onSend={handleSend}
               onRetry={handleRetry}
               onStop={handleStop}

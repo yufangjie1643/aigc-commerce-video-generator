@@ -146,6 +146,7 @@ function reviveTab(value: unknown): WorkspaceChromeTab | null {
     const view = record.view;
     if (
       view === 'home'
+      || view === 'asset-library'
       || view === 'projects'
       || view === 'tasks'
       || view === 'plugins'
@@ -903,11 +904,9 @@ export function WorkspaceTabsBar({ route, projects }: Props) {
             >
               <button
                 type="button"
-                className="workspace-tab__main od-tooltip"
+                className="workspace-tab__main"
                 onClick={() => openTab(tab)}
-                title={display.title}
-                data-tooltip={display.title}
-                data-tooltip-placement="bottom"
+                aria-label={display.title}
                 onFocus={(event) => scheduleHoverPreview(tab.id, event.currentTarget.parentElement ?? event.currentTarget)}
                 onBlur={dismissHoverPreview}
               >
@@ -993,11 +992,9 @@ export function WorkspaceTabsBar({ route, projects }: Props) {
                         >
                           <button
                             type="button"
-                            className="workspace-tabs-list__main od-tooltip"
+                            className="workspace-tabs-list__main"
                             onClick={() => openTab(display.tab)}
-                            title={display.title}
-                            data-tooltip={display.title}
-                            data-tooltip-placement="right"
+                            aria-label={display.title}
                           >
                             <span className="workspace-tabs-list__icon" aria-hidden>
                               <Icon name={display.icon} size={15} />
@@ -1119,6 +1116,7 @@ function displayTabFor(
   const entryTitle: Record<EntryHomeView, string> = {
     home: t('entry.navHome'),
     onboarding: t('settings.welcomeTitle'),
+    'asset-library': '素材库',
     projects: t('entry.navProjects'),
     tasks: t('entry.navTasks'),
     plugins: t('entry.navPlugins'),
@@ -1128,6 +1126,7 @@ function displayTabFor(
   const entryIcon: Record<EntryHomeView, IconName> = {
     home: 'home',
     onboarding: 'sparkles',
+    'asset-library': 'layers-filled',
     projects: 'folder',
     tasks: 'kanban',
     plugins: 'grid',

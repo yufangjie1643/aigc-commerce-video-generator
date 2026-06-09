@@ -1,4 +1,4 @@
-import type { DesignSystemSummary } from '@open-design/contracts';
+import { COMMERCE_STYLE_PRESETS, type DesignSystemSummary } from "@open-design/contracts";
 
 // Order the Settings -> Design Systems list so editable (user-created) systems
 // come first, both across category groups and within a group. Built-in groups
@@ -11,12 +11,18 @@ import type { DesignSystemSummary } from '@open-design/contracts';
 // caller's original order (which the section derives from the fetched data
 // order).
 
+const COMMERCE_STYLE_ORDER = new Map(COMMERCE_STYLE_PRESETS.map((preset, index) => [preset.id, index]));
+
 function isEditableSystem(system: DesignSystemSummary): boolean {
-  return system.isEditable === true || system.source === 'user';
+  return system.isEditable === true || system.source === "user";
 }
 
 function groupHasEditable(items: readonly DesignSystemSummary[]): boolean {
   return items.some(isEditableSystem);
+}
+
+function groupHasCommerceStyle(items: readonly DesignSystemSummary[]): boolean {
+  return items.some((system) => COMMERCE_STYLE_ORDER.has(system.id));
 }
 
 // Float editable systems to the top of a single group. Without this, a
@@ -24,26 +30,38 @@ function groupHasEditable(items: readonly DesignSystemSummary[]): boolean {
 // set any category) would still render below Apple/Airbnb/etc. within that
 // group, so the group-level sort alone does not put it "at the top of the list".
 function orderItemsEditableFirst(items: DesignSystemSummary[]): DesignSystemSummary[] {
-  return [...items].sort((a, b) => {
-    const aEditable = isEditableSystem(a);
-    const bEditable = isEditableSystem(b);
-    if (aEditable === bEditable) return 0;
-    return aEditable ? -1 : 1;
-  });
+  return [...items]
+    .sort((a, b) => {
+      const aEditable = isEditableSystem(a);
+      const bEditable = isEditableSystem(b);
+      if (aEditable === bEditable) return 0;
+      return aEditable ? -1 : 1;
+    })
+    .sort((a, b) => {
+      const aEditable = isEditableSystem(a);
+      const bEditable = isEditableSystem(b);
+      if (aEditable || bEditable) return 0;
+      const aCommerceRank = COMMERCE_STYLE_ORDER.get(a.id);
+      const bCommerceRank = COMMERCE_STYLE_ORDER.get(b.id);
+      if (aCommerceRank === undefined && bCommerceRank === undefined) return 0;
+      if (aCommerceRank === undefined) return 1;
+      if (bCommerceRank === undefined) return -1;
+      return aCommerceRank - bCommerceRank;
+    });
 }
 
 export function orderDesignSystemGroups(
-  entries: ReadonlyArray<[string, DesignSystemSummary[]]>,
+  entries: ReadonlyArray<[string, DesignSystemSummary[]]>
 ): Array<[string, DesignSystemSummary[]]> {
   return entries
-    .map(([category, items]): [string, DesignSystemSummary[]] => [
-      category,
-      orderItemsEditableFirst(items),
-    ])
+    .map(([category, items]): [string, DesignSystemSummary[]] => [category, orderItemsEditableFirst(items)])
     .sort(([, a], [, b]) => {
       const aEditable = groupHasEditable(a);
       const bEditable = groupHasEditable(b);
-      if (aEditable === bEditable) return 0;
-      return aEditable ? -1 : 1;
+      if (aEditable !== bEditable) return aEditable ? -1 : 1;
+      const aCommerce = groupHasCommerceStyle(a);
+      const bCommerce = groupHasCommerceStyle(b);
+      if (aCommerce === bCommerce) return 0;
+      return aCommerce ? -1 : 1;
     });
 }

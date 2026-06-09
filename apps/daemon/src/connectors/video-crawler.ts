@@ -6,6 +6,10 @@ import {
   type ConnectorCatalogToolDefinition,
 } from './catalog.js';
 import { ConnectorServiceError, type ConnectorCredentialMaterial } from './service.js';
+import {
+  executeBuiltInBilibiliCrawlerTool,
+  type VideoCrawlerExecutionOptions,
+} from './bilibili-crawler-runtime.js';
 
 export const VIDEO_CRAWLER_PROVIDER = 'open-design-video-crawler';
 export const VIDEO_CRAWLER_CREDENTIAL_PROVIDER = 'video-crawler-cookie';
@@ -25,6 +29,7 @@ interface VideoCrawlerPlatform {
   category: string;
   description: string;
   loginUrl: string;
+  cookieDomains: string[];
 }
 
 const VIDEO_CRAWLER_PLATFORMS: VideoCrawlerPlatform[] = [
@@ -34,6 +39,7 @@ const VIDEO_CRAWLER_PLATFORMS: VideoCrawlerPlatform[] = [
     category: 'Video',
     description: 'Search YouTube videos, download source media, read engagement metrics, and collect comment threads.',
     loginUrl: 'https://www.youtube.com/',
+    cookieDomains: ['youtube.com', 'google.com'],
   },
   {
     id: 'tiktok',
@@ -42,6 +48,7 @@ const VIDEO_CRAWLER_PLATFORMS: VideoCrawlerPlatform[] = [
     description:
       'Search TikTok short videos, download source media, read engagement metrics, and collect comment threads.',
     loginUrl: 'https://www.tiktok.com/',
+    cookieDomains: ['tiktok.com'],
   },
   {
     id: 'douyin',
@@ -49,6 +56,7 @@ const VIDEO_CRAWLER_PLATFORMS: VideoCrawlerPlatform[] = [
     category: 'Video',
     description: '登录抖音后搜索短视频、下载素材、读取播放/点赞/收藏等指标，并抓取评论区文本和互动数。',
     loginUrl: 'https://www.douyin.com/',
+    cookieDomains: ['douyin.com'],
   },
   {
     id: 'bilibili',
@@ -56,6 +64,7 @@ const VIDEO_CRAWLER_PLATFORMS: VideoCrawlerPlatform[] = [
     category: 'Video',
     description: '登录 B 站后搜索视频、下载素材、读取播放/点赞/收藏/投币等指标，并抓取评论区文本和互动数。',
     loginUrl: 'https://www.bilibili.com/',
+    cookieDomains: ['bilibili.com'],
   },
 ];
 
@@ -94,6 +103,28 @@ const VIDEO_DOWNLOAD_INPUT_SCHEMA: BoundedJsonObject = {
 };
 
 const VIDEO_COMMENTS_INPUT_SCHEMA: BoundedJsonObject = {
+  type: 'object',
+  properties: {
+    url: { type: 'string', maxLength: 2000 },
+    videoId: { type: 'string', maxLength: 200 },
+    limit: { type: 'integer', minimum: 1, maximum: 100 },
+    cursor: { type: 'string', maxLength: 500 },
+  },
+  additionalProperties: false,
+};
+
+const VIDEO_ANALYZE_INPUT_SCHEMA: BoundedJsonObject = {
+  type: 'object',
+  properties: {
+    url: { type: 'string', maxLength: 2000 },
+    videoId: { type: 'string', maxLength: 200 },
+    includeComments: { type: 'boolean' },
+    commentsLimit: { type: 'integer', minimum: 1, maximum: 100 },
+  },
+  additionalProperties: false,
+};
+
+const VIDEO_ANALYZE_COMMENTS_INPUT_SCHEMA: BoundedJsonObject = {
   type: 'object',
   properties: {
     url: { type: 'string', maxLength: 2000 },
@@ -160,6 +191,24 @@ function createPlatformDefinition(platform: VideoCrawlerPlatform): ConnectorCata
       VIDEO_COMMENTS_INPUT_SCHEMA,
     ),
   ];
+  if (platform.id === 'bilibili') {
+    tools.push(
+      crawlerTool(
+        platform,
+        'bilibili_analyze_video',
+        'Analyze video',
+        'Analyze one Bilibili video using metadata, engagement counters, available resolutions, and an optional comment sample.',
+        VIDEO_ANALYZE_INPUT_SCHEMA,
+      ),
+      crawlerTool(
+        platform,
+        'bilibili_analyze_comments',
+        'Analyze comments',
+        'Analyze Bilibili comments for purchase intent, questions, price concerns, quality concerns, sentiment, and top liked comments.',
+        VIDEO_ANALYZE_COMMENTS_INPUT_SCHEMA,
+      ),
+    );
+  }
   const allowedToolNames = tools.map((tool) => tool.name);
   return {
     id: platform.id,
@@ -201,6 +250,24 @@ export function isVideoCrawlerConnectorId(connectorId: string): boolean {
 
 export function isVideoCrawlerDefinition(definition: ConnectorCatalogDefinition): boolean {
   return definition.provider === VIDEO_CRAWLER_PROVIDER || isVideoCrawlerConnectorId(definition.id);
+}
+
+export function getVideoCrawlerPlatformConfig(connectorId: string):
+  | {
+      id: VideoCrawlerPlatform['id'];
+      name: string;
+      loginUrl: string;
+      cookieDomains: string[];
+    }
+  | undefined {
+  const platform = VIDEO_CRAWLER_PLATFORMS.find((entry) => entry.id === connectorId);
+  if (!platform) return undefined;
+  return {
+    id: platform.id,
+    name: platform.name,
+    loginUrl: platform.loginUrl,
+    cookieDomains: [...platform.cookieDomains],
+  };
 }
 
 export function videoCrawlerLoginStart(connectorId: string): {
@@ -265,10 +332,20 @@ export class VideoCrawlerConnectorProvider {
     tool: ConnectorCatalogToolDefinition,
     input: BoundedJsonObject,
     credentials: ConnectorCredentialMaterial | undefined,
-    signal?: AbortSignal,
+    options: VideoCrawlerExecutionOptions = {},
   ): Promise<BoundedJsonObject> {
+    const normalizedCredentials = normalizeVideoCrawlerCredentials(definition, credentials);
     const crawlerBaseUrl = process.env.OD_VIDEO_CRAWLER_URL?.trim();
     if (!crawlerBaseUrl) {
+      if (definition.id === 'bilibili') {
+        return executeBuiltInBilibiliCrawlerTool({
+          definition,
+          tool,
+          input,
+          credentials: normalizedCredentials,
+          context: options,
+        });
+      }
       throw new ConnectorServiceError(
         'CONNECTOR_EXECUTION_FAILED',
         'Video crawler runtime is not configured. Set OD_VIDEO_CRAWLER_URL to the cookie-aware crawler bridge.',
@@ -279,7 +356,6 @@ export class VideoCrawlerConnectorProvider {
         },
       );
     }
-    const normalizedCredentials = normalizeVideoCrawlerCredentials(definition, credentials);
     const endpoint = new URL('/api/video-crawler/execute', crawlerBaseUrl);
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -291,7 +367,7 @@ export class VideoCrawlerConnectorProvider {
         input,
         credentials: normalizedCredentials,
       }),
-      ...(signal === undefined ? {} : { signal }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
     });
     if (!response.ok) {
       throw new ConnectorServiceError(

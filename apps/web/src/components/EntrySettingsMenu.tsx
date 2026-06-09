@@ -16,6 +16,7 @@ import { Icon } from './Icon';
 export type EntrySettingsSection =
   | 'execution'
   | 'media'
+  | 'understanding'
   | 'composio'
   | 'orbit'
   | 'integrations'
@@ -27,7 +28,8 @@ export type EntrySettingsSection =
   | 'library'
   | 'about'
   | 'memory'
-  | 'designSystems';
+  | 'designSystems'
+  | 'assetLibrary';
 
 const ENTRY_THEME_OPTIONS: Array<{
   value: AppTheme;

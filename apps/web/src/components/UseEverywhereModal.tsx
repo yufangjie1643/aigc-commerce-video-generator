@@ -211,16 +211,7 @@ export function UseEverywhereGuidePanel({ daemonUrl, versionHint }: Omit<Props, 
       element: 'wechat_agent_refresh',
     });
     const result = await refreshWeChatAgentBridge();
-    const nextLogin: WeChatAgentBridgeSnapshot = {
-      phase: result.ok ? 'connected' : 'failed',
-      running: false,
-      commandKind: 'refresh',
-      command: result.command,
-      output: result.stdout || result.stderr,
-      detectedUrls: [],
-      ...(result.error ? { error: result.error } : {}),
-    };
-    applyLoginSnapshot(nextLogin);
+    applyLoginSnapshot(result.login);
     if (!result.ok) {
       setWechatError(result.error || result.stderr || '内置 Agent 桥刷新失败');
     }

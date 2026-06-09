@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ChatSessionMode } from '@open-design/contracts';
 import { useT } from '../i18n';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 
 interface Props {
   mode: ChatSessionMode;
@@ -11,7 +11,7 @@ interface Props {
 
 const MODE_META: Array<{
   mode: ChatSessionMode;
-  icon: 'comment' | 'sparkles';
+  icon: IconName;
   labelKey: ModeCopyKey;
   titleKey: ModeCopyKey;
   summaryKey: ModeCopyKey;
@@ -25,7 +25,16 @@ const MODE_META: Array<{
     titleKey: 'chat.mode.chat.title',
     summaryKey: 'chat.mode.chat.summary',
     solvesKey: 'chat.mode.chat.solves',
-    queryKeys: ['chat.mode.chat.query1', 'chat.mode.chat.query2', 'chat.mode.chat.query3'],
+    queryKeys: ['chat.mode.chat.query1', 'chat.mode.chat.query2', 'chat.mode.chat.query3']
+  },
+  {
+    mode: 'comprehensive',
+    icon: 'layers-filled',
+    labelKey: 'chat.mode.comprehensive.label',
+    titleKey: 'chat.mode.comprehensive.title',
+    summaryKey: 'chat.mode.comprehensive.summary',
+    solvesKey: 'chat.mode.comprehensive.solves',
+    queryKeys: ['chat.mode.comprehensive.query1', 'chat.mode.comprehensive.query2', 'chat.mode.comprehensive.query3']
   },
   {
     mode: 'design',
@@ -34,8 +43,8 @@ const MODE_META: Array<{
     titleKey: 'chat.mode.design.title',
     summaryKey: 'chat.mode.design.summary',
     solvesKey: 'chat.mode.design.solves',
-    queryKeys: ['chat.mode.design.query1', 'chat.mode.design.query2', 'chat.mode.design.query3'],
-  },
+    queryKeys: ['chat.mode.design.query1', 'chat.mode.design.query2', 'chat.mode.design.query3']
+  }
 ];
 
 type ModeCopyKey =
@@ -46,6 +55,13 @@ type ModeCopyKey =
   | 'chat.mode.chat.query1'
   | 'chat.mode.chat.query2'
   | 'chat.mode.chat.query3'
+  | 'chat.mode.comprehensive.label'
+  | 'chat.mode.comprehensive.title'
+  | 'chat.mode.comprehensive.summary'
+  | 'chat.mode.comprehensive.solves'
+  | 'chat.mode.comprehensive.query1'
+  | 'chat.mode.comprehensive.query2'
+  | 'chat.mode.comprehensive.query3'
   | 'chat.mode.design.label'
   | 'chat.mode.design.title'
   | 'chat.mode.design.summary'
@@ -56,7 +72,7 @@ type ModeCopyKey =
 
 interface ModeView {
   mode: ChatSessionMode;
-  icon: 'comment' | 'sparkles';
+  icon: IconName;
   label: string;
   title: string;
   summary: string;
@@ -70,7 +86,7 @@ function ModeDescriptionCard({
   tryLabel,
   className,
   id,
-  role,
+  role
 }: {
   item: ModeView;
   bestForLabel: string;
@@ -122,9 +138,10 @@ export function SessionModeToggle({ mode, onChange, disabled = false }: Props) {
     title: t(item.titleKey),
     summary: t(item.summaryKey),
     solves: t(item.solvesKey),
-    queries: item.queryKeys.map((queryKey) => t(queryKey)),
+    queries: item.queryKeys.map((queryKey) => t(queryKey))
   }));
-  const active = modes.find((item) => item.mode === mode) ?? modes[1]!;
+  const defaultMode = modes.find((item) => item.mode === 'comprehensive') ?? modes[0]!;
+  const active = modes.find((item) => item.mode === mode) ?? defaultMode;
   const preview = modes.find((item) => item.mode === (previewMode ?? mode)) ?? active;
   const disabledState = disabled || !onChange;
   const showCard = open && !disabledState;

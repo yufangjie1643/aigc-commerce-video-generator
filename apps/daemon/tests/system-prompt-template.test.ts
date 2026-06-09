@@ -222,6 +222,10 @@ describe("composeSystemPrompt — metadata.promptTemplate", () => {
     expect(out).toContain("## Media generation (if asked)");
     expect(out).toContain("fal-ai/*");
     expect(out).toContain("pass it through as-is without substitution");
+    expect(out).toContain("For ordinary text-to-video, use `--model doubao-seedance-1.5-pro`");
+    expect(out).toContain("`ep-20260514120705-pqv86`");
+    expect(out).toContain("Do not substitute `veo-3-fal`, `wan-2.1-t2v`");
+    expect(out).not.toContain("For video use `--model veo-3-fal` or `--model wan-2.1-t2v`");
   });
 
   it("renders without source attribution when the source field is missing", () => {
@@ -423,7 +427,7 @@ describe("composeSystemPrompt — metadata.promptTemplate", () => {
     expect(out).toContain("lo-fi felt-piano cafe loop");
     expect(out).toContain("SFX duration is capped at 30 seconds");
     expect(out).toContain(
-      "MiniMax image, HyperFrames video, and the MiniMax, FishAudio, and ElevenLabs audio renderers are production integrations"
+      "MiniMax image/i2v video, HyperFrames video, and the MiniMax, FishAudio, and ElevenLabs audio renderers are production integrations"
     );
     expect(out).not.toContain("fishaudio, …) are still stubs");
   });
@@ -443,6 +447,9 @@ describe("composeSystemPrompt — metadata.promptTemplate", () => {
     expect(out).toContain('`"$OD_NODE_BIN" "$OD_BIN" media generate` exits `0`');
     expect(out).toContain("either `file` or `taskId`");
     expect(out).toContain("`2` from `media wait` is not a failure");
+    expect(out).toContain("`doubao-seedance-1.5-pro`");
+    expect(out).toContain("`ep-20260514120705-pqv86`");
+    expect(out).toContain("`minimax-video-01`");
   });
 
   it("surfaces ElevenLabs voice options for project discovery when no voice was preselected", () => {

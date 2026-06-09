@@ -5,7 +5,7 @@ import type {
   PreviewCommentPosition,
   PreviewCommentSelectionKind,
   PreviewAnnotationStyle,
-  PreviewVisualMarkKind,
+  PreviewVisualMarkKind
 } from './comments';
 import type { ResearchOptions } from './research';
 import type { RunContextSelection } from './context.js';
@@ -14,7 +14,7 @@ import type { AppliedPluginSnapshot } from '../plugins/apply.js';
 import type { McpAuthMode, McpServerConfig, McpTransport } from './mcp';
 
 export type ChatRole = 'user' | 'assistant';
-export type ChatSessionMode = 'design' | 'chat';
+export type ChatSessionMode = 'design' | 'chat' | 'comprehensive';
 export type ChatCommentSelectionKind = PreviewCommentSelectionKind | 'visual';
 
 export interface ChatRequest {
@@ -75,12 +75,7 @@ export type ChatAnalyticsEntryFrom =
   | 'onboarding_design_system'
   | 'regenerate_from_review';
 
-export type ChatAnalyticsLengthBucket =
-  | '0'
-  | '1_50'
-  | '51_200'
-  | '201_500'
-  | '500_plus';
+export type ChatAnalyticsLengthBucket = '0' | '1_50' | '51_200' | '201_500' | '500_plus';
 
 export type ChatAnalyticsDesignSystemOrigin =
   | 'onboarding'

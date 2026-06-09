@@ -9,6 +9,15 @@ const COMPOSIO_LOGO_SLUG_OVERRIDES: Record<string, string> = {
   google_drive: 'googledrive',
 };
 
+const LOCAL_CONNECTOR_LOGOS: Record<string, string> = {
+  bilibili: '/connector-icons/bilibili.svg',
+  douyin: '/connector-icons/douyin.svg',
+};
+
+function normalizeConnectorLogoKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+}
+
 /**
  * Composio publishes per-toolkit logos at `logos.composio.dev`, keyed by the
  * lowercased toolkit slug (`AIRTABLE` -> `airtable`, `ZOHO_BOOKS` ->
@@ -17,8 +26,14 @@ const COMPOSIO_LOGO_SLUG_OVERRIDES: Record<string, string> = {
  * is `googledrive` even though the toolkit id remains `google_drive`.
  */
 function composioLogoSlug(connector: ConnectorDetail): string {
-  const normalized = connector.id.toLowerCase().replace(/[^a-z0-9_]/g, '');
+  const normalized = normalizeConnectorLogoKey(connector.id);
   return COMPOSIO_LOGO_SLUG_OVERRIDES[normalized] ?? normalized;
+}
+
+function localConnectorLogoUrl(connector: ConnectorDetail): string | null {
+  const idKey = normalizeConnectorLogoKey(connector.id);
+  const nameKey = normalizeConnectorLogoKey(connector.name);
+  return LOCAL_CONNECTOR_LOGOS[idKey] ?? LOCAL_CONNECTOR_LOGOS[nameKey] ?? null;
 }
 
 /**
@@ -30,6 +45,8 @@ function composioLogoUrl(
   connector: ConnectorDetail,
   theme: 'light' | 'dark',
 ): string | null {
+  const localUrl = localConnectorLogoUrl(connector);
+  if (localUrl) return localUrl;
   const slug = composioLogoSlug(connector);
   if (!slug) return null;
   return `/api/connectors/logos/${encodeURIComponent(slug)}?theme=${theme}`;

@@ -1,22 +1,28 @@
-import type http from 'node:http';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
-import os from 'node:os';
-import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type http from "node:http";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { startServer } from '../src/server.js';
-import { memoryDir, writeMemoryConfig } from '../src/memory.js';
-import { resolveLegacyMediaRouteGrant } from '../src/media-routes.js';
+import { startServer } from "../src/server.js";
+import { memoryDir, writeMemoryConfig } from "../src/memory.js";
+import { resolveLegacyMediaRouteGrant } from "../src/media-routes.js";
 
-type FakeMediaEndpoint = 'tool' | 'legacy';
+type FakeMediaEndpoint =
+  | "tool"
+  | "legacy"
+  | "understand"
+  | "understand-image"
+  | "understand-audio"
+  | "understand-video";
 
 interface FakeMediaAgentOptions {
   endpoint?: FakeMediaEndpoint;
   attachToken?: boolean;
 }
 
-describe('run-scoped media policy routes', () => {
+describe("run-scoped media policy routes", () => {
   let tempDir: string;
   let binDir: string;
   let oldPath: string | undefined;
@@ -26,16 +32,16 @@ describe('run-scoped media policy routes', () => {
   let shutdown: (() => Promise<void> | void) | undefined;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'od-media-policy-route-'));
-    binDir = await mkdtemp(path.join(os.tmpdir(), 'od-media-policy-bin-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), "od-media-policy-route-"));
+    binDir = await mkdtemp(path.join(os.tmpdir(), "od-media-policy-bin-"));
     oldPath = process.env.PATH;
     oldCapture = process.env.OD_CAPTURE_MEDIA_RESPONSE;
-    process.env.PATH = `${binDir}${path.delimiter}${oldPath ?? ''}`;
+    process.env.PATH = `${binDir}${path.delimiter}${oldPath ?? ""}`;
     const memoryConfig = memoryConfigPath();
-    oldMemoryConfigRaw = await readFile(memoryConfig, 'utf8').catch(() => null);
+    oldMemoryConfigRaw = await readFile(memoryConfig, "utf8").catch(() => null);
     await writeMemoryConfig(process.env.OD_DATA_DIR!, {
       chatExtractionEnabled: false,
-      extraction: null,
+      extraction: null
     });
   });
 
@@ -62,27 +68,27 @@ describe('run-scoped media policy routes', () => {
     await rm(binDir, { recursive: true, force: true });
   });
 
-  it('rejects in-run media generation when media execution is disabled', async () => {
-    const capturePath = path.join(tempDir, 'media-disabled-response.json');
+  it("rejects in-run media generation when media execution is disabled", async () => {
+    const capturePath = path.join(tempDir, "media-disabled-response.json");
     await writeFakeAgent(capturePath, {
-      surface: 'image',
-      model: 'gpt-image-2',
-      prompt: 'Create a launch poster',
-      output: 'poster.png',
+      surface: "image",
+      model: "gpt-image-2",
+      prompt: "Create a launch poster",
+      output: "poster.png"
     });
 
-    const { url, projectId, conversationId } = await startProjectServer('Disabled media project');
+    const { url, projectId, conversationId } = await startProjectServer("Disabled media project");
 
     const createResponse = await fetch(`${url}/api/runs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        agentId: 'opencode',
+        agentId: "opencode",
         projectId,
         conversationId,
-        message: 'Try to create a poster image.',
-        mediaExecution: { mode: 'disabled' },
-      }),
+        message: "Try to create a poster image.",
+        mediaExecution: { mode: "disabled" }
+      })
     });
     expect(createResponse.status).toBe(202);
 
@@ -90,37 +96,35 @@ describe('run-scoped media policy routes', () => {
     expect(captured.status).toBe(403);
     expect(captured.tokenAvailable).toBe(true);
     expect(captured.body.error).toMatchObject({
-      code: 'MEDIA_EXECUTION_DISABLED',
+      code: "MEDIA_EXECUTION_DISABLED"
     });
   });
 
-  it('preserves no-token legacy media generation when run media execution is disabled', async () => {
-    const capturePath = path.join(tempDir, 'legacy-no-token-disabled-response.json');
+  it("preserves no-token legacy media generation when run media execution is disabled", async () => {
+    const capturePath = path.join(tempDir, "legacy-no-token-disabled-response.json");
     await writeFakeAgent(
       capturePath,
       {
-        surface: 'image',
-        model: 'test-image-model',
-        prompt: 'Create a launch poster',
-        output: 'poster.png',
+        surface: "image",
+        model: "test-image-model",
+        prompt: "Create a launch poster",
+        output: "poster.png"
       },
-      { endpoint: 'legacy', attachToken: false },
+      { endpoint: "legacy", attachToken: false }
     );
 
-    const { url, projectId, conversationId } = await startProjectServer(
-      'Legacy no-token media project',
-    );
+    const { url, projectId, conversationId } = await startProjectServer("Legacy no-token media project");
 
     const createResponse = await fetch(`${url}/api/runs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        agentId: 'opencode',
+        agentId: "opencode",
         projectId,
         conversationId,
-        message: 'Try to create a poster image through the legacy path.',
-        mediaExecution: { mode: 'disabled' },
-      }),
+        message: "Try to create a poster image through the legacy path.",
+        mediaExecution: { mode: "disabled" }
+      })
     });
     expect(createResponse.status).toBe(202);
 
@@ -130,37 +134,35 @@ describe('run-scoped media policy routes', () => {
     expect(captured.tokenAttached).toBe(false);
   });
 
-  it('allows token-bearing legacy media generation when enabled policy permits it', async () => {
-    const capturePath = path.join(tempDir, 'legacy-token-enabled-response.json');
+  it("allows token-bearing legacy media generation when enabled policy permits it", async () => {
+    const capturePath = path.join(tempDir, "legacy-token-enabled-response.json");
     await writeFakeAgent(
       capturePath,
       {
-        surface: 'image',
-        model: 'test-image-model',
-        prompt: 'Create a launch poster',
-        output: 'poster.png',
+        surface: "image",
+        model: "test-image-model",
+        prompt: "Create a launch poster",
+        output: "poster.png"
       },
-      { endpoint: 'legacy' },
+      { endpoint: "legacy" }
     );
 
-    const { url, projectId, conversationId } = await startProjectServer(
-      'Legacy token-enabled media project',
-    );
+    const { url, projectId, conversationId } = await startProjectServer("Legacy token-enabled media project");
 
     const createResponse = await fetch(`${url}/api/runs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        agentId: 'opencode',
+        agentId: "opencode",
         projectId,
         conversationId,
-        message: 'Try to create a poster image through the legacy path.',
+        message: "Try to create a poster image through the legacy path.",
         mediaExecution: {
-          mode: 'enabled',
-          allowedSurfaces: ['image'],
-          allowedModels: ['test-image-model'],
-        },
-      }),
+          mode: "enabled",
+          allowedSurfaces: ["image"],
+          allowedModels: ["test-image-model"]
+        }
+      })
     });
     expect(createResponse.status).toBe(202);
 
@@ -170,33 +172,31 @@ describe('run-scoped media policy routes', () => {
     expect(captured.tokenAttached).toBe(true);
   });
 
-  it('rejects token-bearing legacy media generation when media execution is disabled', async () => {
-    const capturePath = path.join(tempDir, 'legacy-token-disabled-response.json');
+  it("rejects token-bearing legacy media generation when media execution is disabled", async () => {
+    const capturePath = path.join(tempDir, "legacy-token-disabled-response.json");
     await writeFakeAgent(
       capturePath,
       {
-        surface: 'image',
-        model: 'gpt-image-2',
-        prompt: 'Create a launch poster',
-        output: 'poster.png',
+        surface: "image",
+        model: "gpt-image-2",
+        prompt: "Create a launch poster",
+        output: "poster.png"
       },
-      { endpoint: 'legacy' },
+      { endpoint: "legacy" }
     );
 
-    const { url, projectId, conversationId } = await startProjectServer(
-      'Legacy token-disabled media project',
-    );
+    const { url, projectId, conversationId } = await startProjectServer("Legacy token-disabled media project");
 
     const createResponse = await fetch(`${url}/api/runs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        agentId: 'opencode',
+        agentId: "opencode",
         projectId,
         conversationId,
-        message: 'Try to create a poster image through the legacy path.',
-        mediaExecution: { mode: 'disabled' },
-      }),
+        message: "Try to create a poster image through the legacy path.",
+        mediaExecution: { mode: "disabled" }
+      })
     });
     expect(createResponse.status).toBe(202);
 
@@ -205,163 +205,206 @@ describe('run-scoped media policy routes', () => {
     expect(captured.tokenAvailable).toBe(true);
     expect(captured.tokenAttached).toBe(true);
     expect(captured.body.error).toMatchObject({
-      code: 'MEDIA_EXECUTION_DISABLED',
+      code: "MEDIA_EXECUTION_DISABLED"
     });
   });
 
-  it('rejects disallowed surfaces and models on token-bearing legacy media generation', async () => {
-    const surfaceCapturePath = path.join(tempDir, 'legacy-surface-denied.json');
+  it("rejects disallowed surfaces and models on token-bearing legacy media generation", async () => {
+    const surfaceCapturePath = path.join(tempDir, "legacy-surface-denied.json");
     await writeFakeAgent(
       surfaceCapturePath,
       {
-        surface: 'image',
-        model: 'gpt-image-2',
-        prompt: 'Create a launch poster',
-        output: 'poster.png',
+        surface: "image",
+        model: "gpt-image-2",
+        prompt: "Create a launch poster",
+        output: "poster.png"
       },
-      { endpoint: 'legacy' },
+      { endpoint: "legacy" }
     );
-    const surfaceProject = await startProjectServer('Legacy surface denied media project');
+    const surfaceProject = await startProjectServer("Legacy surface denied media project");
     const surfaceResponse = await fetch(`${surfaceProject.url}/api/runs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        agentId: 'opencode',
+        agentId: "opencode",
         projectId: surfaceProject.projectId,
         conversationId: surfaceProject.conversationId,
-        message: 'Try to create a poster image through the legacy path.',
+        message: "Try to create a poster image through the legacy path.",
         mediaExecution: {
-          mode: 'enabled',
-          allowedSurfaces: ['video'],
-        },
-      }),
+          mode: "enabled",
+          allowedSurfaces: ["video"]
+        }
+      })
     });
     expect(surfaceResponse.status).toBe(202);
     const surfaceCaptured = await waitForCapturedMediaResponse(surfaceCapturePath);
     expect(surfaceCaptured.status).toBe(403);
     expect(surfaceCaptured.tokenAttached).toBe(true);
     expect(surfaceCaptured.body.error).toMatchObject({
-      code: 'MEDIA_SURFACE_DENIED',
+      code: "MEDIA_SURFACE_DENIED"
     });
 
-    const modelCapturePath = path.join(tempDir, 'legacy-model-denied.json');
+    const modelCapturePath = path.join(tempDir, "legacy-model-denied.json");
     await writeFakeAgent(
       modelCapturePath,
       {
-        surface: 'image',
-        model: 'gpt-image-2',
-        prompt: 'Create a launch poster',
-        output: 'poster.png',
+        surface: "image",
+        model: "gpt-image-2",
+        prompt: "Create a launch poster",
+        output: "poster.png"
       },
-      { endpoint: 'legacy' },
+      { endpoint: "legacy" }
     );
-    const modelProject = await startProjectServer('Legacy model denied media project');
+    const modelProject = await startProjectServer("Legacy model denied media project");
     const modelResponse = await fetch(`${modelProject.url}/api/runs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        agentId: 'opencode',
+        agentId: "opencode",
         projectId: modelProject.projectId,
         conversationId: modelProject.conversationId,
-        message: 'Try to create a poster image through the legacy path.',
+        message: "Try to create a poster image through the legacy path.",
         mediaExecution: {
-          mode: 'enabled',
-          allowedModels: ['different-image-model'],
-        },
-      }),
+          mode: "enabled",
+          allowedModels: ["different-image-model"]
+        }
+      })
     });
     expect(modelResponse.status).toBe(202);
     const modelCaptured = await waitForCapturedMediaResponse(modelCapturePath);
     expect(modelCaptured.status).toBe(403);
     expect(modelCaptured.tokenAttached).toBe(true);
     expect(modelCaptured.body.error).toMatchObject({
-      code: 'MEDIA_MODEL_DENIED',
+      code: "MEDIA_MODEL_DENIED"
     });
   });
 
-  it('rejects disallowed surfaces and models on token-gated media generation', async () => {
-    const surfaceCapturePath = path.join(tempDir, 'media-surface-denied.json');
+  it("rejects disallowed surfaces and models on token-gated media generation", async () => {
+    const surfaceCapturePath = path.join(tempDir, "media-surface-denied.json");
     await writeFakeAgent(surfaceCapturePath, {
-      surface: 'image',
-      model: 'gpt-image-2',
-      prompt: 'Create a launch poster',
-      output: 'poster.png',
+      surface: "image",
+      model: "gpt-image-2",
+      prompt: "Create a launch poster",
+      output: "poster.png"
     });
-    const surfaceProject = await startProjectServer('Surface denied media project');
+    const surfaceProject = await startProjectServer("Surface denied media project");
     const surfaceResponse = await fetch(`${surfaceProject.url}/api/runs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        agentId: 'opencode',
+        agentId: "opencode",
         projectId: surfaceProject.projectId,
         conversationId: surfaceProject.conversationId,
-        message: 'Try to create a poster image.',
+        message: "Try to create a poster image.",
         mediaExecution: {
-          mode: 'enabled',
-          allowedSurfaces: ['video'],
-        },
-      }),
+          mode: "enabled",
+          allowedSurfaces: ["video"]
+        }
+      })
     });
     expect(surfaceResponse.status).toBe(202);
     const surfaceCaptured = await waitForCapturedMediaResponse(surfaceCapturePath);
     expect(surfaceCaptured.status).toBe(403);
     expect(surfaceCaptured.body.error).toMatchObject({
-      code: 'MEDIA_SURFACE_DENIED',
+      code: "MEDIA_SURFACE_DENIED"
     });
 
-    const modelCapturePath = path.join(tempDir, 'media-model-denied.json');
+    const modelCapturePath = path.join(tempDir, "media-model-denied.json");
     await writeFakeAgent(modelCapturePath, {
-      surface: 'image',
-      model: 'gpt-image-2',
-      prompt: 'Create a launch poster',
-      output: 'poster.png',
+      surface: "image",
+      model: "gpt-image-2",
+      prompt: "Create a launch poster",
+      output: "poster.png"
     });
-    const modelProject = await startProjectServer('Model denied media project');
+    const modelProject = await startProjectServer("Model denied media project");
     const modelResponse = await fetch(`${modelProject.url}/api/runs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        agentId: 'opencode',
+        agentId: "opencode",
         projectId: modelProject.projectId,
         conversationId: modelProject.conversationId,
-        message: 'Try to create a poster image.',
+        message: "Try to create a poster image.",
         mediaExecution: {
-          mode: 'enabled',
-          allowedModels: ['different-image-model'],
-        },
-      }),
+          mode: "enabled",
+          allowedModels: ["different-image-model"]
+        }
+      })
     });
     expect(modelResponse.status).toBe(202);
     const modelCaptured = await waitForCapturedMediaResponse(modelCapturePath);
     expect(modelCaptured.status).toBe(403);
     expect(modelCaptured.body.error).toMatchObject({
-      code: 'MEDIA_MODEL_DENIED',
+      code: "MEDIA_MODEL_DENIED"
     });
   });
 
-  it('applies legacy chat disabled policy to the spawned media tool path', async () => {
-    const capturePath = path.join(tempDir, 'legacy-chat-disabled-response.json');
+  it("lets agent tokens reach native media understanding tool routes", async () => {
+    const previousMimoKey = process.env.MIMO_API_KEY;
+    process.env.MIMO_API_KEY = "test-mimo-key";
+    try {
+      for (const kind of ["image", "audio", "video"] as const) {
+        const capturePath = path.join(tempDir, `${kind}-understanding-tool-response.json`);
+        await writeFakeAgent(
+          capturePath,
+          {
+            kind,
+            [`${kind}Url`]: "",
+            prompt: `Smoke test native ${kind} understanding.`
+          },
+          { endpoint: `understand-${kind}` }
+        );
+
+        const { url, projectId, conversationId } = await startProjectServer(`${kind} understanding tool project`);
+
+        const createResponse = await fetch(`${url}/api/runs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agentId: "opencode",
+            projectId,
+            conversationId,
+            message: `Inspect ${kind} media through the agent tool route.`
+          })
+        });
+        expect(createResponse.status).toBe(202);
+
+        const captured = await waitForCapturedMediaResponse(capturePath);
+        expect(captured.status).toBe(400);
+        expect(captured.tokenAvailable).toBe(true);
+        expect(captured.tokenAttached).toBe(true);
+        expect(captured.url).toContain(`/api/tools/media/understand-${kind}`);
+        expect(captured.body.error).toMatchObject({
+          code: "BAD_REQUEST"
+        });
+      }
+    } finally {
+      if (previousMimoKey === undefined) delete process.env.MIMO_API_KEY;
+      else process.env.MIMO_API_KEY = previousMimoKey;
+    }
+  });
+
+  it("applies legacy chat disabled policy to the spawned media tool path", async () => {
+    const capturePath = path.join(tempDir, "legacy-chat-disabled-response.json");
     await writeFakeAgent(capturePath, {
-      surface: 'image',
-      model: 'gpt-image-2',
-      prompt: 'Create a launch poster',
-      output: 'poster.png',
+      surface: "image",
+      model: "gpt-image-2",
+      prompt: "Create a launch poster",
+      output: "poster.png"
     });
 
-    const { url, projectId, conversationId } = await startProjectServer(
-      'Legacy chat disabled media project',
-    );
+    const { url, projectId, conversationId } = await startProjectServer("Legacy chat disabled media project");
 
     const chatResponse = await fetch(`${url}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        agentId: 'opencode',
+        agentId: "opencode",
         projectId,
         conversationId,
-        message: 'Create a poster image from legacy chat.',
-        mediaExecution: { mode: 'disabled' },
-      }),
+        message: "Create a poster image from legacy chat.",
+        mediaExecution: { mode: "disabled" }
+      })
     });
     expect(chatResponse.status).toBe(200);
 
@@ -369,58 +412,56 @@ describe('run-scoped media policy routes', () => {
     expect(captured.status).toBe(403);
     expect(captured.tokenAvailable).toBe(true);
     expect(captured.body.error).toMatchObject({
-      code: 'MEDIA_EXECUTION_DISABLED',
+      code: "MEDIA_EXECUTION_DISABLED"
     });
 
     await chatResponse.text();
   });
 
-  it('defaults omitted mediaExecution to enabled on run and legacy chat creation', async () => {
-    const { url, projectId, conversationId } = await startProjectServer('Default policy project');
+  it("defaults omitted mediaExecution to enabled on run and legacy chat creation", async () => {
+    const { url, projectId, conversationId } = await startProjectServer("Default policy project");
 
     const runResponse = await fetch(`${url}/api/runs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         agentId: `missing-agent-${randomUUID()}`,
         projectId,
         conversationId,
-        message: 'Create a poster image.',
-      }),
+        message: "Create a poster image."
+      })
     });
     expect(runResponse.status).toBe(202);
-    const runBody = await runResponse.json() as { runId: string };
+    const runBody = (await runResponse.json()) as { runId: string };
     const runStatusResponse = await fetch(`${url}/api/runs/${encodeURIComponent(runBody.runId)}`);
-    const runStatus = await runStatusResponse.json() as {
+    const runStatus = (await runStatusResponse.json()) as {
       mediaExecution?: { mode?: string };
     };
-    expect(runStatus.mediaExecution).toEqual({ mode: 'enabled' });
+    expect(runStatus.mediaExecution).toEqual({ mode: "enabled" });
 
     const legacyConversationId = `legacy-${randomUUID()}`;
     const chatResponse = await fetch(`${url}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         agentId: `missing-agent-${randomUUID()}`,
         projectId,
         conversationId: legacyConversationId,
-        message: 'Create a poster image.',
-      }),
+        message: "Create a poster image."
+      })
     });
     expect(chatResponse.status).toBe(200);
     await chatResponse.text();
-    const runsResponse = await fetch(
-      `${url}/api/runs?conversationId=${encodeURIComponent(legacyConversationId)}`,
-    );
-    const runsBody = await runsResponse.json() as {
+    const runsResponse = await fetch(`${url}/api/runs?conversationId=${encodeURIComponent(legacyConversationId)}`);
+    const runsBody = (await runsResponse.json()) as {
       runs: Array<{ mediaExecution?: { mode?: string } }>;
     };
     expect(runsBody.runs).toHaveLength(1);
-    expect(runsBody.runs[0]?.mediaExecution).toEqual({ mode: 'enabled' });
+    expect(runsBody.runs[0]?.mediaExecution).toEqual({ mode: "enabled" });
   });
 
-  it('fails closed when a media tool request does not carry a valid run token', async () => {
-    const started = await startServer({ port: 0, returnServer: true }) as {
+  it("fails closed when a media tool request does not carry a valid run token", async () => {
+    const started = (await startServer({ port: 0, returnServer: true })) as {
       url: string;
       server: http.Server;
       shutdown?: () => Promise<void> | void;
@@ -429,88 +470,87 @@ describe('run-scoped media policy routes', () => {
     shutdown = started.shutdown;
 
     const response = await fetch(`${started.url}/api/tools/media/generate`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer invalid-token',
+        "Content-Type": "application/json",
+        Authorization: "Bearer invalid-token"
       },
       body: JSON.stringify({
-        surface: 'image',
-        model: 'gpt-image-2',
-        prompt: 'Create a launch poster',
-      }),
+        surface: "image",
+        model: "gpt-image-2",
+        prompt: "Create a launch poster"
+      })
     });
 
     expect(response.status).toBe(401);
-    const body = await response.json() as { error?: { code?: string } };
-    expect(body.error).toMatchObject({ code: 'TOOL_TOKEN_INVALID' });
+    const body = (await response.json()) as { error?: { code?: string } };
+    expect(body.error).toMatchObject({ code: "TOOL_TOKEN_INVALID" });
   });
 
-  it('requires a run token for the legacy media route only in sandbox mode', () => {
-    const requestProjectOverride = (projectId: string, tokenProjectId: string) =>
-      projectId !== tokenProjectId;
+  it("requires a run token for the legacy media route only in sandbox mode", () => {
+    const requestProjectOverride = (projectId: string, tokenProjectId: string) => projectId !== tokenProjectId;
 
     expect(
       resolveLegacyMediaRouteGrant({
         grant: null,
-        projectId: 'project-1',
+        projectId: "project-1",
         requestProjectOverride,
-        sandboxMode: false,
-      }),
+        sandboxMode: false
+      })
     ).toEqual({ ok: true, grant: null });
 
     expect(
       resolveLegacyMediaRouteGrant({
         grant: null,
-        projectId: 'project-1',
+        projectId: "project-1",
         requestProjectOverride,
-        sandboxMode: true,
-      }),
+        sandboxMode: true
+      })
     ).toMatchObject({
-      code: 'TOOL_TOKEN_MISSING',
+      code: "TOOL_TOKEN_MISSING",
       ok: false,
-      status: 401,
+      status: 401
     });
   });
 
-  it('rejects project overrides on token-bearing legacy media requests in sandbox mode', () => {
+  it("rejects project overrides on token-bearing legacy media requests in sandbox mode", () => {
     const decision = resolveLegacyMediaRouteGrant({
       grant: {
-        allowedEndpoints: ['/api/tools/media/generate'],
-        allowedOperations: ['media:generate'],
+        allowedEndpoints: ["/api/tools/media/generate"],
+        allowedOperations: ["media:generate"],
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
         issuedAt: new Date().toISOString(),
-        projectId: 'token-project',
-        runId: 'run-1',
-        token: 'token',
+        projectId: "token-project",
+        runId: "run-1",
+        token: "token"
       },
-      projectId: 'other-project',
+      projectId: "other-project",
       requestProjectOverride: (projectId, tokenProjectId) => projectId !== tokenProjectId,
-      sandboxMode: true,
+      sandboxMode: true
     });
 
     expect(decision).toMatchObject({
-      code: 'FORBIDDEN',
-      details: { suppliedProjectId: 'other-project' },
+      code: "FORBIDDEN",
+      details: { suppliedProjectId: "other-project" },
       ok: false,
-      status: 403,
+      status: 403
     });
   });
 
-  it('preserves token-bearing legacy project overrides outside sandbox mode', () => {
+  it("preserves token-bearing legacy project overrides outside sandbox mode", () => {
     const decision = resolveLegacyMediaRouteGrant({
       grant: {
-        allowedEndpoints: ['/api/tools/media/generate'],
-        allowedOperations: ['media:generate'],
+        allowedEndpoints: ["/api/tools/media/generate"],
+        allowedOperations: ["media:generate"],
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
         issuedAt: new Date().toISOString(),
-        projectId: 'token-project',
-        runId: 'run-1',
-        token: 'token',
+        projectId: "token-project",
+        runId: "run-1",
+        token: "token"
       },
-      projectId: 'other-project',
+      projectId: "other-project",
       requestProjectOverride: (projectId, tokenProjectId) => projectId !== tokenProjectId,
-      sandboxMode: false,
+      sandboxMode: false
     });
 
     expect(decision).toMatchObject({ ok: true });
@@ -529,7 +569,7 @@ describe('run-scoped media policy routes', () => {
     }
 
     const projectId = `project_${randomUUID()}`;
-    const started = await startServer({ port: 0, returnServer: true }) as {
+    const started = (await startServer({ port: 0, returnServer: true })) as {
       url: string;
       server: http.Server;
       shutdown?: () => Promise<void> | void;
@@ -538,33 +578,33 @@ describe('run-scoped media policy routes', () => {
     shutdown = started.shutdown;
 
     const projectResponse = await fetch(`${started.url}/api/projects`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id: projectId,
         name,
-        metadata: { kind: 'image' },
-      }),
+        metadata: { kind: "image" }
+      })
     });
     expect(projectResponse.status).toBe(200);
-    const projectBody = await projectResponse.json() as { conversationId: string };
+    const projectBody = (await projectResponse.json()) as { conversationId: string };
     return {
       url: started.url,
       projectId,
-      conversationId: projectBody.conversationId,
+      conversationId: projectBody.conversationId
     };
   }
 
   function memoryConfigPath(): string {
-    return path.join(memoryDir(process.env.OD_DATA_DIR!), '.config.json');
+    return path.join(memoryDir(process.env.OD_DATA_DIR!), ".config.json");
   }
 
   async function writeFakeAgent(
     capturePath: string,
     requestBody: unknown,
-    options: FakeMediaAgentOptions = {},
+    options: FakeMediaAgentOptions = {}
   ): Promise<void> {
-    const endpoint = options.endpoint ?? 'tool';
+    const endpoint = options.endpoint ?? "tool";
     const attachToken = options.attachToken ?? true;
     const source = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -588,7 +628,9 @@ const attachToken = ${JSON.stringify(attachToken)};
   const projectId = process.env.OD_PROJECT_ID;
   const url = endpoint === 'legacy'
     ? daemonUrl + '/api/projects/' + encodeURIComponent(projectId || '') + '/media/generate'
-    : daemonUrl + '/api/tools/media/generate';
+    : endpoint === 'understand' || endpoint.startsWith('understand-')
+      ? daemonUrl + '/api/tools/media/' + endpoint
+      : daemonUrl + '/api/tools/media/generate';
   const headers = { 'content-type': 'application/json' };
   if (attachToken && token) {
     headers.authorization = 'Bearer ' + token;
@@ -625,15 +667,12 @@ const attachToken = ${JSON.stringify(attachToken)};
   process.exit(1);
 });
 `;
-    if (process.platform === 'win32') {
-      const runner = path.join(binDir, 'opencode-runner.cjs');
-      await writeFile(runner, source.replace(/^#![^\n]*\n/, ''));
-      await writeFile(
-        path.join(binDir, 'opencode.cmd'),
-        `@echo off\r\nnode "${runner}" %*\r\n`,
-      );
+    if (process.platform === "win32") {
+      const runner = path.join(binDir, "opencode-runner.cjs");
+      await writeFile(runner, source.replace(/^#![^\n]*\n/, ""));
+      await writeFile(path.join(binDir, "opencode.cmd"), `@echo off\r\nnode "${runner}" %*\r\n`);
     } else {
-      const bin = path.join(binDir, 'opencode');
+      const bin = path.join(binDir, "opencode");
       await writeFile(bin, source);
       await chmod(bin, 0o755);
     }
@@ -651,11 +690,11 @@ const attachToken = ${JSON.stringify(attachToken)};
     const startedAt = Date.now();
     while (Date.now() - startedAt < 10_000) {
       try {
-        return JSON.parse(await readFile(capturePath, 'utf8'));
+        return JSON.parse(await readFile(capturePath, "utf8"));
       } catch {
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
     }
-    throw new Error('timed out waiting for fake agent media response');
+    throw new Error("timed out waiting for fake agent media response");
   }
 });

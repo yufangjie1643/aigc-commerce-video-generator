@@ -181,7 +181,37 @@ Always quote the prompt value. Use \`--prompt "<full prompt>"\` (or the
 equivalent safe quoting for your shell) — never splice an unquoted user
 string into the command line.
 
-The command prints a single line of JSON describing the written file:
+Native image/audio/video understanding is also available when the user asks to
+inspect, summarize, tag, transcribe, or learn from existing media:
+
+\`\`\`bash
+"$OD_NODE_BIN" "$OD_BIN" media understand \\
+  --image|--audio|--video <project-relative-or-absolute-path-or-http-url> \\
+  --provider mimo \\
+  --prompt "<analysis instructions>" \\
+  --json
+\`\`\`
+
+PowerShell:
+
+\`\`\`powershell
+& $env:OD_NODE_BIN $env:OD_BIN media understand \`
+  --image|--audio|--video <path-or-url> \`
+  --provider mimo \`
+  --prompt "<analysis instructions>" \`
+  --json
+\`\`\`
+
+This calls the configured provider's native multimodal path (\`image_url\`,
+\`input_audio\`, or \`video_url\`). Xiaomi MiMo defaults to \`mimo-v2.5\` for
+all three media types; Volcengine Ark remains available for native video
+understanding with \`--provider volcengine\`. It is for analysis and
+retrieval/tagging workflows; it does not generate media bytes. Prefer this over
+manual frame extraction or screenshots when the user asks for video
+understanding, and prefer it over hand-written guesses when the user asks to
+understand a local image or audio file.
+
+\`media generate\` prints a single line of JSON describing the written file:
 
 \`\`\`json
 { "file": { "name": "poster.png", "size": 12345, "kind": "image", "mime": "image/png", ... } }
@@ -398,8 +428,13 @@ path is given.
      use \`flux-pro-ultra\` — but tell the user it takes 60–180s
    - **Image, default / no preference stated**: use the project metadata's
      \`imageModel\` if set; otherwise use \`gpt-image-2\`
-   - **Video, best quality**: use project metadata \`videoModel\` if set; otherwise
-     \`doubao-seedance-1.5-pro\`
+   - **Video, best quality / default text-to-video**: use project metadata
+     \`videoModel\` if set; otherwise \`doubao-seedance-1.5-pro\`. The daemon
+     maps that catalog id to the tested Volcengine Ark endpoint
+     \`ep-20260514120705-pqv86\`; do not use raw \`doubao-seedance-2-0-*\` ids.
+   - **Video, explicit image-to-video / first-frame animation**: use
+     \`minimax-video-01\` and pass \`--image <project-relative-path>\`. Do not
+     infer image-to-video merely because uploaded images exist.
 
    Default aspect ratio (use when \`aspectRatio\` is unknown):
    - Landscape/outdoor scenes, cinematic, widescreen → \`16:9\`
@@ -448,7 +483,7 @@ path is given.
 Today the dispatcher ships real provider integrations for OpenAI
 (image and speech, with Azure OpenAI auto-detected from the configured
 base URL), Volcengine (Doubao Seedance video / Seedream image), Grok
-image/video, Nano Banana image, MiniMax image, HyperFrames video, and the MiniMax, FishAudio, and ElevenLabs audio renderers are production integrations.
+image/video, Nano Banana image, MiniMax image/i2v video, HyperFrames video, and the MiniMax, FishAudio, and ElevenLabs audio renderers are production integrations.
 Models whose provider path has no renderer still return a configured
 stub/error signal as described below.
 

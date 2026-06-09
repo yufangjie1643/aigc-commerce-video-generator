@@ -77,6 +77,7 @@ import { DesignSystemsTab } from './DesignSystemsTab';
 import { EntryNavRail, type EntryView as EntryViewKind } from './EntryNavRail';
 import { UpdaterPopup } from './UpdaterPopup';
 import { HomeView } from './HomeView';
+import { AssetLibraryView } from './AssetLibraryView';
 import {
   createPluginAuthoringHandoff,
   createPluginUseHandoff,
@@ -728,6 +729,9 @@ export function EntryShell({
                   />
                 </div>
               )}
+            </div>
+            <div data-testid="entry-view-asset-library" data-active={view === 'asset-library' ? 'true' : 'false'} {...inactiveViewProps(view === 'asset-library')}>
+              <AssetLibraryView onOpenSettings={() => onOpenSettings('assetLibrary')} />
             </div>
             <div data-testid="entry-view-tasks" data-active={view === 'tasks' ? 'true' : 'false'} {...inactiveViewProps(view === 'tasks')}>
               <TasksView

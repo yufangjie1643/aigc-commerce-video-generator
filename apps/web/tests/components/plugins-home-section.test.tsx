@@ -196,7 +196,7 @@ describe('PluginsHomeSection (ecommerce video categories)', () => {
     expect(screen.getAllByText('护肤品卖点短视频').length).toBeGreaterThan(0);
     expect(screen.queryByText('Skincare Demo Short')).toBeNull();
 
-    fireEvent.change(screen.getByPlaceholderText('搜索视频模板…'), {
+    fireEvent.change(screen.getByPlaceholderText('搜索任务模板…'), {
       target: { value: '护肤' },
     });
     expect(pluginIds()).toEqual(['localized-video']);

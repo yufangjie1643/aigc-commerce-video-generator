@@ -40,11 +40,38 @@ Always quote the prompt value. Never splice unquoted user text into the
 command line. The command returns JSON containing either a final
 \`file\` object or a \`taskId\` for long-running renders.
 
+Video defaults: use \`doubao-seedance-1.5-pro\` for ordinary text-to-video;
+the daemon maps it to Volcengine Ark endpoint \`ep-20260514120705-pqv86\`.
+Use \`minimax-video-01\` only when the user explicitly asks for
+image-to-video / first-frame animation, and pass
+\`--image <project-relative-path>\`.
+
 For long-running renders, continue with:
 
 \`\`\`bash
 "$OD_NODE_BIN" "$OD_BIN" media wait <taskId> --since <nextSince>
 \`\`\`
+
+Native image/audio/video understanding is also exposed through the OD media CLI
+when the user asks to inspect, summarize, tag, transcribe, or learn from
+existing media:
+
+\`\`\`bash
+"$OD_NODE_BIN" "$OD_BIN" media understand \\
+  --image|--audio|--video <project-relative-or-absolute-path-or-http-url> \\
+  --provider mimo \\
+  --prompt "<analysis instructions>" \\
+  --json
+\`\`\`
+
+This calls the configured provider's native multimodal path (\`image_url\`,
+\`input_audio\`, or \`video_url\`). Xiaomi MiMo defaults to \`mimo-v2.5\` for
+all three media types; Volcengine Ark remains available for native video
+understanding with \`--provider volcengine\`. It is for analysis and
+retrieval/tagging workflows; it does not generate media bytes. Prefer this over
+manual frame extraction or screenshots when the user asks for video
+understanding, and prefer it over hand-written guesses when the user asks to
+understand a local image or audio file.
 
 \`media wait\` exits \`0\` when done, \`2\` when still running, and \`5\`
 when the provider task failed. Exit code \`2\` is not an error; keep polling

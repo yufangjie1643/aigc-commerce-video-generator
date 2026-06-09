@@ -216,6 +216,7 @@ async function refreshBridge(runtimeDataDir: string): Promise<WeChatAgentBridgeC
     command: result.login.command.length > 0 ? result.login.command : commandLine("refresh"),
     stdout: result.login.output,
     stderr: "",
+    login: result.login,
     exitCode: result.ok ? 0 : 1,
     signal: null,
     ...(result.error ? { error: result.error } : {})

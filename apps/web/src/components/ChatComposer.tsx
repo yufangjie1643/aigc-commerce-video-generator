@@ -343,7 +343,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       projectFiles,
       activeProjectFileName = null,
       streaming,
-      sessionMode = 'design',
+      sessionMode = 'comprehensive',
       onSessionModeChange,
       sendDisabled = false,
       initialDraft,

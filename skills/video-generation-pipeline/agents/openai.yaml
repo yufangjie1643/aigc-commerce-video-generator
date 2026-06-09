@@ -1,0 +1,4 @@
+interface:
+  display_name: "Video Generation Pipeline"
+  short_description: "Structure video assets and build generation pipelines."
+  default_prompt: "Structure these videos into product/video/slice assets and build a generation pipeline."

@@ -48,6 +48,35 @@ interface Props {
 
 type SourceFilter = 'all' | 'user' | 'built-in';
 
+const BUILT_IN_LIBRARY_CATEGORIES = new Set([
+  'video-generation',
+  'web-artifacts',
+  'animation-motion',
+  '3d-shaders',
+  'screenshots',
+]);
+
+const BUILT_IN_LIBRARY_NAME_HINTS = [
+  'web',
+  'frontend',
+  'html',
+  'landing',
+  'login',
+  'faq',
+  'paywall',
+  'browser',
+  'screenshot',
+  'gsap',
+  'threejs',
+  'shader',
+  'shadcn',
+  'ui',
+  'ux',
+  'motion',
+  'animation',
+  'artifact',
+];
+
 interface DraftState {
   name: string;
   description: string;
@@ -76,6 +105,17 @@ function parseTriggers(raw: string): string[] {
     .split(/[,\n]/)
     .map((t) => t.trim())
     .filter(Boolean);
+}
+
+function isVisibleSkillLibraryEntry(skill: SkillSummary): boolean {
+  if (skill.source === 'user') return true;
+  if (skill.mode === 'video' || skill.surface === 'video') return true;
+
+  const category = skill.category ?? '';
+  if (BUILT_IN_LIBRARY_CATEGORIES.has(category)) return true;
+
+  const haystack = `${skill.id}\n${skill.name}\n${skill.description}`.toLowerCase();
+  return BUILT_IN_LIBRARY_NAME_HINTS.some((hint) => haystack.includes(hint));
 }
 
 export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }: Props) {
@@ -135,6 +175,11 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
     void refresh();
   }, [refresh]);
 
+  const librarySkills = useMemo(
+    () => skills.filter(isVisibleSkillLibraryEntry),
+    [skills],
+  );
+
   const disabledSkills = useMemo(
     () => new Set(cfg.disabledSkills ?? []),
     [cfg.disabledSkills],
@@ -142,11 +187,11 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
 
   const modeOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const s of skills) {
+    for (const s of librarySkills) {
       counts.set(s.mode, (counts.get(s.mode) ?? 0) + 1);
     }
     return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [skills]);
+  }, [librarySkills]);
 
   // Categories are optional per-skill metadata (`od.category` in the
   // SKILL.md frontmatter). The pill row only renders when at least one
@@ -154,17 +199,17 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
   // baseline functional skills doesn't see an empty filter row.
   const categoryOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const s of skills) {
+    for (const s of librarySkills) {
       const cat = s.category;
       if (typeof cat !== 'string' || !cat) continue;
       counts.set(cat, (counts.get(cat) ?? 0) + 1);
     }
     return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [skills]);
+  }, [librarySkills]);
 
   const filteredSkills = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return skills.filter((s) => {
+    return librarySkills.filter((s) => {
       if (modeFilter !== 'all' && s.mode !== modeFilter) return false;
       if (sourceFilter !== 'all' && s.source !== sourceFilter) return false;
       if (categoryFilter !== 'all' && s.category !== categoryFilter)
@@ -175,7 +220,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
       )}\n${s.category ?? ''}`;
       return hay.toLowerCase().includes(q);
     });
-  }, [skills, modeFilter, sourceFilter, categoryFilter, search, locale]);
+  }, [librarySkills, modeFilter, sourceFilter, categoryFilter, search, locale]);
 
   const ensureBody = useCallback(
     async (id: string) => {
@@ -408,10 +453,10 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
               onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
             >
               <option value="all">
-                {t('settings.libraryAll')} ({skills.length})
+                {t('settings.libraryAll')} ({librarySkills.length})
               </option>
               {(['user', 'built-in'] as const).map((s) => {
-                const count = skills.filter((sk) => sk.source === s).length;
+                const count = librarySkills.filter((sk) => sk.source === s).length;
                 return (
                   <option key={s} value={s}>
                     {s} ({count})
@@ -428,7 +473,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
               onChange={(e) => setModeFilter(e.target.value)}
             >
               <option value="all">
-                {t('settings.libraryAll')} ({skills.length})
+                {t('settings.libraryAll')} ({librarySkills.length})
               </option>
               {modeOptions.map(([mode, count]) => (
                 <option key={mode} value={mode}>
@@ -449,7 +494,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
                 onChange={(e) => setCategoryFilter(e.target.value)}
               >
                 <option value="all">
-                  {t('settings.libraryAll')} ({skills.length})
+                  {t('settings.libraryAll')} ({librarySkills.length})
                 </option>
                 {categoryOptions.map(([cat, count]) => (
                   <option key={cat} value={cat}>

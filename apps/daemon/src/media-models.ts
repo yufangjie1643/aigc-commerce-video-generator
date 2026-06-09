@@ -19,6 +19,12 @@ export type MediaProvider = {
   settingsVisible?: boolean;
   supportsCustomModel?: boolean;
   customModelPlaceholder?: string;
+  supportsImageUnderstanding?: boolean;
+  defaultImageUnderstandingModel?: string;
+  supportsAudioUnderstanding?: boolean;
+  defaultAudioUnderstandingModel?: string;
+  supportsVideoUnderstanding?: boolean;
+  defaultVideoUnderstandingModel?: string;
 };
 
 export type MediaModel = {
@@ -43,7 +49,23 @@ export const MEDIA_PROVIDERS: MediaProvider[] = [
     label: "Volcengine Ark (Doubao)",
     hint: "Seedance 1.5 Pro",
     integrated: true,
-    defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3"
+    defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    supportsVideoUnderstanding: true,
+    defaultVideoUnderstandingModel: "doubao-seed-2-0-lite-260215"
+  },
+  {
+    id: "mimo",
+    label: "Xiaomi MiMo",
+    hint: "mimo-v2.5 multimodal understanding",
+    integrated: true,
+    defaultBaseUrl: "https://api.xiaomimimo.com/v1",
+    docsUrl: "https://platform.xiaomimimo.com/docs/zh-CN/welcome",
+    supportsImageUnderstanding: true,
+    supportsAudioUnderstanding: true,
+    supportsVideoUnderstanding: true,
+    defaultImageUnderstandingModel: "mimo-v2.5",
+    defaultAudioUnderstandingModel: "mimo-v2.5",
+    defaultVideoUnderstandingModel: "mimo-v2.5"
   },
   {
     id: "grok",
@@ -142,7 +164,7 @@ export const MEDIA_PROVIDERS: MediaProvider[] = [
   {
     id: "minimax",
     label: "MiniMax",
-    hint: "Speech 2.8 / image-01",
+    hint: "Speech 2.8 / image-01 / i2v",
     integrated: true,
     defaultBaseUrl: "https://api.minimaxi.com/v1"
   },
@@ -440,6 +462,14 @@ export const VIDEO_MODELS: MediaModel[] = [
   },
 
   {
+    id: "minimax-video-01",
+    label: "minimax-video-01",
+    hint: "MiniMax · image-to-video",
+    provider: "minimax",
+    caps: ["i2v"]
+  },
+
+  {
     id: "grok-imagine-video",
     label: "grok-imagine-video",
     hint: "xAI · 720p t2v + i2v + native audio",
@@ -453,8 +483,7 @@ export const VIDEO_MODELS: MediaModel[] = [
     label: "seedance-2.0 1080p (OR)",
     hint: "OpenRouter · ByteDance · 1080p",
     provider: "openrouter",
-    caps: ["t2v", "i2v"],
-    default: true
+    caps: ["t2v", "i2v"]
   },
   {
     id: "openrouter/bytedance/seedance-2.0",

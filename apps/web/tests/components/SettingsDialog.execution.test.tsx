@@ -185,6 +185,7 @@ const sampleSkills = [
     name: 'blog-post',
     description: 'A long-form article / blog post.',
     mode: 'prototype',
+    category: 'web-artifacts',
     previewType: 'HTML',
   },
   {
@@ -192,6 +193,7 @@ const sampleSkills = [
     name: 'dashboard',
     description: 'Admin / analytics dashboard.',
     mode: 'prototype',
+    category: 'web-artifacts',
     previewType: 'HTML',
   },
   {
@@ -199,6 +201,7 @@ const sampleSkills = [
     name: 'sales-deck',
     description: 'A narrative sales presentation.',
     mode: 'deck',
+    category: 'web-artifacts',
     previewType: 'PPTX',
   },
 ];

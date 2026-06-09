@@ -1,22 +1,44 @@
-// Project-page design-system picker — small dropdown rendered in the
-// project chrome header next to the title. It binds to an existing
-// project: changing the selection PATCHes
-// `project.designSystemId` so the next chat run carries the new
-// design-system metadata into the agent's system prompt (the daemon
-// already threads `designSystemId` from project state through
-// `/api/runs` — see providers/daemon.ts).
+// Project-page commerce style picker — small dropdown rendered in the
+// composer chrome. It presents a curated selling-style preset list while
+// still PATCHing `project.designSystemId`, so the next chat run carries
+// the mapped design-system metadata into the agent's system prompt.
 //
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import type { DesignSystemSummary } from '@open-design/contracts';
-import { useI18n } from '../i18n';
 import {
-  localizeDesignSystemCategory,
-  localizeDesignSystemSummary,
-} from '../i18n/content';
+  COMMERCE_STYLE_PRESETS,
+  commerceStyleDisplayForLocale,
+  type DesignSystemSummary,
+} from '@open-design/contracts';
+import { useI18n } from '../i18n';
 import { fetchDesignSystemPreview } from '../providers/registry';
 import { Icon } from './Icon';
+
+const COMMERCE_STYLE_PICKER_COPY = {
+  zh: {
+    select: '选择带货风格',
+    loading: '正在加载带货风格…',
+    searchPlaceholder: '搜索带货风格',
+    noneTitle: '不套用带货风格',
+    empty: '没有匹配的带货风格',
+    noPreview: '暂无预览，仍会按该带货风格生成。',
+    previewHint: '将鼠标悬停在左侧风格上查看预览',
+  },
+  en: {
+    select: 'Choose selling style',
+    loading: 'Loading selling styles…',
+    searchPlaceholder: 'Search selling styles',
+    noneTitle: 'No selling style',
+    empty: 'No matching selling styles',
+    noPreview: 'No preview yet. Generation will still use this selling style.',
+    previewHint: 'Hover a style on the left to preview it',
+  },
+};
+
+function commerceCopyKey(locale: string): 'zh' | 'en' {
+  return locale.startsWith('zh') ? 'zh' : 'en';
+}
 
 interface PopoverAnchor {
   left: number;
@@ -36,12 +58,7 @@ interface Props {
   onChange: (id: string | null) => void;
 }
 
-export function ProjectDesignSystemPicker({
-  designSystems,
-  selectedId,
-  loading,
-  onChange,
-}: Props) {
+export function ProjectDesignSystemPicker({ designSystems, selectedId, loading, onChange }: Props) {
   const { locale, t } = useI18n();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -54,10 +71,31 @@ export function ProjectDesignSystemPicker({
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
+  const commerceLocale = commerceCopyKey(locale);
+  const pickerCopy = COMMERCE_STYLE_PICKER_COPY[commerceLocale];
+
+  const commerceStyleOptions = useMemo(() => {
+    const byId = new Map(designSystems.map((designSystem) => [designSystem.id, designSystem]));
+    const presets = COMMERCE_STYLE_PRESETS.flatMap((preset) => {
+      const designSystem = byId.get(preset.id);
+      if (!designSystem) return [];
+      const display = commerceStyleDisplayForLocale(preset, locale);
+      return [
+        {
+          ...designSystem,
+          title: display.title,
+          summary: display.summary,
+          category: display.category,
+          swatches: designSystem.swatches && designSystem.swatches.length > 0 ? designSystem.swatches : preset.swatches,
+        },
+      ];
+    });
+    return presets;
+  }, [designSystems, locale]);
 
   const selected = useMemo(
-    () => designSystems.find((d) => d.id === selectedId) ?? null,
-    [designSystems, selectedId],
+    () => commerceStyleOptions.find((d) => d.id === selectedId) ?? null,
+    [commerceStyleOptions, selectedId],
   );
 
   useEffect(() => {
@@ -141,7 +179,7 @@ export function ProjectDesignSystemPicker({
     return () => document.removeEventListener('keydown', onKey);
   }, [fullscreenPreview]);
 
-  const previewTarget = open ? hovered ?? selected : null;
+  const previewTarget = open ? (hovered ?? selected) : null;
 
   useEffect(() => {
     if (!previewTarget) {
@@ -171,14 +209,12 @@ export function ProjectDesignSystemPicker({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (q.length === 0) return designSystems;
-    return designSystems.filter((d) => {
-      const localizedSummary = localizeDesignSystemSummary(locale, d);
-      const localizedCategory = localizeDesignSystemCategory(locale, d.category);
-      const haystack = `${d.title} ${d.category} ${d.summary} ${localizedCategory} ${localizedSummary}`.toLowerCase();
+    if (q.length === 0) return commerceStyleOptions;
+    return commerceStyleOptions.filter((d) => {
+      const haystack = `${d.title} ${d.category} ${d.summary}`.toLowerCase();
       return haystack.includes(q);
     });
-  }, [query, designSystems, locale]);
+  }, [query, commerceStyleOptions]);
 
   const selectDesignSystem = (id: string | null) => {
     onChange(id);
@@ -192,11 +228,7 @@ export function ProjectDesignSystemPicker({
   };
 
   return (
-    <div
-      ref={wrapRef}
-      className={`project-ds-picker${open ? ' open' : ''}`}
-      data-testid="project-ds-picker"
-    >
+    <div ref={wrapRef} className={`project-ds-picker${open ? ' open' : ''}`} data-testid="project-ds-picker">
       <button
         ref={triggerRef}
         type="button"
@@ -204,25 +236,19 @@ export function ProjectDesignSystemPicker({
         data-testid="project-ds-picker-trigger"
         onClick={() => setOpen((v) => !v)}
         disabled={loading}
-        title={selected?.title ?? t('designSystemPicker.select')}
+        title={selected?.title ?? pickerCopy.select}
       >
         {selected && selected.swatches && selected.swatches.length > 0 ? (
           <span className="project-ds-picker-swatches" aria-hidden>
             {selected.swatches.slice(0, 3).map((sw, i) => (
-              <span
-                key={`pdsp-sw-${i}`}
-                className="project-ds-picker-swatch"
-                style={{ background: sw }}
-              />
+              <span key={`pdsp-sw-${i}`} className="project-ds-picker-swatch" style={{ background: sw }} />
             ))}
           </span>
         ) : (
           <Icon name="palette" size={13} />
         )}
         <span className="project-ds-picker-label">
-          {loading
-            ? t('designSystemPicker.loading')
-            : selected?.title ?? t('designSystemPicker.select')}
+          {loading ? pickerCopy.loading : (selected?.title ?? pickerCopy.select)}
         </span>
         <Icon name="chevron-down" size={11} />
       </button>
@@ -248,7 +274,7 @@ export function ProjectDesignSystemPicker({
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder={t('designSystemPicker.searchCompactPlaceholder')}
+                  placeholder={pickerCopy.searchPlaceholder}
                   data-testid="project-ds-picker-search"
                 />
               </div>
@@ -268,7 +294,7 @@ export function ProjectDesignSystemPicker({
                     onKeyDown={(event) => selectDesignSystemOnKeyDown(event, null)}
                   >
                     <div className="project-ds-picker-option-head">
-                      <span className="project-ds-picker-option-title">{t('designSystemPicker.noneTitle')}</span>
+                      <span className="project-ds-picker-option-title">{pickerCopy.noneTitle}</span>
                       {selectedId == null ? (
                         <span
                           className="project-ds-picker-option-check"
@@ -311,9 +337,7 @@ export function ProjectDesignSystemPicker({
                       </button>
                     );
                   })}
-                  {filtered.length === 0 ? (
-                    <div className="project-ds-picker-empty">{t('designSystemPicker.empty')}</div>
-                  ) : null}
+                  {filtered.length === 0 ? <div className="project-ds-picker-empty">{pickerCopy.empty}</div> : null}
                 </div>
                 <div className="project-ds-picker-preview" data-testid="project-ds-picker-preview">
                   {previewTarget ? (
@@ -322,9 +346,7 @@ export function ProjectDesignSystemPicker({
                         <strong>{previewTarget.title}</strong>
                       </div>
                       {previewTarget.summary ? (
-                        <p className="project-ds-picker-preview-summary">
-                          {localizeDesignSystemSummary(locale, previewTarget)}
-                        </p>
+                        <p className="project-ds-picker-preview-summary">{previewTarget.summary}</p>
                       ) : null}
                       {previewTarget.swatches && previewTarget.swatches.length > 0 ? (
                         <div className="project-ds-picker-preview-swatches">
@@ -368,17 +390,13 @@ export function ProjectDesignSystemPicker({
                         </div>
                       ) : (
                         <div className="project-ds-picker-preview-stage">
-                          <div className="project-ds-picker-preview-empty">
-                            {t('designSystemPicker.noPreview')}
-                          </div>
+                          <div className="project-ds-picker-preview-empty">{pickerCopy.noPreview}</div>
                         </div>
                       )}
                     </>
                   ) : (
                     <div className="project-ds-picker-preview-stage">
-                      <div className="project-ds-picker-preview-empty">
-                        {t('designSystemPicker.previewHint')}
-                      </div>
+                      <div className="project-ds-picker-preview-empty">{pickerCopy.previewHint}</div>
                     </div>
                   )}
                 </div>
@@ -404,9 +422,7 @@ export function ProjectDesignSystemPicker({
                   <div className="project-ds-picker-fullscreen-title">
                     <strong>{previewTarget.title}</strong>
                     {previewTarget.category ? (
-                      <span className="project-ds-picker-preview-cat">
-                        {localizeDesignSystemCategory(locale, previewTarget.category)}
-                      </span>
+                      <span className="project-ds-picker-preview-cat">{previewTarget.category}</span>
                     ) : null}
                   </div>
                   <button

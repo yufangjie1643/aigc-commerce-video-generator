@@ -17,10 +17,26 @@ describe('od media CLI', () => {
       expect.arrayContaining([
         expect.objectContaining({
           surface: 'video',
+          id: 'doubao-seedance-1.5-pro',
+          provider: 'volcengine',
+          default: true,
+        }),
+        expect.objectContaining({
+          surface: 'video',
+          id: 'minimax-video-01',
+          provider: 'minimax',
+          caps: expect.arrayContaining(['i2v']),
+        }),
+        expect.objectContaining({
+          surface: 'video',
           id: 'hyperframes-html',
           provider: 'hyperframes',
         }),
       ]),
     );
+
+    const defaultVideoModels = parsed.models.filter((model: { default?: boolean }) => model.default === true);
+    expect(defaultVideoModels.map((model: { id: string }) => model.id)).toEqual(['doubao-seedance-1.5-pro']);
+    expect(parsed.models.map((model: { id: string }) => model.id)).not.toContain('doubao-seedance-2-0-260128');
   });
 });

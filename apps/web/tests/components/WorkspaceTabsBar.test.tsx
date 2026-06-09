@@ -160,6 +160,65 @@ describe('WorkspaceTabsBar navigation semantics', () => {
     });
   });
 
+  it('keeps tab label buttons out of the global tooltip layer', () => {
+    window.localStorage.setItem(
+      'open-design:workspace-tabs:v1',
+      JSON.stringify({
+        activeTabId: 'project:project-alpha',
+        tabs: [
+          {
+            id: 'entry:home:seed',
+            kind: 'entry',
+            view: 'projects',
+            createdAt: 1,
+            lastActiveAt: 2,
+          },
+          {
+            id: 'project:project-alpha',
+            kind: 'project',
+            projectId: 'project-alpha',
+            conversationId: null,
+            fileName: null,
+            createdAt: 3,
+            lastActiveAt: 4,
+          },
+        ],
+      }),
+    );
+
+    const { container } = render(<WorkspaceTabsBar route={{ ...projectRoute }} projects={[project]} />);
+    const tabLabelButtons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('.workspace-tab__main'),
+    );
+
+    expect(tabLabelButtons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Projects',
+      'Project Alpha',
+    ]);
+    for (const button of tabLabelButtons) {
+      expect(button.classList.contains('od-tooltip')).toBe(false);
+      expect(button.hasAttribute('data-tooltip')).toBe(false);
+      expect(button.hasAttribute('title')).toBe(false);
+    }
+    expect(container.querySelector('.workspace-tab__close')?.classList.contains('od-tooltip')).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search tabs' }));
+    expect(screen.getByRole('dialog', { name: 'Search tabs' })).toBeTruthy();
+    const listLabelButtons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('.workspace-tabs-list__main'),
+    );
+
+    expect(listLabelButtons.map((button) => button.getAttribute('aria-label')).sort()).toEqual([
+      'Project Alpha',
+      'Projects',
+    ]);
+    for (const button of listLabelButtons) {
+      expect(button.classList.contains('od-tooltip')).toBe(false);
+      expect(button.hasAttribute('data-tooltip')).toBe(false);
+      expect(button.hasAttribute('title')).toBe(false);
+    }
+  });
+
   it('collapses every entry section into the single leftmost tab (no new tab per section)', async () => {
     const { rerender } = render(
       <WorkspaceTabsBar route={{ kind: 'home', view: 'home' }} projects={[project]} />,

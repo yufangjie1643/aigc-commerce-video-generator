@@ -375,10 +375,23 @@ export const it: Dict = {
   "settings.mediaProviders": "Provider di media",
   "settings.mediaProvidersHint":
     "Chiavi API per la generazione di immagini, video e audio. Memorizzate localmente e sincronizzate con il daemon locale.",
+  "settings.understandingApiAudioModel": "Audio understanding model / endpoint",
+  "settings.understandingApiAudioModelPlaceholder": "{defaultModel}",
+  "settings.understandingApiAudioModelHint": "Agents and CLI use this for native input_audio analysis.",
   "settings.mcpServerTitle": "Server MCP",
   "settings.mcpServerHint": "Esponi Open Design come server MCP per il tuo agente di codice.",
   "settings.externalMcpTitle": "MCP esterno",
   "settings.externalMcpHint": "Aggiungi strumenti MCP da servizi esterni (Higgsfield, GitHub, …).",
+  "settings.understandingApi": "Understanding API",
+  "settings.understandingApiHint": "Configure image and video understanding endpoints for agents and CLI tools.",
+  "settings.understandingApiNavSub": "Image / video",
+  "settings.understandingApiProviderTitle": "Volcengine Ark understanding",
+  "settings.understandingApiProviderHint":
+    "Shared Ark credentials plus separate endpoint IDs for image and video understanding.",
+  "settings.understandingApiImageModel": "Image understanding model / endpoint",
+  "settings.understandingApiImageModelPlaceholder": "Ark endpoint ID (ep-...) or image understanding model ID",
+  "settings.understandingApiImageModelHint":
+    "Reserved for native image analysis flows. Use an ep-... endpoint if your Ark account blocks raw model IDs.",
   "settings.mediaProviderApiKey": "Chiave API",
   "settings.mediaProviderBaseUrl": "URL di base",
   "settings.mediaProviderModel": "Model",
@@ -391,6 +404,10 @@ export const it: Dict = {
   "settings.mediaProviderBaseUrlPlaceholder": "Sostituisci l'URL di base predefinito",
   "settings.mediaProviderReload": "Ricarica dal daemon",
   "settings.mediaProviderModelPlaceholder": "Override default model ID",
+  "settings.mediaProviderVideoUnderstandingModel": "Video understanding model / endpoint",
+  "settings.mediaProviderVideoUnderstandingModelPlaceholder": "Ark endpoint ID (ep-...) or {defaultModel}",
+  "settings.mediaProviderVideoUnderstandingHint":
+    "Agents and CLI use this for native video_url analysis. If Ark blocks raw model IDs, paste your ep-... endpoint here.",
   "settings.mediaProviderReloaded": "Reloaded",
   "settings.mediaProviderReloadError":
     "Impossibile ricaricare le impostazioni dei provider di media dal daemon locale.",
@@ -550,8 +567,8 @@ export const it: Dict = {
   "entry.navCollapse": "Comprimi la barra laterale",
   "entry.navNewProject": "New video project",
   "entry.navHome": "Project",
-  "entry.navProjects": "Assets",
-  "entry.navTasks": "Script",
+  "entry.navProjects": "Projects",
+  "entry.navTasks": "Automations",
   "entry.navPlugins": "Creation",
   "entry.navDesignSystems": "Style presets",
   "entry.navIntegrations": "Generate / diagnose",
@@ -1716,6 +1733,17 @@ export const it: Dict = {
   "chat.mode.chat.query1": "Riassumi questa bozza e indica le lacune.",
   "chat.mode.chat.query2": "Aiutami a scegliere la struttura migliore per questa landing page.",
   "chat.mode.chat.query3": "Rivedi questo design e suggerisci miglioramenti concreti.",
+  "chat.mode.comprehensive.label": "Comprehensive",
+  "chat.mode.comprehensive.title": "Comprehensive workbench mode",
+  "chat.mode.comprehensive.summary":
+    "For agent-led workflows that combine crawling, asset-library analysis, scripts, storyboards, media generation, and diagnostics in one run.",
+  "chat.mode.comprehensive.solves":
+    "Use it when the agent should choose tools and skills across the full workflow instead of staying in chat or a single design brief.",
+  "chat.mode.comprehensive.query1":
+    "Crawl public ecommerce videos, pick references, and add only the useful samples to the asset library.",
+  "chat.mode.comprehensive.query2":
+    "Analyze current video assets and extract reusable storyboard and technique patterns.",
+  "chat.mode.comprehensive.query3": "Generate a product video pipeline from assets, scripts, storyboard, and QA gates.",
   "chat.mode.design.label": "Design Agent",
   "chat.mode.design.title": "Modalità Design Agent",
   "chat.mode.design.summary":
@@ -3199,10 +3227,10 @@ export const it: Dict = {
   "diagnostics.exporting": "Esportazione…",
   "diagnostics.exportSuccess": "Diagnostica salvata in {path}",
   "diagnostics.exportFailed": "Impossibile esportare la diagnostica: {message}",
-  "automations.eyebrow": "Video workflow automation",
-  "automations.title": "Video automations",
+  "automations.eyebrow": "Video workflow",
+  "automations.title": "Automations",
   "automations.lede":
-    "Schedule recurring checks for ecommerce video assets, scripts, storyboards, generation diagnostics, and performance review.",
+    "Schedule recurring sessions for ecommerce video assets, category crawling, scripts, storyboards, generation diagnostics, and performance review.",
   "automations.summaryAria": "Riepilogo automazioni",
   "automations.metricActive": "Attive",
   "automations.metricPaused": "In pausa",
@@ -3234,7 +3262,7 @@ export const it: Dict = {
   "automations.proposalsDismissReason": "Ignorata in Automazioni",
   "automations.templatesTitle": "Video workflow templates",
   "automations.templatesSub":
-    "Only recurring tasks used by ecommerce video production are shown: assets, scripts, storyboards, generation diagnostics, and performance review.",
+    "Only recurring tasks used by ecommerce video production are shown: assets, category crawling, crawler-to-library import, scripts, storyboards, generation diagnostics, and performance review.",
   "automations.templatesCount": "{filtered} di {total}",
   "automations.templateFiltersAria": "Filtri template",
   "automations.templatesEmptyTitle": "Nessun template in questa categoria.",
@@ -3278,6 +3306,7 @@ export const it: Dict = {
   "automations.filterOrbit": "Orbit",
   "automations.filterLiveArtifacts": "Artefatti live",
   "automations.filterMemory": "Assets",
+  "automations.filterCrawler": "Crawler",
   "automations.filterDesignSystems": "Scripts",
   "automations.filterSkills": "Storyboards",
   "automations.filterConnectors": "Generation/diagnostics",
@@ -3289,6 +3318,16 @@ export const it: Dict = {
     "Checks product visuals, selling points, brand limits, reference videos, and platform specs before scripting.",
   "automations.tpl.memoryRefresh.prompt":
     "Check whether the current ecommerce video project has the assets it needs: product images or videos, selling points, price and offer details, brand voice, reference videos, platform specs, restricted claims, and usage rights. Return ready items, gaps, risks, next actions, and whether the project can move into scripting.",
+  "automations.tpl.categoryCrawler.title": "Category video crawler",
+  "automations.tpl.categoryCrawler.desc":
+    "Crawls and breaks down ecommerce videos for one category into reusable pipeline templates.",
+  "automations.tpl.categoryCrawler.prompt":
+    "For a specified product category or keyword, use available search/crawler connectors to collect recent ecommerce video examples. Break them down by platform, account type, opening hook, product presentation, shot structure, voiceover selling points, caption rhythm, sound cues, CTA, engagement metrics, and comment feedback. Return: 1) sample list and sources; 2) winning structure patterns; 3) reusable script/storyboard/generation-prompt pipeline; 4) template snippets suitable for a skill or DESIGN.md; 5) data gaps for the next crawl.",
+  "automations.tpl.videoAssetCrawler.title": "Crawl videos into asset library",
+  "automations.tpl.videoAssetCrawler.desc":
+    "Finds ecommerce video references, imports selected videos into the commerce video asset library, and verifies the saved assets.",
+  "automations.tpl.videoAssetCrawler.prompt":
+    "For a specified product, category, platform, or keyword, search public ecommerce video candidates with the available crawler/search connectors. Select only videos that are useful reference material, then add the chosen videos to the commerce video asset library. Prefer the backend asset CLI flow: `od assets commerce-videos search --connector bilibili --query <keyword> --limit 20 --sort hot --json`; import selected candidates with `od assets commerce-videos import --title <title> --connector bilibili --source-url <url> --source-video-id <platform id> --subject <product or query> --category 带货视频样本 --summary <why selected> --json`; use `od assets commerce-videos import-crawler --connector bilibili --url <url> --json` when the video file must be materialized immediately. For the local public Bilibili test path, add `--public-test --resolution 360p`. After importing, verify with `od assets commerce-videos list --query <keyword> --json`, then report imported asset IDs, skipped candidates, and connector/auth gaps.",
   "automations.tpl.designSystemRefresh.title": "Selling script polish",
   "automations.tpl.designSystemRefresh.desc":
     "Reworks hooks, selling points, voiceover, captions, and CTA for the target platform and length.",

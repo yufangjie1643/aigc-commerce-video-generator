@@ -53,6 +53,10 @@ This file is the single source of truth for agents entering this repository. Rea
 - Use `pnpm tools-dev` as the only local development lifecycle entry point.
 - Do not add or restore root lifecycle aliases: `pnpm dev`, `pnpm dev:all`, `pnpm daemon`, `pnpm preview`, or `pnpm start`.
 - Ports are governed by `tools-dev` flags: `--daemon-port` and `--web-port`.
+- This workspace's fixed development ports are daemon `17456` and web `17573`; agents must not silently use random or alternate ports for the normal dev loop.
+- Start or restore services with `pnpm tools-dev run web --daemon-port 17456 --web-port 17573` so both the daemon and web app return to the expected addresses.
+- After every backend or daemon-facing change, restart both daemon and web, then verify the daemon is on `http://127.0.0.1:17456` and the web app is on `http://127.0.0.1:17573` before reporting completion.
+- If either fixed port is occupied, stop the conflicting Open Design process or report the blocker; do not pick another port without an explicit user request.
 - `tools-dev` exports `OD_PORT` for the web proxy target and `OD_WEB_PORT` for the web listener; do not use `NEXT_PORT`.
 
 ## Root command boundary

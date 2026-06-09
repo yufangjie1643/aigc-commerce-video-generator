@@ -134,22 +134,22 @@ describe('HomeHero intent rail', () => {
 
   it('forwards the matching chip descriptor when clicked', () => {
     const { onPickChip } = renderHero();
-    fireEvent.click(screen.getByTestId('home-hero-rail-image'));
+    fireEvent.click(screen.getByTestId('home-hero-rail-video-crawler'));
     expect(onPickChip).toHaveBeenCalledTimes(1);
-    expect(onPickChip).toHaveBeenCalledWith(findChip('image'));
+    expect(onPickChip).toHaveBeenCalledWith(findChip('video-crawler'));
   });
 
   it('moves the active creation chip into the composer and hides the tab row', () => {
-    renderHero({ activeChipId: 'video' });
+    renderHero({ activeChipId: 'video-generation' });
     expect(screen.queryByTestId('home-hero-type-tabs')).toBeNull();
-    expect(screen.queryByTestId('home-hero-rail-video')).toBeNull();
+    expect(screen.queryByTestId('home-hero-rail-video-generation')).toBeNull();
     const node = screen.getByTestId('home-hero-active-type-chip');
-    expect(node.getAttribute('data-chip-id')).toBe('video');
-    expect(node.textContent).toContain('Ecommerce video');
+    expect(node.getAttribute('data-chip-id')).toBe('video-generation');
+    expect(node.textContent).toContain('视频生成');
   });
 
   it('lets the active creation chip be removed from the composer', () => {
-    const { onClearActiveChip } = renderHero({ activeChipId: 'video' });
+    const { onClearActiveChip } = renderHero({ activeChipId: 'video-generation' });
     fireEvent.click(screen.getByTestId('home-hero-active-type-chip'));
     expect(onClearActiveChip).toHaveBeenCalledTimes(1);
   });
@@ -157,7 +157,7 @@ describe('HomeHero intent rail', () => {
   it('uses the active creation chip as the only clear control for a chip-bound plugin', () => {
     const activePlugin = makePlugin('example-image-a', 'image', 'Product image');
     renderHero({
-      activeChipId: 'image',
+      activeChipId: 'asset-analysis',
       activePluginTitle: 'Product image',
       activePluginRecord: activePlugin,
       showActivePluginChip: true,
@@ -187,7 +187,7 @@ describe('HomeHero intent rail', () => {
 
   it('shows prompt examples below the composer for the selected tab', () => {
     const onPromptChange = vi.fn();
-    renderHero({ activeChipId: 'video', onPromptChange });
+    renderHero({ activeChipId: 'video-generation', onPromptChange });
 
     expect(screen.getByTestId('home-hero-prompt-examples')).toBeTruthy();
     const examples = screen.getAllByTestId('home-hero-prompt-example');
@@ -195,33 +195,23 @@ describe('HomeHero intent rail', () => {
 
     fireEvent.click(examples[0]!);
     expect(onPromptChange).toHaveBeenCalledWith(
-      'Create a 20-second vertical ecommerce video for a portable blender: 3-second hook, pain point, product demo, benefit proof, limited offer, and CTA',
+      'Generate a 20-second vertical selling video plan for a portable blender: 3-second hook, demo, proof, offer, CTA, model questions, and shot-level prompts.',
     );
     // The top "selected example" pill was removed from the composer; picking an
     // example still seeds the prompt but no longer surfaces a dismissible chip.
     expect(screen.queryByTestId('home-hero-active-example')).toBeNull();
   });
 
-  it('shows matching ecommerce plugin presets in the example prompt area for the selected tab', () => {
+  it('keeps workbench task tabs focused on prompt examples rather than plugin presets', () => {
     const videoPlugin = makePlugin('example-video-a', 'video', 'Product video', ['ecommerce']);
     const imagePlugin = makePlugin('example-image-a', 'image', 'Product image');
-    const { onPickExamplePlugin } = renderHero({
-      activeChipId: 'video',
+    renderHero({
+      activeChipId: 'video-generation',
       pluginOptions: [videoPlugin, imagePlugin],
     });
 
-    const presets = screen.getAllByTestId('home-hero-plugin-preset');
-    expect(presets).toHaveLength(1);
-    // The preset card is now a thumbnail + name only; the prompt blurb was
-    // dropped from the card face but is still passed through on click below.
-    expect(presets[0]?.textContent).toContain('Product video');
-
-    fireEvent.click(presets[0]!);
-    expect(onPickExamplePlugin).toHaveBeenCalledWith(
-      videoPlugin,
-      'video',
-      'Create with a focused brief using Product video',
-    );
+    expect(screen.queryByTestId('home-hero-plugin-preset')).toBeNull();
+    expect(screen.getAllByTestId('home-hero-prompt-example')).toHaveLength(2);
   });
 
   it('orders bundled ecommerce presets deterministically for the selected artifact type', () => {
@@ -286,12 +276,12 @@ describe('HomeHero intent rail', () => {
   });
 
   it('disables every visible chip while a plugin apply is in flight', () => {
-    renderHero({ pendingPluginId: 'od-media-generation', pendingChipId: 'video' });
+    renderHero({ pendingPluginId: 'od-new-generation', pendingChipId: 'video-generation' });
     for (const chip of HOME_HERO_CHIPS.filter((item) => item.group === 'create')) {
       const node = screen.getByTestId(`home-hero-rail-${chip.id}`);
       expect((node as HTMLButtonElement).disabled).toBe(true);
     }
-    expect(screen.getByTestId('home-hero-rail-video').className).toContain('is-pending');
+    expect(screen.getByTestId('home-hero-rail-video-generation').className).toContain('is-pending');
     const trigger = screen.getByTestId('home-hero-shortcuts-trigger') as HTMLButtonElement;
     expect(trigger.disabled).toBe(true);
     expect(trigger.className).not.toContain('is-pending');
@@ -324,25 +314,26 @@ describe('HomeHero intent rail', () => {
     expect(findChip('template')?.action).toMatchObject({ kind: 'open-template-picker' });
   });
 
-  it('media chips route to od-media-generation with the matching project kind', () => {
-    expect(findChip('image')?.action).toMatchObject({
+  it('workbench task chips carry seed prompts and route to the expected scenario', () => {
+    expect(findChip('video-crawler')?.action).toMatchObject({
       kind: 'apply-scenario',
-      pluginId: 'od-media-generation',
-      projectKind: 'image',
+      pluginId: 'od-new-generation',
+      projectKind: 'other',
     });
-    expect(findChip('video')?.action).toMatchObject({ pluginId: 'od-media-generation', projectKind: 'video' });
-    expect(findChip('audio')?.action).toMatchObject({ pluginId: 'od-media-generation', projectKind: 'audio' });
+    expect(findChip('asset-analysis')?.action).toMatchObject({ pluginId: 'od-new-generation', projectKind: 'other' });
+    expect(findChip('script-storyboard')?.action).toMatchObject({ pluginId: 'od-new-generation', projectKind: 'other' });
+    expect(findChip('video-generation')?.action).toMatchObject({ pluginId: 'od-new-generation', projectKind: 'video' });
+    expect(findChip('generation-diagnostics')?.action).toMatchObject({ pluginId: 'od-new-generation', projectKind: 'other' });
+    for (const id of ['video-crawler', 'asset-analysis', 'script-storyboard', 'video-generation', 'generation-diagnostics']) {
+      expect((findChip(id)?.action as { queryTemplate?: string }).queryTemplate?.length).toBeGreaterThan(20);
+    }
   });
 
-  it('specialised storyboard chip routes to its bundled scenario plugin', () => {
-    // HyperFrames is the motion-graphics specialisation of Video,
-    // surfaced as a separate chip so users can target it directly
-    // instead of routing through the generic Video chip.
-    expect(findChip('hyperframes')?.action).toMatchObject({
-      kind: 'apply-scenario',
-      pluginId: 'example-hyperframes',
-      projectKind: 'video',
-    });
+  it('removes legacy media-only chips from the visible workbench rail', () => {
+    expect(findChip('image')).toBeUndefined();
+    expect(findChip('video')).toBeUndefined();
+    expect(findChip('audio')).toBeUndefined();
+    expect(findChip('hyperframes')).toBeUndefined();
     expect(findChip('live-artifact')).toBeUndefined();
   });
 });

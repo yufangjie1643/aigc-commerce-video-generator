@@ -23,7 +23,6 @@ import {
   trackSettingsExecutionModeTabClick,
   trackSettingsMediaProvidersClick,
   trackSettingsNotificationsClick,
-  trackSettingsPrivacyClick,
   trackSettingsView
 } from "../analytics/events";
 import { LOCALE_LABEL, LOCALES, useI18n } from "../i18n";
@@ -43,9 +42,7 @@ import {
   isStoredMediaProviderEntryEmpty,
   isStoredMediaProviderEntryPresent,
   KNOWN_PROVIDERS,
-  hasAnyConfiguredProvider,
   mergeDaemonMediaProviders,
-  syncComposioConfigToDaemon,
   syncConfigToDaemon,
   syncMediaProvidersToDaemon
 } from "../state/config";
@@ -70,7 +67,6 @@ import type {
   AppVersionInfo,
   ConnectionTestResponse,
   DesignSystemGenerationJob,
-  OrbitRunSummary,
   OrbitStatusResponse,
   ExecMode,
   MediaProviderTestResponse,
@@ -98,6 +94,7 @@ import { Toast } from "./Toast";
 import { McpClientSection } from "./McpClientSection";
 import { SkillsSection } from "./SkillsSection";
 import { DesignSystemsSection } from "./DesignSystemsSection";
+import { AssetLibrarySettingsSection } from "./AssetLibrarySettingsSection";
 import { PrivacySection } from "./PrivacySection";
 import { ProjectLocationsSection } from "./ProjectLocationsSection";
 import { RoutinesSection } from "./RoutinesSection";
@@ -140,7 +137,9 @@ import {
 export type SettingsSection =
   | "execution"
   | "instructions"
+  | "assetLibrary"
   | "media"
+  | "understanding"
   | "composio"
   | "orbit"
   | "routines"
@@ -256,6 +255,7 @@ const SETTINGS_MEDIA_PROVIDER_IDS = new Set<MediaProviderId>([
   "leonardo",
   "tavily"
 ]);
+const UNDERSTANDING_API_PROVIDER_IDS: MediaProviderId[] = ["mimo", "volcengine"];
 
 type MediaWorkflowGroupId = "video" | "image" | "voice" | "sound" | "research";
 
@@ -2462,6 +2462,14 @@ export function SettingsDialog({
       subtitle: t("settings.instructionsSubtitle")
     },
     media: { title: t("settings.mediaProviders"), subtitle: t("settings.mediaProvidersHint") },
+    understanding: {
+      title: t("settings.understandingApi"),
+      subtitle: t("settings.understandingApiHint")
+    },
+    assetLibrary: {
+      title: "素材库",
+      subtitle: "本地视频处理工具路径、向量化模型和素材处理默认配置。"
+    },
     composio: { title: t("connectors.title"), subtitle: t("connectors.subtitle") },
     orbit: { title: t("settings.orbit.title"), subtitle: t("settings.orbit.lede") },
     routines: {
@@ -2790,6 +2798,28 @@ export function SettingsDialog({
               <span>
                 <strong>{t("settings.mediaProviders")}</strong>
                 <small>Image / video / audio</small>
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`settings-nav-item${activeSection === "understanding" ? " active" : ""}`}
+              onClick={() => setActiveSection("understanding")}
+            >
+              <Icon name="eye" size={18} />
+              <span>
+                <strong>{t("settings.understandingApi")}</strong>
+                <small>{t("settings.understandingApiNavSub")}</small>
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`settings-nav-item${activeSection === "assetLibrary" ? " active" : ""}`}
+              onClick={() => setActiveSection("assetLibrary")}
+            >
+              <Icon name="layers-filled" size={18} />
+              <span>
+                <strong>素材库</strong>
+                <small>ffmpeg / embeddings</small>
               </span>
             </button>
             <button
@@ -3951,6 +3981,22 @@ export function SettingsDialog({
                 }}
               />
             ) : null}
+            {activeSection === "understanding" ? (
+              <UnderstandingApiSection
+                cfg={cfg}
+                setCfg={setCfg}
+                onChange={(providerId) => {
+                  mediaProvidersChangeVersionRef.current += 1;
+                  setPendingMediaProviderEditIds((current) => {
+                    if (current.has(providerId)) return current;
+                    const next = new Set(current);
+                    next.add(providerId);
+                    return next;
+                  });
+                }}
+              />
+            ) : null}
+            {activeSection === "assetLibrary" ? <AssetLibrarySettingsSection /> : null}
             {activeSection === "integrations" ? <IntegrationsSection /> : null}
 
             {activeSection === "mcpClient" ? <McpClientSection /> : null}
@@ -5438,13 +5484,199 @@ function mediaProviderTestMessage(
   }
 }
 
+function UnderstandingApiSection({
+  cfg,
+  setCfg,
+  onChange
+}: {
+  cfg: AppConfig;
+  setCfg: Dispatch<SetStateAction<AppConfig>>;
+  onChange: (providerId: string) => void;
+}) {
+  const { t } = useI18n();
+  const [visibleApiKeys, setVisibleApiKeys] = useState<ReadonlySet<string>>(() => new Set());
+  const providers = UNDERSTANDING_API_PROVIDER_IDS.map((id) => MEDIA_PROVIDERS.find((item) => item.id === id)).filter(
+    (provider): provider is MediaProvider => Boolean(provider)
+  );
+  const defaultEntry: MediaProviderConfigEntry = {
+    apiKey: "",
+    baseUrl: "",
+    model: "",
+    imageUnderstandingModel: "",
+    audioUnderstandingModel: "",
+    videoUnderstandingModel: ""
+  };
+  const updateProvider = (
+    providerId: MediaProviderId,
+    patch: {
+      apiKey?: string;
+      baseUrl?: string;
+      imageUnderstandingModel?: string;
+      audioUnderstandingModel?: string;
+      videoUnderstandingModel?: string;
+      apiKeyConfigured?: boolean;
+      apiKeyTail?: string;
+    }
+  ) => {
+    onChange(providerId);
+    setCfg((curr) => {
+      const prev = curr.mediaProviders?.[providerId] ?? defaultEntry;
+      const next = { ...prev, ...patch };
+      const map = { ...(curr.mediaProviders ?? {}) };
+      if (isStoredMediaProviderEntryEmpty(next)) {
+        delete map[providerId];
+      } else {
+        map[providerId] = next;
+      }
+      return { ...curr, mediaProviders: map };
+    });
+  };
+  const toggleApiKeyVisible = (providerId: MediaProviderId) => {
+    setVisibleApiKeys((current) => {
+      const next = new Set(current);
+      if (next.has(providerId)) next.delete(providerId);
+      else next.add(providerId);
+      return next;
+    });
+  };
+
+  return (
+    <section className="settings-section settings-understanding-api">
+      <div className="settings-section-card">
+        <div className="section-head">
+          <div>
+            <h3>{t("settings.understandingApiProviderTitle")}</h3>
+            <p className="hint">{t("settings.understandingApiProviderHint")}</p>
+          </div>
+        </div>
+        <div className="understanding-provider-list">
+          {providers.map((provider) => {
+            const entry = cfg.mediaProviders?.[provider.id] ?? defaultEntry;
+            const hasPendingEdit = Boolean(entry.apiKey.trim());
+            const isSavedState = Boolean((hasPendingEdit || entry.apiKeyConfigured) && !hasPendingEdit);
+            const tail = entry.apiKeyTail?.trim();
+            const apiKeyVisible = visibleApiKeys.has(provider.id);
+            const capabilities = [
+              provider.supportsImageUnderstanding ? t("settings.understandingApiImageModel") : null,
+              provider.supportsAudioUnderstanding ? t("settings.understandingApiAudioModel") : null,
+              provider.supportsVideoUnderstanding ? t("settings.mediaProviderVideoUnderstandingModel") : null
+            ].filter((capability): capability is string => Boolean(capability));
+            return (
+              <div className="understanding-provider-card" key={provider.id}>
+                <div className="understanding-provider-head">
+                  <div>
+                    <h4>{provider.label}</h4>
+                    <p className="hint">{provider.hint}</p>
+                  </div>
+                  <div className="understanding-provider-capabilities" aria-label={provider.label}>
+                    {capabilities.map((capability) => (
+                      <span className="understanding-provider-badge" key={capability}>
+                        {capability}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="understanding-api-grid">
+                  <div className="field">
+                    <span className="field-label">{t("settings.mediaProviderApiKey")}</span>
+                    <div className="media-provider-secret-field">
+                      <input
+                        type={apiKeyVisible ? "text" : "password"}
+                        value={entry.apiKey}
+                        placeholder={
+                          isSavedState
+                            ? t("settings.connectorsReplaceKeyPlaceholder")
+                            : t("settings.mediaProviderPlaceholder")
+                        }
+                        aria-label={`${provider.label} ${t("settings.mediaProviderApiKey")}`}
+                        onChange={(e) => updateProvider(provider.id, { apiKey: e.target.value })}
+                      />
+                      <button
+                        type="button"
+                        className="secret-visibility-button"
+                        aria-label={
+                          apiKeyVisible
+                            ? `${provider.label} ${t("settings.hideKey")}`
+                            : `${provider.label} ${t("settings.showKey")}`
+                        }
+                        aria-pressed={apiKeyVisible}
+                        onClick={() => toggleApiKeyVisible(provider.id)}
+                      >
+                        <Icon name={apiKeyVisible ? "eye" : "eye-off"} size={15} />
+                      </button>
+                    </div>
+                    {isSavedState ? (
+                      <span className="hint">
+                        {tail ? t("settings.connectorsSavedWithTail", { tail }) : t("settings.connectorsSaved")}
+                      </span>
+                    ) : null}
+                  </div>
+                  <label className="field">
+                    <span className="field-label">{t("settings.mediaProviderBaseUrl")}</span>
+                    <input
+                      value={entry.baseUrl}
+                      placeholder={provider.defaultBaseUrl || t("settings.mediaProviderBaseUrlPlaceholder")}
+                      aria-label={`${provider.label} ${t("settings.mediaProviderBaseUrl")}`}
+                      onChange={(e) => updateProvider(provider.id, { baseUrl: e.target.value })}
+                    />
+                  </label>
+                  {provider.supportsImageUnderstanding ? (
+                    <label className="field understanding-api-endpoint">
+                      <span className="field-label">{t("settings.understandingApiImageModel")}</span>
+                      <input
+                        value={entry.imageUnderstandingModel ?? ""}
+                        placeholder={t("settings.understandingApiImageModelPlaceholder", {
+                          defaultModel: provider.defaultImageUnderstandingModel || "mimo-v2.5"
+                        })}
+                        aria-label={`${provider.label} ${t("settings.understandingApiImageModel")}`}
+                        onChange={(e) => updateProvider(provider.id, { imageUnderstandingModel: e.target.value })}
+                      />
+                      <span className="hint">{t("settings.understandingApiImageModelHint")}</span>
+                    </label>
+                  ) : null}
+                  {provider.supportsAudioUnderstanding ? (
+                    <label className="field understanding-api-endpoint">
+                      <span className="field-label">{t("settings.understandingApiAudioModel")}</span>
+                      <input
+                        value={entry.audioUnderstandingModel ?? ""}
+                        placeholder={t("settings.understandingApiAudioModelPlaceholder", {
+                          defaultModel: provider.defaultAudioUnderstandingModel || "mimo-v2.5"
+                        })}
+                        aria-label={`${provider.label} ${t("settings.understandingApiAudioModel")}`}
+                        onChange={(e) => updateProvider(provider.id, { audioUnderstandingModel: e.target.value })}
+                      />
+                      <span className="hint">{t("settings.understandingApiAudioModelHint")}</span>
+                    </label>
+                  ) : null}
+                  {provider.supportsVideoUnderstanding ? (
+                    <label className="field understanding-api-endpoint">
+                      <span className="field-label">{t("settings.mediaProviderVideoUnderstandingModel")}</span>
+                      <input
+                        value={entry.videoUnderstandingModel ?? ""}
+                        placeholder={t("settings.mediaProviderVideoUnderstandingModelPlaceholder", {
+                          defaultModel: provider.defaultVideoUnderstandingModel || "mimo-v2.5"
+                        })}
+                        aria-label={`${provider.label} ${t("settings.mediaProviderVideoUnderstandingModel")}`}
+                        onChange={(e) => updateProvider(provider.id, { videoUnderstandingModel: e.target.value })}
+                      />
+                      <span className="hint">{t("settings.mediaProviderVideoUnderstandingHint")}</span>
+                    </label>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function MediaProvidersSection({
   cfg,
   setCfg,
   mediaProvidersNotice,
   onReloadMediaProviders,
-  providerModelsCache: sharedProviderModelsCache,
-  onProviderModelsCacheChange,
   pendingLocalProviderIds,
   onChange
 }: {
@@ -5452,8 +5684,6 @@ function MediaProvidersSection({
   setCfg: Dispatch<SetStateAction<AppConfig>>;
   mediaProvidersNotice?: string | null;
   onReloadMediaProviders?: () => Promise<AppConfig["mediaProviders"] | null>;
-  providerModelsCache?: Record<string, ProviderModelOption[]>;
-  onProviderModelsCacheChange?: Dispatch<SetStateAction<Record<string, ProviderModelOption[]>>>;
   pendingLocalProviderIds: ReadonlySet<string>;
   onChange: (providerId: string) => void;
 }) {
@@ -5516,6 +5746,8 @@ function MediaProvidersSection({
       apiKey?: string;
       baseUrl?: string;
       model?: string;
+      imageUnderstandingModel?: string;
+      videoUnderstandingModel?: string;
       apiKeyConfigured?: boolean;
       apiKeyTail?: string;
     }
@@ -5528,7 +5760,13 @@ function MediaProvidersSection({
       return next;
     });
     setCfg((curr) => {
-      const prev = curr.mediaProviders?.[provider.id] ?? { apiKey: "", baseUrl: "", model: "" };
+      const prev = curr.mediaProviders?.[provider.id] ?? {
+        apiKey: "",
+        baseUrl: "",
+        model: "",
+        imageUnderstandingModel: "",
+        videoUnderstandingModel: ""
+      };
       const next = { ...prev, ...patch };
       const map = { ...(curr.mediaProviders ?? {}) };
       if (isStoredMediaProviderEntryEmpty(next)) {
@@ -5891,6 +6129,8 @@ function MediaProvidersSection({
                         apiKey: "",
                         baseUrl: "",
                         model: "",
+                        imageUnderstandingModel: "",
+                        videoUnderstandingModel: "",
                         apiKeyConfigured: false,
                         apiKeyTail: ""
                       });

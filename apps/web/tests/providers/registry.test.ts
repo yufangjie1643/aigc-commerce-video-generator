@@ -3,6 +3,7 @@ import { installMockOpenDesignHost } from '@open-design/host/testing';
 
 import {
   cancelConnectorAuthorization,
+  captureConnectorAuthorization,
   CLOUDFLARE_PAGES_PROVIDER_ID,
   connectConnector,
   DEFAULT_DEPLOY_PROVIDER_ID,
@@ -57,10 +58,9 @@ describe('fetchAgentsStream', () => {
     };
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => agentStreamResponse(
-        `event: agent\ndata: ${JSON.stringify(agent)}\n\n` +
-          'event: done\ndata: {}\n\n',
-      )),
+      vi.fn(async () =>
+        agentStreamResponse(`event: agent\ndata: ${JSON.stringify(agent)}\n\n` + 'event: done\ndata: {}\n\n'),
+      ),
     );
     const onAgent = vi.fn();
 
@@ -71,13 +71,10 @@ describe('fetchAgentsStream', () => {
   it('throws when the stream emits an error event', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => agentStreamResponse(
-        'event: error\ndata: {"error":"agent probe failed"}\n\n',
-      )),
+      vi.fn(async () => agentStreamResponse('event: error\ndata: {"error":"agent probe failed"}\n\n')),
     );
 
-    await expect(fetchAgentsStream({ onAgent: vi.fn() }))
-      .rejects.toThrow('agent probe failed');
+    await expect(fetchAgentsStream({ onAgent: vi.fn() })).rejects.toThrow('agent probe failed');
   });
 
   it('throws when the stream closes before the terminal done event', async () => {
@@ -89,13 +86,10 @@ describe('fetchAgentsStream', () => {
     };
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => agentStreamResponse(
-        `event: agent\ndata: ${JSON.stringify(agent)}\n\n`,
-      )),
+      vi.fn(async () => agentStreamResponse(`event: agent\ndata: ${JSON.stringify(agent)}\n\n`)),
     );
 
-    await expect(fetchAgentsStream({ onAgent: vi.fn() }))
-      .rejects.toThrow('agents stream ended before done');
+    await expect(fetchAgentsStream({ onAgent: vi.fn() })).rejects.toThrow('agents stream ended before done');
   });
 });
 
@@ -108,9 +102,15 @@ describe('fetchAppVersionInfo', () => {
   it('returns version info from the daemon response', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify({
-        version: { version: '1.2.3', channel: 'beta', packaged: true, platform: 'darwin', arch: 'arm64' },
-      }), { status: 200 })),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              version: { version: '1.2.3', channel: 'beta', packaged: true, platform: 'darwin', arch: 'arm64' },
+            }),
+            { status: 200 },
+          ),
+      ),
     );
 
     await expect(fetchAppVersionInfo()).resolves.toEqual({
@@ -141,9 +141,15 @@ describe('writeProjectTextFileDetailed', () => {
   it('surfaces daemon save errors instead of collapsing them to null', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify({
-        error: { code: 'ARTIFACT_REGRESSION', message: 'new artifact is smaller than the prior version' },
-      }), { status: 422, headers: { 'Content-Type': 'application/json' } })),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              error: { code: 'ARTIFACT_REGRESSION', message: 'new artifact is smaller than the prior version' },
+            }),
+            { status: 422, headers: { 'Content-Type': 'application/json' } },
+          ),
+      ),
     );
 
     await expect(writeProjectTextFileDetailed('project-1', 'preview.html', '<html></html>')).resolves.toEqual({
@@ -177,9 +183,10 @@ describe('fetchSkillExample', () => {
       unavailable: true,
       kind: 'image',
     });
-    await expect(
-      fetchSkillExample('dcf-valuation', 'markdown'),
-    ).resolves.toEqual({ unavailable: true, kind: 'markdown' });
+    await expect(fetchSkillExample('dcf-valuation', 'markdown')).resolves.toEqual({
+      unavailable: true,
+      kind: 'markdown',
+    });
 
     // The doomed-call is the bug we're fixing — assert no network call
     // was made for either non-html dispatch.
@@ -187,9 +194,7 @@ describe('fetchSkillExample', () => {
   });
 
   it('falls back to html fetch when previewType is omitted (legacy callers)', async () => {
-    const fetchMock = vi.fn(
-      async () => new Response('<html><body>ok</body></html>', { status: 200 }),
-    );
+    const fetchMock = vi.fn(async () => new Response('<html><body>ok</body></html>', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(fetchSkillExample('blog-post')).resolves.toEqual({
@@ -199,9 +204,7 @@ describe('fetchSkillExample', () => {
   });
 
   it('treats missing html previews as unavailable instead of an error', async () => {
-    const fetchMock = vi.fn(
-      async () => new Response('not found', { status: 404 }),
-    );
+    const fetchMock = vi.fn(async () => new Response('not found', { status: 404 }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(fetchSkillExample('design-brief', 'html')).resolves.toEqual({
@@ -214,9 +217,7 @@ describe('fetchSkillExample', () => {
   });
 
   it('forwards real html preview fetch failures as discriminated errors', async () => {
-    const fetchMock = vi.fn(
-      async () => new Response('server error', { status: 500 }),
-    );
+    const fetchMock = vi.fn(async () => new Response('server error', { status: 500 }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(fetchSkillExample('design-brief', 'html')).resolves.toEqual({
@@ -242,40 +243,27 @@ describe('fetchPluginPreviewHtml', () => {
   });
 
   it('treats missing previews as unavailable instead of an error', async () => {
-    const fetchMock = vi.fn(
-      async () => new Response('preview not found', { status: 404 }),
-    );
+    const fetchMock = vi.fn(async () => new Response('preview not found', { status: 404 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(
-      fetchPluginPreviewHtml('example-live-artifact'),
-    ).resolves.toEqual({ unavailable: true, kind: 'html' });
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/plugins/example-live-artifact/preview',
-    );
+    await expect(fetchPluginPreviewHtml('example-live-artifact')).resolves.toEqual({ unavailable: true, kind: 'html' });
+    expect(fetchMock).toHaveBeenCalledWith('/api/plugins/example-live-artifact/preview');
   });
 
   it('forwards real preview fetch failures as discriminated errors', async () => {
-    const fetchMock = vi.fn(
-      async () => new Response('server error', { status: 500 }),
-    );
+    const fetchMock = vi.fn(async () => new Response('server error', { status: 500 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(
-      fetchPluginPreviewHtml('example-live-artifact'),
-    ).resolves.toEqual({ error: 'HTTP 500' });
+    await expect(fetchPluginPreviewHtml('example-live-artifact')).resolves.toEqual({ error: 'HTTP 500' });
   });
 
   it('returns html on success', async () => {
-    const fetchMock = vi.fn(
-      async () =>
-        new Response('<html><body>preview</body></html>', { status: 200 }),
-    );
+    const fetchMock = vi.fn(async () => new Response('<html><body>preview</body></html>', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(
-      fetchPluginPreviewHtml('example-live-artifact'),
-    ).resolves.toEqual({ html: '<html><body>preview</body></html>' });
+    await expect(fetchPluginPreviewHtml('example-live-artifact')).resolves.toEqual({
+      html: '<html><body>preview</body></html>',
+    });
   });
 });
 
@@ -286,28 +274,21 @@ describe('fetchPluginExampleHtml', () => {
   });
 
   it('treats missing example stems as unavailable instead of an error', async () => {
-    const fetchMock = vi.fn(
-      async () => new Response('example not found', { status: 404 }),
-    );
+    const fetchMock = vi.fn(async () => new Response('example not found', { status: 404 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(
-      fetchPluginExampleHtml('example-live-artifact', 'index'),
-    ).resolves.toEqual({ unavailable: true, kind: 'html' });
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/plugins/example-live-artifact/example/index',
-    );
+    await expect(fetchPluginExampleHtml('example-live-artifact', 'index')).resolves.toEqual({
+      unavailable: true,
+      kind: 'html',
+    });
+    expect(fetchMock).toHaveBeenCalledWith('/api/plugins/example-live-artifact/example/index');
   });
 
   it('forwards real example fetch failures as discriminated errors', async () => {
-    const fetchMock = vi.fn(
-      async () => new Response('server error', { status: 500 }),
-    );
+    const fetchMock = vi.fn(async () => new Response('server error', { status: 500 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(
-      fetchPluginExampleHtml('example-live-artifact', 'index'),
-    ).resolves.toEqual({ error: 'HTTP 500' });
+    await expect(fetchPluginExampleHtml('example-live-artifact', 'index')).resolves.toEqual({ error: 'HTTP 500' });
   });
 });
 
@@ -328,15 +309,17 @@ describe('fetchProjectFileText', () => {
       }),
     ).resolves.toBe('<svg />');
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/projects/project-1/raw/diagram.svg?cacheBust=1710000000-2',
-      { cache: 'no-store' },
-    );
+    expect(fetchMock).toHaveBeenCalledWith('/api/projects/project-1/raw/diagram.svg?cacheBust=1710000000-2', {
+      cache: 'no-store',
+    });
   });
 
   it('logs HTTP failure context before returning null', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('missing', { status: 404, statusText: 'Not Found' })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('missing', { status: 404, statusText: 'Not Found' })),
+    );
 
     await expect(fetchProjectFileText('project-1', 'missing.svg')).resolves.toBeNull();
 
@@ -355,9 +338,12 @@ describe('fetchProjectFileText', () => {
   it('logs thrown fetch errors before returning null', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const error = new Error('network down');
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      throw error;
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw error;
+      }),
+    );
 
     await expect(fetchProjectFileText('project-1', 'diagram.svg')).resolves.toBeNull();
 
@@ -384,12 +370,14 @@ describe('fetchProjectDesignSystemPackageAudit', () => {
       ok: false,
       projectPath: '/tmp/project',
       filesInspected: 4,
-      errors: [{
-        severity: 'error',
-        code: 'ui_kit_index_missing_runtime_bootstrap',
-        message: 'UI kit must mount.',
-        path: 'ui_kits/app/index.html',
-      }],
+      errors: [
+        {
+          severity: 'error',
+          code: 'ui_kit_index_missing_runtime_bootstrap',
+          message: 'UI kit must mount.',
+          path: 'ui_kits/app/index.html',
+        },
+      ],
       warnings: [],
     };
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ audit }), { status: 200 }));
@@ -397,14 +385,16 @@ describe('fetchProjectDesignSystemPackageAudit', () => {
 
     await expect(fetchProjectDesignSystemPackageAudit('ds acme')).resolves.toEqual(audit);
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/projects/ds%20acme/design-system-package-audit',
-      { cache: 'no-store' },
-    );
+    expect(fetchMock).toHaveBeenCalledWith('/api/projects/ds%20acme/design-system-package-audit', {
+      cache: 'no-store',
+    });
   });
 
   it('returns null when the audit endpoint is unavailable', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('missing', { status: 404 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('missing', { status: 404 })),
+    );
 
     await expect(fetchProjectDesignSystemPackageAudit('missing')).resolves.toBeNull();
   });
@@ -417,18 +407,24 @@ describe('fetchConnectorDiscovery', () => {
   });
 
   it('filters connector discovery to GitHub and video connectors', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      connectors: [
-        { id: 'airtable', name: 'Airtable' },
-        { id: 'github', name: 'GitHub' },
-        { id: 'youtube', name: 'YouTube' },
-        { id: 'tiktok', name: 'Tiktok' },
-        { id: 'douyin', name: 'Douyin' },
-        { id: 'bilibili', name: 'Bilibili' },
-        { id: 'notion', name: 'Notion' },
-        { id: 'twitter', name: 'Twitter' },
-      ],
-    }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            connectors: [
+              { id: 'airtable', name: 'Airtable' },
+              { id: 'github', name: 'GitHub' },
+              { id: 'youtube', name: 'YouTube' },
+              { id: 'tiktok', name: 'Tiktok' },
+              { id: 'douyin', name: 'Douyin' },
+              { id: 'bilibili', name: 'Bilibili' },
+              { id: 'notion', name: 'Notion' },
+              { id: 'twitter', name: 'Twitter' },
+            ],
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(fetchConnectorDiscovery({ refresh: true })).resolves.toEqual([
@@ -441,12 +437,18 @@ describe('fetchConnectorDiscovery', () => {
   });
 
   it('caches connector discovery after a successful fetch', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      connectors: [
-        { id: 'github', name: 'GitHub', tools: [{ name: 'issues' }] },
-        { id: 'canvas', name: 'Canvas', toolCount: 574 },
-      ],
-    }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            connectors: [
+              { id: 'github', name: 'GitHub', tools: [{ name: 'issues' }] },
+              { id: 'canvas', name: 'Canvas', toolCount: 574 },
+            ],
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(fetchConnectorDiscovery({ refresh: true })).resolves.toEqual([
@@ -468,15 +470,21 @@ describe('fetchConnectors', () => {
   });
 
   it('filters the fast connector catalog to GitHub and video connectors', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      connectors: [
-        { id: 'canvas', name: 'Canvas' },
-        { id: 'github', name: 'GitHub' },
-        { id: 'youtube', name: 'YouTube' },
-        { id: 'bilibili', name: 'Bilibili' },
-        { id: 'notion', name: 'Notion' },
-      ],
-    }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            connectors: [
+              { id: 'canvas', name: 'Canvas' },
+              { id: 'github', name: 'GitHub' },
+              { id: 'youtube', name: 'YouTube' },
+              { id: 'bilibili', name: 'Bilibili' },
+              { id: 'notion', name: 'Notion' },
+            ],
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(fetchConnectors()).resolves.toEqual([
@@ -494,14 +502,20 @@ describe('fetchConnectorStatuses', () => {
   });
 
   it('filters statuses for hidden connectors', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      statuses: {
-        github: { status: 'connected', accountLabel: 'octocat@example.com' },
-        notion: { status: 'connected', accountLabel: 'docs@example.com' },
-        youtube: { status: 'available' },
-        twitter: { status: 'connected' },
-      },
-    }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            statuses: {
+              github: { status: 'connected', accountLabel: 'octocat@example.com' },
+              notion: { status: 'connected', accountLabel: 'docs@example.com' },
+              youtube: { status: 'available' },
+              twitter: { status: 'connected' },
+            },
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(fetchConnectorStatuses()).resolves.toEqual({
@@ -518,40 +532,52 @@ describe('fetchConnectorDetail', () => {
   });
 
   it('requests paginated hydrated tool previews for one connector', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      connector: {
-        id: 'youtube',
-        name: 'YouTube',
-        tools: [{ name: 'youtube.search_videos' }],
-        toolCount: 57,
-        toolsNextCursor: 'cursor_2',
-        toolsHasMore: true,
-      },
-    }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            connector: {
+              id: 'youtube',
+              name: 'YouTube',
+              tools: [{ name: 'youtube.search_videos' }],
+              toolCount: 57,
+              toolsNextCursor: 'cursor_2',
+              toolsHasMore: true,
+            },
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(fetchConnectorDetail('youtube', {
-      hydrateTools: true,
-      toolsLimit: 50,
-      toolsCursor: 'cursor_1',
-    })).resolves.toMatchObject({
+    await expect(
+      fetchConnectorDetail('youtube', {
+        hydrateTools: true,
+        toolsLimit: 50,
+        toolsCursor: 'cursor_1',
+      }),
+    ).resolves.toMatchObject({
       id: 'youtube',
       toolCount: 57,
       toolsNextCursor: 'cursor_2',
       tools: [{ name: 'youtube.search_videos' }],
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/connectors/youtube?hydrateTools=true&toolsLimit=50&toolsCursor=cursor_1');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/connectors/youtube?hydrateTools=true&toolsLimit=50&toolsCursor=cursor_1',
+    );
   });
 
   it('does not request detail for hidden connectors', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(fetchConnectorDetail('canvas', {
-      hydrateTools: true,
-      toolsLimit: 50,
-    })).resolves.toBeNull();
+    await expect(
+      fetchConnectorDetail('canvas', {
+        hydrateTools: true,
+        toolsLimit: 50,
+      }),
+    ).resolves.toBeNull();
 
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -580,19 +606,25 @@ describe('connectConnector', () => {
     });
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/connectors/auth-configs/prepare') {
-        return new Response(JSON.stringify({
-          results: {
-            airtable: { status: 'ready', authConfigId: 'ac_airtable' },
-          },
-        }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            results: {
+              airtable: { status: 'ready', authConfigId: 'ac_airtable' },
+            },
+          }),
+          { status: 200 },
+        );
       }
-      return new Response(JSON.stringify({
-        connector: { id: 'airtable', name: 'Airtable' },
-        auth: {
-          kind: 'redirect_required',
-          redirectUrl: 'https://connect.composio.dev/link/lk_test?a=1&b=2',
-        },
-      }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          connector: { id: 'airtable', name: 'Airtable' },
+          auth: {
+            kind: 'redirect_required',
+            redirectUrl: 'https://connect.composio.dev/link/lk_test?a=1&b=2',
+          },
+        }),
+        { status: 200 },
+      );
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -631,19 +663,27 @@ describe('connectConnector', () => {
     });
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify({
-        results: {
-          canvas: {
-            status: 'custom_required',
-            message: 'Canvas requires a custom Composio auth config. Create or enable a Canvas auth config in Composio with your own OAuth credentials, then retry this connection.',
-          },
-        },
-      }), { status: 200 })),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              results: {
+                canvas: {
+                  status: 'custom_required',
+                  message:
+                    'Canvas requires a custom Composio auth config. Create or enable a Canvas auth config in Composio with your own OAuth credentials, then retry this connection.',
+                },
+              },
+            }),
+            { status: 200 },
+          ),
+      ),
     );
 
     await expect(connectConnector('canvas')).resolves.toEqual({
       connector: null,
-      error: 'Canvas requires a custom Composio auth config. Create or enable a Canvas auth config in Composio with your own OAuth credentials, then retry this connection.',
+      error:
+        'Canvas requires a custom Composio auth config. Create or enable a Canvas auth config in Composio with your own OAuth credentials, then retry this connection.',
     });
 
     expect(authWindow.close).not.toHaveBeenCalled();
@@ -661,19 +701,25 @@ describe('connectConnector', () => {
     } as unknown as Window & typeof globalThis);
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/connectors/auth-configs/prepare') {
-        return new Response(JSON.stringify({
-          results: {
-            github: { status: 'ready', authConfigId: 'ac_github' },
-          },
-        }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            results: {
+              github: { status: 'ready', authConfigId: 'ac_github' },
+            },
+          }),
+          { status: 200 },
+        );
       }
       if (url === '/api/system/open-external') {
         return new Response(JSON.stringify({ ok: true }), { status: 200 });
       }
-      return new Response(JSON.stringify({
-        connector: { id: 'github', name: 'GitHub', status: 'available', tools: [] },
-        auth: { kind: 'redirect_required', redirectUrl: 'https://example.com/oauth' },
-      }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          connector: { id: 'github', name: 'GitHub', status: 'available', tools: [] },
+          auth: { kind: 'redirect_required', redirectUrl: 'https://example.com/oauth' },
+        }),
+        { status: 200 },
+      );
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -709,14 +755,20 @@ describe('connectConnector', () => {
     });
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/connectors/auth-configs/prepare') {
-        return new Response(JSON.stringify({
-          results: { twitter: { status: 'ready', authConfigId: 'ac_twitter' } },
-        }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            results: { twitter: { status: 'ready', authConfigId: 'ac_twitter' } },
+          }),
+          { status: 200 },
+        );
       }
-      return new Response(JSON.stringify({
-        connector: { id: 'twitter', name: 'Twitter', status: 'available', tools: [] },
-        auth: { kind: 'pending', expiresAt: '2026-05-08T10:00:00.000Z' },
-      }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          connector: { id: 'twitter', name: 'Twitter', status: 'available', tools: [] },
+          auth: { kind: 'pending', expiresAt: '2026-05-08T10:00:00.000Z' },
+        }),
+        { status: 200 },
+      );
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -730,6 +782,42 @@ describe('connectConnector', () => {
     expect(authWindow.document.body.innerHTML).toContain('Authorization pending');
   });
 
+  it('starts video crawler controlled-browser login without opening an OAuth popup', async () => {
+    const open = vi.fn();
+    vi.stubGlobal('window', {
+      open,
+      location: { assign: vi.fn() },
+    });
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            connector: { id: 'bilibili', name: 'Bilibili', status: 'available', tools: [] },
+            auth: {
+              kind: 'pending',
+              providerConnectionId: 'browser_bilibili_test',
+              expiresAt: '2099-05-08T10:00:00.000Z',
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(connectConnector('bilibili')).resolves.toEqual({
+      connector: { id: 'bilibili', name: 'Bilibili', status: 'available', tools: [] },
+      auth: {
+        kind: 'pending',
+        providerConnectionId: 'browser_bilibili_test',
+        expiresAt: '2099-05-08T10:00:00.000Z',
+      },
+    });
+
+    expect(open).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('/api/connectors/bilibili/connect', { method: 'POST' });
+  });
+
   it('opens connector auth in the system browser when the host bridge succeeds', async () => {
     const open = vi.fn();
     const openExternal = vi.fn(async () => ({ ok: true as const }));
@@ -741,16 +829,22 @@ describe('connectConnector', () => {
     });
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/connectors/auth-configs/prepare') {
-        return new Response(JSON.stringify({
-          results: {
-            github: { status: 'ready', authConfigId: 'ac_github' },
-          },
-        }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            results: {
+              github: { status: 'ready', authConfigId: 'ac_github' },
+            },
+          }),
+          { status: 200 },
+        );
       }
-      return new Response(JSON.stringify({
-        connector: { id: 'github', name: 'GitHub', status: 'available', tools: [] },
-        auth: { kind: 'redirect_required', redirectUrl: 'https://example.com/oauth' },
-      }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          connector: { id: 'github', name: 'GitHub', status: 'available', tools: [] },
+          auth: { kind: 'redirect_required', redirectUrl: 'https://example.com/oauth' },
+        }),
+        { status: 200 },
+      );
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -777,16 +871,22 @@ describe('connectConnector', () => {
     });
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/connectors/auth-configs/prepare') {
-        return new Response(JSON.stringify({
-          results: {
-            github: { status: 'ready', authConfigId: 'ac_github' },
-          },
-        }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            results: {
+              github: { status: 'ready', authConfigId: 'ac_github' },
+            },
+          }),
+          { status: 200 },
+        );
       }
-      return new Response(JSON.stringify({
-        connector: { id: 'github', name: 'GitHub', status: 'available', tools: [] },
-        auth: { kind: 'redirect_required', redirectUrl: 'https://example.com/oauth' },
-      }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          connector: { id: 'github', name: 'GitHub', status: 'available', tools: [] },
+          auth: { kind: 'redirect_required', redirectUrl: 'https://example.com/oauth' },
+        }),
+        { status: 200 },
+      );
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -814,9 +914,15 @@ describe('cancelConnectorAuthorization', () => {
   });
 
   it('invalidates pending connector authorization on the daemon', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      connector: { id: 'github', name: 'GitHub', status: 'available', tools: [] },
-    }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            connector: { id: 'github', name: 'GitHub', status: 'available', tools: [] },
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(cancelConnectorAuthorization('github')).resolves.toEqual({
@@ -826,6 +932,43 @@ describe('cancelConnectorAuthorization', () => {
       tools: [],
     });
     expect(fetchMock).toHaveBeenCalledWith('/api/connectors/github/authorization/cancel', {
+      method: 'POST',
+    });
+  });
+});
+
+describe('captureConnectorAuthorization', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('captures pending cookie authorization on the daemon', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            connector: {
+              id: 'bilibili',
+              name: 'Bilibili',
+              status: 'connected',
+              accountLabel: 'Bilibili browser session',
+              tools: [],
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(captureConnectorAuthorization('bilibili')).resolves.toEqual({
+      id: 'bilibili',
+      name: 'Bilibili',
+      status: 'connected',
+      accountLabel: 'Bilibili browser session',
+      tools: [],
+    });
+    expect(fetchMock).toHaveBeenCalledWith('/api/connectors/bilibili/authorization/capture', {
       method: 'POST',
     });
   });
@@ -848,16 +991,22 @@ describe('uploadProjectFiles', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify({
-        files: [
-          {
-            name: 'mxk7-test.pdf',
-            path: 'mxk7-test.pdf',
-            size: 5,
-            originalName: decomposed,
-          },
-        ],
-      }), { status: 200 })),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              files: [
+                {
+                  name: 'mxk7-test.pdf',
+                  path: 'mxk7-test.pdf',
+                  size: 5,
+                  originalName: decomposed,
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
+      ),
     );
 
     const result = await uploadProjectFiles('project-1', [file]);
@@ -878,12 +1027,18 @@ describe('uploadProjectFiles', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify({
-        files: [
-          { name: 't1-a.txt', path: 't1-a.txt', size: 1, originalName: 'a.txt' },
-          { name: 't2-b.txt', path: 't2-b.txt', size: 1, originalName: 'b.txt' },
-        ],
-      }), { status: 200 })),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              files: [
+                { name: 't1-a.txt', path: 't1-a.txt', size: 1, originalName: 'a.txt' },
+                { name: 't2-b.txt', path: 't2-b.txt', size: 1, originalName: 'b.txt' },
+              ],
+            }),
+            { status: 200 },
+          ),
+      ),
     );
 
     const result = await uploadProjectFiles('project-1', [a, b, c]);
@@ -908,16 +1063,22 @@ describe('deploy provider registry helpers', () => {
   });
 
   it('fetches provider-specific deploy config via query string', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      providerId: CLOUDFLARE_PAGES_PROVIDER_ID,
-      configured: true,
-      tokenMask: 'saved-cloudflare-token',
-      teamId: '',
-      teamSlug: '',
-      accountId: 'account-123',
-      projectName: '',
-      target: 'preview',
-    }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            providerId: CLOUDFLARE_PAGES_PROVIDER_ID,
+            configured: true,
+            tokenMask: 'saved-cloudflare-token',
+            teamId: '',
+            teamSlug: '',
+            accountId: 'account-123',
+            projectName: '',
+            target: 'preview',
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(fetchDeployConfig(CLOUDFLARE_PAGES_PROVIDER_ID)).resolves.toMatchObject({
@@ -931,10 +1092,16 @@ describe('deploy provider registry helpers', () => {
   });
 
   it('fetches Cloudflare Pages zones from the deploy helper route', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      zones: [{ id: 'zone-1', name: 'example.com', status: 'active', type: 'full' }],
-      cloudflarePages: { lastZoneId: 'zone-1', lastDomainPrefix: 'demo' },
-    }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            zones: [{ id: 'zone-1', name: 'example.com', status: 'active', type: 'full' }],
+            cloudflarePages: { lastZoneId: 'zone-1', lastDomainPrefix: 'demo' },
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(fetchCloudflarePagesZones()).resolves.toEqual({
@@ -946,23 +1113,31 @@ describe('deploy provider registry helpers', () => {
   });
 
   it('sends Cloudflare Pages config fields without dropping provider-specific metadata', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      providerId: CLOUDFLARE_PAGES_PROVIDER_ID,
-      configured: true,
-      tokenMask: 'saved-cloudflare-token',
-      teamId: '',
-      teamSlug: '',
-      accountId: 'account-123',
-      projectName: '',
-      target: 'preview',
-    }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            providerId: CLOUDFLARE_PAGES_PROVIDER_ID,
+            configured: true,
+            tokenMask: 'saved-cloudflare-token',
+            teamId: '',
+            teamSlug: '',
+            accountId: 'account-123',
+            projectName: '',
+            target: 'preview',
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(updateDeployConfig({
-      providerId: CLOUDFLARE_PAGES_PROVIDER_ID,
-      token: 'cf-token',
-      accountId: 'account-123',
-    })).resolves.toMatchObject({
+    await expect(
+      updateDeployConfig({
+        providerId: CLOUDFLARE_PAGES_PROVIDER_ID,
+        token: 'cf-token',
+        accountId: 'account-123',
+      }),
+    ).resolves.toMatchObject({
       providerId: CLOUDFLARE_PAGES_PROVIDER_ID,
       accountId: 'account-123',
       projectName: '',
@@ -980,19 +1155,25 @@ describe('deploy provider registry helpers', () => {
   });
 
   it('passes the selected Cloudflare Pages provider id and custom domain through deploy requests', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      id: 'deployment-row-1',
-      projectId: 'project-1',
-      fileName: 'index.html',
-      providerId: CLOUDFLARE_PAGES_PROVIDER_ID,
-      url: 'https://open-design-preview.pages.dev',
-      deploymentId: 'cf-deployment-1',
-      deploymentCount: 1,
-      target: 'preview',
-      status: 'ready',
-      createdAt: 1,
-      updatedAt: 2,
-    }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: 'deployment-row-1',
+            projectId: 'project-1',
+            fileName: 'index.html',
+            providerId: CLOUDFLARE_PAGES_PROVIDER_ID,
+            url: 'https://open-design-preview.pages.dev',
+            deploymentId: 'cf-deployment-1',
+            deploymentCount: 1,
+            target: 'preview',
+            status: 'ready',
+            createdAt: 1,
+            updatedAt: 2,
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(

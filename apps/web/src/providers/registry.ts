@@ -923,15 +923,14 @@ export async function connectConnector(connectorId: string): Promise<ConnectorAc
   let authWindow: Window | null = null;
   const useExternalBrowser = isOpenDesignHostAvailable();
   const connectorKey = connectorId.trim().toLowerCase();
-  const requiresComposioAuthConfig = !COOKIE_CONNECTOR_IDS.has(connectorKey);
+  const isCookieConnector = COOKIE_CONNECTOR_IDS.has(connectorKey);
+  const requiresComposioAuthConfig = !isCookieConnector;
   try {
-    if (!useExternalBrowser) {
+    if (!useExternalBrowser && requiresComposioAuthConfig) {
       authWindow = window.open('about:blank', '_blank');
       renderConnectorAuthLoading(authWindow, {
-        title: requiresComposioAuthConfig ? 'Initializing auth config…' : 'Opening platform login…',
-        body: requiresComposioAuthConfig
-          ? 'Creating or reusing the Composio auth configuration for this app. This can take a moment the first time.'
-          : 'Open the platform, log in, and let the cookie crawler bridge capture the session for Open Design.',
+        title: 'Initializing auth config…',
+        body: 'Creating or reusing the Composio auth configuration for this app. This can take a moment the first time.',
       });
     }
     if (requiresComposioAuthConfig) {
@@ -946,8 +945,8 @@ export async function connectConnector(connectorId: string): Promise<ConnectorAc
       });
     } else {
       renderConnectorAuthLoading(authWindow, {
-        title: 'Opening platform login…',
-        body: 'After login, the crawler bridge should submit the captured cookie session back to Open Design.',
+        title: 'Opening controlled browser…',
+        body: 'Finish login in the browser opened by Open Design, then return here to capture the cookie session.',
       });
     }
     const resp = await fetch(`/api/connectors/${encodeURIComponent(connectorId)}/connect`, {
@@ -985,8 +984,10 @@ export async function connectConnector(connectorId: string): Promise<ConnectorAc
       });
     } else if (json.auth?.kind === 'pending') {
       renderConnectorAuthInfo(authWindow, {
-        title: 'Authorization pending',
-        body: 'Authorization is in progress but no redirect URL was returned. Watch for an email confirmation, or open the Composio dashboard to continue.',
+        title: isCookieConnector ? 'Controlled browser opened' : 'Authorization pending',
+        body: isCookieConnector
+          ? 'Finish login in the controlled browser, then return here and capture the cookie session.'
+          : 'Authorization is in progress but no redirect URL was returned. Watch for an email confirmation, or open the Composio dashboard to continue.',
       });
     } else {
       renderConnectorAuthInfo(authWindow, {
@@ -1005,6 +1006,17 @@ export async function connectConnector(connectorId: string): Promise<ConnectorAc
       error: err instanceof Error && err.message ? err.message : 'Could not start connector authentication.',
     };
   }
+}
+
+export async function captureConnectorAuthorization(connectorId: string): Promise<ConnectorDetail | null> {
+  const resp = await fetch(`/api/connectors/${encodeURIComponent(connectorId)}/authorization/capture`, {
+    method: 'POST',
+  });
+  if (!resp.ok) {
+    throw new Error(await decodeConnectorError(resp));
+  }
+  const json = (await resp.json()) as ConnectorDetailResponse;
+  return json.connector ?? null;
 }
 
 async function prepareConnectorAuthConfig(
@@ -1090,15 +1102,6 @@ function renderConnectorAuthRedirect(authWindow: Window, redirectUrl: string): v
     `;
   } catch {
     /* Popup may already be cross-origin; navigation fallback still runs. */
-  }
-}
-
-async function readConnectorApiErrorMessage(resp: Response): Promise<string> {
-  try {
-    const payload = (await resp.json()) as { error?: { message?: string }; message?: string };
-    return payload.error?.message ?? payload.message ?? `Connection failed (${resp.status})`;
-  } catch {
-    return `Connection failed (${resp.status})`;
   }
 }
 
