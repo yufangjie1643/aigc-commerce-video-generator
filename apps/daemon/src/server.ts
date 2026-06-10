@@ -423,6 +423,7 @@ import { registerDesignSystemToolRoutes } from "./routes/design-system-tool.js";
 import { registerDeployRoutes, registerDeploymentCheckRoutes } from "./routes/deploy.js";
 import { registerMediaRoutes } from "./media-routes.js";
 import { registerAssetLibraryRoutes } from "./routes/asset-library.js";
+import { registerCommerceVideoRoutes } from "./routes/commerce-video.js";
 import {
   registerProjectRoutes,
   registerProjectArtifactRoutes,
@@ -1750,6 +1751,7 @@ export function createAgentRuntimeToolPrompt(
     "- `OD_NODE_BIN` is the absolute path to the Node-compatible runtime that started the daemon; packaged desktop installs provide this even when the user has no system `node` on PATH.",
     '- `OD_BIN` is the absolute path to the Open Design CLI script. On POSIX shells run wrappers with `"$OD_NODE_BIN" "$OD_BIN" tools ...`; do not call bare `od`, which may resolve to the system octal-dump command on Unix-like systems.',
     '- On PowerShell use `& $env:OD_NODE_BIN $env:OD_BIN tools ...`; on cmd.exe use `"%OD_NODE_BIN%" "%OD_BIN%" tools ...`.',
+    '- For ecommerce/product selling videos, use `"$OD_NODE_BIN" "$OD_BIN" commerce-video ...` stage commands. Direct `media generate` bypasses the 商品素材上传 -> 剧本生成 -> 基础分镜 -> 一键成片 -> 任务进度 -> 预览导出 UI workflow.',
     tokenLine,
     "- Prefer project wrapper commands through `OD_NODE_BIN` + `OD_BIN` over raw HTTP. The wrappers read these environment values automatically."
   ].join("\n");
@@ -2718,6 +2720,7 @@ export function telemetryPromptFromRunRequest(message, currentPrompt) {
 
 const COMPREHENSIVE_VIDEO_STORYBOARD_SKILL_ID = "video-storyboard-analysis";
 const COMPREHENSIVE_VIDEO_PIPELINE_SKILL_ID = "video-generation-pipeline";
+const COMPREHENSIVE_PRODUCT_IMAGE_SKILL_ID = "product-image-asset-ingestion";
 
 const COMPREHENSIVE_VIDEO_DOMAIN_RE =
   /视频|短视频|带货|素材库|素材|分镜|镜头|脚本|配音|字幕|首帧|bilibili|哔哩|B站|抖音|小红书|快手|tiktok|youtube|video|storyboard|crawler|commerce/i;
@@ -2725,6 +2728,8 @@ const COMPREHENSIVE_VIDEO_ANALYSIS_RE =
   /解析|拆解|分析|方法论|分镜|镜头|切片|复盘|诊断|向量|嵌入|素材库分析|process|slice|slices|embed|embedding|ocr|storyboard|methodology|diagnostic/i;
 const COMPREHENSIVE_VIDEO_PIPELINE_RE =
   /生成视频|视频生成|生成带货|带货视频|短视频生成|创作|脚本|分镜|方法论|流水线|模板|复用|首帧|配音|字幕|pipeline|generate|generation|create|script|storyboard|methodology/i;
+const COMPREHENSIVE_PRODUCT_IMAGE_RE =
+  /商品图片|产品图片|本地图片|图片素材|商品素材库|产品素材库|图片.*素材库|素材库.*图片|服饰鞋包|jpg|jpeg|png|webp|gif|image folder|product image|product asset/i;
 
 function appendUniqueSkillId(target: string[], id: string) {
   if (!target.includes(id)) target.push(id);
@@ -2749,9 +2754,13 @@ export function inferComprehensiveSkillIds(
   const promptText = [input.currentPrompt, input.message]
     .filter((value) => typeof value === "string" && value.trim().length > 0)
     .join("\n");
-  if (!COMPREHENSIVE_VIDEO_DOMAIN_RE.test(promptText)) return [];
 
   const skillIds = [];
+  if (COMPREHENSIVE_PRODUCT_IMAGE_RE.test(promptText)) {
+    appendUniqueSkillId(skillIds, COMPREHENSIVE_PRODUCT_IMAGE_SKILL_ID);
+  }
+  if (!COMPREHENSIVE_VIDEO_DOMAIN_RE.test(promptText)) return skillIds;
+
   if (COMPREHENSIVE_VIDEO_ANALYSIS_RE.test(promptText)) {
     appendUniqueSkillId(skillIds, COMPREHENSIVE_VIDEO_STORYBOARD_SKILL_ID);
   }
@@ -2840,8 +2849,12 @@ function formAnswerTransitionForCurrentPrompt(currentPrompt) {
   return lines.join("\n");
 }
 
-export function composeChatUserRequestForAgent(message, currentPrompt, options: { skipTranscript?: boolean } = {}) {
-  // When the adapter resumes its own session (today: `agy -c`), the
+export function composeChatUserRequestForAgent(
+  message,
+  currentPrompt,
+  options: { skipTranscript?: boolean; sessionMode?: unknown } = {}
+) {
+  // When the adapter resumes its own session, the
   // daemon-rendered `## user` / `## assistant` transcript is a duplicate
   // of what the upstream CLI already has in memory — and the embedded
   // copy carries the literal `<question-form>` markup the agent emitted
@@ -2849,7 +2862,12 @@ export function composeChatUserRequestForAgent(message, currentPrompt, options: 
   // latest user turn (`currentPrompt`) in that case; the upstream
   // session memory provides the rest. See
   // `RuntimeAgentDef.resumesSessionViaCli`.
-  const skip = options.skipTranscript === true;
+  //
+  // Comprehensive workbench tasks are different: the agent must reason
+  // over auditable OD chat state such as prior classifications, collected
+  // asset ids, skipped files, and connector decisions. Keep that transcript
+  // explicit even when the underlying CLI can resume its own session.
+  const skip = options.skipTranscript === true && options.sessionMode !== "comprehensive";
   const bodySource = skip ? currentPrompt : message;
   const body = typeof bodySource === "string" && bodySource.trim() ? bodySource : "(No extra typed instruction.)";
   const transition = formAnswerTransitionForCurrentPrompt(currentPrompt);
@@ -5933,6 +5951,17 @@ export async function startServer({
     ids: idDeps,
     projectStore: projectStoreDeps,
     projectFiles: projectFileDeps
+  });
+
+  registerCommerceVideoRoutes(app, {
+    db,
+    http: httpDeps,
+    paths: pathDeps,
+    ids: idDeps,
+    auth: authDeps,
+    projectStore: projectStoreDeps,
+    projectFiles: projectFileDeps,
+    media: mediaDeps
   });
 
   registerMediaRoutes(app, {
@@ -10957,7 +10986,7 @@ export async function startServer({
       // existing session. A create turn still sends the full transcript so
       // a brand-new session (incl. first turn after another agent)
       // is seeded with prior context.
-      { skipTranscript: agentResumeCtx.isResuming }
+      { skipTranscript: agentResumeCtx.isResuming, sessionMode: runSessionMode }
     );
     // The stable instruction slice (daemon prompt + tool contract + system
     // prompt = design system / skills / memory) is identical across turns of

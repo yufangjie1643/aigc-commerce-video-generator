@@ -20,10 +20,11 @@ this scenario at project / run creation time.
 {
   "stages": [
     { "id": "discovery", "atoms": ["discovery-question-form"] },
-    { "id": "plan",      "atoms": ["todo-write"] },
-    { "id": "generate",  "atoms": ["media-image", "media-video", "media-audio", "live-artifact"] },
+    { "id": "plan", "atoms": ["todo-write"] },
+    { "id": "generate", "atoms": ["media-image", "media-video", "media-audio", "live-artifact"] },
     {
-      "id": "critique", "atoms": ["critique-theater"],
+      "id": "critique",
+      "atoms": ["critique-theater"],
       "repeat": true,
       "until": "critique.score>=4 || iterations>=3"
     }
@@ -41,40 +42,42 @@ run only calls one of them. Picking the right atom is the agent's job:
 If the user picks this plugin manually without a media-typed project,
 prefer `media-image` and explain the assumption in the first reply.
 
-## Ecommerce selling-video gate
+## Ecommerce selling-video staged workflow
 
 For video projects whose brief is ecommerce, product selling, 带货,
-product demo, product ad, offer/CTA, livestream clip, or marketplace short
-video, override the default "generate next" instinct with this gated
-production workflow:
+product demo, product ad, offer/CTA, livestream clip, marketplace short
+video, or any product image/link to finished-video request, route into the
+strict staged production chain:
 
-1. **Requirement Q&A first.** Start by asking/answering a compact question
-   set that refines the product, audience, platform, promise, selling points,
-   proof, offer/CTA, style, duration, aspect, and constraints. Do not write
-   the final storyboard or call media generation in this first step.
-2. **Load local references.** Read
-   `references/ecommerce-selling-video.md`, then present 3-5 usable
-   script/storyboard patterns for the user to choose from or combine.
-3. **Asset upload gate.** Ask the user to upload or confirm product photos,
-   product videos, logo/package/SKU/detail shots, proof assets, and reference
-   clips. Produce an `asset_manifest` with `provided`, `missing`, and
-   `not needed` entries. If the user explicitly chooses pure text-to-video,
-   record that choice instead of pretending assets exist.
-4. **Storyboard confirmation.** Draft the shot list only after the reference
-   direction and assets are clear. Each shot needs duration, visual goal,
-   camera/motion, caption, voiceover, required asset, generation mode, and QA
-   check. Ask for explicit approval before rendering.
-5. **Generation readiness gate.** Only after the Q&A, reference choice,
-   asset manifest, storyboard approval, and render settings are complete may
-   you call the local media API.
+`商品素材上传 -> 剧本生成 -> 基础分镜 -> 一键成片 -> 任务进度 -> 预览导出`
 
-Do not call
-`"$OD_NODE_BIN" "$OD_BIN" media generate --surface video ...`
-until the readiness gate is complete. If the selected model supports
-image-to-video and a suitable product/reference image exists, prefer that path
-and pass the image with `--image <project-relative-path>`. If the model is
-text-to-video only, keep uploaded images as prompt references rather than
-sending them as image inputs.
+Complete only the current stage, stop, and ask whether to enter the next stage.
+Do not treat the stage name 一键成片 as permission for full automation; it only
+creates the generation task. Waiting and export belong to later stages unless
+the user explicitly says 全自动一键成片, 无需确认, 一次性跑完整流程到导出, or similar.
+
+1. **商品素材上传.** Identify product source (image, link, brief, library
+   asset), audience, platform, promise, proof, offer/CTA, and constraints.
+   Read `references/ecommerce-selling-video.md` when useful, then build an
+   `asset_manifest` with `provided`, `retrieved`, `missing`, and `not needed`
+   entries.
+2. **剧本生成.** Produce one concise selling angle with hook, proof, offer, CTA,
+   safety notes, and final TTS/voiceover copy.
+3. **基础分镜.** Produce 3-6 shots, each with duration, visual goal,
+   camera/motion, caption, voiceover line, required asset, generation mode,
+   prompt, match reason, and QA check.
+4. **一键成片.** Create the generation task through the commerce-video workflow
+   entrypoint only; do not wait or export in this stage.
+5. **任务进度.** Observe/wait for the task, report progress or failure, and
+   identify the retry path if needed.
+6. **预览导出.** Fetch preview/export paths and report the final QA/export state.
+
+Keep ecommerce first cuts at 15 seconds or less. If project metadata requests a
+longer duration, render a 15s first cut and mention the clamp. Use `9:16` unless
+the user or project metadata chose another aspect. Only pass
+`--image <project-relative-path>` when the user explicitly asks for
+image-to-video / first-frame / reference-image video; otherwise keep product
+images as prompt/reference context.
 
 ## Atom call shape
 

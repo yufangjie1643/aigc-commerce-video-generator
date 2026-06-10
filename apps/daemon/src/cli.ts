@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { runArtifactsCli } from "./artifacts-cli.js";
 import { runAssetsCli } from "./asset-library-cli.js";
+import { runCommerceVideoCli } from "./commerce-video-cli.js";
 import { runProjectHandoff } from "./handoff-cli.js";
 import { runConnectorsToolCli } from "./tools-connectors-cli.js";
 import { runDesignSystemsToolCli } from "./tools-design-systems-cli.js";
@@ -63,6 +64,9 @@ const MEDIA_GENERATE_STRING_FLAGS = new Set([
   "audio-kind",
   "composition-dir",
   "image",
+  "reference-image-url",
+  "reference-video-url",
+  "reference-audio-url",
   "daemon-url",
   "language"
 ]);
@@ -279,6 +283,7 @@ const PLUGIN_LIST_BOOLEAN_FLAGS = new Set([...PLUGIN_BOOLEAN_FLAGS, "bundled", "
 const SUBCOMMAND_MAP = {
   artifacts: runArtifacts,
   assets: runAssets,
+  "commerce-video": runCommerceVideo,
   media: runMedia,
   mcp: runMcp,
   research: runResearch,
@@ -375,9 +380,14 @@ function printRootHelp() {
   od artifacts create --name <path> --input <file> [--project <id-or-name>]
       Create a normal project artifact through the local daemon.
 
-  od assets <tools|embedding|products|commerce-videos> ...
+  od assets <tools|embedding|products|commerce-videos|quality-videos> ...
       Manage the global asset library, vectorization provider, local ffmpeg
-      paths, product assets, and commerce video methodology sources.
+      paths, product assets, commerce videos, and quality video reports.
+
+  od commerce-video <workflow|materials|script|storyboard|generate|jobs|wait|preview|export> ...
+      Drive the project-level ecommerce selling-video workflow headlessly:
+      product material state, script, storyboard, generation progress,
+      preview, and export.
 
   od tools connectors <list|execute|github-design-context> [options]
       Discover and execute configured connectors.
@@ -527,6 +537,15 @@ async function runArtifacts(args) {
 async function runAssets(args) {
   try {
     const { exitCode } = await runAssetsCli(args);
+    return exitCode;
+  } finally {
+    await closeFetchDispatcher();
+  }
+}
+
+async function runCommerceVideo(args) {
+  try {
+    const { exitCode } = await runCommerceVideoCli(args);
     return exitCode;
   } finally {
     await closeFetchDispatcher();
@@ -925,6 +944,9 @@ async function runMediaGenerate(rawArgs) {
     audioKind: flags["audio-kind"],
     compositionDir: flags["composition-dir"],
     image: flags.image,
+    referenceImageUrl: flags["reference-image-url"],
+    referenceVideoUrl: flags["reference-video-url"],
+    referenceAudioUrl: flags["reference-audio-url"],
     language: flags.language
   };
   if (flags.length != null) body.length = Number(flags.length);
@@ -1180,14 +1202,14 @@ async function cliDaemonBaseUrl(flags) {
 function printMediaHelp() {
   console.log(`Usage: od media generate --surface <image|video|audio> --model <id> [opts]
        "$OD_NODE_BIN" "$OD_BIN" media generate --surface <image|video|audio> --model <id> [opts]
-       od media understand --image|--audio|--video <path|url> [--provider mimo] [--prompt <text>] [--model <id>] [--json]
+       od media understand --image|--audio|--video <path|url> [--provider mimo|volcengine-ark] [--prompt <text>] [--model <id>] [--json]
        od media models [--surface image|video|audio] [--audio-kind music|speech|sfx] [--json]
        od media test <provider> [--base-url <url>] [--model <id>] [--api-key <key>] [--json]
 
 Required:
   --surface  image | video | audio
   --model    Model id from \`od media models\` or /api/media/models
-             (e.g. gpt-image-2, doubao-seedance-1.5-pro, suno-v5).
+             (e.g. gpt-image-2, doubao-seedance-2-0-260128, suno-v5).
   --project  Project id. Auto-resolved from OD_PROJECT_ID when invoked by the daemon.
 
 Common options:
@@ -1208,10 +1230,17 @@ Common options:
   --image <path>            Project-relative path to a reference image
                             (MiniMax image-to-video / first-frame flows,
                             or future image-edit endpoints). Default
-                            text-to-video uses doubao-seedance-1.5-pro.
+                            text-to-video uses doubao-seedance-2-0-260128.
                             Daemon reads the file from the project,
                             base64-encodes it, and forwards it to the
                             upstream API.
+  --reference-image-url <url>
+                            Seedance 2.0 only: reachable reference image URL.
+                            Pass comma-separated URLs for multiple references.
+  --reference-video-url <url>
+                            Seedance 2.0 only: reachable reference video URL.
+  --reference-audio-url <url>
+                            Seedance 2.0 only: reachable reference audio URL.
   --daemon-url <url>
 
 Validation:
@@ -1225,11 +1254,13 @@ Validation:
   od media understand --image ./product.png --provider mimo --json
   od media understand --audio ./voice.wav --provider mimo --json
   od media understand --video ./reference.mp4 --provider mimo --json
+  od media understand --video ./reference.mp4 --provider volcengine-ark --json
       Native image/audio/video understanding. Local files are converted
       to data:<kind>/*;base64 before the daemon calls the provider. Agents
       can use the same command through OD_TOOL_TOKEN. Xiaomi MiMo defaults
-      to mimo-v2.5; Volcengine Ark remains available for video with
-      --provider volcengine and a saved endpoint/model when needed.
+      to mimo-v2.5. Volcengine Ark video understanding uses the allowlisted
+      official model doubao-seed-2-0-lite-260215; ep-* endpoints belong to
+      the Volcengine generation provider, not this understanding provider.
 
 Output:
   generate emits a single line of JSON: {"file": { name, size, kind, mime, ... }}

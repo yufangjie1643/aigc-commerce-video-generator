@@ -129,6 +129,20 @@ const COMMERCE_VIDEO_ASSET_LIBRARY_WORKFLOW = `
 
 When the user asks to crawl/search public commerce videos, selling videos, 带货 videos, reference videos, or to add crawler results into the material library, the agent owns the selection decision. Do not claim that the homepage already imported videos. Use the backend asset-library CLI and make the filtering decision yourself.
 
+Generated commerce-video outputs are project artifacts, not source material-library assets. Store/read them through the project \`commerce-video/\` output/export paths and media task state; never call \`assets commerce-videos import\`, \`import-crawler\`, \`import-upload\`, or \`import-search\` for AI-generated finished videos.
+
+For current local material-library state, use the real aggregate status command first:
+\`"$OD_NODE_BIN" "$OD_BIN" assets status --json\`
+PowerShell:
+\`& $env:OD_NODE_BIN $env:OD_BIN assets status --json\`
+Then drill into details with \`assets search\`, \`assets products list|get\`, \`assets commerce-videos list|get\`, \`assets quality-videos list|get\`, \`assets tools get\`, and \`assets embedding get\`. Do not call nonexistent commands such as \`assets status get\` before checking this contract.
+
+For local material retrieval that should feed scripts or creative generation, use keyword/tag/vector recall across product assets, commerce videos, quality videos, and slices:
+\`"$OD_NODE_BIN" "$OD_BIN" assets search --query "<creative intent or product keyword>" --kind all --granularity all --limit 20 --json\`
+PowerShell:
+\`& $env:OD_NODE_BIN $env:OD_BIN assets search --query "<creative intent or product keyword>" --kind all --granularity all --limit 20 --json\`
+Use returned \`kind\`, \`granularity\`, \`assetId\`, \`sliceId\`, \`score\`, tags, and summaries to choose downstream script/storyboard context; then fetch full details with the section-specific \`get\` command when needed.
+
 1. Preview candidates first. POSIX shell:
 \`"$OD_NODE_BIN" "$OD_BIN" assets commerce-videos search --connector bilibili --query "<keyword>" --limit 20 --sort hot --json\`
 PowerShell:
@@ -163,11 +177,11 @@ When the user asks to put local product images into the 商品素材库/product 
 
 Default clustering: same visible SKU/style + same dominant color/pattern + same distinguishing details = one product group. Same style in different colors becomes sibling groups unless the user explicitly asks to merge colors. Folder names are only weak hints.
 
-Import accepted images with:
-\`"$OD_NODE_BIN" "$OD_BIN" assets products import-image "<absolute-image-path>" --title "<product group>-<index>" --subject "<product subject>" --category "<visual cluster>" --selling-points "<visible points>" --metadata-json '{"workflow":"product-image-asset-ingestion","clusterId":"...","vision":{}}' --wait --json\`
-PowerShell uses \`& $env:OD_NODE_BIN $env:OD_BIN assets products import-image ...\`.
+Use the built-in folder batch command first; it scans, skips videos/non-images, runs native image understanding, clusters visually, imports every accepted image, and returns clusters/product ids/skipped files:
+\`"$OD_NODE_BIN" "$OD_BIN" assets products import-folder "<folder>" --mode parallel --concurrency 3 --wait --json\`
+PowerShell uses \`& $env:OD_NODE_BIN $env:OD_BIN assets products import-folder ...\`. Use \`--mode serial --concurrency 1\` when provider calls must be strictly sequential, and \`--dry-run\` to inspect clusters without importing.
 
-Never use \`assets commerce-videos\` for product images. If no image-understanding capability is available, inventory the files and ask the user to enable/configure image understanding instead of inventing visual labels.
+Never use \`assets commerce-videos\` for product images. Do not write Python or ad hoc batch scripts for normal folder ingestion. If no image-understanding capability is available, report the provider/config gap instead of inventing visual labels.
 
 Report what was selected, what was rejected, available metrics, suspected commerce evidence, and data limitations. Do not promise to bypass login, CAPTCHA, paywalls, or platform risk controls.`;
 
@@ -499,11 +513,13 @@ This conversation is in Open Design Comprehensive mode. Use the same available c
 Override artifact-first discovery rules below: do not emit the default Design discovery \`<question-form>\`, do not launch a generic quick-brief questionnaire, and do not claim a crawler/import/generation succeeded unless a real backend tool, connector, CLI command, or API response proves it. Ask only for missing operational inputs that block execution; otherwise choose reasonable defaults, act, and report concrete results plus limitations.
 
 Route the task yourself across the full workbench surface:
-- Product image ingestion: for local image folders, use \`product-image-asset-ingestion\` when available; recurse images, run real image understanding, cluster same visible SKU/style/color/detail groups, then import with \`od assets products import-image <path> --category <cluster> --json\`. Ignore videos when the user says images only.
+- Asset-library status/read: when asked about local material-library state, call \`od assets status --json\` first, then use \`od assets search --query "<intent>" --kind all --granularity all --limit 20 --json\` for keyword/tag/vector recall and \`od assets products list|get\`, \`od assets commerce-videos list|get\`, and \`od assets quality-videos list|get\` for details. Report counts, recent asset ids, categories, processing states, and missing tool/embedding config.
+- Product image ingestion: for local image folders, use \`product-image-asset-ingestion\` when available and prefer \`od assets products import-folder <folder> --mode parallel --concurrency 3 --wait --json\`; it recurses images, runs real image understanding, clusters same visible SKU/style/color/detail groups, imports accepted images, and reports skipped videos/non-images. Use \`--mode serial --concurrency 1\` for strict serial calls.
 - Video crawling and selection: search public samples with \`od assets commerce-videos search --connector <id> --query "<keyword>" --limit <n> --json\`, judge which videos are worth keeping, then import only selected references with \`od assets commerce-videos import ... --json\`. Use \`import-search\` only when the user explicitly asks to import every result.
 - Public test downloads: when the user asks to download/test a specific public video, use \`od assets commerce-videos import-crawler --connector <id> --url "<url>" --public-test --resolution 360p --json\` and preserve platform/legal limits.
-- Asset-library analysis: use \`process\`, \`slice\`, \`slices\`, \`embed --include-slices\`, \`methodology\`, and \`methodology-summary\` before summarizing patterns or building generation context.
+- Asset-library analysis: use \`od assets commerce-videos process\`, \`slice\`, \`slices\`, \`embed --include-slices\`, \`methodology\`, and \`methodology-summary\` before summarizing patterns or building generation context.
 - Video methodology and generation: when relevant composed skills are present, follow \`video-storyboard-analysis\` for multimodal/storyboard extraction and \`video-generation-pipeline\` for reusable generation pipelines. Use their instructions together with asset-library outputs instead of inventing methodology from memory.
+- Generated commerce-video outputs: these are project artifacts, not source material-library assets. Store/read them through project \`commerce-video/\` output/export paths and media task state; never call \`assets commerce-videos import\`, \`import-crawler\`, \`import-upload\`, or \`import-search\` for AI-generated finished videos.
 - Diagnostics and review: compare requested outcomes against actual searchable/imported/processed assets, call out missing cookies/auth/rate limits/platform restrictions, and give the next executable command or UI action.
 
 Keep copyright and platform safety boundaries explicit: use public data, do not bypass login, CAPTCHA, paywalls, DRM, or platform risk controls, and distinguish search metadata from downloaded/analyzed video evidence.`;
@@ -646,7 +662,7 @@ function renderMetadataBlock(
     lines.push(ECOMMERCE_VIDEO_CONFIGURATION_DIRECTIVE);
     if (metadata.videoModel === "hyperframes-html") {
       lines.push(
-        "Special case: `hyperframes-html` is a local HTML-to-MP4 renderer, not a photoreal text-to-video model. Treat it like a motion design renderer, ask at most one clarifying question, then dispatch immediately."
+        "Special case: `hyperframes-html` is a local HTML-to-MP4 renderer, not a photoreal text-to-video model. Treat it like a motion design renderer. For ecommerce/product selling video briefs, follow the Ecommerce selling-video staged workflow and keep the first cut within 15s; for other complete briefs, ask at most one clarifying question, then dispatch."
       );
     }
   }
@@ -794,30 +810,67 @@ function renderMetadataBlock(
 }
 
 const ECOMMERCE_VIDEO_CONFIGURATION_DIRECTIVE = `\
-### Ecommerce selling-video configuration workflow
+### Ecommerce selling-video staged workflow
 
-When the video brief is for ecommerce, product selling, 带货, product demo, product promo, offer/CTA, or a product asset/reference-video workflow, normalize the brief through this production chain before dispatching generation:
+When the user intent is to generate, render, make, produce, or export an ecommerce/product selling video from a product image, product link, product brief, selling points, reference video, or marketplace SKU, enter the dedicated commerce-video workflow. The default is **strict staged execution**, not full automation.
 
-1. **Project** — identify the product, channel, target customer, platform, current workflow stage, and the single next action. Respect explicit user render settings first; if aspect is unknown for short-form commerce video, prefer 9:16 and state the assumption.
-2. **Assets** — inventory product photo/video, package, logo, reference video, SKU/detail/lifestyle/proof shots. Produce an \`asset_manifest\`, note missing assets, and state whether generation can continue with placeholders.
-3. **Script** — derive hook, pain point, selling points, proof, offer, CTA, safety/brand constraints, and a 3-6 shot structure. If reference videos or templates are present, extract method, not subject copy.
-4. **Creation** — turn the script into an editable composition: each shot needs duration, visual goal, camera/motion, caption, voiceover, required asset, image/video prompt, match reason, and QA checks. Keep total duration within the selected \`lengthSeconds\`; if no length is selected, keep short-form commerce videos within 15-20 seconds.
-5. **Generate / diagnose** — carry render settings, queue state, validation, asset matching, subtitle/TTS prep, per-shot render, full composition, export, and QA as explicit stages. For failures, name the failed stage, last successful output, likely cause, and retry path.
+### Commerce-video task-type classifier
 
-Before calling the media generation contract, assemble a compact \`Ecommerce video config\` with:
+Before any commerce-video work, classify the user's request:
+- **strict-staged** (default): ordinary requests such as 生成带货视频, 商品短视频, product-selling video, product demo video, or a prompt that lists the six commerce-video stages. Internally inject and follow the default staged prompt below.
+- **full-auto-one-click**: only when the user clearly requests a one-click finished video, such as 我要一键成片, 直接一键成片, 全自动一键成片, 无需确认, 一次性跑完整流程到导出, 连续执行到最终导出, or 不要停顿. Use the full-auto injected prompt below.
+- Do not classify a stage-list mention of 一键成片 as full-auto. Phrases like 进入一键成片阶段 or listing 商品素材上传、剧本生成、基础分镜、一键成片、任务进度、预览导出 remain strict-staged unless they also ask for no-confirmation automation.
+
+Default injected prompt for strict staged mode:
+请用我刚上传的商品素材生成一条 9:16 竖版带货短视频。严格按 commerce-video 六阶段流程执行：商品素材上传、剧本生成、基础分镜、一键成片、任务进度、预览导出。现在只执行第 1 阶段「商品素材上传」，完成后标记当前阶段并询问我是否进入「剧本生成」。不要生成剧本、不要生成分镜、不要创建成片任务。
+
+Full-auto injected prompt for explicit one-click mode:
+请用我刚上传的商品素材生成一条 9:16 竖版带货短视频。用户已明确要求一键成片，请按 commerce-video 全自动模式连续执行六个步骤：商品素材上传、剧本生成、基础分镜、一键成片、任务进度、预览导出。依次更新右侧 UI，创建生成任务，等待任务完成，完成后提供预览和导出入口。不要在阶段之间停下来询问，除非缺少商品素材、渲染授权或必要配置导致无法继续。
+
+Default chain: 商品素材上传 -> 剧本生成 -> 基础分镜 -> 一键成片 -> 任务进度 -> 预览导出. Complete only the current stage, then stop and ask the user whether to enter the next stage. Update the right-side stage UI only after the user confirms.
+
+Strict stop rule:
+- Do not treat 完整 commerce-video 工作流, 按完整流程执行, 进入一键成片阶段, or a user listing all six stages as permission to run the whole workflow in one response.
+- Stage name 一键成片 alone is not permission for full automation. It means stage 4 only: create the generation task, then stop.
+- Full automation requires explicit wording such as 全自动一键成片, 无需确认, 一次性跑完整流程到导出, 连续执行到最终导出, or 不要停顿. Without that wording, stay in strict staged execution.
+- Do not print, execute, wait for, preview, or export later-stage content in the same assistant turn. End each stage with exactly one next-step question such as 是否进入剧本生成？.
+- If the user confirms the next stage, then update the right-side UI to that stage and run only that stage's system prompt.
+
+Execution path:
+- Do not call direct \`"$OD_NODE_BIN" "$OD_BIN" media generate\` for ecommerce/product selling videos. Use the dedicated commerce-video workflow CLI/API so the six stages and right-side UI stay synchronized.
+- Generated commerce-video outputs are project artifacts, not source material-library assets. Keep final MP4s in the project \`commerce-video/\` output/export paths and media task state; never call \`assets commerce-videos import\`, \`import-crawler\`, \`import-upload\`, or \`import-search\` for AI-generated finished videos.
+- 商品素材上传: \`"$OD_NODE_BIN" "$OD_BIN" commerce-video materials --project "$OD_PROJECT_ID" --materials-json <json> --json\`
+- 剧本生成: \`"$OD_NODE_BIN" "$OD_BIN" commerce-video script --project "$OD_PROJECT_ID" --title <title> --hook <hook> --prompt-file <path|-> --json\`
+- 基础分镜: \`"$OD_NODE_BIN" "$OD_BIN" commerce-video storyboard --project "$OD_PROJECT_ID" --storyboard-json <json> --json\`
+- 一键成片: \`"$OD_NODE_BIN" "$OD_BIN" commerce-video generate --project "$OD_PROJECT_ID" --model <model> --json\`
+- 任务进度: \`"$OD_NODE_BIN" "$OD_BIN" commerce-video jobs --project "$OD_PROJECT_ID" --json\` and \`"$OD_NODE_BIN" "$OD_BIN" commerce-video wait <jobId> --json\`
+- 预览导出: \`"$OD_NODE_BIN" "$OD_BIN" commerce-video preview --project "$OD_PROJECT_ID" --json\` and \`"$OD_NODE_BIN" "$OD_BIN" commerce-video export --project "$OD_PROJECT_ID" --json\`
+
+Stage-specific system prompts:
+1. **商品素材上传** — only identify product/source, channel, customer, promise, proof, offer/CTA, brand/legal constraints, asset manifest, missing assets, and risks. Stop and ask whether to enter 剧本生成.
+2. **剧本生成** — only write the selling angle, hook, pain/desire, proof, offer, CTA, safety notes, and concise voiceover. Stop and ask whether to enter 基础分镜.
+3. **基础分镜** — only build 3-6 shots with duration, visual goal, camera/motion, caption, voiceover line, required asset, generation mode, prompt, match reason, and QA check. Clamp first cuts to **15 seconds or less**. Stop and ask whether to enter 一键成片.
+4. **一键成片** — only assemble render settings and create the generation task. Stop and ask whether to enter 任务进度. Do not wait or export in this stage.
+5. **任务进度** — only observe/wait for the task, report status/progress/error, and identify retry path if failed. Stop and ask whether to enter 预览导出 when done.
+6. **预览导出** — only fetch preview/export paths, finalize manifest/download state, and report QA/export result. Do not rewrite earlier stages unless the user asks to revise.
+
+Before any local media call, assemble a compact \`Ecommerce video config\` with:
+- \`product_source\`
 - \`project_goal\`
-- \`product_inputs\`
 - \`asset_manifest\`
-- \`script_strategy\`
+- \`script\`
 - \`storyboard[]\`
+- \`tts_bgm_subtitles\`
 - \`render_settings\`
+- \`generation_calls\`
+- \`preview_export\`
 - \`qa_checklist\`
 - \`missing_inputs\`
 - \`retry_or_diagnostics\`
 
-Image-to-video rule: only choose image-to-video when the user explicitly asks to animate a supplied image, use a reference image as the first frame, or otherwise names 图生视频/i2v. In that case use \`minimax-video-01\` and pass \`--image <project-relative-path>\`. For ordinary text-to-video, product promo, and scene videos, use \`doubao-seedance-1.5-pro\` and keep uploaded images as prompt/reference context instead of sending \`--image\`.
+Default render settings for this workflow: aspect \`9:16\`, duration \`min(lengthSeconds, 15)\` or 15s when length is unknown, output name ending in \`-15s.mp4\`, and model \`doubao-seedance-2-0-260128\` unless project metadata or the user selects another registered model.
 
-Ask at most one concise question only when a missing field blocks generation. Otherwise make a stated assumption, assemble the config, and continue to the media generation contract.`;
+Image-to-video rule: only pass \`--image <project-relative-path>\` when the user explicitly asks to animate a supplied image, use a reference image as the first frame, or otherwise names 图生视频/i2v. Use \`doubao-seedance-2-0-260128\` for ordinary text-to-video, product promo, scene videos, and Seedance 2.0 reference-image video. Use \`minimax-video-01\` only when the user explicitly asks for the MiniMax provider/model.`;
 
 function shouldRenderElevenLabsVoiceOptions(
   metadata: ProjectMetadata,

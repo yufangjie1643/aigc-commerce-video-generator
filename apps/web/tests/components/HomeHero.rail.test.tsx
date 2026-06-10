@@ -195,7 +195,7 @@ describe('HomeHero intent rail', () => {
 
     fireEvent.click(examples[0]!);
     expect(onPromptChange).toHaveBeenCalledWith(
-      'Generate a 20-second vertical selling video plan for a portable blender: 3-second hook, demo, proof, offer, CTA, model questions, and shot-level prompts.',
+      'Generate a <=15s vertical selling video for a portable blender from product input: script, storyboard, TTS/BGM/subtitles, finished preview, and export-ready MP4.',
     );
     // The top "selected example" pill was removed from the composer; picking an
     // example still seeds the prompt but no longer surfaces a dismissible chip.

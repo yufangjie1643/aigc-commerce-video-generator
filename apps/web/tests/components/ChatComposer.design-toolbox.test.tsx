@@ -84,29 +84,28 @@ const HIGGSFIELD_MCP = {
   url: 'https://mcp.higgsfield.ai/mcp',
 };
 
-const FIGMA_CONNECTOR = {
-  id: 'figma',
-  name: 'Figma',
+const YOUTUBE_CONNECTOR = {
+  id: 'youtube',
+  name: 'YouTube',
   provider: 'composio',
-  category: 'design',
-  description: 'Reads Figma files and design references.',
+  category: 'media',
+  description: 'Reads channel videos and references.',
   status: 'connected',
-  accountLabel: 'Design Team',
+  accountLabel: 'Video Team',
   tools: [],
-  allowedToolNames: ['FIGMA_GET_FILE'],
-  curatedToolNames: ['FIGMA_GET_FILE'],
+  allowedToolNames: ['YOUTUBE_LIST_VIDEOS'],
+  curatedToolNames: ['YOUTUBE_LIST_VIDEOS'],
   toolCount: 1,
 };
 
-const GMAIL_CONNECTOR = {
-  ...FIGMA_CONNECTOR,
-  id: 'gmail',
-  name: 'Gmail',
-  category: 'email',
-  description: 'Reads Gmail messages.',
-  accountLabel: 'Inbox',
-  allowedToolNames: ['GMAIL_FETCH_EMAILS'],
-  curatedToolNames: ['GMAIL_FETCH_EMAILS'],
+const TIKTOK_CONNECTOR = {
+  ...YOUTUBE_CONNECTOR,
+  id: 'tiktok',
+  name: 'TikTok',
+  description: 'Reads TikTok creator videos.',
+  accountLabel: 'Shorts Team',
+  allowedToolNames: ['TIKTOK_LIST_VIDEOS'],
+  curatedToolNames: ['TIKTOK_LIST_VIDEOS'],
 };
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -180,19 +179,19 @@ beforeEach(() => {
       });
     }
     if (url === '/api/connectors') {
-      return new Response(JSON.stringify({ connectors: [FIGMA_CONNECTOR] }), {
+      return new Response(JSON.stringify({ connectors: [YOUTUBE_CONNECTOR] }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
     }
     if (url === '/api/connectors/status') {
-      return new Response(JSON.stringify({ statuses: { figma: { status: 'connected' } } }), {
+      return new Response(JSON.stringify({ statuses: { youtube: { status: 'connected' } } }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
     }
     if (url === '/api/connectors/discovery?refresh=true') {
-      return new Response(JSON.stringify({ connectors: [FIGMA_CONNECTOR, GMAIL_CONNECTOR] }), {
+      return new Response(JSON.stringify({ connectors: [YOUTUBE_CONNECTOR, TIKTOK_CONNECTOR] }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
@@ -269,7 +268,7 @@ describe('ChatComposer design toolbox', () => {
       expect(composerText()).toContain('spreadsheet-ops');
       expect(composerText()).toContain('Research Asset Plugin');
       expect(composerText()).toContain('Higgsfield Video MCP');
-      expect(composerText()).toContain('Figma');
+      expect(composerText()).toContain('YouTube');
       expect(composerText()).toContain('data/proof.csv');
       expect(composerText()).toContain('Do not only use design toolbox recommendations');
     });
@@ -282,16 +281,16 @@ describe('ChatComposer design toolbox', () => {
     fireEvent.click(screen.getByTestId('chat-plus-trigger'));
     fireEvent.click(screen.getByRole('menuitem', { name: /Design toolbox/i }));
     await waitFor(() => {
-      expect(screen.getByText('Figma')).toBeTruthy();
+      expect(screen.getByText('YouTube')).toBeTruthy();
     });
 
     window.dispatchEvent(new Event(CONNECTORS_CHANGED_EVENT));
 
     const search = screen.getByLabelText('Search design toolbox resources');
-    fireEvent.change(search, { target: { value: 'gmail' } });
+    fireEvent.change(search, { target: { value: 'tiktok' } });
 
     await waitFor(() => {
-      expect(screen.getByText('Gmail')).toBeTruthy();
+      expect(screen.getByText('TikTok')).toBeTruthy();
     });
   });
 });

@@ -1605,6 +1605,12 @@
   line-height: 1.6;
 }
 
+.entry-shell--onboarding .onboarding-view__hero,
+.entry-shell--onboarding .onboarding-view__steps,
+.entry-shell--onboarding .onboarding-view__actions {
+  display: none;
+}
+
 .onboarding-view__steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

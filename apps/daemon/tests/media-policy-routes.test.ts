@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startServer } from "../src/server.js";
 import { memoryDir, writeMemoryConfig } from "../src/memory.js";
 import { resolveLegacyMediaRouteGrant } from "../src/media-routes.js";
+import { toolTokenRegistry } from "../src/tool-tokens.js";
 
 type FakeMediaEndpoint =
   | "tool"
@@ -56,6 +57,7 @@ describe("run-scoped media policy routes", () => {
     else process.env.PATH = oldPath;
     if (oldCapture === undefined) delete process.env.OD_CAPTURE_MEDIA_RESPONSE;
     else process.env.OD_CAPTURE_MEDIA_RESPONSE = oldCapture;
+    toolTokenRegistry.clear();
     const memoryConfig = memoryConfigPath();
     if (oldMemoryConfigRaw === null) {
       await rm(memoryConfig, { force: true });
@@ -485,6 +487,35 @@ describe("run-scoped media policy routes", () => {
     expect(response.status).toBe(401);
     const body = (await response.json()) as { error?: { code?: string } };
     expect(body.error).toMatchObject({ code: "TOOL_TOKEN_INVALID" });
+  });
+
+  it("rejects obvious commerce-video prompts on the generic media generate route", async () => {
+    const { url, projectId } = await startProjectServer("Commerce video direct media guard");
+    const grant = toolTokenRegistry.mint({
+      runId: `run_${randomUUID()}`,
+      projectId,
+      allowedEndpoints: ["/api/tools/media/generate"],
+      allowedOperations: ["media:generate"]
+    });
+
+    const response = await fetch(`${url}/api/tools/media/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${grant.token}`
+      },
+      body: JSON.stringify({
+        surface: "video",
+        model: "unknown-video-model",
+        prompt:
+          "请按完整 commerce-video 工作流生成商品带货短视频：商品素材上传、剧本生成、基础分镜、一键成片、任务进度、预览导出。"
+      })
+    });
+
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { error?: { code?: string; message?: string } };
+    expect(body.error?.code).toBe("COMMERCE_VIDEO_WORKFLOW_REQUIRED");
+    expect(body.error?.message).toContain("commerce-video");
   });
 
   it("requires a run token for the legacy media route only in sandbox mode", () => {

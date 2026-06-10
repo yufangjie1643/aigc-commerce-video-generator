@@ -4,25 +4,35 @@ Use this side file for ecommerce, product selling, 带货, product-demo, product
 offer/CTA, and short-form commerce video projects. Load it before drafting the
 first storyboard. Summarize the patterns for the user; do not dump the file.
 
-## Required Gates
+## Staged Chain
 
-Do not call local media generation until all gates are complete:
+When the user wants a finished ecommerce video, move through the full chain as
+strict stages. Finish exactly one stage, ask whether to enter the next stage,
+and do not run later stages until the user confirms. The stage name 一键成片 is
+not permission for full automation; it only creates the generation task.
 
-- `requirement_qa`: product, audience, platform, promise, selling points, proof,
-  offer/CTA, style, duration, aspect, and legal/brand constraints are answered or
-  explicitly waived by the user.
-- `reference_choice`: user picked one reference pattern below, or approved a
-  hybrid.
-- `asset_manifest`: user uploaded or confirmed product/reference assets, or
-  explicitly chose text-to-video with no assets.
-- `storyboard_approval`: user approved the final shot list, captions, voiceover,
-  required asset per shot, and render settings.
-- `generation_plan`: selected model, provider, text-to-video vs image-to-video,
-  aspect, duration, output name, and retry policy.
+- `product_source`: image, link, brief, SKU, or library asset.
+- `asset_manifest`: product/reference assets marked `provided`, `retrieved`,
+  `missing`, or `not needed`.
+- `script`: one hook, one selling angle, proof, offer, CTA, and claim-safety
+  notes.
+- `storyboard[]`: 3-6 shots with duration, visual, camera/motion, caption,
+  voiceover, required asset, generation mode, prompt, and QA check.
+- `tts_bgm_subtitles`: final TTS copy, voice/language, BGM or sound-bed
+  direction, subtitle/caption lines, and timing.
+- `render_settings`: model/provider, text-to-video vs image-to-video, aspect,
+  duration, output name, retry path, and preview/export handoff.
+
+Only bypass stage confirmation when the user explicitly says 全自动一键成片,
+无需确认, 一次性跑完整流程到导出, 连续执行到最终导出, or equivalent.
+Ecommerce first cuts must be 15 seconds or less; clamp longer metadata to a 15s
+first cut unless the user explicitly asks for a longer non-commerce video.
 
 ## Asset Manifest
 
-Ask for these assets early. Mark each as `provided`, `missing`, or `not needed`.
+Check these assets early. Mark each as `provided`, `retrieved`, `missing`, or
+`not needed`, and keep going with labelled placeholders when the gap is not a
+hard blocker.
 
 - Product hero photo or short product video.
 - Packaging, logo, brand colors, SKU/detail shots, and price/offer card.
@@ -33,11 +43,10 @@ Ask for these assets early. Mark each as `provided`, `missing`, or `not needed`.
 
 ## Image-to-Video Rule
 
-Prefer image-to-video when the user provides a strong product/reference image and
-the selected video model supports image input. Pass the image only to models whose
-capabilities include image-to-video, for example with `--image <project-relative-path>`.
-If a model is text-to-video only, keep the image as visual reference in the prompt
-instead of sending it as an input image.
+Only pass an image with `--image <project-relative-path>` when the user
+explicitly asks to animate a supplied image, use a reference image as first
+frame, or names image-to-video / i2v / 图生视频. Otherwise keep product images as
+visual reference context in the prompt.
 
 ## Pattern A: Pain Hook -> Product Solution -> Proof -> Offer
 

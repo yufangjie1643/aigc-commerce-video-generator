@@ -350,7 +350,7 @@ describe("NewProjectPanel design system defaults", () => {
         designSystemId: null,
         metadata: expect.objectContaining({
           kind: "video",
-          videoModel: "doubao-seedance-1.5-pro",
+          videoModel: "doubao-seedance-2-0-260128",
           videoAspect: "9:16",
           videoLength: 10
         })

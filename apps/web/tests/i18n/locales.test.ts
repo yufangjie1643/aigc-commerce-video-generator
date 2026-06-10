@@ -31,7 +31,7 @@ async function loadDict(locale: Locale): Promise<Dict> {
 
 function explicitLocaleKeys(locale: Locale): string[] {
   const source = readFileSync(new URL(`../../src/i18n/locales/${locale}.ts`, import.meta.url), 'utf8');
-  return Array.from(source.matchAll(/'([^']+)':/g), (match) => match[1] ?? '').filter(Boolean);
+  return Array.from(source.matchAll(/["']([^"']+)["']:/g), (match) => match[1] ?? '').filter(Boolean);
 }
 
 describe('i18n locales', () => {
@@ -177,6 +177,15 @@ describe('i18n locales', () => {
     for (const key of translatedKeys) {
       expect(zhCN[key], `zh-CN.${key}`).not.toBe(en[key]);
     }
+  });
+
+  it('uses ecommerce video starter prompts in zh-CN chat empty state', () => {
+    expect(zhCN['chat.example1Title']).toBe('上传商品素材');
+    expect(zhCN['chat.example2Title']).toBe('生成带货脚本');
+    expect(zhCN['chat.example3Title']).toBe('批量产出视频');
+    expect(zhCN['chat.example1Prompt']).toContain('下一步');
+    expect(zhCN['chat.example1Prompt']).toContain('带货视频');
+    expect(zhCN['chat.example3Prompt']).toContain('入库标签');
   });
 
   it('declares CI-sensitive Indonesian fallback keys explicitly', () => {

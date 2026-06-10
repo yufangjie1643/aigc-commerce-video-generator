@@ -26,7 +26,6 @@ vi.mock('../../src/i18n', () => ({
       'entry.navProjects': 'Projects',
       'entry.navTasks': 'Automations',
       'entry.navPlugins': 'Plugins',
-      'entry.navIntegrations': 'Integrations',
     };
     return labels[key] ?? key;
   },
@@ -225,12 +224,11 @@ describe('WorkspaceTabsBar navigation semantics', () => {
     );
     expect(screen.getAllByRole('tab')).toHaveLength(1);
 
-    const sections: Array<{ view: 'projects' | 'tasks' | 'design-systems' | 'plugins' | 'integrations'; label: string }> = [
+    const sections: Array<{ view: 'projects' | 'tasks' | 'design-systems' | 'plugins'; label: string }> = [
       { view: 'projects', label: 'Projects' },
       { view: 'tasks', label: 'Automations' },
       { view: 'design-systems', label: 'Design systems' },
       { view: 'plugins', label: 'Plugins' },
-      { view: 'integrations', label: 'Integrations' },
     ];
 
     for (const section of sections) {

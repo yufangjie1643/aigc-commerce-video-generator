@@ -17,6 +17,7 @@ import type {
 const listConversations = vi.fn();
 const listMessages = vi.fn();
 const fetchPreviewComments = vi.fn();
+const upsertPreviewComment = vi.fn();
 const loadTabs = vi.fn();
 const fetchProjectFiles = vi.fn();
 const fetchLiveArtifacts = vi.fn();
@@ -80,7 +81,7 @@ vi.mock('../../src/providers/registry', () => ({
   fetchProjectFiles: (...args: unknown[]) => fetchProjectFiles(...args),
   fetchSkill: (...args: unknown[]) => fetchSkill(...args),
   patchPreviewCommentStatus: vi.fn(),
-  upsertPreviewComment: vi.fn(),
+  upsertPreviewComment: (...args: unknown[]) => upsertPreviewComment(...args),
   writeProjectTextFile: vi.fn(),
 }));
 
@@ -121,6 +122,8 @@ vi.mock('../../src/components/FileWorkspace', () => ({
     onSendBoardCommentAttachments,
     onCommentModeChange,
     onFocusModeChange,
+    previewComments,
+    onSavePreviewComment,
   }: {
     streaming: boolean;
     messages?: ChatMessage[];
@@ -130,6 +133,25 @@ vi.mock('../../src/components/FileWorkspace', () => ({
     onSendBoardCommentAttachments: (attachments: unknown[]) => void;
     onCommentModeChange?: (active: boolean) => void;
     onFocusModeChange?: (focused: boolean) => void;
+    previewComments?: PreviewComment[];
+    onSavePreviewComment?: (
+      target: {
+        filePath: string;
+        elementId: string;
+        selector: string;
+        label: string;
+        text: string;
+        position: PreviewComment['position'];
+        htmlHint: string;
+        style?: PreviewComment['style'];
+        selectionKind?: PreviewComment['selectionKind'];
+        memberCount?: PreviewComment['memberCount'];
+        podMembers?: PreviewComment['podMembers'];
+        slideIndex?: PreviewComment['slideIndex'];
+      },
+      note: string,
+      attachAfterSave: boolean,
+    ) => void;
   }) => {
     const failedAssistant =
       [...(messages ?? [])]
@@ -175,14 +197,62 @@ vi.mock('../../src/components/FileWorkspace', () => ({
       >
         focus workspace
       </button>
-      <button
-        type="button"
-        data-testid="workspace-send-comment"
-        onClick={() => onSendBoardCommentAttachments([{ id: 'comment-1' }])}
+        <button
+          type="button"
+          data-testid="workspace-send-comment"
+          onClick={() => onSendBoardCommentAttachments([{ id: 'comment-1' }])}
       >
         workspace send
-      </button>
-      {showRetryAction ? (
+        </button>
+        <button
+          type="button"
+          data-testid="attach-first-comment"
+          onClick={() => {
+            const first = previewComments?.[0];
+            if (!first) return;
+            onSavePreviewComment?.({
+              filePath: first.filePath,
+              elementId: first.elementId,
+              selector: first.selector,
+              label: first.label,
+              text: first.text,
+              position: first.position,
+              htmlHint: first.htmlHint,
+              style: first.style,
+              selectionKind: first.selectionKind,
+              memberCount: first.memberCount,
+              podMembers: first.podMembers,
+              slideIndex: first.slideIndex,
+            }, first.note, true);
+          }}
+        >
+          attach comment
+        </button>
+        <button
+          type="button"
+          data-testid="attach-second-comment"
+          onClick={() => {
+            const second = previewComments?.[1];
+            if (!second) return;
+            onSavePreviewComment?.({
+              filePath: second.filePath,
+              elementId: second.elementId,
+              selector: second.selector,
+              label: second.label,
+              text: second.text,
+              position: second.position,
+              htmlHint: second.htmlHint,
+              style: second.style,
+              selectionKind: second.selectionKind,
+              memberCount: second.memberCount,
+              podMembers: second.podMembers,
+              slideIndex: second.slideIndex,
+            }, second.note, true);
+          }}
+        >
+          attach second comment
+        </button>
+        {showRetryAction ? (
         <button
           type="button"
           data-testid="workspace-retry"
@@ -240,10 +310,8 @@ vi.mock('../../src/components/ChatPane', () => ({
     streaming,
     sendDisabled,
     queuedItems,
-    previewComments,
     attachedComments,
     messages,
-    onAttachComment,
     onSelectConversation,
     onSend,
     onSendQueuedNow,
@@ -255,11 +323,9 @@ vi.mock('../../src/components/ChatPane', () => ({
     streaming: boolean;
     sendDisabled?: boolean;
     queuedItems?: Array<{ id: string; prompt: string }>;
-    previewComments?: PreviewComment[];
     attachedComments?: PreviewComment[];
     messages?: ChatMessage[];
     error: string | null;
-    onAttachComment?: (comment: PreviewComment) => void;
     onSelectConversation: (id: string) => void;
     onSend: (
       prompt: string,
@@ -325,26 +391,6 @@ vi.mock('../../src/components/ChatPane', () => ({
             {conversation.id}
           </button>
         ))}
-        <button
-          type="button"
-          data-testid="attach-first-comment"
-          onClick={() => {
-            const first = previewComments?.[0];
-            if (first) onAttachComment?.(first);
-          }}
-        >
-          attach comment
-        </button>
-        <button
-          type="button"
-          data-testid="attach-second-comment"
-          onClick={() => {
-            const second = previewComments?.[1];
-            if (second) onAttachComment?.(second);
-          }}
-        >
-          attach second comment
-        </button>
         <button
           type="button"
           data-testid="send-message"
@@ -547,6 +593,10 @@ describe('ProjectView conversation run isolation', () => {
     });
     createConversation.mockResolvedValue(createdConversation);
     fetchPreviewComments.mockResolvedValue([]);
+    upsertPreviewComment.mockImplementation(
+      async (_projectId: string, _conversationId: string, input: { target: { elementId: string } }) =>
+        input.target.elementId === secondPreviewComment.elementId ? secondPreviewComment : previewComment,
+    );
     loadTabs.mockResolvedValue({ tabs: [], active: null });
     fetchProjectFiles.mockResolvedValue([]);
     fetchLiveArtifacts.mockResolvedValue([]);

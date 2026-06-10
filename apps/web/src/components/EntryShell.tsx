@@ -9,6 +9,7 @@
 // thin wrapper that passes data and callbacks through to this shell.
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -16,29 +17,25 @@ import {
   type Dispatch,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
-  type SetStateAction,
-} from 'react';
+  type SetStateAction
+} from "react";
 import {
   defaultScenarioPluginIdForProjectMetadata,
   type ChatSessionMode,
-  type ConnectorDetail,
-  type InstalledPluginRecord,
-} from '@open-design/contracts';
-import type { OpenDesignHostProjectImportSuccess } from '@open-design/host';
-import type { DesignSystemGenerateSnapshot } from './DesignSystemFlow';
-import { useAnalytics } from '../analytics/provider';
+  type ConnectorDetail
+} from "@open-design/contracts";
+import type { OpenDesignHostProjectImportSuccess } from "@open-design/host";
+import type { DesignSystemGenerateSnapshot } from "./DesignSystemFlow";
+import { useAnalytics } from "../analytics/provider";
 import {
   trackHomeNavClick,
   trackOnboardingClick,
   trackOnboardingCompleteResult,
   trackOnboardingRuntimeScanResult,
-  trackPageView,
-} from '../analytics/events';
-import { recordAmrEntry, type AmrEntryAttribution } from '../analytics/amr-attribution';
-import {
-  clearOnboardingSessionId,
-  getOrCreateOnboardingSessionId,
-} from '../analytics/onboarding-session';
+  trackPageView
+} from "../analytics/events";
+import { recordAmrEntry, type AmrEntryAttribution } from "../analytics/amr-attribution";
+import { clearOnboardingSessionId, getOrCreateOnboardingSessionId } from "../analytics/onboarding-session";
 import type {
   TrackingOnboardingArea,
   TrackingOnboardingStepIndex,
@@ -48,11 +45,11 @@ import type {
   TrackingOnboardingRuntimeType,
   TrackingOnboardingCompletionResult,
   TrackingOnboardingCompletionType,
-  TrackingCliProviderId,
-} from '@open-design/contracts/analytics';
-import { agentIdToTracking } from '@open-design/contracts/analytics';
-import { useT } from '../i18n';
-import { navigate, useRoute } from '../router';
+  TrackingCliProviderId
+} from "@open-design/contracts/analytics";
+import { agentIdToTracking } from "@open-design/contracts/analytics";
+import { useT } from "../i18n";
+import { navigate, useRoute } from "../router";
 import type {
   AgentInfo,
   ApiProtocol,
@@ -68,84 +65,57 @@ import type {
   PromptTemplateSummary,
   ProviderModelOption,
   ProviderModelsResponse,
-  SkillSummary,
-} from '../types';
-import { CenteredLoader } from './Loading';
-import { DesignsTab } from './DesignsTab';
-import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
-import { DesignSystemsTab } from './DesignSystemsTab';
-import { EntryNavRail, type EntryView as EntryViewKind } from './EntryNavRail';
-import { UpdaterPopup } from './UpdaterPopup';
-import { HomeView } from './HomeView';
-import { AssetLibraryView } from './AssetLibraryView';
-import {
-  createPluginAuthoringHandoff,
-  createPluginUseHandoff,
-  type HomePromptHandoff,
-} from './home-hero/plugin-authoring';
-import type { PluginUseAction } from './plugins-home/useActions';
-import { Icon } from './Icon';
-import { AgentIcon } from './AgentIcon';
-import { IntegrationsView, type IntegrationTab } from './IntegrationsView';
-import { InlineModelSwitcher } from './InlineModelSwitcher';
-import {
-  EntrySettingsMenu,
-  type EntrySettingsSection,
-} from './EntrySettingsMenu';
-import { NewProjectModal } from './NewProjectModal';
-import { PluginsView } from './PluginsView';
-import type { CreateInput, CreateTab, ImportClaudeDesignOutcome } from './NewProjectPanel';
-import type { PluginLoopSubmit } from './PluginLoopHome';
-import type {
-  PluginShareAction,
-  PluginShareProjectOutcome,
-} from '../state/projects';
-import { TasksView } from './TasksView';
-import {
-  API_KEY_PLACEHOLDERS,
-  API_PROTOCOL_TABS,
-  SUGGESTED_MODELS_BY_PROTOCOL,
-} from '../state/apiProtocols';
-import { KNOWN_PROVIDERS } from '../state/config';
-import type { KnownProvider } from '../state/config';
-import { testApiProvider } from '../providers/connection-test';
-import { fetchProviderModels } from '../providers/provider-models';
-import {
-  cancelVelaLogin,
-  fetchVelaLoginStatus,
-  startVelaLogin,
-  type VelaLoginStatus,
-} from '../providers/daemon';
-import {
-  AMR_LOGIN_POLL_INTERVAL_MS,
-  amrLoginPollOutcome,
-} from './amrLoginPolling';
-import { AnimatePresence } from 'motion/react';
-import { renderModelOptions } from './modelOptions';
-import {
-  providerModelsCacheKey,
-  type ProviderModelsCache,
-} from './providerModelsCache';
+  SkillSummary
+} from "../types";
+import { CenteredLoader } from "./Loading";
+import { DesignsTab } from "./DesignsTab";
+import { DesignSystemPreviewModal } from "./DesignSystemPreviewModal";
+import { DesignSystemsTab } from "./DesignSystemsTab";
+import { EntryNavRail, type EntryView as EntryViewKind } from "./EntryNavRail";
+import { UpdaterPopup } from "./UpdaterPopup";
+import { HomeView } from "./HomeView";
+import { AssetLibraryView } from "./AssetLibraryView";
+import { VideoDashboardView } from "./VideoDashboardView";
+import { Icon } from "./Icon";
+import { AgentIcon } from "./AgentIcon";
+import { InlineModelSwitcher } from "./InlineModelSwitcher";
+import { EntrySettingsMenu, type EntrySettingsSection } from "./EntrySettingsMenu";
+import { NewProjectModal } from "./NewProjectModal";
+import { SkillsSection } from "./SkillsSection";
+import type { CreateInput, CreateTab, ImportClaudeDesignOutcome } from "./NewProjectPanel";
+import type { PluginLoopSubmit } from "./PluginLoopHome";
+import type { PluginShareAction, PluginShareProjectOutcome } from "../state/projects";
+import { TasksView } from "./TasksView";
+import { API_KEY_PLACEHOLDERS, API_PROTOCOL_TABS, SUGGESTED_MODELS_BY_PROTOCOL } from "../state/apiProtocols";
+import { KNOWN_PROVIDERS } from "../state/config";
+import type { KnownProvider } from "../state/config";
+import { testApiProvider } from "../providers/connection-test";
+import { fetchProviderModels } from "../providers/provider-models";
+import { cancelVelaLogin, fetchVelaLoginStatus, startVelaLogin, type VelaLoginStatus } from "../providers/daemon";
+import { AMR_LOGIN_POLL_INTERVAL_MS, amrLoginPollOutcome } from "./amrLoginPolling";
+import { AnimatePresence } from "motion/react";
+import { renderModelOptions } from "./modelOptions";
+import { providerModelsCacheKey, type ProviderModelsCache } from "./providerModelsCache";
 
 // Persist the entry nav-rail open/collapsed state so it survives both a
 // home -> project -> home navigation (EntryShell unmounts on the project
 // route) and a full reload. Without this the rail always reset to its
 // collapsed default on return.
-const RAIL_OPEN_STORAGE_KEY = 'od.entry.railOpen';
+const RAIL_OPEN_STORAGE_KEY = "od.entry.railOpen";
 
 function readStoredRailOpen(): boolean {
-  if (typeof window === 'undefined') return false;
+  if (typeof window === "undefined") return false;
   try {
-    return window.localStorage.getItem(RAIL_OPEN_STORAGE_KEY) === 'true';
+    return window.localStorage.getItem(RAIL_OPEN_STORAGE_KEY) === "true";
   } catch {
     return false;
   }
 }
 
 function writeStoredRailOpen(open: boolean): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(RAIL_OPEN_STORAGE_KEY, open ? 'true' : 'false');
+    window.localStorage.setItem(RAIL_OPEN_STORAGE_KEY, open ? "true" : "false");
   } catch {
     /* ignore quota / disabled storage */
   }
@@ -164,92 +134,74 @@ function writeStoredRailOpen(open: boolean): void {
 // Function backed by KV), so this is a cross-origin POST from the desktop
 // client. Overridable at build time via NEXT_PUBLIC_NEWSLETTER_URL — e.g. point
 // it at a local `wrangler pages dev` instance during development.
-const NEWSLETTER_SUBSCRIBE_URL =
-  process.env.NEXT_PUBLIC_NEWSLETTER_URL ?? 'https://open-design.ai/subscribe';
+const NEWSLETTER_SUBSCRIBE_URL = process.env.NEXT_PUBLIC_NEWSLETTER_URL ?? "https://open-design.ai/subscribe";
 const NEWSLETTER_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const ONBOARDING_AMR_MODEL_OPTIONS: NonNullable<AgentInfo['models']> = [
-  { id: 'claude-opus-4.8', label: 'Claude Opus 4.8' },
-  { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-  { id: 'glm-5.1', label: 'GLM 5.1' },
+const ONBOARDING_AMR_MODEL_OPTIONS: NonNullable<AgentInfo["models"]> = [
+  { id: "claude-opus-4.8", label: "Claude Opus 4.8" },
+  { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash" },
+  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+  { id: "glm-5.1", label: "GLM 5.1" }
 ];
 
 function defaultPluginIdForMetadata(metadata: ProjectMetadata): string | null {
   return defaultScenarioPluginIdForProjectMetadata(metadata);
 }
 
-function defaultPluginInputsForCreate(
-  input: CreateInput,
-  pluginId: string | null,
-): Record<string, unknown> | null {
+function defaultPluginInputsForCreate(input: CreateInput, pluginId: string | null): Record<string, unknown> | null {
   const kind = input.metadata.kind;
   const projectName = input.name.trim();
 
-  if (pluginId === 'example-web-prototype') {
+  if (pluginId === "example-web-prototype") {
     return {
-      artifactKind: input.metadata.includeLandingPage
-        ? 'landing page'
-        : 'web prototype',
-      fidelity: input.metadata.fidelity ?? 'high-fidelity',
-      audience: 'product evaluators',
-      designSystem: 'the active project design system',
-      template: input.metadata.templateLabel ?? 'the bundled web prototype seed',
+      artifactKind: input.metadata.includeLandingPage ? "landing page" : "web prototype",
+      fidelity: input.metadata.fidelity ?? "high-fidelity",
+      audience: "product evaluators",
+      designSystem: "the active project design system",
+      template: input.metadata.templateLabel ?? "the bundled web prototype seed"
     };
   }
 
-  if (pluginId === 'example-simple-deck') {
+  if (pluginId === "example-simple-deck") {
     return {
-      deckType: 'pitch deck',
-      topic: projectName || 'the user brief',
-      audience: 'decision makers',
-      slideCount: '10-15 pages',
-      speakerNotes: input.metadata.speakerNotes
-        ? 'include speaker notes'
-        : 'no speaker notes',
-      designSystem: 'the active project design system',
+      deckType: "pitch deck",
+      topic: projectName || "the user brief",
+      audience: "decision makers",
+      slideCount: "10-15 pages",
+      speakerNotes: input.metadata.speakerNotes ? "include speaker notes" : "no speaker notes",
+      designSystem: "the active project design system"
     };
   }
 
-  if (pluginId === 'od-new-generation') {
+  if (pluginId === "od-new-generation") {
     const templateLabel = input.metadata.templateLabel?.trim();
     const artifactKind =
-      kind === 'template'
-        ? 'artifact based on a saved template'
-        : kind === 'other'
-          ? 'custom design artifact'
+      kind === "template"
+        ? "artifact based on a saved template"
+        : kind === "other"
+          ? "custom design artifact"
           : `${kind} artifact`;
     return {
       artifactKind,
-      audience: 'product and design reviewers',
-      topic: templateLabel || projectName || 'the user brief',
+      audience: "product and design reviewers",
+      topic: templateLabel || projectName || "the user brief"
     };
   }
 
-  if (pluginId !== 'od-media-generation') return null;
-  if (kind !== 'image' && kind !== 'video' && kind !== 'audio') return null;
+  if (pluginId !== "od-media-generation") return null;
+  if (kind !== "image" && kind !== "video" && kind !== "audio") return null;
 
   const promptTemplate = input.metadata.promptTemplate;
-  const subject =
-    promptTemplate?.prompt?.trim()
-    || projectName
-    || promptTemplate?.title?.trim()
-    || `${kind} concept`;
-  const style =
-    promptTemplate?.summary?.trim()
-    || 'cinematic, high-quality, on-brand';
+  const subject = promptTemplate?.prompt?.trim() || projectName || promptTemplate?.title?.trim() || `${kind} concept`;
+  const style = promptTemplate?.summary?.trim() || "cinematic, high-quality, on-brand";
   const aspect =
-    kind === 'image'
-      ? input.metadata.imageAspect
-      : kind === 'video'
-        ? input.metadata.videoAspect
-        : undefined;
+    kind === "image" ? input.metadata.imageAspect : kind === "video" ? input.metadata.videoAspect : undefined;
 
   return {
     mediaKind: kind,
     subject,
     style,
-    ...(aspect ? { aspect } : {}),
+    ...(aspect ? { aspect } : {})
   };
 }
 
@@ -264,8 +216,6 @@ interface Props {
   defaultDesignSystemId: string | null;
   connectors: ConnectorDetail[];
   connectorsLoading: boolean;
-  integrationInitialTab?: IntegrationTab;
-  composioConfigLoading?: boolean;
   skillsLoading?: boolean;
   designSystemsLoading?: boolean;
   projectsLoading?: boolean;
@@ -279,10 +229,7 @@ interface Props {
   daemonLive: boolean;
   onModeChange: (mode: ExecMode) => void;
   onAgentChange: (id: string) => void;
-  onAgentModelChange: (
-    id: string,
-    choice: { model?: string; reasoning?: string },
-  ) => void;
+  onAgentModelChange: (id: string, choice: { model?: string; reasoning?: string }) => void;
   onApiProtocolChange: (protocol: ApiProtocol) => void;
   onApiModelChange: (model: string) => void;
   onConfigPersist: (cfg: AppConfig) => Promise<void> | void;
@@ -300,16 +247,14 @@ interface Props {
       conversationMode?: ChatSessionMode;
       autoSendFirstMessage?: boolean;
       pendingFiles?: File[];
-    },
+    }
   ) => Promise<boolean> | boolean | void;
   onCreatePluginShareProject: (
     pluginId: string,
     action: PluginShareAction,
-    locale?: string,
+    locale?: string
   ) => Promise<PluginShareProjectOutcome>;
-  onImportClaudeDesign: (
-    file: File,
-  ) => Promise<ImportClaudeDesignOutcome | void> | ImportClaudeDesignOutcome | void;
+  onImportClaudeDesign: (file: File) => Promise<ImportClaudeDesignOutcome | void> | ImportClaudeDesignOutcome | void;
   onImportFolder?: (baseDir: string) => Promise<void> | void;
   onImportFolderResponse?: (response: OpenDesignHostProjectImportSuccess) => Promise<void> | void;
   onOpenProject: (id: string) => void;
@@ -325,8 +270,9 @@ interface Props {
   // reachable from the standalone `design-system-create` route and the
   // Design Systems tab; do not re-thread an onboarding renderer here.
   onOpenDesignSystem?: (id: string) => void;
+  onSkillsRefresh?: () => Promise<void> | void;
+  onSkillsChanged?: (affectedSkillId?: string) => void;
   onDesignSystemsRefresh?: () => Promise<void> | void;
-  onPersistComposioKey: (composio: AppConfig['composio']) => Promise<void> | void;
   onOpenSettings: (section?: EntrySettingsSection) => void;
   onCompleteOnboarding: () => void;
 }
@@ -336,28 +282,21 @@ interface Props {
 // button (the rail's "Home" target is the brand logo, which gets its own
 // element value via the logo click handler — not the changeView path).
 function navElementForView(
-  next: EntryViewKind,
-):
-  | 'home'
-  | 'projects'
-  | 'automations'
-  | 'plugins'
-  | 'design_systems'
-  | 'integrations'
-  | null {
+  next: EntryViewKind
+): "home" | "projects" | "automations" | "plugins" | "design_systems" | null {
   switch (next) {
-    case 'home':
-      return 'home';
-    case 'projects':
-      return 'projects';
-    case 'tasks':
-      return 'automations';
-    case 'plugins':
-      return 'plugins';
-    case 'design-systems':
-      return 'design_systems';
-    case 'integrations':
-      return 'integrations';
+    case "home":
+      return "home";
+    case "projects":
+      return "projects";
+    case "tasks":
+      return "automations";
+    case "plugins":
+      return "plugins";
+    case "design-systems":
+      return "design_systems";
+    case "video-dashboard":
+      return null;
     default:
       return null;
   }
@@ -369,9 +308,9 @@ function navElementForView(
 // which pushes later sidebar destinations far below the sticky topbar.
 function inactiveViewProps(active: boolean) {
   return {
-    style: active ? undefined : ({ display: 'none' } as const),
+    style: active ? undefined : ({ display: "none" } as const),
     inert: !active,
-    'aria-hidden': !active,
+    "aria-hidden": !active
   };
 }
 
@@ -386,8 +325,6 @@ export function EntryShell({
   defaultDesignSystemId,
   connectors,
   connectorsLoading,
-  integrationInitialTab = 'mcp',
-  composioConfigLoading = false,
   skillsLoading = false,
   designSystemsLoading = false,
   projectsLoading = false,
@@ -405,7 +342,6 @@ export function EntryShell({
   onRefreshAgents,
   onThemeChange,
   onCreateProject,
-  onCreatePluginShareProject,
   onImportClaudeDesign,
   onImportFolder,
   onImportFolderResponse,
@@ -416,10 +352,11 @@ export function EntryShell({
   onChangeDefaultDesignSystem,
   onCreateDesignSystem,
   onOpenDesignSystem,
+  onSkillsRefresh,
+  onSkillsChanged,
   onDesignSystemsRefresh,
-  onPersistComposioKey,
   onOpenSettings,
-  onCompleteOnboarding,
+  onCompleteOnboarding
 }: Props) {
   const t = useT();
   // Each entry sub-view (home / projects / design-systems) is its own
@@ -427,7 +364,7 @@ export function EntryShell({
   // to /design-systems lands on that section. We derive the active
   // view from the route rather than keeping it in component state.
   const route = useRoute();
-  const view: EntryViewKind = route.kind === 'home' ? route.view : 'home';
+  const view: EntryViewKind = route.kind === "home" ? route.view : "home";
   const [previewSystemId, setPreviewSystemId] = useState<string | null>(null);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   // The entry nav rail is collapsed by default (Manus-style) so the entry
@@ -440,85 +377,44 @@ export function EntryShell({
   useEffect(() => {
     writeStoredRailOpen(railOpen);
   }, [railOpen]);
-  const [localProviderModelsCache, setLocalProviderModelsCache] =
-    useState<ProviderModelsCache>({});
-  const hasSharedProviderModelsCache =
-    Boolean(sharedProviderModelsCache) && Boolean(onProviderModelsCacheChange);
-  const activeProviderModelsCache =
-    hasSharedProviderModelsCache
-      ? sharedProviderModelsCache!
-      : localProviderModelsCache;
-  const activeSetProviderModelsCache =
-    hasSharedProviderModelsCache
-      ? onProviderModelsCacheChange!
-      : setLocalProviderModelsCache;
-  const [newProjectInitialTab, setNewProjectInitialTab] =
-    useState<CreateTab>('prototype');
-  const [integrationTab, setIntegrationTab] = useState<IntegrationTab>(integrationInitialTab);
-  const [homePromptHandoff, setHomePromptHandoff] = useState<HomePromptHandoff | null>(null);
-  const entryMainScrollRef = useRef<HTMLElement | null>(null);
+  const [localProviderModelsCache, setLocalProviderModelsCache] = useState<ProviderModelsCache>({});
+  const hasSharedProviderModelsCache = Boolean(sharedProviderModelsCache) && Boolean(onProviderModelsCacheChange);
+  const activeProviderModelsCache = hasSharedProviderModelsCache
+    ? sharedProviderModelsCache!
+    : localProviderModelsCache;
+  const activeSetProviderModelsCache = hasSharedProviderModelsCache
+    ? onProviderModelsCacheChange!
+    : setLocalProviderModelsCache;
+  const [newProjectInitialTab, setNewProjectInitialTab] = useState<CreateTab>("prototype");
   const analytics = useAnalytics();
   function changeView(next: EntryViewKind) {
     const navElement = navElementForView(next);
     if (navElement) {
       trackHomeNavClick(analytics.track, {
-        page_name: 'home',
-        area: 'nav',
-        element: navElement,
+        page_name: "home",
+        area: "nav",
+        element: navElement
       });
     }
-    navigate({ kind: 'home', view: next });
+    navigate({ kind: "home", view: next });
   }
 
-  function startPluginAuthoring(goal?: string) {
-    setHomePromptHandoff(
-      createPluginAuthoringHandoff(Date.now(), goal),
-    );
-    changeView('home');
-  }
+  const setSkillsPageConfig = useCallback<Dispatch<SetStateAction<AppConfig>>>(
+    (nextConfig) => {
+      const next = typeof nextConfig === "function" ? nextConfig(config) : nextConfig;
+      void onConfigPersist(next);
+    },
+    [config, onConfigPersist]
+  );
 
-  function usePluginFromLibrary(
-    record: InstalledPluginRecord,
-    action: PluginUseAction = 'use',
-  ) {
-    setHomePromptHandoff(
-      createPluginUseHandoff(Date.now(), record.id, { action }),
-    );
-    changeView('home');
-  }
-
-  useEffect(() => {
-    if (view !== 'home' || !homePromptHandoff) return;
-    const frame = window.requestAnimationFrame(() => {
-      const scrollContainer = entryMainScrollRef.current;
-      if (!scrollContainer) return;
-      if (typeof scrollContainer.scrollTo === 'function') {
-        scrollContainer.scrollTo({ top: 0, left: 0 });
-        return;
-      }
-      scrollContainer.scrollTop = 0;
-      scrollContainer.scrollLeft = 0;
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [homePromptHandoff?.id, view]);
-
-  useEffect(() => {
-    setIntegrationTab(integrationInitialTab);
-  }, [integrationInitialTab]);
-
-  function openIntegrationTab(tab: IntegrationTab) {
-    setIntegrationTab(tab);
-    changeView('integrations');
-  }
-
-  function openNewProject(tab: CreateTab = 'prototype') {
+  function openNewProject(tab: CreateTab = "prototype") {
     setNewProjectInitialTab(tab);
     setNewProjectOpen(true);
   }
 
   const previewSystem = useMemo(
-    () => (previewSystemId ? designSystems.find((d) => d.id === previewSystemId) ?? null : null),
-    [designSystems, previewSystemId],
+    () => (previewSystemId ? (designSystems.find((d) => d.id === previewSystemId) ?? null) : null),
+    [designSystems, previewSystemId]
   );
 
   function handleCreate(input: CreateInput) {
@@ -534,7 +430,7 @@ export function EntryShell({
     return onCreateProject({
       ...input,
       ...(pluginId ? { pluginId } : {}),
-      ...(pluginInputs ? { pluginInputs } : {}),
+      ...(pluginInputs ? { pluginInputs } : {})
     });
   }
 
@@ -553,17 +449,15 @@ export function EntryShell({
   // projectKind='other', so the agent asks for the exact task type
   // before continuing.
   function handlePluginLoopSubmit(payload: PluginLoopSubmit) {
-    const head = payload.prompt.trim().split(/\s+/).slice(0, 8).join(' ');
-    const firstAttachmentName = payload.attachments?.[0]?.name ?? '';
-    const fallbackName = head.length > 0 ? head : firstAttachmentName || 'Untitled';
+    const head = payload.prompt.trim().split(/\s+/).slice(0, 8).join(" ");
+    const firstAttachmentName = payload.attachments?.[0]?.name ?? "";
+    const fallbackName = head.length > 0 ? head : firstAttachmentName || "Untitled";
     const name =
-      payload.pluginTitle && payload.pluginTitle.trim().length > 0
-        ? payload.pluginTitle.trim()
-        : fallbackName;
+      payload.pluginTitle && payload.pluginTitle.trim().length > 0 ? payload.pluginTitle.trim() : fallbackName;
     const metadata: ProjectMetadata = {
       ...(payload.projectMetadata ?? {}),
-      kind: payload.projectKind ?? payload.projectMetadata?.kind ?? 'prototype',
-      nameSource: 'prompt',
+      kind: payload.projectKind ?? payload.projectMetadata?.kind ?? "prototype",
+      nameSource: "prompt",
       ...(payload.contextPlugins && payload.contextPlugins.length > 0
         ? { contextPlugins: payload.contextPlugins }
         : {}),
@@ -574,50 +468,43 @@ export function EntryShell({
         ? { contextConnectors: payload.contextConnectors }
         : {}),
       ...(payload.workingDir ? { userWorkingDir: payload.workingDir } : {}),
-      ...(payload.examplePromptContext ? {
-        examplePrompt: true,
-        examplePromptTitle: payload.examplePromptContext.title,
-        examplePromptBrief: payload.examplePromptContext.brief,
-      } : {}),
+      ...(payload.examplePromptContext
+        ? {
+            examplePrompt: true,
+            examplePromptTitle: payload.examplePromptContext.title,
+            examplePromptBrief: payload.examplePromptContext.brief
+          }
+        : {})
     };
-    onCreateProject({
+    return onCreateProject({
       name,
       skillId: payload.skillId ?? null,
       designSystemId: payload.designSystemId ?? null,
       metadata,
       pendingPrompt: payload.prompt,
       ...(payload.pluginId ? { pluginId: payload.pluginId } : {}),
-      ...(payload.appliedPluginSnapshotId
-        ? { appliedPluginSnapshotId: payload.appliedPluginSnapshotId }
-        : {}),
+      ...(payload.appliedPluginSnapshotId ? { appliedPluginSnapshotId: payload.appliedPluginSnapshotId } : {}),
       ...(payload.pluginInputs ? { pluginInputs: payload.pluginInputs } : {}),
       ...(payload.conversationMode ? { conversationMode: payload.conversationMode } : {}),
-      ...(payload.attachments && payload.attachments.length > 0
-        ? { pendingFiles: payload.attachments }
-        : {}),
+      ...(payload.attachments && payload.attachments.length > 0 ? { pendingFiles: payload.attachments } : {}),
       ...(payload.workingDirToken ? { userWorkingDirToken: payload.workingDirToken } : {}),
-      autoSendFirstMessage: true,
+      autoSendFirstMessage: true
     });
   }
 
   function finishOnboarding() {
     onCompleteOnboarding();
-    changeView('home');
+    changeView("home");
   }
 
   const avatarMenu = (
-    <EntrySettingsMenu
-      config={config}
-      onThemeChange={onThemeChange}
-      onOpenSettings={onOpenSettings}
-    />
+    <EntrySettingsMenu config={config} onThemeChange={onThemeChange} onOpenSettings={onOpenSettings} />
   );
 
-
-  if (view === 'onboarding') {
+  if (view === "onboarding") {
     return (
       <div className="entry-shell entry-shell--no-header entry-shell--onboarding">
-        <main className="entry-onboarding-modal" aria-label={t('settings.welcomeTitle')}>
+        <main className="entry-onboarding-modal" aria-label={t("settings.welcomeTitle")}>
           <OnboardingView
             config={config}
             agents={agents}
@@ -656,7 +543,7 @@ export function EntryShell({
 
   return (
     <div className="entry-shell entry-shell--no-header">
-      <div className={`entry${railOpen ? ' entry--rail-open' : ''}`}>
+      <div className={`entry${railOpen ? " entry--rail-open" : ""}`}>
         <EntryNavRail
           view={view}
           onViewChange={changeView}
@@ -664,30 +551,28 @@ export function EntryShell({
           open={railOpen}
           onClose={() => setRailOpen(false)}
         />
-        <main className="entry-main entry-main--scroll" ref={entryMainScrollRef}>
+        <main className="entry-main entry-main--scroll">
           <div className="entry-main__topbar">
             <button
               type="button"
               className="entry-rail-toggle"
               onClick={() => setRailOpen((prev) => !prev)}
-              aria-label={t('entry.navExpand')}
+              aria-label={t("entry.navExpand")}
               aria-expanded={railOpen}
               data-testid="entry-rail-toggle"
             >
               <Icon name="panel-left" size={20} />
             </button>
-            <div className="entry-main__topbar-chips entry-main__topbar-chips--icon-only">
-              {executionSwitcher}
-            </div>
+            <div className="entry-main__topbar-chips entry-main__topbar-chips--icon-only">{executionSwitcher}</div>
             <UpdaterPopup />
             {avatarMenu}
           </div>
-          <div
-            className={`entry-main__inner${
-              view === 'home' ? '' : ' entry-main__inner--wide'
-            }`}
-          >
-            <div data-testid="entry-view-home" data-active={view === 'home' ? 'true' : 'false'} {...inactiveViewProps(view === 'home')}>
+          <div className={`entry-main__inner${view === "home" ? "" : " entry-main__inner--wide"}`}>
+            <div
+              data-testid="entry-view-home"
+              data-active={view === "home" ? "true" : "false"}
+              {...inactiveViewProps(view === "home")}
+            >
               <HomeView
                 projects={projects}
                 projectsLoading={projectsLoading}
@@ -695,27 +580,30 @@ export function EntryShell({
                 defaultDesignSystemId={defaultDesignSystemId}
                 onSubmit={handlePluginLoopSubmit}
                 onOpenProject={onOpenProject}
-                onViewAllProjects={() => changeView('projects')}
-                onBrowseRegistry={() => changeView('plugins')}
-                onOpenIntegrations={() => openIntegrationTab('connectors')}
-                onOpenMcp={() => openIntegrationTab('mcp')}
+                onViewAllProjects={() => changeView("projects")}
+                onBrowseRegistry={() => changeView("plugins")}
+                onOpenIntegrations={() => onOpenSettings("composio")}
+                onOpenMcp={() => onOpenSettings("mcpClient")}
                 onOpenNewProject={(tab) => {
                   openNewProject(tab);
                 }}
-                promptHandoff={homePromptHandoff}
                 skills={skills}
                 skillsLoading={skillsLoading}
                 connectors={connectors}
                 promptTemplates={promptTemplates}
               />
             </div>
-            <div data-testid="entry-view-projects" data-active={view === 'projects' ? 'true' : 'false'} {...inactiveViewProps(view === 'projects')}>
+            <div
+              data-testid="entry-view-projects"
+              data-active={view === "projects" ? "true" : "false"}
+              {...inactiveViewProps(view === "projects")}
+            >
               {projectsLoading || skillsLoading || designSystemsLoading ? (
-                <CenteredLoader label={t('common.loading')} />
+                <CenteredLoader label={t("common.loading")} />
               ) : (
                 <div className="entry-section">
                   <header className="entry-section__head">
-                    <h1 className="entry-section__title">{t('entry.navProjects')}</h1>
+                    <h1 className="entry-section__title">{t("entry.navProjects")}</h1>
                   </header>
                   <DesignsTab
                     projects={projects}
@@ -730,10 +618,25 @@ export function EntryShell({
                 </div>
               )}
             </div>
-            <div data-testid="entry-view-asset-library" data-active={view === 'asset-library' ? 'true' : 'false'} {...inactiveViewProps(view === 'asset-library')}>
-              <AssetLibraryView onOpenSettings={() => onOpenSettings('assetLibrary')} />
+            <div
+              data-testid="entry-view-asset-library"
+              data-active={view === "asset-library" ? "true" : "false"}
+              {...inactiveViewProps(view === "asset-library")}
+            >
+              <AssetLibraryView onOpenSettings={() => onOpenSettings("assetLibrary")} />
             </div>
-            <div data-testid="entry-view-tasks" data-active={view === 'tasks' ? 'true' : 'false'} {...inactiveViewProps(view === 'tasks')}>
+            <div
+              data-testid="entry-view-video-dashboard"
+              data-active={view === "video-dashboard" ? "true" : "false"}
+              {...inactiveViewProps(view === "video-dashboard")}
+            >
+              <VideoDashboardView />
+            </div>
+            <div
+              data-testid="entry-view-tasks"
+              data-active={view === "tasks" ? "true" : "false"}
+              {...inactiveViewProps(view === "tasks")}
+            >
               <TasksView
                 skills={skills}
                 designTemplates={designTemplates}
@@ -741,20 +644,37 @@ export function EntryShell({
                 connectorsLoading={connectorsLoading}
               />
             </div>
-            <div data-testid="entry-view-plugins" data-active={view === 'plugins' ? 'true' : 'false'} {...inactiveViewProps(view === 'plugins')}>
-              <PluginsView
-                onCreatePlugin={startPluginAuthoring}
-                onUsePlugin={usePluginFromLibrary}
-                onCreatePluginShareProject={onCreatePluginShareProject}
-              />
+            <div
+              data-testid="entry-view-plugins"
+              data-active={view === "plugins" ? "true" : "false"}
+              {...inactiveViewProps(view === "plugins")}
+            >
+              <div className="entry-section">
+                <header className="entry-section__head">
+                  <div>
+                    <h1 className="entry-section__title">{t("entry.navPlugins")}</h1>
+                    <p className="entry-section__subtitle">{t("settings.skillsHint")}</p>
+                  </div>
+                </header>
+                <SkillsSection
+                  cfg={config}
+                  setCfg={setSkillsPageConfig}
+                  onSkillsRefresh={onSkillsRefresh}
+                  onSkillsChanged={onSkillsChanged}
+                />
+              </div>
             </div>
-            <div data-testid="entry-view-design-systems" data-active={view === 'design-systems' ? 'true' : 'false'} {...inactiveViewProps(view === 'design-systems')}>
+            <div
+              data-testid="entry-view-design-systems"
+              data-active={view === "design-systems" ? "true" : "false"}
+              {...inactiveViewProps(view === "design-systems")}
+            >
               {designSystemsLoading ? (
-                <CenteredLoader label={t('common.loading')} />
+                <CenteredLoader label={t("common.loading")} />
               ) : (
                 <div className="entry-section">
                   <header className="entry-section__head">
-                    <h1 className="entry-section__title">{t('entry.navDesignSystems')}</h1>
+                    <h1 className="entry-section__title">{t("entry.navDesignSystems")}</h1>
                   </header>
                   <DesignSystemsTab
                     systems={designSystems}
@@ -769,23 +689,12 @@ export function EntryShell({
                 </div>
               )}
             </div>
-            {view === 'integrations' ? (
-              <IntegrationsView
-                config={config}
-                initialTab={integrationTab}
-                composioConfigLoading={composioConfigLoading}
-                onPersistComposioKey={onPersistComposioKey}
-              />
-            ) : null}
           </div>
         </main>
       </div>
       <AnimatePresence>
         {previewSystem ? (
-          <DesignSystemPreviewModal
-            system={previewSystem}
-            onClose={() => setPreviewSystemId(null)}
-          />
+          <DesignSystemPreviewModal system={previewSystem} onClose={() => setPreviewSystemId(null)} />
         ) : null}
       </AnimatePresence>
       <NewProjectModal
@@ -807,7 +716,7 @@ export function EntryShell({
         {...(onImportFolderResponse ? { onImportFolderResponse } : {})}
         onOpenConnectorsTab={() => {
           setNewProjectOpen(false);
-          openIntegrationTab('connectors');
+          onOpenSettings("composio");
         }}
         onClose={() => setNewProjectOpen(false)}
       />
@@ -828,7 +737,7 @@ function OnboardingView({
   onApiModelChange,
   onConfigPersist,
   onRefreshAgents,
-  onFinish,
+  onFinish
 }: {
   config: AppConfig;
   providerModelsCache?: ProviderModelsCache;
@@ -837,10 +746,7 @@ function OnboardingView({
   daemonLive: boolean;
   onModeChange: (mode: ExecMode) => void;
   onAgentChange: (id: string) => void;
-  onAgentModelChange: (
-    id: string,
-    choice: { model?: string; reasoning?: string },
-  ) => void;
+  onAgentModelChange: (id: string, choice: { model?: string; reasoning?: string }) => void;
   onApiProtocolChange: (protocol: ApiProtocol) => void;
   onApiModelChange: (model: string) => void;
   onConfigPersist: (cfg: AppConfig) => Promise<void> | void;
@@ -850,42 +756,38 @@ function OnboardingView({
   const t = useT();
   const analytics = useAnalytics();
   const [step, setStep] = useState(0);
-  const [runtime, setRuntime] = useState<'amr' | 'local' | 'byok' | null>(null);
+  const [runtime, setRuntime] = useState<"amr" | "local" | "byok" | null>(null);
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
-  const [cliScanStatus, setCliScanStatus] = useState<'idle' | 'scanning' | 'done'>('idle');
+  const [cliScanStatus, setCliScanStatus] = useState<"idle" | "scanning" | "done">("idle");
   const [amrStatus, setAmrStatus] = useState<VelaLoginStatus | null>(null);
   const [amrLoginPending, setAmrLoginPending] = useState(false);
   const [newsletterSubmitting, setNewsletterSubmitting] = useState(false);
   const [amrLoginError, setAmrLoginError] = useState<string | null>(null);
   const [visibleAgentIds, setVisibleAgentIds] = useState<string[]>([]);
   const [providerTestState, setProviderTestState] = useState<
-    | { status: 'idle' }
-    | { status: 'running'; inputKey: string }
-    | { status: 'done'; inputKey: string; result: ConnectionTestResponse }
-  >({ status: 'idle' });
+    | { status: "idle" }
+    | { status: "running"; inputKey: string }
+    | { status: "done"; inputKey: string; result: ConnectionTestResponse }
+  >({ status: "idle" });
   const [providerModelsState, setProviderModelsState] = useState<
-    | { status: 'idle' }
-    | { status: 'running'; inputKey: string }
-    | { status: 'done'; inputKey: string; result: ProviderModelsResponse }
-  >({ status: 'idle' });
-  const [localProviderModelsCache, setLocalProviderModelsCache] =
-    useState<ProviderModelsCache>({});
-  const hasSharedProviderModelsCache =
-    Boolean(sharedProviderModelsCache) && Boolean(onProviderModelsCacheChange);
-  const activeProviderModelsCache =
-    hasSharedProviderModelsCache
-      ? sharedProviderModelsCache!
-      : localProviderModelsCache;
-  const activeSetProviderModelsCache =
-    hasSharedProviderModelsCache
-      ? onProviderModelsCacheChange!
-      : setLocalProviderModelsCache;
+    | { status: "idle" }
+    | { status: "running"; inputKey: string }
+    | { status: "done"; inputKey: string; result: ProviderModelsResponse }
+  >({ status: "idle" });
+  const [localProviderModelsCache, setLocalProviderModelsCache] = useState<ProviderModelsCache>({});
+  const hasSharedProviderModelsCache = Boolean(sharedProviderModelsCache) && Boolean(onProviderModelsCacheChange);
+  const activeProviderModelsCache = hasSharedProviderModelsCache
+    ? sharedProviderModelsCache!
+    : localProviderModelsCache;
+  const activeSetProviderModelsCache = hasSharedProviderModelsCache
+    ? onProviderModelsCacheChange!
+    : setLocalProviderModelsCache;
   const [profile, setProfile] = useState({
-    role: '',
-    orgSize: '',
+    role: "",
+    orgSize: "",
     useCase: [] as string[],
-    source: '',
-    email: '',
+    source: "",
+    email: ""
   });
   // Live mirror of `profile` so closures that fire faster than React
   // commits (rapid dropdown picks, the Finish-setup click after the
@@ -903,70 +805,57 @@ function OnboardingView({
   const cliScanTokenRef = useRef(0);
   const amrLoginPollCancelledRef = useRef(false);
   const amrAgentRefreshAttemptedRef = useRef(false);
-  const apiProtocol = config.apiProtocol ?? 'anthropic';
+  const apiProtocol = config.apiProtocol ?? "anthropic";
   const providerTestInputKey = [
     apiProtocol,
     config.baseUrl.trim(),
     config.model.trim(),
     config.apiKey.trim(),
-    config.apiVersion?.trim() ?? '',
-  ].join('\n');
+    config.apiVersion?.trim() ?? ""
+  ].join("\n");
   const providerModelsInputKey = providerModelsCacheKey(
     apiProtocol,
     config.baseUrl,
     config.apiKey,
-    config.apiVersion ?? '',
+    config.apiVersion ?? ""
   );
   const canTestProvider =
-    Boolean(config.apiKey.trim()) &&
-    Boolean(config.baseUrl.trim()) &&
-    Boolean(config.model.trim());
+    Boolean(config.apiKey.trim()) && Boolean(config.baseUrl.trim()) && Boolean(config.model.trim());
   const canFetchProviderModels =
-    apiProtocol !== 'azure' &&
-    apiProtocol !== 'ollama' &&
+    apiProtocol !== "azure" &&
+    apiProtocol !== "ollama" &&
     Boolean(config.apiKey.trim()) &&
     Boolean(config.baseUrl.trim()) &&
     isLikelyHttpUrl(config.baseUrl);
   const visibleProviderTestState =
-    providerTestState.status !== 'idle' &&
-    providerTestState.inputKey === providerTestInputKey
+    providerTestState.status !== "idle" && providerTestState.inputKey === providerTestInputKey
       ? providerTestState
-      : { status: 'idle' as const };
+      : { status: "idle" as const };
   const visibleProviderModelsState =
-    providerModelsState.status !== 'idle' &&
-    providerModelsState.inputKey === providerModelsInputKey
+    providerModelsState.status !== "idle" && providerModelsState.inputKey === providerModelsInputKey
       ? providerModelsState
-      : { status: 'idle' as const };
-  const selectedProvider = KNOWN_PROVIDERS.find(
-    (provider) =>
-      provider.protocol === apiProtocol &&
-      provider.baseUrl === (config.apiProviderBaseUrl ?? config.baseUrl),
-  ) ?? null;
+      : { status: "idle" as const };
+  const selectedProvider =
+    KNOWN_PROVIDERS.find(
+      (provider) =>
+        provider.protocol === apiProtocol && provider.baseUrl === (config.apiProviderBaseUrl ?? config.baseUrl)
+    ) ?? null;
   const visibleAgents = agents.filter(
-    (agent) => agent.available && agent.id !== 'amr' && visibleAgentIds.includes(agent.id),
+    (agent) => agent.available && agent.id !== "amr" && visibleAgentIds.includes(agent.id)
   );
-  const amrAgent = agents.find((agent) => agent.id === 'amr' && agent.available) ?? null;
+  const amrAgent = agents.find((agent) => agent.id === "amr" && agent.available) ?? null;
   const showAmrCloudOption = amrAgent !== null || agents.length === 0;
   const amrSignedIn = amrStatus?.loggedIn === true;
-  const amrSelectedAndSignedOut = runtime === 'amr' && !amrSignedIn;
+  const amrSelectedAndSignedOut = runtime === "amr" && !amrSignedIn;
   const amrAgentChoice = config.agentModels?.amr ?? {};
-  const amrModels =
-    amrAgent?.models && amrAgent.models.length > 0
-      ? amrAgent.models
-      : ONBOARDING_AMR_MODEL_OPTIONS;
+  const amrModels = amrAgent?.models && amrAgent.models.length > 0 ? amrAgent.models : ONBOARDING_AMR_MODEL_OPTIONS;
   const amrModelsSource =
-    amrAgent?.models && amrAgent.models.length > 0
-      ? amrAgent.modelsSource ?? 'fallback'
-      : 'fallback';
+    amrAgent?.models && amrAgent.models.length > 0 ? (amrAgent.modelsSource ?? "fallback") : "fallback";
   const amrKnownModelIds = amrModels.map((model) => model.id);
   const amrConfiguredModel =
-    typeof amrAgentChoice.model === 'string' && amrAgentChoice.model
-      ? amrAgentChoice.model
-      : null;
+    typeof amrAgentChoice.model === "string" && amrAgentChoice.model ? amrAgentChoice.model : null;
   const amrSelectedModel =
-    amrConfiguredModel && amrKnownModelIds.includes(amrConfiguredModel)
-      ? amrConfiguredModel
-      : amrModels[0]?.id ?? '';
+    amrConfiguredModel && amrKnownModelIds.includes(amrConfiguredModel) ? amrConfiguredModel : (amrModels[0]?.id ?? "");
   const selectedAgent = visibleAgents.find((agent) => agent.id === config.agentId) ?? null;
   const selectedAgentChoice = selectedAgent ? (config.agentModels?.[selectedAgent.id] ?? {}) : {};
 
@@ -980,9 +869,9 @@ function OnboardingView({
 
   useEffect(() => {
     if (!amrAgent || runtime !== null) return;
-    setRuntime('amr');
-    onModeChange('daemon');
-    onAgentChange('amr');
+    setRuntime("amr");
+    onModeChange("daemon");
+    onAgentChange("amr");
   }, [amrAgent, onAgentChange, onModeChange, runtime]);
 
   useEffect(() => {
@@ -1003,7 +892,7 @@ function OnboardingView({
   }, [amrAgent]);
 
   useEffect(() => {
-    if (runtime === 'amr') return;
+    if (runtime === "amr") return;
     amrLoginPollCancelledRef.current = true;
     setAmrLoginPending(false);
   }, [runtime]);
@@ -1016,7 +905,7 @@ function OnboardingView({
   // during first-run setup. Skip / Back / last-step Continue clear
   // inline in their respective handlers below; abandoned sessions clear
   // on sessionStorage tab close.
-  const onboardingSessionIdRef = useRef<string>('');
+  const onboardingSessionIdRef = useRef<string>("");
   if (!onboardingSessionIdRef.current) {
     onboardingSessionIdRef.current = getOrCreateOnboardingSessionId();
   }
@@ -1027,24 +916,24 @@ function OnboardingView({
     let stepIndex: TrackingOnboardingStepIndex;
     let stepName: TrackingOnboardingStepName;
     if (step === 0) {
-      area = 'runtime';
-      stepIndex = '1';
-      stepName = 'connect';
+      area = "runtime";
+      stepIndex = "1";
+      stepName = "connect";
     } else if (step === 1) {
-      area = 'about_you';
-      stepIndex = '2';
-      stepName = 'about_you';
+      area = "about_you";
+      stepIndex = "2";
+      stepName = "about_you";
     } else {
-      area = 'newsletter';
-      stepIndex = '3';
-      stepName = 'newsletter';
+      area = "newsletter";
+      stepIndex = "3";
+      stepName = "newsletter";
     }
     trackPageView(analytics.track, {
-      page_name: 'onboarding',
+      page_name: "onboarding",
       area,
       step_index: stepIndex,
       step_name: stepName,
-      onboarding_session_id: onboardingSessionId,
+      onboarding_session_id: onboardingSessionId
     });
   }, [analytics.track, step]);
 
@@ -1058,40 +947,42 @@ function OnboardingView({
   const onboardingStartedAtRef = useRef<number>(Date.now());
   const lifecycleReportedRef = useRef(false);
   function currentRuntimeType(): TrackingOnboardingRuntimeType {
-    if (runtime === 'amr') return 'amr_cloud';
-    if (runtime === 'local') return 'local_cli';
-    if (runtime === 'byok') return 'byok';
-    return 'none';
+    if (runtime === "amr") return "amr_cloud";
+    if (runtime === "local") return "local_cli";
+    if (runtime === "byok") return "byok";
+    return "none";
   }
   function stepInfo(stepIdx: number): {
     area: TrackingOnboardingArea;
     stepIndex: TrackingOnboardingStepIndex;
     stepName: TrackingOnboardingStepName;
   } {
-    if (stepIdx === 0) return { area: 'runtime', stepIndex: '1', stepName: 'connect' };
-    if (stepIdx === 1) return { area: 'about_you', stepIndex: '2', stepName: 'about_you' };
-    return { area: 'newsletter', stepIndex: '3', stepName: 'newsletter' };
+    if (stepIdx === 0) return { area: "runtime", stepIndex: "1", stepName: "connect" };
+    if (stepIdx === 1) return { area: "about_you", stepIndex: "2", stepName: "about_you" };
+    return { area: "newsletter", stepIndex: "3", stepName: "newsletter" };
   }
   function emitOnboardingClick(
     element: TrackingOnboardingClickElement,
     action: TrackingOnboardingClickAction,
-    extra: Partial<Omit<
-      Parameters<typeof trackOnboardingClick>[1],
-      'page_name' | 'area' | 'element' | 'action' | 'step_index' | 'step_name' | 'onboarding_session_id'
-    >> = {},
+    extra: Partial<
+      Omit<
+        Parameters<typeof trackOnboardingClick>[1],
+        "page_name" | "area" | "element" | "action" | "step_index" | "step_name" | "onboarding_session_id"
+      >
+    > = {}
   ): void {
     const onboardingSessionId = onboardingSessionIdRef.current;
     if (!onboardingSessionId) return;
     const info = stepInfo(step);
     trackOnboardingClick(analytics.track, {
-      page_name: 'onboarding',
+      page_name: "onboarding",
       area: info.area,
       element,
       action,
       step_index: info.stepIndex,
       step_name: info.stepName,
       onboarding_session_id: onboardingSessionId,
-      ...extra,
+      ...extra
     });
   }
   function emitOnboardingComplete(
@@ -1099,6 +990,7 @@ function OnboardingView({
     completionType: TrackingOnboardingCompletionType,
     extra: {
       errorCode?: string;
+      runtimeType?: TrackingOnboardingRuntimeType;
       // Generate-path callers pass the embedded DS creation flow's
       // snapshot so the wire row reflects the actual source-count
       // and brand-description the user typed, not the (always-null)
@@ -1108,7 +1000,7 @@ function OnboardingView({
       // brand prompt — so reading `designSource` alone yielded
       // `has_design_system_request: false` despite a real request.
       sourceSnapshot?: DesignSystemGenerateSnapshot;
-    } = {},
+    } = {}
   ): void {
     if (lifecycleReportedRef.current) return;
     const onboardingSessionId = onboardingSessionIdRef.current;
@@ -1119,9 +1011,7 @@ function OnboardingView({
     // Onboarding no longer hosts a design-system step, so a completion
     // never carries a DS request unless a caller passes an explicit
     // snapshot (none do today).
-    const hasRequest = snapshot
-      ? snapshot.sourceCount > 0 || snapshot.hasBrandDescription
-      : false;
+    const hasRequest = snapshot ? snapshot.sourceCount > 0 || snapshot.hasBrandDescription : false;
     const sourceCount = snapshot ? snapshot.sourceCount : 0;
     // Read from `profileRef` for the same reason `emitAboutYouSubmit`
     // does: a Finish-setup click may fire before React commits the
@@ -1129,18 +1019,15 @@ function OnboardingView({
     // render time) one tick behind.
     const liveProfile = profileRef.current;
     const hasAboutYou = Boolean(
-      liveProfile.role
-        || liveProfile.orgSize
-        || liveProfile.useCase.length > 0
-        || liveProfile.source,
+      liveProfile.role || liveProfile.orgSize || liveProfile.useCase.length > 0 || liveProfile.source
     );
     trackOnboardingCompleteResult(analytics.track, {
-      page_name: 'onboarding',
-      area: 'onboarding',
+      page_name: "onboarding",
+      area: "onboarding",
       result,
       exit_step_name: info.stepName,
       completion_type: completionType,
-      runtime_type: currentRuntimeType(),
+      runtime_type: extra.runtimeType ?? currentRuntimeType(),
       has_about_you: hasAboutYou,
       has_design_system_request: hasRequest,
       source_count: sourceCount,
@@ -1150,148 +1037,158 @@ function OnboardingView({
       // Survey-snapshot mirror of `about_you_submit` so the funnel has
       // a second carrier for the user's picks. Only attached when the
       // user actually touched the About-you step.
-      ...(hasAboutYou ? {
-        role: liveProfile.role || 'unknown',
-        organization_size: liveProfile.orgSize || 'unknown',
-        use_cases: liveProfile.useCase.length > 0
-          ? liveProfile.useCase
-          : ['unknown'],
-        discovery_source: liveProfile.source || 'unknown',
-      } : {}),
+      ...(hasAboutYou
+        ? {
+            role: liveProfile.role || "unknown",
+            organization_size: liveProfile.orgSize || "unknown",
+            use_cases: liveProfile.useCase.length > 0 ? liveProfile.useCase : ["unknown"],
+            discovery_source: liveProfile.source || "unknown"
+          }
+        : {})
     });
   }
 
+  function finishAfterRuntimeSelection(runtimeType: TrackingOnboardingRuntimeType): void {
+    emitOnboardingComplete("completed", "completed_without_design_system", { runtimeType });
+    clearOnboardingSessionId();
+    onFinish();
+  }
+
   const steps = [
-    t('settings.onboardingStepConnect'),
-    t('settings.onboardingStepProfile'),
-    t('settings.onboardingStepNewsletter'),
+    t("settings.onboardingStepConnect"),
+    t("settings.onboardingStepProfile"),
+    t("settings.onboardingStepNewsletter")
   ];
   const isLastStep = step === steps.length - 1;
 
   const runtimeItems: Array<{
-    id: 'local' | 'byok';
-    icon: 'hammer' | 'sliders';
+    id: "local" | "byok";
+    icon: "hammer" | "sliders";
     title: string;
     body: string;
     onSelect: () => void;
   }> = [
     {
-      id: 'local',
-      icon: 'hammer',
-      title: t('settings.onboardingLocalTitle'),
-      body: t('settings.onboardingLocalBody'),
+      id: "local",
+      icon: "hammer",
+      title: t("settings.onboardingLocalTitle"),
+      body: t("settings.onboardingLocalBody"),
       onSelect: () => {
-        emitOnboardingClick('local_coding_agent', 'select_runtime', {
-          runtime_type: 'local_cli',
+        emitOnboardingClick("local_coding_agent", "select_runtime", {
+          runtime_type: "local_cli"
         });
-        void scanCliAgents();
-      },
+        setRuntime("local");
+        onModeChange("daemon");
+        const firstLocalAgent = agents.find((agent) => agent.available && agent.id !== "amr");
+        if (firstLocalAgent) onAgentChange(firstLocalAgent.id);
+        finishAfterRuntimeSelection("local_cli");
+      }
     },
     {
-      id: 'byok',
-      icon: 'sliders',
-      title: t('settings.onboardingByokTitle'),
-      body: t('settings.onboardingByokBody'),
+      id: "byok",
+      icon: "sliders",
+      title: t("settings.onboardingByokTitle"),
+      body: t("settings.onboardingByokBody"),
       onSelect: () => {
-        emitOnboardingClick('byok', 'select_runtime', { runtime_type: 'byok' });
-        setRuntime('byok');
-        onModeChange('api');
-      },
-    },
+        emitOnboardingClick("byok", "select_runtime", { runtime_type: "byok" });
+        setRuntime("byok");
+        onModeChange("api");
+        finishAfterRuntimeSelection("byok");
+      }
+    }
   ];
 
   const roleOptions = [
-    { value: 'pm', label: t('settings.onboardingRolePm') },
-    { value: 'designer', label: t('settings.onboardingRoleDesigner') },
-    { value: 'engineer', label: t('settings.onboardingRoleEngineer') },
-    { value: 'marketing', label: t('settings.onboardingRoleMarketing') },
-    { value: 'growth', label: t('settings.onboardingRoleGrowth') },
-    { value: 'ops', label: t('settings.onboardingRoleOps') },
-    { value: 'founder', label: t('settings.onboardingRoleFounder') },
-    { value: 'student', label: t('settings.onboardingRoleStudent') },
-    { value: 'other', label: t('settings.onboardingRoleOther') },
+    { value: "pm", label: t("settings.onboardingRolePm") },
+    { value: "designer", label: t("settings.onboardingRoleDesigner") },
+    { value: "engineer", label: t("settings.onboardingRoleEngineer") },
+    { value: "marketing", label: t("settings.onboardingRoleMarketing") },
+    { value: "growth", label: t("settings.onboardingRoleGrowth") },
+    { value: "ops", label: t("settings.onboardingRoleOps") },
+    { value: "founder", label: t("settings.onboardingRoleFounder") },
+    { value: "student", label: t("settings.onboardingRoleStudent") },
+    { value: "other", label: t("settings.onboardingRoleOther") }
   ];
   const orgSizeOptions = [
-    { value: 'solo', label: t('settings.onboardingOrgSolo') },
-    { value: 'team', label: t('settings.onboardingOrgTeam') },
-    { value: 'startup', label: t('settings.onboardingOrgStartup') },
-    { value: 'growth', label: t('settings.onboardingOrgGrowth') },
-    { value: 'midmarket', label: t('settings.onboardingOrgMidMarket') },
-    { value: 'enterprise', label: t('settings.onboardingOrgEnterprise') },
+    { value: "solo", label: t("settings.onboardingOrgSolo") },
+    { value: "team", label: t("settings.onboardingOrgTeam") },
+    { value: "startup", label: t("settings.onboardingOrgStartup") },
+    { value: "growth", label: t("settings.onboardingOrgGrowth") },
+    { value: "midmarket", label: t("settings.onboardingOrgMidMarket") },
+    { value: "enterprise", label: t("settings.onboardingOrgEnterprise") }
   ];
   const useCaseOptions = [
-    { value: 'product', label: t('settings.onboardingUseProduct') },
-    { value: 'design-system', label: t('settings.onboardingUseDesignSystem') },
-    { value: 'prototype', label: t('settings.onboardingUsePrototype') },
-    { value: 'landing', label: t('settings.onboardingUseLanding') },
-    { value: 'marketing', label: t('settings.onboardingUseMarketing') },
-    { value: 'ads', label: t('settings.onboardingUseAds') },
-    { value: 'dashboard', label: t('settings.onboardingUseDashboard') },
-    { value: 'deck', label: t('settings.onboardingUseDeck') },
-    { value: 'engineering', label: t('settings.onboardingUseEngineering') },
-    { value: 'agency', label: t('settings.onboardingUseAgency') },
+    { value: "product", label: t("settings.onboardingUseProduct") },
+    { value: "design-system", label: t("settings.onboardingUseDesignSystem") },
+    { value: "prototype", label: t("settings.onboardingUsePrototype") },
+    { value: "landing", label: t("settings.onboardingUseLanding") },
+    { value: "marketing", label: t("settings.onboardingUseMarketing") },
+    { value: "ads", label: t("settings.onboardingUseAds") },
+    { value: "dashboard", label: t("settings.onboardingUseDashboard") },
+    { value: "deck", label: t("settings.onboardingUseDeck") },
+    { value: "engineering", label: t("settings.onboardingUseEngineering") },
+    { value: "agency", label: t("settings.onboardingUseAgency") }
   ];
   const sourceOptions = [
-    { value: 'github', label: t('settings.onboardingSourceGithub') },
-    { value: 'friend', label: t('settings.onboardingSourceFriend') },
-    { value: 'social', label: t('settings.onboardingSourceSocial') },
-    { value: 'product-hunt', label: t('settings.onboardingSourceProductHunt') },
-    { value: 'community', label: t('settings.onboardingSourceCommunity') },
-    { value: 'youtube', label: t('settings.onboardingSourceYoutube') },
-    { value: 'blog', label: t('settings.onboardingSourceBlog') },
-    { value: 'ai-tool', label: t('settings.onboardingSourceAiTool') },
-    { value: 'search', label: t('settings.onboardingSourceSearch') },
-    { value: 'event', label: t('settings.onboardingSourceEvent') },
+    { value: "github", label: t("settings.onboardingSourceGithub") },
+    { value: "friend", label: t("settings.onboardingSourceFriend") },
+    { value: "social", label: t("settings.onboardingSourceSocial") },
+    { value: "product-hunt", label: t("settings.onboardingSourceProductHunt") },
+    { value: "community", label: t("settings.onboardingSourceCommunity") },
+    { value: "youtube", label: t("settings.onboardingSourceYoutube") },
+    { value: "blog", label: t("settings.onboardingSourceBlog") },
+    { value: "ai-tool", label: t("settings.onboardingSourceAiTool") },
+    { value: "search", label: t("settings.onboardingSourceSearch") },
+    { value: "event", label: t("settings.onboardingSourceEvent") }
   ];
   const byokProviderOptions = [
-    { value: '', label: t('settings.customProvider') },
+    { value: "", label: t("settings.customProvider") },
     ...KNOWN_PROVIDERS.filter((provider) => provider.protocol === apiProtocol).map((provider) => ({
       value: provider.baseUrl,
-      label: provider.label,
-    })),
+      label: provider.label
+    }))
   ];
   const agentModelOptions =
     selectedAgent?.models?.map((model) => ({
       value: model.id,
-      label: model.label ?? model.id,
+      label: model.label ?? model.id
     })) ?? [];
-  const fetchedProviderModels =
-    activeProviderModelsCache[providerModelsInputKey] ?? [];
+  const fetchedProviderModels = activeProviderModelsCache[providerModelsInputKey] ?? [];
   const byokModelOptions = mergeOnboardingProviderModelOptions(
     fetchedProviderModels,
     SUGGESTED_MODELS_BY_PROTOCOL[apiProtocol],
-    config.model,
+    config.model
   ).map((model) => ({
     value: model.id,
-    label: onboardingProviderModelLabel(model),
+    label: onboardingProviderModelLabel(model)
   }));
 
   function updateApiConfig(patch: Partial<ApiProtocolConfig>) {
-    const protocol = config.apiProtocol ?? 'anthropic';
+    const protocol = config.apiProtocol ?? "anthropic";
     const currentConfig: ApiProtocolConfig = {
       apiKey: config.apiKey,
       baseUrl: config.baseUrl,
       model: config.model,
-      apiVersion: config.apiVersion ?? '',
-      apiProviderBaseUrl: config.apiProviderBaseUrl ?? null,
+      apiVersion: config.apiVersion ?? "",
+      apiProviderBaseUrl: config.apiProviderBaseUrl ?? null
     };
     const nextProtocolConfig: ApiProtocolConfig = {
       ...currentConfig,
-      ...patch,
+      ...patch
     };
     const nextConfig: AppConfig = {
       ...config,
-      mode: 'api',
+      mode: "api",
       apiProtocol: protocol,
       apiKey: nextProtocolConfig.apiKey,
       baseUrl: nextProtocolConfig.baseUrl,
       model: nextProtocolConfig.model,
-      apiVersion: protocol === 'azure' ? (nextProtocolConfig.apiVersion ?? '') : '',
+      apiVersion: protocol === "azure" ? (nextProtocolConfig.apiVersion ?? "") : "",
       apiProviderBaseUrl: nextProtocolConfig.apiProviderBaseUrl ?? null,
       apiProtocolConfigs: {
         ...(config.apiProtocolConfigs ?? {}),
-        [protocol]: nextProtocolConfig,
-      },
+        [protocol]: nextProtocolConfig
+      }
     };
     void onConfigPersist(nextConfig);
   }
@@ -1302,8 +1199,8 @@ function OnboardingView({
   }
 
   function handleSkipWithTracking(): void {
-    emitOnboardingClick('skip', 'skip');
-    emitOnboardingComplete('skipped', 'skipped');
+    emitOnboardingClick("skip", "skip");
+    emitOnboardingComplete("skipped", "skipped");
     clearOnboardingSessionId();
     onFinish();
   }
@@ -1316,18 +1213,15 @@ function OnboardingView({
       handleSkipWithTracking();
       return;
     }
-    emitOnboardingClick('back', 'back');
+    emitOnboardingClick("back", "back");
     setStep((current) => current - 1);
   }
   async function handlePrimaryAction() {
     if (newsletterSubmitting) return;
     if (step === 0 && amrSelectedAndSignedOut) {
-      const attribution = recordAmrEntry(
-        analytics.track,
-        'onboarding_amr_sign_in_continue',
-        new Date(),
-        { reuseExistingFrom: ['onboarding_amr_card'] },
-      );
+      const attribution = recordAmrEntry(analytics.track, "onboarding_amr_sign_in_continue", new Date(), {
+        reuseExistingFrom: ["onboarding_amr_card"]
+      });
       void handleAmrSignInToContinue(attribution);
       return;
     }
@@ -1344,29 +1238,26 @@ function OnboardingView({
       // paths for the same data.
       emitAboutYouSubmit();
       const newsletterEmail = profileRef.current.email;
-      const shouldSubmitNewsletter =
-        NEWSLETTER_EMAIL_RE.test(newsletterEmail.trim().toLowerCase());
+      const shouldSubmitNewsletter = NEWSLETTER_EMAIL_RE.test(newsletterEmail.trim().toLowerCase());
       if (shouldSubmitNewsletter) {
         setNewsletterSubmitting(true);
         await submitNewsletterEmail(newsletterEmail);
       }
-      emitOnboardingClick('continue', 'continue');
+      emitOnboardingClick("continue", "continue");
       // Last-step Continue without a DS generation = "completed
       // without design system". The Generate path inside the
       // embedded DesignSystemCreationFlow takes a different route
       // (navigation to project) and emits its own completion.
-      emitOnboardingComplete('completed', 'completed_without_design_system');
+      emitOnboardingComplete("completed", "completed_without_design_system");
       clearOnboardingSessionId();
       onFinish();
       return;
     }
-    emitOnboardingClick('continue', 'continue');
+    emitOnboardingClick("continue", "continue");
     setStep((current) => current + 1);
   }
 
-  async function handleAmrSignInToContinue(
-    attribution?: AmrEntryAttribution | null,
-  ) {
+  async function handleAmrSignInToContinue(attribution?: AmrEntryAttribution | null) {
     if (amrLoginPending) return;
     amrLoginPollCancelledRef.current = false;
     setAmrLoginError(null);
@@ -1380,7 +1271,7 @@ function OnboardingView({
       }
       const loginResult = await startVelaLogin(attribution);
       if (!loginResult.ok && !loginResult.alreadyRunning) {
-        setAmrLoginError(loginResult.error || t('settings.amrLoginErrorCompact'));
+        setAmrLoginError(loginResult.error || t("settings.amrLoginErrorCompact"));
         return;
       }
       if (await pollAmrLoginCompletion()) {
@@ -1394,17 +1285,15 @@ function OnboardingView({
   async function pollAmrLoginCompletion(): Promise<boolean> {
     const startedAt = Date.now();
     while (!amrLoginPollCancelledRef.current) {
-      await new Promise((resolve) =>
-        window.setTimeout(resolve, AMR_LOGIN_POLL_INTERVAL_MS),
-      );
+      await new Promise((resolve) => window.setTimeout(resolve, AMR_LOGIN_POLL_INTERVAL_MS));
       if (amrLoginPollCancelledRef.current) return false;
       const nextStatus = await fetchVelaLoginStatus();
       if (nextStatus) setAmrStatus(nextStatus);
       const outcome = amrLoginPollOutcome(nextStatus, startedAt);
-      if (outcome === 'signed-in') return true;
-      if (outcome === 'stopped' || outcome === 'timed-out') {
-        if (outcome === 'timed-out') void cancelVelaLogin();
-        setAmrLoginError(t('settings.amrLoginErrorCompact'));
+      if (outcome === "signed-in") return true;
+      if (outcome === "stopped" || outcome === "timed-out") {
+        if (outcome === "timed-out") void cancelVelaLogin();
+        setAmrLoginError(t("settings.amrLoginErrorCompact"));
         return false;
       }
     }
@@ -1419,11 +1308,11 @@ function OnboardingView({
   // role / use-case option doesn't force a contract bump).
   function emitAboutYouSubmit(): void {
     const snapshot = profileRef.current;
-    emitOnboardingClick('about_you_submit', 'continue', {
-      role: snapshot.role || 'unknown',
-      organization_size: snapshot.orgSize || 'unknown',
-      use_cases: snapshot.useCase.length > 0 ? snapshot.useCase : ['unknown'],
-      discovery_source: snapshot.source || 'unknown',
+    emitOnboardingClick("about_you_submit", "continue", {
+      role: snapshot.role || "unknown",
+      organization_size: snapshot.orgSize || "unknown",
+      use_cases: snapshot.useCase.length > 0 ? snapshot.useCase : ["unknown"],
+      discovery_source: snapshot.source || "unknown"
     });
   }
 
@@ -1435,15 +1324,15 @@ function OnboardingView({
   async function submitNewsletterEmail(rawEmail: string): Promise<void> {
     const email = rawEmail.trim().toLowerCase();
     if (!email || !NEWSLETTER_EMAIL_RE.test(email)) return;
-    emitOnboardingClick('newsletter_email', 'subscribe', { newsletter_opt_in: true });
+    emitOnboardingClick("newsletter_email", "subscribe", { newsletter_opt_in: true });
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 5000);
     try {
       await fetch(NEWSLETTER_SUBSCRIBE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, source: 'client' }),
-        signal: controller.signal,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, source: "client" }),
+        signal: controller.signal
       });
     } catch {
       // Swallow — onboarding completion must not depend on the marketing site.
@@ -1456,46 +1345,44 @@ function OnboardingView({
     const scanToken = cliScanTokenRef.current + 1;
     cliScanTokenRef.current = scanToken;
     clearAgentRevealTimers();
-    setRuntime('local');
-    onModeChange('daemon');
-    setCliScanStatus('scanning');
+    setRuntime("local");
+    onModeChange("daemon");
+    setCliScanStatus("scanning");
     setVisibleAgentIds([]);
     const scanStartedAt = Date.now();
     const onboardingSessionId = onboardingSessionIdRef.current;
-    const emitScanResult = (
-      args: {
-        result: 'success' | 'failed';
-        detected: number;
-        available: number;
-        selectedCliId?: TrackingCliProviderId;
-        errorCode?: string;
-      },
-    ): void => {
+    const emitScanResult = (args: {
+      result: "success" | "failed";
+      detected: number;
+      available: number;
+      selectedCliId?: TrackingCliProviderId;
+      errorCode?: string;
+    }): void => {
       if (!onboardingSessionId) return;
       trackOnboardingRuntimeScanResult(analytics.track, {
-        page_name: 'onboarding',
-        area: 'runtime',
-        runtime_type: 'local_cli',
+        page_name: "onboarding",
+        area: "runtime",
+        runtime_type: "local_cli",
         result: args.result,
         detected_cli_count: args.detected,
         available_cli_count: args.available,
         ...(args.selectedCliId ? { selected_cli_id: args.selectedCliId } : {}),
         ...(args.errorCode ? { error_code: args.errorCode } : {}),
         duration_ms: Math.max(0, Date.now() - scanStartedAt),
-        onboarding_session_id: onboardingSessionId,
+        onboarding_session_id: onboardingSessionId
       });
     };
     try {
       const nextAgents = await onRefreshAgents();
       if (cliScanTokenRef.current !== scanToken) return;
-      const availableAgents = nextAgents.filter((agent) => agent.available && agent.id !== 'amr');
+      const availableAgents = nextAgents.filter((agent) => agent.available && agent.id !== "amr");
       // If the user previously had AMR selected (e.g. it was auto-picked once
       // we detected vela) and they have now chosen the Local CLI path, the
       // persisted agentId is still 'amr' and would survive Continue without
       // an explicit click on a local agent card. Switch the selection to the
       // first available local agent as soon as we have one, so the runtime
       // and the persisted agent always agree.
-      if (config.agentId === 'amr' && availableAgents[0]) {
+      if (config.agentId === "amr" && availableAgents[0]) {
         onAgentChange(availableAgents[0].id);
       }
       // Scan-result semantics: zero available CLIs is a `failed` outcome
@@ -1504,155 +1391,148 @@ function OnboardingView({
       // separately reports the raw catalog so the dashboard can split
       // "user has no CLI installed" from "detect crashed".
       if (availableAgents.length === 0) {
-        setCliScanStatus('done');
+        setCliScanStatus("done");
         emitScanResult({
-          result: 'failed',
+          result: "failed",
           detected: nextAgents.length,
           available: 0,
-          errorCode: 'NO_AVAILABLE_CLI',
+          errorCode: "NO_AVAILABLE_CLI"
         });
         return;
       }
       emitScanResult({
-        result: 'success',
+        result: "success",
         detected: nextAgents.length,
         available: availableAgents.length,
-        ...(availableAgents[0]
-          ? { selectedCliId: agentIdToTracking(availableAgents[0].id) }
-          : {}),
+        ...(availableAgents[0] ? { selectedCliId: agentIdToTracking(availableAgents[0].id) } : {})
       });
       availableAgents.forEach((agent, index) => {
-        const timer = setTimeout(() => {
-          if (cliScanTokenRef.current !== scanToken) return;
-          setVisibleAgentIds((current) =>
-            current.includes(agent.id) ? current : [...current, agent.id],
-          );
-          if (index === availableAgents.length - 1) {
-            setCliScanStatus('done');
-          }
-        }, 110 * (index + 1));
+        const timer = setTimeout(
+          () => {
+            if (cliScanTokenRef.current !== scanToken) return;
+            setVisibleAgentIds((current) => (current.includes(agent.id) ? current : [...current, agent.id]));
+            if (index === availableAgents.length - 1) {
+              setCliScanStatus("done");
+            }
+          },
+          110 * (index + 1)
+        );
         agentRevealTimersRef.current.push(timer);
       });
     } catch (err) {
       if (cliScanTokenRef.current === scanToken) {
-        setCliScanStatus('done');
+        setCliScanStatus("done");
         emitScanResult({
-          result: 'failed',
+          result: "failed",
           detected: 0,
           available: 0,
-          errorCode: err instanceof Error ? err.message : 'AGENT_REFRESH_THREW',
+          errorCode: err instanceof Error ? err.message : "AGENT_REFRESH_THREW"
         });
       }
     }
   }
 
   async function testProviderInline() {
-    if (!canTestProvider || providerTestState.status === 'running') return;
+    if (!canTestProvider || providerTestState.status === "running") return;
     const inputKey = providerTestInputKey;
-    setProviderTestState({ status: 'running', inputKey });
+    setProviderTestState({ status: "running", inputKey });
     try {
       const result = await testApiProvider({
         protocol: apiProtocol,
         baseUrl: config.baseUrl,
         apiKey: config.apiKey,
         model: config.model,
-        apiVersion:
-          apiProtocol === 'azure'
-            ? config.apiVersion?.trim() || undefined
-            : undefined,
+        apiVersion: apiProtocol === "azure" ? config.apiVersion?.trim() || undefined : undefined
       });
-      setProviderTestState({ status: 'done', inputKey, result });
+      setProviderTestState({ status: "done", inputKey, result });
     } catch (error) {
       setProviderTestState({
-        status: 'done',
+        status: "done",
         inputKey,
         result: {
           ok: false,
-          kind: 'unknown',
+          kind: "unknown",
           latencyMs: 0,
           model: config.model,
-          detail: error instanceof Error ? error.message : 'Test request failed',
-        },
+          detail: error instanceof Error ? error.message : "Test request failed"
+        }
       });
     }
   }
 
   async function fetchProviderModelsInline() {
-    if (!canFetchProviderModels || providerModelsState.status === 'running') return;
+    if (!canFetchProviderModels || providerModelsState.status === "running") return;
     const inputKey = providerModelsInputKey;
     const cachedModels = activeProviderModelsCache[inputKey];
     if (cachedModels) {
       setProviderModelsState({
-        status: 'done',
+        status: "done",
         inputKey,
         result: {
           ok: true,
-          kind: 'success',
+          kind: "success",
           latencyMs: 0,
-          models: cachedModels,
-        },
+          models: cachedModels
+        }
       });
       return;
     }
-    setProviderModelsState({ status: 'running', inputKey });
+    setProviderModelsState({ status: "running", inputKey });
     try {
       const result = await fetchProviderModels({
         protocol: apiProtocol,
         baseUrl: config.baseUrl,
-        apiKey: config.apiKey,
+        apiKey: config.apiKey
       });
       if (result.ok && result.models?.length) {
         activeSetProviderModelsCache((current) => ({
           ...current,
-          [inputKey]: result.models ?? [],
+          [inputKey]: result.models ?? []
         }));
       }
-      setProviderModelsState({ status: 'done', inputKey, result });
+      setProviderModelsState({ status: "done", inputKey, result });
     } catch (error) {
       setProviderModelsState({
-        status: 'done',
+        status: "done",
         inputKey,
         result: {
           ok: false,
-          kind: 'unknown',
+          kind: "unknown",
           latencyMs: 0,
-          detail: error instanceof Error ? error.message : 'Model list request failed',
-        },
+          detail: error instanceof Error ? error.message : "Model list request failed"
+        }
       });
     }
   }
 
   const onboardingNavigationLocked = newsletterSubmitting;
-  const primaryActionLabel = isLastStep && newsletterSubmitting
-    ? t('common.loading')
-    : step === 0 && amrLoginPending
-    ? t('settings.amrSigningIn')
-    : step === 0 && amrSelectedAndSignedOut
-      ? t('settings.amrSignInToContinue')
-    : step === 1
-      ? t('settings.onboardingContinue')
-    : isLastStep
-      ? t('settings.onboardingFinish')
-      : t('settings.onboardingContinue');
+  const primaryActionLabel =
+    isLastStep && newsletterSubmitting
+      ? t("common.loading")
+      : step === 0 && amrLoginPending
+        ? t("settings.amrSigningIn")
+        : step === 0 && amrSelectedAndSignedOut
+          ? t("settings.amrSignInToContinue")
+          : step === 1
+            ? t("settings.onboardingContinue")
+            : isLastStep
+              ? t("settings.onboardingFinish")
+              : t("settings.onboardingContinue");
 
   return (
-    <section className="onboarding-view" aria-labelledby="onboarding-title">
+    <section className="onboarding-view" aria-labelledby="onboarding-runtime-title">
       <header className="onboarding-view__hero">
-        {t('settings.welcomeKicker') ? (
-          <span className="onboarding-view__kicker">{t('settings.welcomeKicker')}</span>
+        {t("settings.welcomeKicker") ? (
+          <span className="onboarding-view__kicker">{t("settings.welcomeKicker")}</span>
         ) : null}
-        <h1 id="onboarding-title">{t('settings.welcomeTitle')}</h1>
-        {t('settings.welcomeSubtitle') ? <p>{t('settings.welcomeSubtitle')}</p> : null}
+        <h1 id="onboarding-title">{t("settings.welcomeTitle")}</h1>
+        {t("settings.welcomeSubtitle") ? <p>{t("settings.welcomeSubtitle")}</p> : null}
       </header>
-      <ol className="onboarding-view__steps" aria-label={t('settings.welcomeTitle')}>
+      <ol className="onboarding-view__steps" aria-label={t("settings.welcomeTitle")}>
         {steps.map((label, index) => (
-          <li key={label} className={index === step ? 'is-active' : index < step ? 'is-done' : ''}>
+          <li key={label} className={index === step ? "is-active" : index < step ? "is-done" : ""}>
             <span>{index + 1}</span>
-            <button
-              type="button"
-              onClick={() => setStep(index)}
-              disabled={onboardingNavigationLocked}
-            >
+            <button type="button" onClick={() => setStep(index)} disabled={onboardingNavigationLocked}>
               {label}
             </button>
           </li>
@@ -1662,29 +1542,26 @@ function OnboardingView({
         <div className="onboarding-view__content">
           {step === 0 ? (
             <div className="onboarding-view__panel">
-              <OnboardingPanelHeader
-                title={t('settings.onboardingConnectTitle')}
-                body={t('settings.onboardingConnectBody')}
-              />
+              <OnboardingPanelHeader id="onboarding-runtime-title" title={t("settings.onboardingConnectTitle")} />
               <div className="onboarding-view__runtime-stack">
                 {showAmrCloudOption ? (
                   <div className="onboarding-view__amr-cloud-card">
                     <OnboardingChoiceCard
                       icon="orbit"
                       agentIconId="amr"
-                      title={t('settings.amrCloud')}
-                      body={t('settings.onboardingExecutionBody')}
+                      title={t("settings.amrCloud")}
+                      body={t("settings.onboardingExecutionBody")}
                       benefits={[
-                        t('settings.onboardingAmrCloudBenefitOfficial'),
-                        t('settings.onboardingAmrCloudBenefitReady'),
-                        t('settings.onboardingAmrCloudBenefitModels'),
-                        t('settings.onboardingAmrCloudBenefitPricing'),
+                        t("settings.onboardingAmrCloudBenefitOfficial"),
+                        t("settings.onboardingAmrCloudBenefitReady"),
+                        t("settings.onboardingAmrCloudBenefitModels"),
+                        t("settings.onboardingAmrCloudBenefitPricing")
                       ]}
-                      upcomingLabel={t('settings.onboardingAmrCloudUpcomingLabel')}
+                      upcomingLabel={t("settings.onboardingAmrCloudUpcomingLabel")}
                       upcomingBenefits={[
-                        t('settings.onboardingAmrCloudUpcomingImageVideo'),
-                        t('settings.onboardingAmrCloudUpcomingSkills'),
-                        t('settings.onboardingAmrCloudUpcomingRouting'),
+                        t("settings.onboardingAmrCloudUpcomingImageVideo"),
+                        t("settings.onboardingAmrCloudUpcomingSkills"),
+                        t("settings.onboardingAmrCloudUpcomingRouting")
                       ]}
                       benefitPlacement="aside"
                       metaLabel="AMR v0.1.0"
@@ -1694,18 +1571,19 @@ function OnboardingView({
                             models={amrModels}
                             modelsSource={amrModelsSource}
                             selectedModel={amrSelectedModel}
-                            onSelectModel={(model) => onAgentModelChange('amr', { model })}
+                            onSelectModel={(model) => onAgentModelChange("amr", { model })}
                           />
                         ) : null
                       }
                       variant="amr"
                       featured
-                      selected={runtime === 'amr'}
+                      selected={runtime === "amr"}
                       onClick={() => {
-                        recordAmrEntry(analytics.track, 'onboarding_amr_card');
-                        setRuntime('amr');
-                        onModeChange('daemon');
-                        onAgentChange('amr');
+                        recordAmrEntry(analytics.track, "onboarding_amr_card");
+                        setRuntime("amr");
+                        onModeChange("daemon");
+                        onAgentChange("amr");
+                        finishAfterRuntimeSelection("amr_cloud");
                       }}
                     />
                   </div>
@@ -1722,18 +1600,18 @@ function OnboardingView({
                     />
                   ))}
                 </div>
-                {runtime === 'local' ? (
+                {runtime === "local" ? (
                   <OnboardingCliSetupPanel
                     agents={visibleAgents}
                     daemonLive={daemonLive}
                     selectedAgentId={config.agentId}
                     selectedAgent={selectedAgent}
-                    selectedModel={selectedAgentChoice.model ?? selectedAgent?.models?.[0]?.id ?? ''}
+                    selectedModel={selectedAgentChoice.model ?? selectedAgent?.models?.[0]?.id ?? ""}
                     modelOptions={agentModelOptions}
                     scanStatus={cliScanStatus}
                     onRefresh={() => void scanCliAgents()}
                     onSelectAgent={(agentId) => {
-                      onModeChange('daemon');
+                      onModeChange("daemon");
                       onAgentChange(agentId);
                     }}
                     onSelectModel={(model) => {
@@ -1742,7 +1620,7 @@ function OnboardingView({
                     }}
                   />
                 ) : null}
-                {runtime === 'byok' ? (
+                {runtime === "byok" ? (
                   <OnboardingByokSetupPanel
                     apiProtocol={apiProtocol}
                     apiKey={config.apiKey}
@@ -1757,12 +1635,12 @@ function OnboardingView({
                     }}
                     onProviderChange={(baseUrl) => {
                       const provider = KNOWN_PROVIDERS.find(
-                        (item) => item.protocol === apiProtocol && item.baseUrl === baseUrl,
+                        (item) => item.protocol === apiProtocol && item.baseUrl === baseUrl
                       );
                       updateApiConfig({
-                        baseUrl: provider?.baseUrl ?? '',
-                        model: provider?.model ?? '',
-                        apiProviderBaseUrl: provider?.baseUrl ?? null,
+                        baseUrl: provider?.baseUrl ?? "",
+                        model: provider?.model ?? "",
+                        apiProviderBaseUrl: provider?.baseUrl ?? null
                       });
                     }}
                     onApiKeyChange={(apiKey) => updateApiConfig({ apiKey })}
@@ -1770,9 +1648,7 @@ function OnboardingView({
                       onApiModelChange(model);
                       updateApiConfig({ model });
                     }}
-                    onBaseUrlChange={(baseUrl) =>
-                      updateApiConfig({ baseUrl, apiProviderBaseUrl: null })
-                    }
+                    onBaseUrlChange={(baseUrl) => updateApiConfig({ baseUrl, apiProviderBaseUrl: null })}
                     modelOptions={byokModelOptions}
                     testState={visibleProviderTestState}
                     canTest={canTestProvider}
@@ -1789,41 +1665,41 @@ function OnboardingView({
           {step === 1 ? (
             <div className="onboarding-view__panel">
               <OnboardingPanelHeader
-                title={t('settings.onboardingProfileTitle')}
-                body={t('settings.onboardingProfileBody')}
+                title={t("settings.onboardingProfileTitle")}
+                body={t("settings.onboardingProfileBody")}
               />
               <div className="onboarding-view__form-grid">
                 <OnboardingDropdown
-                  label={t('settings.onboardingRoleLabel')}
-                  placeholder={t('settings.onboardingSelectPlaceholder')}
+                  label={t("settings.onboardingRoleLabel")}
+                  placeholder={t("settings.onboardingSelectPlaceholder")}
                   value={profile.role}
                   options={roleOptions}
                   onChange={(value) => {
-                    if (typeof value === 'string' && value) {
-                      emitOnboardingClick('role', 'select_option', {
-                        role: value,
+                    if (typeof value === "string" && value) {
+                      emitOnboardingClick("role", "select_option", {
+                        role: value
                       });
                     }
                     setProfile((current) => ({ ...current, role: value }));
                   }}
                 />
                 <OnboardingDropdown
-                  label={t('settings.onboardingOrgSizeLabel')}
-                  placeholder={t('settings.onboardingSelectPlaceholder')}
+                  label={t("settings.onboardingOrgSizeLabel")}
+                  placeholder={t("settings.onboardingSelectPlaceholder")}
                   value={profile.orgSize}
                   options={orgSizeOptions}
                   onChange={(value) => {
-                    if (typeof value === 'string' && value) {
-                      emitOnboardingClick('organization_size', 'select_option', {
-                        organization_size: value,
+                    if (typeof value === "string" && value) {
+                      emitOnboardingClick("organization_size", "select_option", {
+                        organization_size: value
                       });
                     }
                     setProfile((current) => ({ ...current, orgSize: value }));
                   }}
                 />
                 <OnboardingDropdown
-                  label={t('settings.onboardingUseCaseLabel')}
-                  placeholder={t('settings.onboardingSelectMultiplePlaceholder')}
+                  label={t("settings.onboardingUseCaseLabel")}
+                  placeholder={t("settings.onboardingSelectMultiplePlaceholder")}
                   value={profile.useCase}
                   options={useCaseOptions}
                   multiple
@@ -1841,21 +1717,21 @@ function OnboardingView({
                     const previousSet = new Set(profileRef.current.useCase);
                     for (const v of value) {
                       if (!previousSet.has(v)) {
-                        emitOnboardingClick('use_case', 'select_option', { use_case: v });
+                        emitOnboardingClick("use_case", "select_option", { use_case: v });
                       }
                     }
                     setProfile((current) => ({ ...current, useCase: value }));
                   }}
                 />
                 <OnboardingDropdown
-                  label={t('settings.onboardingSourceLabel')}
-                  placeholder={t('settings.onboardingSelectPlaceholder')}
+                  label={t("settings.onboardingSourceLabel")}
+                  placeholder={t("settings.onboardingSelectPlaceholder")}
                   value={profile.source}
                   options={sourceOptions}
                   onChange={(value) => {
-                    if (typeof value === 'string' && value) {
-                      emitOnboardingClick('hear_about_us', 'select_option', {
-                        discovery_source: value,
+                    if (typeof value === "string" && value) {
+                      emitOnboardingClick("hear_about_us", "select_option", {
+                        discovery_source: value
                       });
                     }
                     setProfile((current) => ({ ...current, source: value }));
@@ -1868,23 +1744,19 @@ function OnboardingView({
           {step === 2 ? (
             <div className="onboarding-view__panel">
               <OnboardingPanelHeader
-                title={t('settings.onboardingNewsletterTitle')}
-                body={t('settings.onboardingNewsletterBody')}
+                title={t("settings.onboardingNewsletterTitle")}
+                body={t("settings.onboardingNewsletterBody")}
               />
               <label className="onboarding-view__email-field">
-                <span className="onboarding-view__email-label">
-                  {t('newsletter.label')}
-                </span>
+                <span className="onboarding-view__email-label">{t("newsletter.label")}</span>
                 <input
                   className="onboarding-view__email-input"
                   type="email"
                   autoComplete="email"
                   inputMode="email"
-                  placeholder={t('newsletter.placeholder')}
+                  placeholder={t("newsletter.placeholder")}
                   value={profile.email}
-                  onChange={(event) =>
-                    setProfile((current) => ({ ...current, email: event.target.value }))
-                  }
+                  onChange={(event) => setProfile((current) => ({ ...current, email: event.target.value }))}
                 />
               </label>
             </div>
@@ -1902,7 +1774,7 @@ function OnboardingView({
               onClick={handleBackWithTracking}
               disabled={onboardingNavigationLocked}
             >
-              {step === 0 ? t('settings.onboardingSkip') : t('settings.onboardingBack')}
+              {step === 0 ? t("settings.onboardingSkip") : t("settings.onboardingBack")}
             </button>
             <button
               type="button"
@@ -1930,7 +1802,7 @@ function OnboardingCliSetupPanel({
   scanStatus,
   onRefresh,
   onSelectAgent,
-  onSelectModel,
+  onSelectModel
 }: {
   agents: AgentInfo[];
   daemonLive: boolean;
@@ -1938,39 +1810,37 @@ function OnboardingCliSetupPanel({
   selectedAgent: AgentInfo | null;
   selectedModel: string;
   modelOptions: Array<{ value: string; label: string }>;
-  scanStatus: 'idle' | 'scanning' | 'done';
+  scanStatus: "idle" | "scanning" | "done";
   onRefresh: () => void;
   onSelectAgent: (agentId: string) => void;
   onSelectModel: (model: string) => void;
 }) {
   const t = useT();
-  const scanning = scanStatus === 'scanning';
-  const showEmpty = scanStatus === 'done' && agents.length === 0;
+  const scanning = scanStatus === "scanning";
+  const showEmpty = scanStatus === "done" && agents.length === 0;
   return (
     <div className="onboarding-view__setup-panel">
       <div className="onboarding-view__setup-head">
         <div>
-          <strong>{t('settings.localCli')}</strong>
-          <p>{daemonLive ? t('settings.codeAgentHint') : t('settings.modeDaemonOffline')}</p>
+          <strong>{t("settings.localCli")}</strong>
+          <p>{daemonLive ? t("settings.codeAgentHint") : t("settings.modeDaemonOffline")}</p>
         </div>
         <button
           type="button"
-          className={`onboarding-view__mini-button${scanning ? ' is-loading' : ''}`}
+          className={`onboarding-view__mini-button${scanning ? " is-loading" : ""}`}
           onClick={onRefresh}
           disabled={scanning}
         >
-          {scanning ? t('settings.rescanRunning') : t('settings.rescan')}
+          {scanning ? t("settings.rescanRunning") : t("settings.rescan")}
         </button>
       </div>
       {scanning ? (
         <div className="onboarding-view__scan-copy" role="status">
           <p className="onboarding-view__scan-status">
             <Icon name="spinner" size={13} className="icon-spin" />
-            <span>{t('settings.rescanRunning')}</span>
+            <span>{t("settings.rescanRunning")}</span>
           </p>
-          <p className="onboarding-view__scan-hint">
-            {t('settings.onboardingCliScanHint')}
-          </p>
+          <p className="onboarding-view__scan-hint">{t("settings.onboardingCliScanHint")}</p>
         </div>
       ) : null}
       {agents.length > 0 ? (
@@ -1979,9 +1849,7 @@ function OnboardingCliSetupPanel({
             <button
               key={agent.id}
               type="button"
-              className={`onboarding-view__agent-chip${
-                selectedAgentId === agent.id ? ' is-selected' : ''
-              }`}
+              className={`onboarding-view__agent-chip${selectedAgentId === agent.id ? " is-selected" : ""}`}
               style={{ animationDelay: `${index * 45}ms` }}
               onClick={() => onSelectAgent(agent.id)}
               aria-pressed={selectedAgentId === agent.id}
@@ -1989,21 +1857,17 @@ function OnboardingCliSetupPanel({
               <AgentIcon id={agent.id} size={22} />
               <span>
                 <strong>{agent.name}</strong>
-                <small>{agent.version ?? t('common.installed')}</small>
+                <small>{agent.version ?? t("common.installed")}</small>
               </span>
             </button>
           ))}
         </div>
       ) : null}
-      {showEmpty ? (
-        <div className="onboarding-view__empty-slice">
-          {t('settings.noAgentsDetected')}
-        </div>
-      ) : null}
+      {showEmpty ? <div className="onboarding-view__empty-slice">{t("settings.noAgentsDetected")}</div> : null}
       {selectedAgent && modelOptions.length > 0 ? (
         <OnboardingDropdown
-          label={`${t('settings.modelPicker')} · ${selectedAgent.name}`}
-          placeholder={t('settings.modelSourceFallback')}
+          label={`${t("settings.modelPicker")} · ${selectedAgent.name}`}
+          placeholder={t("settings.modelSourceFallback")}
           value={selectedModel}
           options={modelOptions}
           onChange={onSelectModel}
@@ -2017,79 +1881,61 @@ function OnboardingAmrModelSelect({
   models,
   modelsSource,
   selectedModel,
-  onSelectModel,
+  onSelectModel
 }: {
-  models: NonNullable<AgentInfo['models']>;
-  modelsSource: AgentInfo['modelsSource'];
+  models: NonNullable<AgentInfo["models"]>;
+  modelsSource: AgentInfo["modelsSource"];
   selectedModel: string;
   onSelectModel: (model: string) => void;
 }) {
   const t = useT();
-  const modelSource = modelsSource ?? 'fallback';
+  const modelSource = modelsSource ?? "fallback";
   const displayModels = models.map((model) => ({
     ...model,
-    label: formatOnboardingAmrModelLabel(model),
+    label: formatOnboardingAmrModelLabel(model)
   }));
-  const modelSourceLabel = t('settings.onboardingAmrModelSourceLabel');
+  const modelSourceLabel = t("settings.onboardingAmrModelSourceLabel");
   return (
-    <label
-      className="onboarding-view__model-picker"
-      onClick={(event) => event.stopPropagation()}
-    >
+    <label className="onboarding-view__model-picker" onClick={(event) => event.stopPropagation()}>
       <span className="onboarding-view__model-label">
-        {t('settings.modelPicker')}
-        <span className={`onboarding-view__model-source ${modelSource}`}>
-          {modelSourceLabel}
-        </span>
+        {t("settings.modelPicker")}
+        <span className={`onboarding-view__model-source ${modelSource}`}>{modelSourceLabel}</span>
       </span>
       <span className="onboarding-view__model-select-wrap">
-        <select
-          value={selectedModel}
-          onChange={(event) => onSelectModel(event.target.value)}
-        >
+        <select value={selectedModel} onChange={(event) => onSelectModel(event.target.value)}>
           {renderModelOptions(displayModels)}
         </select>
-        <Icon
-          name="chevron-down"
-          size={12}
-          className="onboarding-view__model-select-chevron"
-        />
+        <Icon name="chevron-down" size={12} className="onboarding-view__model-select-chevron" />
       </span>
     </label>
   );
 }
 
-function formatOnboardingAmrModelLabel(
-  model: NonNullable<AgentInfo['models']>[number],
-): string {
+function formatOnboardingAmrModelLabel(model: NonNullable<AgentInfo["models"]>[number]): string {
   const label = model.label?.trim();
   if (label && label !== model.id && !/^[a-z0-9._-]+$/.test(label)) {
     return label;
   }
-  return model.id
-    .split('-')
-    .filter(Boolean)
-    .map(formatModelToken)
-    .join(' ');
+  return model.id.split("-").filter(Boolean).map(formatModelToken).join(" ");
 }
 
 function formatModelToken(token: string): string {
   const lower = token.toLowerCase();
   const known: Record<string, string> = {
-    claude: 'Claude',
-    opus: 'Opus',
-    sonnet: 'Sonnet',
-    haiku: 'Haiku',
-    deepseek: 'DeepSeek',
-    gemini: 'Gemini',
-    glm: 'GLM',
-    gpt: 'GPT',
-    oss: 'OSS',
-    kimi: 'Kimi',
-    minimax: 'MiniMax',
-    mimo: 'MiMo',
-    qwen3: 'Qwen3',
-    seed: 'Seed',
+    claude: "Claude",
+    opus: "Opus",
+    sonnet: "Sonnet",
+    haiku: "Haiku",
+    deepseek: "DeepSeek",
+    gemini: "Gemini",
+    glm: "GLM",
+    gpt: "GPT",
+    oss: "OSS",
+    kimi: "Kimi",
+    minimax: "MiniMax",
+    mimo: "MiMo",
+    qwen3: "Qwen3",
+    seed: "Seed"
   };
   if (known[lower]) return known[lower];
   if (/^v\d/i.test(token)) return token.toUpperCase();
@@ -2118,7 +1964,7 @@ function OnboardingByokSetupPanel({
   onTest,
   modelsState,
   canFetchModels,
-  onFetchModels,
+  onFetchModels
 }: {
   apiProtocol: ApiProtocol;
   apiKey: string;
@@ -2135,61 +1981,57 @@ function OnboardingByokSetupPanel({
   onModelChange: (model: string) => void;
   onBaseUrlChange: (baseUrl: string) => void;
   testState:
-    | { status: 'idle' }
-    | { status: 'running'; inputKey: string }
-    | { status: 'done'; inputKey: string; result: ConnectionTestResponse };
+    | { status: "idle" }
+    | { status: "running"; inputKey: string }
+    | { status: "done"; inputKey: string; result: ConnectionTestResponse };
   canTest: boolean;
   onTest: () => void;
   modelsState:
-    | { status: 'idle' }
-    | { status: 'running'; inputKey: string }
-    | { status: 'done'; inputKey: string; result: ProviderModelsResponse };
+    | { status: "idle" }
+    | { status: "running"; inputKey: string }
+    | { status: "done"; inputKey: string; result: ProviderModelsResponse };
   canFetchModels: boolean;
   onFetchModels: () => void;
 }) {
   const t = useT();
-  const running = testState.status === 'running';
-  const fetchingModels = modelsState.status === 'running';
+  const running = testState.status === "running";
+  const fetchingModels = modelsState.status === "running";
   return (
     <div className="onboarding-view__setup-panel">
       <div className="onboarding-view__setup-head">
         <div>
-          <strong>{t('settings.modeApiMeta')}</strong>
-          <p>{t('settings.modeApi')}</p>
+          <strong>{t("settings.modeApiMeta")}</strong>
+          <p>{t("settings.modeApi")}</p>
         </div>
         <div className="onboarding-view__setup-head-actions">
           <button
             type="button"
-            className={`onboarding-view__mini-button${fetchingModels ? ' is-loading' : ''}`}
+            className={`onboarding-view__mini-button${fetchingModels ? " is-loading" : ""}`}
             onClick={onFetchModels}
             disabled={fetchingModels || !canFetchModels}
-            title={t('settings.fetchModelsTitle')}
+            title={t("settings.fetchModelsTitle")}
           >
-            {fetchingModels ? t('settings.fetchModelsRunning') : t('settings.fetchModels')}
+            {fetchingModels ? t("settings.fetchModelsRunning") : t("settings.fetchModels")}
           </button>
           <button
             type="button"
-            className={`onboarding-view__mini-button${running ? ' is-loading' : ''}`}
+            className={`onboarding-view__mini-button${running ? " is-loading" : ""}`}
             onClick={onTest}
             disabled={running || !canTest}
-            title={t('settings.testTitle')}
+            title={t("settings.testTitle")}
           >
-            {running ? t('settings.testRunning') : t('settings.test')}
+            {running ? t("settings.testRunning") : t("settings.test")}
           </button>
         </div>
       </div>
-      <div
-        className="onboarding-view__protocol-strip"
-        role="tablist"
-        aria-label={t('settings.protocolAria')}
-      >
+      <div className="onboarding-view__protocol-strip" role="tablist" aria-label={t("settings.protocolAria")}>
         {API_PROTOCOL_TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={apiProtocol === tab.id}
-            className={apiProtocol === tab.id ? 'is-selected' : ''}
+            className={apiProtocol === tab.id ? "is-selected" : ""}
             onClick={() => onProtocolChange(tab.id)}
           >
             {tab.title}
@@ -2197,41 +2039,41 @@ function OnboardingByokSetupPanel({
         ))}
       </div>
       <OnboardingDropdown
-        label={t('settings.quickFillProvider')}
-        placeholder={t('settings.customProvider')}
-        value={selectedProvider?.baseUrl ?? ''}
+        label={t("settings.quickFillProvider")}
+        placeholder={t("settings.customProvider")}
+        value={selectedProvider?.baseUrl ?? ""}
         options={providerOptions}
         onChange={onProviderChange}
       />
       <label className="onboarding-view__inline-field">
-        <span>{t('settings.apiKey')}</span>
+        <span>{t("settings.apiKey")}</span>
         <span className="onboarding-view__field-row">
           <input
-            type={apiKeyVisible ? 'text' : 'password'}
+            type={apiKeyVisible ? "text" : "password"}
             placeholder={API_KEY_PLACEHOLDERS[apiProtocol]}
             value={apiKey}
             onChange={(event) => onApiKeyChange(event.target.value)}
           />
           <button type="button" onClick={onToggleApiKey}>
-            {apiKeyVisible ? t('settings.hide') : t('settings.show')}
+            {apiKeyVisible ? t("settings.hide") : t("settings.show")}
           </button>
         </span>
       </label>
       <div className="onboarding-view__compact-fields">
         <label className="onboarding-view__inline-field">
-          <span>{t('settings.baseUrl')}</span>
+          <span>{t("settings.baseUrl")}</span>
           <input
             type="url"
             inputMode="url"
             value={baseUrl}
-            placeholder={selectedProvider?.baseUrl ?? 'https://api.anthropic.com'}
+            placeholder={selectedProvider?.baseUrl ?? "https://api.anthropic.com"}
             onChange={(event) => onBaseUrlChange(event.target.value)}
           />
         </label>
         {modelOptions.length > 0 ? (
           <OnboardingDropdown
-            label={t('settings.model')}
-            placeholder={selectedProvider?.model ?? 'claude-sonnet-4-5'}
+            label={t("settings.model")}
+            placeholder={selectedProvider?.model ?? "claude-sonnet-4-5"}
             value={model}
             options={modelOptions}
             onChange={onModelChange}
@@ -2239,40 +2081,36 @@ function OnboardingByokSetupPanel({
           />
         ) : (
           <label className="onboarding-view__inline-field">
-            <span>{t('settings.model')}</span>
+            <span>{t("settings.model")}</span>
             <input
               type="text"
               value={model}
-              placeholder={selectedProvider?.model ?? 'claude-sonnet-4-5'}
+              placeholder={selectedProvider?.model ?? "claude-sonnet-4-5"}
               onChange={(event) => onModelChange(event.target.value.trim())}
             />
           </label>
         )}
       </div>
-      {modelsState.status === 'running' ? (
+      {modelsState.status === "running" ? (
         <p className="onboarding-view__test-status is-running" role="status">
-          {t('settings.fetchModelsRunning')}
+          {t("settings.fetchModelsRunning")}
         </p>
-      ) : modelsState.status === 'done' ? (
+      ) : modelsState.status === "done" ? (
         <p
-          className={`onboarding-view__test-status is-${onboardingProviderModelsVariant(
-            modelsState.result,
-          )}`}
-          role={modelsState.result.ok ? 'status' : 'alert'}
+          className={`onboarding-view__test-status is-${onboardingProviderModelsVariant(modelsState.result)}`}
+          role={modelsState.result.ok ? "status" : "alert"}
         >
           {renderOnboardingProviderModelsMessage(t, modelsState.result)}
         </p>
       ) : null}
-      {testState.status === 'running' ? (
+      {testState.status === "running" ? (
         <p className="onboarding-view__test-status is-running" role="status">
-          {t('settings.testRunning')}
+          {t("settings.testRunning")}
         </p>
-      ) : testState.status === 'done' ? (
+      ) : testState.status === "done" ? (
         <p
-          className={`onboarding-view__test-status is-${onboardingTestVariant(
-            testState.result,
-          )}`}
-          role={testState.result.ok ? 'status' : 'alert'}
+          className={`onboarding-view__test-status is-${onboardingTestVariant(testState.result)}`}
+          role={testState.result.ok ? "status" : "alert"}
         >
           {renderOnboardingProviderTestMessage(t, testState.result, model)}
         </p>
@@ -2281,26 +2119,22 @@ function OnboardingByokSetupPanel({
   );
 }
 
-function onboardingTestVariant(
-  result: ConnectionTestResponse,
-): 'success' | 'warn' | 'error' {
-  if (result.ok) return 'success';
-  if (result.kind === 'rate_limited') return 'warn';
-  return 'error';
+function onboardingTestVariant(result: ConnectionTestResponse): "success" | "warn" | "error" {
+  if (result.ok) return "success";
+  if (result.kind === "rate_limited") return "warn";
+  return "error";
 }
 
-function onboardingProviderModelsVariant(
-  result: ProviderModelsResponse,
-): 'success' | 'warn' | 'error' {
-  if (result.ok) return 'success';
-  if (result.kind === 'rate_limited' || result.kind === 'no_models') return 'warn';
-  return 'error';
+function onboardingProviderModelsVariant(result: ProviderModelsResponse): "success" | "warn" | "error" {
+  if (result.ok) return "success";
+  if (result.kind === "rate_limited" || result.kind === "no_models") return "warn";
+  return "error";
 }
 
 function isLikelyHttpUrl(value: string): boolean {
   try {
     const parsed = new URL(value.trim());
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch {
     return false;
   }
@@ -2309,7 +2143,7 @@ function isLikelyHttpUrl(value: string): boolean {
 function mergeOnboardingProviderModelOptions(
   fetchedModels: readonly ProviderModelOption[],
   suggestedModelIds: readonly string[],
-  currentModel: string,
+  currentModel: string
 ): ProviderModelOption[] {
   const seen = new Set<string>();
   const out: ProviderModelOption[] = [];
@@ -2326,83 +2160,78 @@ function mergeOnboardingProviderModelOptions(
 }
 
 function onboardingProviderModelLabel(model: ProviderModelOption): string {
-  return model.label && model.label !== model.id
-    ? `${model.label} (${model.id})`
-    : model.id;
+  return model.label && model.label !== model.id ? `${model.label} (${model.id})` : model.id;
 }
 
 function renderOnboardingProviderTestMessage(
   t: ReturnType<typeof useT>,
   result: ConnectionTestResponse,
-  fallbackModel: string,
+  fallbackModel: string
 ): string {
   const ms = Math.max(0, Math.round(result.latencyMs));
-  const sample = result.sample ?? '';
+  const sample = result.sample ?? "";
   const testedModel = result.model ?? fallbackModel;
   if (result.ok) {
-    const baseMessage = t('settings.testSuccessApi', { ms, sample });
+    const baseMessage = t("settings.testSuccessApi", { ms, sample });
     return result.detail ? `${baseMessage} ${result.detail}` : baseMessage;
   }
   switch (result.kind) {
-    case 'auth_failed':
-      return t('settings.testAuthFailed');
-    case 'forbidden':
-      return t('settings.testForbidden');
-    case 'not_found_model':
-      return t('settings.testNotFoundModel', { model: testedModel });
-    case 'invalid_model_id':
-      return t('settings.testInvalidModelId', { model: testedModel });
-    case 'invalid_base_url':
-      return t('settings.testInvalidBaseUrl');
-    case 'rate_limited':
-      return t('settings.testRateLimited');
-    case 'upstream_unavailable':
-      return t('settings.testUpstream', { status: result.status ?? 0 });
-    case 'timeout':
-      return t('settings.testTimeout', { ms });
+    case "auth_failed":
+      return t("settings.testAuthFailed");
+    case "forbidden":
+      return t("settings.testForbidden");
+    case "not_found_model":
+      return t("settings.testNotFoundModel", { model: testedModel });
+    case "invalid_model_id":
+      return t("settings.testInvalidModelId", { model: testedModel });
+    case "invalid_base_url":
+      return t("settings.testInvalidBaseUrl");
+    case "rate_limited":
+      return t("settings.testRateLimited");
+    case "upstream_unavailable":
+      return t("settings.testUpstream", { status: result.status ?? 0 });
+    case "timeout":
+      return t("settings.testTimeout", { ms });
     default:
-      return t('settings.testUnknown', { detail: result.detail ?? '' });
+      return t("settings.testUnknown", { detail: result.detail ?? "" });
   }
 }
 
-function renderOnboardingProviderModelsMessage(
-  t: ReturnType<typeof useT>,
-  result: ProviderModelsResponse,
-): string {
+function renderOnboardingProviderModelsMessage(t: ReturnType<typeof useT>, result: ProviderModelsResponse): string {
   if (result.ok) {
-    return t('settings.fetchModelsSuccess', {
-      count: result.models?.length ?? 0,
+    return t("settings.fetchModelsSuccess", {
+      count: result.models?.length ?? 0
     });
   }
   switch (result.kind) {
-    case 'auth_failed':
-      return t('settings.testAuthFailed');
-    case 'forbidden':
-      return t('settings.testForbidden');
-    case 'invalid_base_url':
-      return t('settings.testInvalidBaseUrl');
-    case 'rate_limited':
-      return t('settings.testRateLimited');
-    case 'upstream_unavailable':
-      return t('settings.testUpstream', { status: result.status ?? 0 });
-    case 'timeout':
-      return t('settings.testTimeout', {
-        ms: Math.max(0, Math.round(result.latencyMs)),
+    case "auth_failed":
+      return t("settings.testAuthFailed");
+    case "forbidden":
+      return t("settings.testForbidden");
+    case "invalid_base_url":
+      return t("settings.testInvalidBaseUrl");
+    case "rate_limited":
+      return t("settings.testRateLimited");
+    case "upstream_unavailable":
+      return t("settings.testUpstream", { status: result.status ?? 0 });
+    case "timeout":
+      return t("settings.testTimeout", {
+        ms: Math.max(0, Math.round(result.latencyMs))
       });
-    case 'no_models':
-      return t('settings.fetchModelsEmpty');
-    case 'unsupported_protocol':
-      return t('settings.fetchModelsUnsupported');
+    case "no_models":
+      return t("settings.fetchModelsEmpty");
+    case "unsupported_protocol":
+      return t("settings.fetchModelsUnsupported");
     default:
-      return t('settings.fetchModelsFailed', { detail: result.detail ?? '' });
+      return t("settings.fetchModelsFailed", { detail: result.detail ?? "" });
   }
 }
 
-function OnboardingPanelHeader({ title, body }: { title: string; body: string }) {
+function OnboardingPanelHeader({ id, title, body }: { id?: string; title: string; body?: string }) {
   return (
     <div className="onboarding-view__panel-head">
-      <h2>{title}</h2>
-      <p>{body}</p>
+      <h2 id={id}>{title}</h2>
+      {body ? <p>{body}</p> : null}
     </div>
   );
 }
@@ -2411,7 +2240,7 @@ type OnboardingDropdownBaseProps = {
   label: string;
   placeholder: string;
   options: Array<{ value: string; label: string }>;
-  placement?: 'bottom' | 'top';
+  placement?: "bottom" | "top";
 };
 
 type OnboardingDropdownProps =
@@ -2427,23 +2256,14 @@ type OnboardingDropdownProps =
     });
 
 function OnboardingDropdown(props: OnboardingDropdownProps) {
-  const {
-    label,
-    placeholder,
-    value,
-    options,
-    placement = 'bottom',
-    multiple = false,
-  } = props;
+  const { label, placeholder, value, options, placement = "bottom", multiple = false } = props;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const selectedValues = Array.isArray(value) ? value : value ? [value] : [];
   const selectedOptions = options.filter((option) => selectedValues.includes(option.value));
   const selectedOption = selectedOptions[0];
   const hasValue = selectedOptions.length > 0;
-  const selectedLabel = multiple
-    ? selectedOptions.map((option) => option.label).join(', ')
-    : selectedOption?.label;
+  const selectedLabel = multiple ? selectedOptions.map((option) => option.label).join(", ") : selectedOption?.label;
 
   useEffect(() => {
     if (!open) return;
@@ -2455,16 +2275,16 @@ function OnboardingDropdown(props: OnboardingDropdownProps) {
     }
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         setOpen(false);
       }
     }
 
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open]);
 
@@ -2473,9 +2293,7 @@ function OnboardingDropdown(props: OnboardingDropdownProps) {
       <span className="onboarding-view__select-label">{label}</span>
       <button
         type="button"
-        className={`onboarding-view__select-trigger${open ? ' is-open' : ''}${
-          hasValue ? ' has-value' : ''
-        }`}
+        className={`onboarding-view__select-trigger${open ? " is-open" : ""}${hasValue ? " has-value" : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
@@ -2496,7 +2314,7 @@ function OnboardingDropdown(props: OnboardingDropdownProps) {
               <button
                 key={option.value}
                 type="button"
-                className={`onboarding-view__select-option${selected ? ' is-selected' : ''}`}
+                className={`onboarding-view__select-option${selected ? " is-selected" : ""}`}
                 role="option"
                 aria-selected={selected}
                 onClick={() => {
@@ -2504,7 +2322,7 @@ function OnboardingDropdown(props: OnboardingDropdownProps) {
                     props.onChange(
                       selected
                         ? selectedValues.filter((selectedValue) => selectedValue !== option.value)
-                        : [...selectedValues, option.value],
+                        : [...selectedValues, option.value]
                     );
                     return;
                   }
@@ -2531,7 +2349,7 @@ function OnboardingChoiceCard({
   benefits,
   upcomingLabel,
   upcomingBenefits,
-  benefitPlacement = 'copy',
+  benefitPlacement = "copy",
   metaLabel,
   modelSlot,
   actionLabel,
@@ -2540,16 +2358,16 @@ function OnboardingChoiceCard({
   statusSlot,
   featured,
   variant,
-  onClick,
+  onClick
 }: {
-  icon: 'orbit' | 'hammer' | 'sliders' | 'github' | 'upload' | 'sparkles';
+  icon: "orbit" | "hammer" | "sliders" | "github" | "upload" | "sparkles";
   agentIconId?: string;
   title: string;
   body: string;
   benefits?: string[];
   upcomingLabel?: string;
   upcomingBenefits?: string[];
-  benefitPlacement?: 'copy' | 'aside';
+  benefitPlacement?: "copy" | "aside";
   metaLabel?: string;
   modelSlot?: ReactNode;
   actionLabel?: string;
@@ -2557,19 +2375,17 @@ function OnboardingChoiceCard({
   badge?: string;
   statusSlot?: ReactNode;
   featured?: boolean;
-  variant?: 'amr';
+  variant?: "amr";
   onClick: () => void;
 }) {
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (event.target !== event.currentTarget) return;
-    if (event.key !== 'Enter' && event.key !== ' ') return;
+    if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     onClick();
   }
 
-  const hasBenefits =
-    (benefits && benefits.length > 0) ||
-    (upcomingBenefits && upcomingBenefits.length > 0);
+  const hasBenefits = (benefits && benefits.length > 0) || (upcomingBenefits && upcomingBenefits.length > 0);
   const benefitStack = hasBenefits ? (
     <span className="onboarding-view__benefit-stack">
       {benefits && benefits.length > 0 ? (
@@ -2577,9 +2393,7 @@ function OnboardingChoiceCard({
           {benefits.map((item, index) => (
             <span
               key={item}
-              className={`onboarding-view__benefit${
-                index >= 2 ? ' onboarding-view__benefit--hero' : ''
-              }`}
+              className={`onboarding-view__benefit${index >= 2 ? " onboarding-view__benefit--hero" : ""}`}
             >
               {item}
             </span>
@@ -2588,9 +2402,7 @@ function OnboardingChoiceCard({
       ) : null}
       {upcomingBenefits && upcomingBenefits.length > 0 ? (
         <span className="onboarding-view__upcoming-benefits">
-          {upcomingLabel ? (
-            <span className="onboarding-view__upcoming-label">{upcomingLabel}</span>
-          ) : null}
+          {upcomingLabel ? <span className="onboarding-view__upcoming-label">{upcomingLabel}</span> : null}
           {upcomingBenefits.map((item) => (
             <span key={item} className="onboarding-view__benefit onboarding-view__benefit--upcoming">
               {item}
@@ -2600,20 +2412,11 @@ function OnboardingChoiceCard({
       ) : null}
     </span>
   ) : null;
-  const modelUnderLogo = variant === 'amr' && modelSlot;
+  const modelUnderLogo = variant === "amr" && modelSlot;
   const iconNode = (
-    <span
-      className={
-        'onboarding-view__icon' +
-        (agentIconId ? ' onboarding-view__icon--asset' : '')
-      }
-    >
+    <span className={"onboarding-view__icon" + (agentIconId ? " onboarding-view__icon--asset" : "")}>
       {agentIconId ? (
-        <AgentIcon
-          id={agentIconId}
-          size={featured ? 52 : 40}
-          className="onboarding-view__agent-logo"
-        />
+        <AgentIcon id={agentIconId} size={featured ? 52 : 40} className="onboarding-view__agent-logo" />
       ) : (
         <Icon name={icon} size={18} />
       )}
@@ -2627,11 +2430,7 @@ function OnboardingChoiceCard({
       </span>
       {metaLabel ? <span className="onboarding-view__card-meta">{metaLabel}</span> : null}
       {modelUnderLogo ? null : modelSlot}
-      {benefitPlacement === 'copy' && benefitStack ? (
-        benefitStack
-      ) : !modelSlot ? (
-        <small>{body}</small>
-      ) : null}
+      {benefitPlacement === "copy" && benefitStack ? benefitStack : !modelSlot ? <small>{body}</small> : null}
     </span>
   );
 
@@ -2639,16 +2438,16 @@ function OnboardingChoiceCard({
     <div
       role="button"
       tabIndex={0}
-      className={`onboarding-view__card${selected ? ' is-selected' : ''}${
-        featured ? ' onboarding-view__card--featured' : ''
-      }${variant ? ` onboarding-view__card--${variant}` : ''}${
-        benefitPlacement === 'aside' ? ' onboarding-view__card--benefit-aside' : ''
+      className={`onboarding-view__card${selected ? " is-selected" : ""}${
+        featured ? " onboarding-view__card--featured" : ""
+      }${variant ? ` onboarding-view__card--${variant}` : ""}${
+        benefitPlacement === "aside" ? " onboarding-view__card--benefit-aside" : ""
       }`}
       onClick={onClick}
       onKeyDown={handleKeyDown}
       aria-pressed={selected}
     >
-      {variant === 'amr' ? (
+      {variant === "amr" ? (
         <span className="onboarding-view__identity">
           {iconNode}
           {copyNode}
@@ -2659,19 +2458,11 @@ function OnboardingChoiceCard({
           {copyNode}
         </>
       )}
-      {modelUnderLogo ? (
-        <span className="onboarding-view__card-model">
-          {modelSlot}
-        </span>
-      ) : null}
-      {benefitPlacement === 'aside' && benefitStack ? (
+      {modelUnderLogo ? <span className="onboarding-view__card-model">{modelSlot}</span> : null}
+      {benefitPlacement === "aside" && benefitStack ? (
         <span className="onboarding-view__benefit-aside">{benefitStack}</span>
       ) : null}
-      {statusSlot ? (
-        <span className="onboarding-view__card-status">
-          {statusSlot}
-        </span>
-      ) : null}
+      {statusSlot ? <span className="onboarding-view__card-status">{statusSlot}</span> : null}
       {actionLabel ? <span className="onboarding-view__card-action">{actionLabel}</span> : null}
       {selected ? (
         <span className="onboarding-view__check">

@@ -104,10 +104,10 @@ describe('TasksView page shell', () => {
 
     render(<TasksView />);
 
-    expect(await screen.findByRole('heading', { name: 'Video automations' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Automations' })).toBeTruthy();
     expect(
       screen.getByText(
-        'Schedule recurring checks for ecommerce video assets, scripts, storyboards, generation diagnostics, and performance review.'
+        'Schedule recurring sessions for ecommerce video assets, category crawling, scripts, storyboards, generation diagnostics, and performance review.'
       )
     ).toBeTruthy();
     expect(screen.getByTestId('automations-new')).toBeTruthy();
@@ -119,7 +119,7 @@ describe('TasksView page shell', () => {
       expect(summary.textContent ?? '').toContain('Active');
       expect(summary.textContent ?? '').toContain('1');
       expect(summary.textContent ?? '').toContain('Paused');
-      expect(summary.textContent ?? '').toContain('5');
+      expect(summary.textContent ?? '').toContain('7');
       expect(summary.textContent ?? '').toContain('Templates');
     });
   });

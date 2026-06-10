@@ -14,14 +14,23 @@ import type {
   CommerceVideoMethodologySummaryResponse,
   CreateCommerceVideoAssetRequest,
   CreateProductAssetRequest,
+  DeleteCommerceVideoAssetResponse,
+  DeleteProductAssetResponse,
   EmbedAssetLibraryAssetRequest,
   EmbeddingProviderConfig,
   EmbeddingProviderTestResponse,
   ImportProductImageResponse,
+  ImportProductImagesResponse,
   ImportCommerceVideoCrawlerRequest,
   ImportCommerceVideoSearchRequest,
+  ImportQualityVideoSearchRequest,
   ProductAssetResponse,
   ProductAssetsResponse,
+  QualityVideoAsset,
+  QualityVideoAssetResponse,
+  QualityVideoAssetsResponse,
+  SearchQualityVideosRequest,
+  SearchQualityVideosResponse,
   UpdateCommerceVideoAssetRequest,
   UpdateProductAssetRequest
 } from "@open-design/contracts";
@@ -109,8 +118,30 @@ export async function uploadProductAssetImage(
   return data;
 }
 
+export async function uploadProductAssetImages(files: File[]): Promise<ImportProductImagesResponse> {
+  const form = new FormData();
+  const relativePaths = files.map(productUploadRelativePath);
+  files.forEach((file, index) => {
+    form.append("files", file, relativePaths[index] || file.name);
+  });
+  form.append("relativePaths", JSON.stringify(relativePaths));
+  const response = await fetch("/api/asset-library/products/import/uploads", {
+    method: "POST",
+    body: form
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof data?.error === "string" ? data.error : (data?.error?.message ?? "Upload failed"));
+  }
+  return data;
+}
+
 export function updateProductAsset(id: string, input: UpdateProductAssetRequest): Promise<ProductAssetResponse> {
   return jsonRequest(`/api/asset-library/products/${encodeURIComponent(id)}`, { method: "PATCH", body: input });
+}
+
+export function deleteProductAsset(id: string): Promise<DeleteProductAssetResponse> {
+  return jsonRequest(`/api/asset-library/products/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export function processProductAsset(id: string): Promise<AssetLibraryJobResponse> {
@@ -145,6 +176,10 @@ export function updateCommerceVideoAsset(
   input: UpdateCommerceVideoAssetRequest
 ): Promise<CommerceVideoAssetResponse> {
   return jsonRequest(`/api/asset-library/commerce-videos/${encodeURIComponent(id)}`, { method: "PATCH", body: input });
+}
+
+export function deleteCommerceVideoAsset(id: string): Promise<DeleteCommerceVideoAssetResponse> {
+  return jsonRequest(`/api/asset-library/commerce-videos/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export async function uploadCommerceVideoAsset(
@@ -226,6 +261,96 @@ export function buildCommerceVideoMethodologySummary(
   return jsonRequest("/api/asset-library/commerce-videos/methodology-summary", { method: "POST", body: input });
 }
 
+export function listQualityVideoAssets(query?: string): Promise<QualityVideoAssetsResponse> {
+  const params = new URLSearchParams();
+  if (query?.trim()) params.set("query", query.trim());
+  return jsonRequest(`/api/asset-library/quality-videos${params.size ? `?${params}` : ""}`);
+}
+
+export function getQualityVideoAsset(id: string): Promise<QualityVideoAssetResponse> {
+  return jsonRequest(`/api/asset-library/quality-videos/${encodeURIComponent(id)}`);
+}
+
+export function createQualityVideoAsset(input: {
+  title: string;
+  sourceName: string;
+  sourceUrl?: string;
+  sourceVideoId?: string;
+  category?: string;
+  keyword?: string;
+  video?: Record<string, unknown>;
+  methodology?: Record<string, unknown>;
+  report?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}): Promise<QualityVideoAssetResponse> {
+  return jsonRequest("/api/asset-library/quality-videos", { method: "POST", body: input });
+}
+
+export function searchQualityVideos(input: SearchQualityVideosRequest): Promise<SearchQualityVideosResponse> {
+  return jsonRequest("/api/asset-library/quality-videos/search", { method: "POST", body: input });
+}
+
+export function importQualityVideoSearch(input: ImportQualityVideoSearchRequest): Promise<{
+  videos: QualityVideoAsset[];
+  job: AssetLibraryJob;
+  search: SearchQualityVideosResponse["search"];
+  items: SearchQualityVideosResponse["items"];
+}> {
+  return jsonRequest("/api/asset-library/quality-videos/import/search", { method: "POST", body: input });
+}
+
+export async function uploadQualityVideoAsset(
+  file: File,
+  input: { title?: string; sourceName?: string; category?: string; keyword?: string } = {}
+): Promise<{ video: QualityVideoAsset; job: AssetLibraryJob }> {
+  const form = new FormData();
+  form.append("file", file);
+  if (input.title?.trim()) form.append("title", input.title.trim());
+  if (input.sourceName?.trim()) form.append("sourceName", input.sourceName.trim());
+  if (input.category?.trim()) form.append("category", input.category.trim());
+  if (input.keyword?.trim()) form.append("keyword", input.keyword.trim());
+  const response = await fetch("/api/asset-library/quality-videos/import/upload", {
+    method: "POST",
+    body: form
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof data?.error === "string" ? data.error : (data?.error?.message ?? "Upload failed"));
+  }
+  return data;
+}
+
+export function updateQualityVideoAsset(
+  id: string,
+  input: UpdateCommerceVideoAssetRequest
+): Promise<QualityVideoAssetResponse> {
+  return jsonRequest(`/api/asset-library/quality-videos/${encodeURIComponent(id)}`, { method: "PATCH", body: input });
+}
+
+export function deleteQualityVideoAsset(id: string): Promise<DeleteCommerceVideoAssetResponse> {
+  return jsonRequest(`/api/asset-library/quality-videos/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function processQualityVideoAsset(id: string): Promise<AssetLibraryJobResponse> {
+  return jsonRequest(`/api/asset-library/quality-videos/${encodeURIComponent(id)}/process`, { method: "POST" });
+}
+
+export function embedQualityVideoAsset(
+  id: string,
+  input: EmbedAssetLibraryAssetRequest = {}
+): Promise<AssetLibraryJobResponse> {
+  return jsonRequest(`/api/asset-library/quality-videos/${encodeURIComponent(id)}/embed`, {
+    method: "POST",
+    body: input
+  });
+}
+
+export function buildQualityVideoMethodologySummary(
+  input: CommerceVideoMethodologySummaryRequest
+): Promise<CommerceVideoMethodologySummaryResponse> {
+  return jsonRequest("/api/asset-library/quality-videos/methodology-summary", { method: "POST", body: input });
+}
+
 export async function waitAssetLibraryJob(
   job: AssetLibraryJob,
   timeoutMs = 120_000,
@@ -248,4 +373,12 @@ export async function waitAssetLibraryJob(
     since = Array.isArray(latest.progress) ? latest.progress.length : since;
   }
   return latest;
+}
+
+function productUploadRelativePath(file: File): string {
+  return ((file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name)
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter(Boolean)
+    .join("/");
 }

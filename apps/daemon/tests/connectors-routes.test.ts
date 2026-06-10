@@ -63,6 +63,10 @@ let lastComposioAuthConfigRequest: ComposioRequestBody | undefined;
 let lastVideoCrawlerRequest: JsonObject | undefined;
 let composioDiscoveryRequestCounts: DiscoveryRequestCounts;
 
+const DOUYIN_SHARE_URL = "https://v.douyin.com/f_W144684oY/";
+const DOUYIN_VIDEO_ID = "7637058398223259786";
+const DOUYIN_RESOLVED_URL = `https://www.iesdouyin.com/share/video/${DOUYIN_VIDEO_ID}/?from_ssr=1`;
+
 function composioJson(body: JsonObject, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -177,6 +181,10 @@ function bilibiliFixtureVideoBytes(bvid: string): Buffer {
   return Buffer.from(bvid === "BV1abcde5678" ? "fixture-video-5678" : "fixture-video");
 }
 
+function douyinFixtureVideoBytes(): Buffer {
+  return Buffer.from("fixture-douyin-video");
+}
+
 function mockBilibiliApiFetch(parsed: URL): Response {
   if (parsed.pathname === "/x/web-interface/search/type") {
     return composioJson({
@@ -276,6 +284,53 @@ function mockBilibiliApiFetch(parsed: URL): Response {
   return composioJson({ code: -404, message: `Unhandled Bilibili mock: ${parsed.pathname}` }, 404);
 }
 
+function mockDouyinPublicFetch(parsed: URL): Response {
+  if (parsed.hostname === "v.douyin.com" && parsed.pathname === "/f_W144684oY/") {
+    return new Response(null, {
+      status: 302,
+      headers: { location: DOUYIN_RESOLVED_URL }
+    });
+  }
+  if (parsed.hostname === "www.iesdouyin.com" && parsed.pathname === `/share/video/${DOUYIN_VIDEO_ID}/`) {
+    return new Response(
+      `<!doctype html><html><head><title>微微爆爆爆的作品</title></head><body><script>
+        window.__ROUTER_DATA__ = {
+          "loaderData": {
+            "video": {
+              "aweme_id": "${DOUYIN_VIDEO_ID}",
+              "desc": "微微爆爆爆的作品 # 初春穿搭 # 显瘦 # 158小个子穿搭",
+              "author": { "nickname": "微微爆爆爆" },
+              "statistics": { "digg_count": 694, "comment_count": 33, "share_count": 11, "collect_count": 42 },
+              "video": {
+                "width": 1080,
+                "height": 1920,
+                "duration": 12345,
+                "play_addr": {
+                  "url_list": [
+                    "https:\\u002F\\u002Fv.douyinstatic.com\\u002Fobj\\u002Ftos-cn-ve-2774\\u002Fdouyin-fixture-video.mp4"
+                  ]
+                }
+              }
+            }
+          }
+        };
+      </script></body></html>`,
+      { status: 200, headers: { "content-type": "text/html; charset=UTF-8" } }
+    );
+  }
+  if (parsed.hostname === "v.douyinstatic.com" && parsed.pathname === "/obj/tos-cn-ve-2774/douyin-fixture-video.mp4") {
+    const body = douyinFixtureVideoBytes();
+    return new Response(body, {
+      status: 200,
+      headers: {
+        "content-type": "video/mp4",
+        "content-length": String(body.byteLength)
+      }
+    });
+  }
+  return composioJson({ code: -404, message: `Unhandled Douyin mock: ${parsed.toString()}` }, 404);
+}
+
 function createDeferred(): Deferred {
   let resolve!: () => void;
   const promise = new Promise<void>((innerResolve) => {
@@ -320,6 +375,13 @@ function mockComposioFetch(options: MockComposioFetchOptions = {}): void {
     }
     if (parsed.hostname === "api.bilibili.com") {
       return mockBilibiliApiFetch(parsed);
+    }
+    if (
+      parsed.hostname === "v.douyin.com" ||
+      parsed.hostname === "www.iesdouyin.com" ||
+      parsed.hostname === "v.douyinstatic.com"
+    ) {
+      return mockDouyinPublicFetch(parsed);
     }
     if (parsed.hostname === "upos.example") {
       const bvid = parsed.pathname.match(/(BV[0-9A-Za-z]+)\.mp4$/)?.[1] ?? "BV1abcde1234";
@@ -2041,6 +2103,137 @@ describe("connector routes", () => {
     const fileResponse = await fetch(`${baseUrl}/api/asset-library/files/${filePath}`);
     expect(fileResponse.status).toBe(200);
     expect(Buffer.from(await fileResponse.arrayBuffer())).toEqual(imageBytes);
+
+    const deleted = await jsonFetch(`${baseUrl}/api/asset-library/products/${body.product.id}`, { method: "DELETE" });
+    expect(deleted.status).toBe(200);
+    expect(deleted.body).toMatchObject({
+      removedFiles: true,
+      product: { id: body.product.id, title: "蓝色衬衫裙正面图" }
+    });
+
+    const missing = await jsonFetch(`${baseUrl}/api/asset-library/products/${body.product.id}`);
+    expect(missing.status).toBe(404);
+    const deletedFileResponse = await fetch(`${baseUrl}/api/asset-library/files/${filePath}`);
+    expect(deletedFileResponse.status).toBe(404);
+  });
+
+  it("deletes a commerce video asset from the asset library", async () => {
+    const created = await jsonFetch(`${baseUrl}/api/asset-library/commerce-videos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "待删除带货视频",
+        sourceUrl: "https://www.bilibili.com/video/BVdelete0001/",
+        product: { subject: "衬衫裙", category: "服饰" },
+        video: { summary: "测试视频摘要" },
+        methodology: { hooks: ["开场痛点"], structure: ["痛点", "展示", "CTA"] }
+      })
+    });
+
+    expect(created.status).toBe(201);
+    const id = String(created.body.video.id);
+
+    const deleted = await jsonFetch(`${baseUrl}/api/asset-library/commerce-videos/${id}`, { method: "DELETE" });
+    expect(deleted.status).toBe(200);
+    expect(deleted.body).toMatchObject({
+      removedFiles: true,
+      video: { id, title: "待删除带货视频" }
+    });
+
+    const missing = await jsonFetch(`${baseUrl}/api/asset-library/commerce-videos/${id}`);
+    expect(missing.status).toBe(404);
+  });
+
+  it("rejects commerce video assets without source data", async () => {
+    const response = await jsonFetch(`${baseUrl}/api/asset-library/commerce-videos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "缺少视频源的带货视频",
+        product: { subject: "衬衫裙", category: "服饰" }
+      })
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("sourceUrl or sourceVideoId")
+    });
+  });
+
+  it("stores quality video public references as structured reports with declared sources", async () => {
+    const missingSource = await jsonFetch(`${baseUrl}/api/asset-library/quality-videos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "缺少来源声明的优质视频",
+        sourceUrl: "https://www.instagram.com/reel/quality-missing-source/"
+      })
+    });
+    expect(missingSource.status).toBe(400);
+    expect(missingSource.body.error).toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("sourceName")
+    });
+
+    const created = await jsonFetch(`${baseUrl}/api/asset-library/quality-videos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "防晒衣爆款公开视频拆解",
+        sourceName: "instagram",
+        sourceUrl: "https://www.instagram.com/reel/quality-public-001/",
+        category: "户外服饰",
+        keyword: "防晒衣",
+        report: {
+          hookMethods: ["开场前 3 秒展示痛点"],
+          sellingPoints: ["轻薄", "防晒"],
+          storyboard: ["痛点", "上身展示", "场景对比", "CTA"],
+          styleTags: ["快节奏", "实拍"]
+        }
+      })
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.video).toMatchObject({
+      title: "防晒衣爆款公开视频拆解",
+      status: "ready",
+      metadata: {
+        libraryKind: "quality-videos",
+        sourceDeclaration: {
+          sourceName: "instagram",
+          sourceUrl: "https://www.instagram.com/reel/quality-public-001/",
+          public: true,
+          declaredBy: "user"
+        },
+        compliance: {
+          publicVideoOriginalStored: false,
+          originalVideoRemixed: false,
+          sourceDeclared: true
+        },
+        qualityReport: {
+          hookMethods: ["开场前 3 秒展示痛点"],
+          sellingPoints: ["轻薄", "防晒"],
+          storyboard: ["痛点", "上身展示", "场景对比", "CTA"],
+          styleTags: ["快节奏", "实拍"]
+        }
+      }
+    });
+    expect(String(created.body.video.file?.path ?? "")).toBe("");
+
+    const listed = await jsonFetch(`${baseUrl}/api/asset-library/quality-videos?query=防晒衣`);
+    expect(listed.status).toBe(200);
+    expect((listed.body.videos ?? []).map((video: JsonObject) => video.id)).toContain(created.body.video.id);
+
+    const processPublicReference = await jsonFetch(
+      `${baseUrl}/api/asset-library/quality-videos/${created.body.video.id}/process`,
+      {
+        method: "POST"
+      }
+    );
+    expect(processPublicReference.status).toBe(400);
+    expect(processPublicReference.body.error).toMatchObject({
+      code: "PUBLIC_ORIGINAL_NOT_STORED"
+    });
   });
 
   it("imports two Bilibili crawler downloads into the commerce video asset library", async () => {
@@ -2167,6 +2360,10 @@ describe("connector routes", () => {
     delete process.env.OD_VIDEO_CRAWLER_URL;
 
     try {
+      const beforeListed = await jsonFetch(`${baseUrl}/api/asset-library/commerce-videos?query=BV1abcde`);
+      expect(beforeListed.status).toBe(200);
+      const beforeIds = new Set((beforeListed.body.videos ?? []).map((video: JsonObject) => String(video.id)));
+
       const response = await jsonFetch(`${baseUrl}/api/asset-library/commerce-videos/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2198,7 +2395,10 @@ describe("connector routes", () => {
 
       const listed = await jsonFetch(`${baseUrl}/api/asset-library/commerce-videos?query=BV1abcde`);
       expect(listed.status).toBe(200);
-      expect(listed.body.videos).toEqual([]);
+      expect(new Set((listed.body.videos ?? []).map((video: JsonObject) => String(video.id)))).toEqual(beforeIds);
+      expect(
+        (listed.body.videos ?? []).filter((video: JsonObject) => video.metadata?.importedBy === "crawler-search")
+      ).toEqual([]);
       expect(lastVideoCrawlerRequest).toBeUndefined();
     } finally {
       if (originalCrawlerUrl === undefined) delete process.env.OD_VIDEO_CRAWLER_URL;
@@ -2327,6 +2527,90 @@ describe("connector routes", () => {
       });
       expect(fileResponse.status).toBe(200);
       expect(Buffer.from(await fileResponse.arrayBuffer())).toEqual(expectedBody);
+      const waited = await jsonFetch(`${baseUrl}/api/asset-library/jobs/${response.body.job.id}/wait`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ since: response.body.job.progress.length, timeoutMs: 2_500 })
+      });
+      expect(waited.body.job).toMatchObject({
+        status: "failed",
+        error: { code: "NEEDS_VIDEO_FILE" }
+      });
+      expect(lastVideoCrawlerRequest).toBeUndefined();
+    } finally {
+      if (originalCrawlerUrl === undefined) delete process.env.OD_VIDEO_CRAWLER_URL;
+      else process.env.OD_VIDEO_CRAWLER_URL = originalCrawlerUrl;
+    }
+  });
+
+  it("imports a public Douyin share video without cookie credentials", async () => {
+    const originalCrawlerUrl = process.env.OD_VIDEO_CRAWLER_URL;
+    delete process.env.OD_VIDEO_CRAWLER_URL;
+
+    try {
+      const response = await jsonFetch(`${baseUrl}/api/asset-library/commerce-videos/import/crawler`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          connectorId: "douyin",
+          url: DOUYIN_SHARE_URL
+        })
+      });
+      const expectedBody = douyinFixtureVideoBytes();
+      expect(response.status).toBe(202);
+      const filePath = String(response.body.video.file?.path ?? "");
+      const fileResponse = await fetch(`${baseUrl}/api/asset-library/files/${filePath}`);
+
+      expect(response.body.video).toMatchObject({
+        title: "微微爆爆爆的作品 # 初春穿搭 # 显瘦 # 158小个子穿搭",
+        sourceKind: "crawler",
+        sourceConnectorId: "douyin",
+        sourceUrl: DOUYIN_RESOLVED_URL,
+        sourceVideoId: DOUYIN_VIDEO_ID,
+        file: {
+          path: expect.stringMatching(/^commerce-videos\//),
+          mime: "video/mp4",
+          size: expectedBody.byteLength
+        },
+        metadata: {
+          importedBy: "crawler",
+          connectorOutput: {
+            provider: "douyin-public-share",
+            source: {
+              shareUrl: DOUYIN_SHARE_URL,
+              resolvedUrl: DOUYIN_RESOLVED_URL,
+              kind: "video"
+            },
+            video: {
+              videoId: DOUYIN_VIDEO_ID,
+              url: DOUYIN_RESOLVED_URL,
+              title: "微微爆爆爆的作品 # 初春穿搭 # 显瘦 # 158小个子穿搭"
+            },
+            limitations: expect.arrayContaining([expect.stringContaining("公开分享页")])
+          }
+        }
+      });
+      expect(response.body.importJob).toMatchObject({
+        kind: "crawler-import",
+        status: "done",
+        progress: expect.arrayContaining([expect.stringContaining("Douyin public share")])
+      });
+      expect(fileResponse.status).toBe(200);
+      expect(Buffer.from(await fileResponse.arrayBuffer())).toEqual(expectedBody);
+      const rangeResponse = await fetch(`${baseUrl}/api/asset-library/files/${filePath}`, {
+        headers: { Range: "bytes=0-7" }
+      });
+      expect(rangeResponse.status).toBe(206);
+      expect(rangeResponse.headers.get("accept-ranges")).toBe("bytes");
+      expect(rangeResponse.headers.get("content-range")).toBe(`bytes 0-7/${expectedBody.byteLength}`);
+      expect(rangeResponse.headers.get("content-length")).toBe("8");
+      expect(Buffer.from(await rangeResponse.arrayBuffer())).toEqual(expectedBody.subarray(0, 8));
+      const waited = await jsonFetch(`${baseUrl}/api/asset-library/jobs/${response.body.job.id}/wait`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ since: response.body.job.progress.length, timeoutMs: 2_500 })
+      });
+      expect(["failed", "done"]).toContain(waited.body.job.status);
       expect(lastVideoCrawlerRequest).toBeUndefined();
     } finally {
       if (originalCrawlerUrl === undefined) delete process.env.OD_VIDEO_CRAWLER_URL;

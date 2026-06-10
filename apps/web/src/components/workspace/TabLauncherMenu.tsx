@@ -226,28 +226,31 @@ export function TabLauncherMenu({
           <section className={styles.section}>
             <div className={styles.sectionHeader}>{t('workspace.createNew')}</div>
             <ul className={styles.list}>
-              {actions.map((action) => (
-                <li key={action.id}>
-                  <button
-                    type="button"
-                    className={styles.row}
-                    onClick={() => {
-                      action.run(launcherContext);
-                      onClose();
-                    }}
-                  >
-                    <span className={styles.rowIcon} aria-hidden>
-                      <Icon name={action.iconName} size={15} />
-                    </span>
-                    <span className={styles.rowBody}>
-                      <span className={styles.rowName}>{t(action.labelKey)}</span>
-                      {action.descriptionKey ? (
-                        <span className={styles.rowMeta}>{t(action.descriptionKey)}</span>
-                      ) : null}
-                    </span>
-                  </button>
-                </li>
-              ))}
+              {actions.map((action) => {
+                const label = action.label ?? (action.labelKey ? t(action.labelKey) : action.id);
+                const description =
+                  action.description ?? (action.descriptionKey ? t(action.descriptionKey) : null);
+                return (
+                  <li key={action.id}>
+                    <button
+                      type="button"
+                      className={styles.row}
+                      onClick={() => {
+                        action.run(launcherContext);
+                        onClose();
+                      }}
+                    >
+                      <span className={styles.rowIcon} aria-hidden>
+                        <Icon name={action.iconName} size={15} />
+                      </span>
+                      <span className={styles.rowBody}>
+                        <span className={styles.rowName}>{label}</span>
+                        {description ? <span className={styles.rowMeta}>{description}</span> : null}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         ) : null}

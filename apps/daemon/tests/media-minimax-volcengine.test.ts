@@ -3,12 +3,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateMedia } from "../src/media.js";
+import { generateMedia, understandMedia } from "../src/media.js";
 
 const TEST_MINIMAX_BASE_URL = "https://api.minimaxi.com/v1";
 const TEST_VOLCENGINE_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
 const TEST_IMAGE_URL = "https://cdn.example.test/minimax-image.png";
 const TEST_VIDEO_URL = "https://cdn.example.test/ark-video.mp4";
+const TEST_REFERENCE_IMAGE_URL_1 = "https://cdn.example.test/reference-image-1.jpg";
+const TEST_REFERENCE_IMAGE_URL_2 = "https://cdn.example.test/reference-image-2.jpg";
+const TEST_REFERENCE_VIDEO_URL = "https://cdn.example.test/reference-video.mp4";
+const TEST_REFERENCE_AUDIO_URL = "https://cdn.example.test/reference-audio.mp3";
 const TEST_MINIMAX_VIDEO_URL = "https://cdn.example.test/minimax-video.mp4";
 const TEST_IMAGE_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
 const TEST_VIDEO_BYTES = Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70]);
@@ -33,7 +37,9 @@ describe("MiniMax and Volcengine ecommerce media models", () => {
     delete process.env.OD_MINIMAX_API_KEY;
     delete process.env.MINIMAX_API_KEY;
     delete process.env.OD_VOLCENGINE_API_KEY;
+    delete process.env.OD_VOLCENGINE_ARK_API_KEY;
     delete process.env.ARK_API_KEY;
+    delete process.env.VOLCENGINE_ARK_API_KEY;
     delete process.env.VOLCENGINE_API_KEY;
     process.env.OD_VOLCENGINE_VIDEO_MAX_POLL_MS = "60000";
     process.env.OD_MINIMAX_VIDEO_MAX_POLL_MS = "60000";
@@ -66,7 +72,9 @@ describe("MiniMax and Volcengine ecommerce media models", () => {
     delete process.env.OD_MINIMAX_API_KEY;
     delete process.env.MINIMAX_API_KEY;
     delete process.env.OD_VOLCENGINE_API_KEY;
+    delete process.env.OD_VOLCENGINE_ARK_API_KEY;
     delete process.env.ARK_API_KEY;
+    delete process.env.VOLCENGINE_ARK_API_KEY;
     delete process.env.VOLCENGINE_API_KEY;
     await rm(root, { recursive: true, force: true });
   });
@@ -150,10 +158,6 @@ describe("MiniMax and Volcengine ecommerce media models", () => {
         }
       }
     });
-    const projectDir = path.join(projectsRoot, "project-1");
-    await mkdir(projectDir, { recursive: true });
-    await writeFile(path.join(projectDir, "reference.png"), TEST_IMAGE_BYTES);
-
     let createBody: Record<string, unknown> | null = null;
     const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
       const url = String(input);
@@ -213,7 +217,7 @@ describe("MiniMax and Volcengine ecommerce media models", () => {
     expect(bytes.equals(TEST_VIDEO_BYTES)).toBe(true);
   });
 
-  it("normalizes legacy Seedance video ids to the tested Ark endpoint id", async () => {
+  it("submits Seedance 2.0 through the native Ark task fields", async () => {
     vi.useFakeTimers();
     await writeConfig({
       providers: {
@@ -223,18 +227,21 @@ describe("MiniMax and Volcengine ecommerce media models", () => {
         }
       }
     });
+    const projectDir = path.join(projectsRoot, "project-1");
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(path.join(projectDir, "reference.png"), TEST_IMAGE_BYTES);
 
     let createBody: Record<string, unknown> | null = null;
     const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
       const url = String(input);
       if (url === `${TEST_VOLCENGINE_BASE_URL}/contents/generations/tasks`) {
         createBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
-        return new Response(JSON.stringify({ id: "ark-task-legacy" }), {
+        return new Response(JSON.stringify({ id: "ark-task-seedance-2" }), {
           status: 200,
           headers: { "content-type": "application/json" }
         });
       }
-      if (url === `${TEST_VOLCENGINE_BASE_URL}/contents/generations/tasks/ark-task-legacy`) {
+      if (url === `${TEST_VOLCENGINE_BASE_URL}/contents/generations/tasks/ark-task-seedance-2`) {
         return new Response(JSON.stringify({ status: "succeeded", content: { video_url: TEST_VIDEO_URL } }), {
           status: 200,
           headers: { "content-type": "application/json" }
@@ -258,8 +265,11 @@ describe("MiniMax and Volcengine ecommerce media models", () => {
       model: "doubao-seedance-2-0-260128",
       prompt: "A polished kettle launch clip.",
       aspect: "16:9",
-      length: 5,
-      output: "ark-legacy.mp4"
+      length: 11,
+      referenceImageUrls: [TEST_REFERENCE_IMAGE_URL_1, TEST_REFERENCE_IMAGE_URL_2],
+      referenceVideoUrl: TEST_REFERENCE_VIDEO_URL,
+      referenceAudioUrl: TEST_REFERENCE_AUDIO_URL,
+      output: "ark-seedance-2.mp4"
     });
 
     await vi.waitFor(() => expect(createBody).not.toBeNull());
@@ -268,16 +278,135 @@ describe("MiniMax and Volcengine ecommerce media models", () => {
     const result = await resultPromise;
 
     expect(createBody).toEqual({
-      model: "ep-20260514120705-pqv86",
+      model: "doubao-seedance-2-0-260128",
       content: [
         {
           type: "text",
-          text: "A polished kettle launch clip. --resolution 720p --duration 5 --ratio 16:9"
+          text: "A polished kettle launch clip."
+        },
+        {
+          type: "image_url",
+          image_url: { url: TEST_REFERENCE_IMAGE_URL_1 },
+          role: "reference_image"
+        },
+        {
+          type: "image_url",
+          image_url: { url: TEST_REFERENCE_IMAGE_URL_2 },
+          role: "reference_image"
+        },
+        {
+          type: "video_url",
+          video_url: { url: TEST_REFERENCE_VIDEO_URL },
+          role: "reference_video"
+        },
+        {
+          type: "audio_url",
+          audio_url: { url: TEST_REFERENCE_AUDIO_URL },
+          role: "reference_audio"
         }
-      ]
+      ],
+      generate_audio: true,
+      ratio: "16:9",
+      duration: 11,
+      watermark: false
     });
-    expect(result.model).toBe("doubao-seedance-1.5-pro");
-    expect(result.providerNote).toContain("volcengine/ep-20260514120705-pqv86");
+    expect(result.model).toBe("doubao-seedance-2-0-260128");
+    expect(result.providerNote).toContain("volcengine/doubao-seedance-2-0-260128");
+    expect(result.providerNote).toContain("11s");
+  });
+
+  it("uses the separate Volcengine Ark config for video understanding", async () => {
+    await writeConfig({
+      providers: {
+        volcengine: {
+          apiKey: "generation-key",
+          baseUrl: "https://generation.example.test/api/v3"
+        },
+        "volcengine-ark": {
+          apiKey: "understanding-key",
+          baseUrl: TEST_VOLCENGINE_BASE_URL
+        }
+      }
+    });
+
+    let requestBody: Record<string, unknown> | null = null;
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      expect(String(input)).toBe(`${TEST_VOLCENGINE_BASE_URL}/chat/completions`);
+      expect(init?.method).toBe("POST");
+      expect(init?.headers).toMatchObject({
+        authorization: "Bearer understanding-key",
+        "content-type": "application/json"
+      });
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "This video shows a product demo." }, finish_reason: "stop" }],
+          usage: { prompt_tokens: 12, completion_tokens: 8, total_tokens: 20 }
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await understandMedia({
+      projectRoot,
+      kind: "video",
+      providerId: "volcengine",
+      mediaUrl: "data:video/mp4;base64,AAAA",
+      prompt: "Summarize the clip.",
+      fps: 3
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(requestBody).toEqual({
+      model: "doubao-seed-2-0-lite-260215",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Summarize the clip." },
+            { type: "video_url", video_url: { url: "data:video/mp4;base64,AAAA", fps: 3 } }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1800
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      providerId: "volcengine-ark",
+      kind: "video",
+      model: "doubao-seed-2-0-lite-260215",
+      content: "This video shows a product demo."
+    });
+    expect(result.usage).toEqual({ promptTokens: 12, completionTokens: 8, totalTokens: 20 });
+  });
+
+  it("rejects non-allowlisted Volcengine Ark video understanding models before fetch", async () => {
+    await writeConfig({
+      providers: {
+        "volcengine-ark": {
+          apiKey: "understanding-key",
+          baseUrl: TEST_VOLCENGINE_BASE_URL,
+          videoUnderstandingModel: "doubao-seed-2-0-pro-260215"
+        }
+      }
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      understandMedia({
+        projectRoot,
+        kind: "video",
+        providerId: "volcengine-ark",
+        mediaUrl: "data:video/mp4;base64,AAAA"
+      })
+    ).rejects.toMatchObject({
+      status: 400,
+      code: "MODEL_NOT_ALLOWED"
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("renders MiniMax video only through image-to-video", async () => {

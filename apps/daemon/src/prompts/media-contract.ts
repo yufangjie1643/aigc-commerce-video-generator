@@ -161,6 +161,10 @@ inside PowerShell.
   [--length <seconds>]              # video only
   [--duration <seconds>]            # audio only
   [--prompt-influence <0-1>]        # audio:sfx only; higher follows the prompt more closely
+  [--image <project-relative-path>] # Seedance 2.0 reference image / first frame
+  [--reference-image-url <https-url>] # Seedance 2.0 remote reference image
+  [--reference-video-url <https-url>] # Seedance 2.0 reference video
+  [--reference-audio-url <https-url>] # Seedance 2.0 reference audio/music
   [--loop]                          # audio:sfx only; request a seamless loop
   [--audio-kind music|speech|sfx]   # audio only
   [--voice <provider-voice-id>]     # audio:speech only; omit to use provider default
@@ -187,7 +191,7 @@ inspect, summarize, tag, transcribe, or learn from existing media:
 \`\`\`bash
 "$OD_NODE_BIN" "$OD_BIN" media understand \\
   --image|--audio|--video <project-relative-or-absolute-path-or-http-url> \\
-  --provider mimo \\
+  --provider mimo|volcengine-ark \\
   --prompt "<analysis instructions>" \\
   --json
 \`\`\`
@@ -197,7 +201,7 @@ PowerShell:
 \`\`\`powershell
 & $env:OD_NODE_BIN $env:OD_BIN media understand \`
   --image|--audio|--video <path-or-url> \`
-  --provider mimo \`
+  --provider mimo|volcengine-ark \`
   --prompt "<analysis instructions>" \`
   --json
 \`\`\`
@@ -205,9 +209,10 @@ PowerShell:
 This calls the configured provider's native multimodal path (\`image_url\`,
 \`input_audio\`, or \`video_url\`). Xiaomi MiMo defaults to \`mimo-v2.5\` for
 all three media types; Volcengine Ark remains available for native video
-understanding with \`--provider volcengine\`. It is for analysis and
-retrieval/tagging workflows; it does not generate media bytes. Prefer this over
-manual frame extraction or screenshots when the user asks for video
+understanding with \`--provider volcengine-ark\`. That generic Ark
+understanding path only allows \`doubao-seed-2-0-lite-260215\`; ep-* endpoints
+belong to the separate Volcengine generation/text-output provider. Prefer this
+over manual frame extraction or screenshots when the user asks for video
 understanding, and prefer it over hand-written guesses when the user asks to
 understand a local image or audio file.
 
@@ -220,17 +225,31 @@ understand a local image or audio file.
 Save the \`file.name\` and reference it in your reply ("I generated
 \`poster.png\`."). The user's FileViewer renders it automatically.
 
+Generated commerce-video outputs are project artifacts, not source material-library assets. For AI-generated finished videos, keep the MP4 in the project output/export path and media task state; never call \`assets commerce-videos import\`, \`import-crawler\`, \`import-upload\`, or \`import-search\`.
+
 ### Allowed execution paths
 
 For media projects, \`"$OD_NODE_BIN" "$OD_BIN" media generate …\` is the **only**
 approved execution path **except for the \`hyperframes-html\` video
-model** — see the carve-out below. Do not replace the dispatcher with
+model and the dedicated ecommerce/product selling-video workflow** — see
+the carve-outs below. Do not replace the dispatcher with
 ad-hoc \`curl\` requests, direct imports of daemon modules, home-grown
 wrappers, or "equivalent" scripts. Do not probe the daemon with
 \`curl\`, \`lsof\`, \`netstat\`, or speculative environment debugging
 before the first generate attempt. Treat \`OD_NODE_BIN\`, \`OD_BIN\`,
 \`OD_PROJECT_ID\`, and \`OD_DAEMON_URL\` as the source of truth and try the dispatcher
 first.
+
+#### Carve-out: ecommerce/product selling videos use \`commerce-video\`
+
+When the brief is for an ecommerce, product selling, 带货, marketplace,
+SKU, offer/CTA, product demo, or product-image-to-selling-video workflow,
+do not call direct \`"$OD_NODE_BIN" "$OD_BIN" media generate\`. Use the
+stage-aware \`commerce-video\` commands instead so 商品素材上传 -> 剧本生成 ->
+基础分镜 -> 一键成片 -> 任务进度 -> 预览导出 remains visible in the right-side UI.
+The stage name 一键成片 only creates a generation task; waiting and export
+belong to later stages unless the user explicitly asks for no-confirmation
+full automation.
 
 #### Carve-out: \`hyperframes-html\` is agent-authored, daemon-rendered
 
@@ -375,9 +394,13 @@ If you need to inspect the catalogue from your shell, run
 
 - **image**:   ${IMAGE_IDS}
 - **video**:   ${VIDEO_IDS}
-  The current Volcengine Ark path is \`doubao-seedance-1.5-pro\`, a tested
-  text-to-video endpoint for product clips. Do not pass \`--image\` to that
-  model unless a future model entry explicitly advertises an i2v capability.
+  The current default Volcengine Ark path is \`doubao-seedance-2-0-260128\`.
+  It supports text-to-video and Seedance 2.0 reference-image video; pass
+  \`--image\` only when the user explicitly asks for first-frame/reference-image
+  video. For reachable external reference images, clips, or music, pass
+  \`--reference-image-url <https-url>\`, \`--reference-video-url <https-url>\`,
+  and/or \`--reference-audio-url <https-url>\`; the daemon sends them as Seedance
+  2.0 \`reference_image\`/\`reference_video\`/\`reference_audio\` content entries.
 - **audio · music**:  ${AUDIO_MUSIC_IDS}
 - **audio · speech**: ${AUDIO_SPEECH_IDS}
 - **audio · sfx**:    ${AUDIO_SFX_IDS}
@@ -429,12 +452,12 @@ path is given.
    - **Image, default / no preference stated**: use the project metadata's
      \`imageModel\` if set; otherwise use \`gpt-image-2\`
    - **Video, best quality / default text-to-video**: use project metadata
-     \`videoModel\` if set; otherwise \`doubao-seedance-1.5-pro\`. The daemon
-     maps that catalog id to the tested Volcengine Ark endpoint
-     \`ep-20260514120705-pqv86\`; do not use raw \`doubao-seedance-2-0-*\` ids.
+     \`videoModel\` if set; otherwise \`doubao-seedance-2-0-260128\`.
    - **Video, explicit image-to-video / first-frame animation**: use
-     \`minimax-video-01\` and pass \`--image <project-relative-path>\`. Do not
-     infer image-to-video merely because uploaded images exist.
+     \`doubao-seedance-2-0-260128\` and pass
+     \`--image <project-relative-path>\`. Use \`minimax-video-01\` only when the
+     user explicitly asks for MiniMax. Do not infer image-to-video merely
+     because uploaded images exist.
 
    Default aspect ratio (use when \`aspectRatio\` is unknown):
    - Landscape/outdoor scenes, cinematic, widescreen → \`16:9\`

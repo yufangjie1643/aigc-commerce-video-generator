@@ -57,7 +57,7 @@ describe("SettingsDialog media providers", () => {
     const workflow = workflowHead?.nextElementSibling as HTMLElement | null;
     if (!workflow) throw new Error("Expected media provider workflow grid");
 
-    expect(within(workflow).getByText("doubao-seedance-1.5-pro")).toBeTruthy();
+    expect(within(workflow).getByText("doubao-seedance-2.0")).toBeTruthy();
     expect(within(workflow).getByText("image-01")).toBeTruthy();
     expect(within(workflow).getByText("image-01-live")).toBeTruthy();
     expect(within(workflow).getByText("speech-2.8-hd")).toBeTruthy();
@@ -218,7 +218,7 @@ describe("SettingsDialog media providers", () => {
     expect((screen.getByLabelText("MiniMax Base URL") as HTMLInputElement).value).toBe("https://daemon.example/v1");
     expect((screen.getByLabelText("MiniMax API key") as HTMLInputElement).value).toBe("");
     expect(screen.getByText("Saved · ••••9876")).toBeTruthy();
-    expect((screen.getByLabelText("Volcengine Ark (Doubao) Base URL") as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText("Volcengine Doubao generation Base URL") as HTMLInputElement).value).toBe(
       "https://local-volcengine.example/v1"
     );
   });
@@ -428,10 +428,10 @@ describe("SettingsDialog media providers", () => {
     });
     expect(onPersist).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByLabelText("Volcengine Ark (Doubao) API key"), {
+    fireEvent.change(screen.getByLabelText("Volcengine Doubao generation API key"), {
       target: { value: "ark-volcengine-pending" }
     });
-    fireEvent.change(screen.getByLabelText("Volcengine Ark (Doubao) Base URL"), {
+    fireEvent.change(screen.getByLabelText("Volcengine Doubao generation Base URL"), {
       target: { value: "https://local-volcengine.example/v1" }
     });
 
@@ -446,10 +446,10 @@ describe("SettingsDialog media providers", () => {
     });
     expect(reloadMock).toHaveBeenCalledTimes(1);
 
-    expect((screen.getByLabelText("Volcengine Ark (Doubao) API key") as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText("Volcengine Doubao generation API key") as HTMLInputElement).value).toBe(
       "ark-volcengine-pending"
     );
-    expect((screen.getByLabelText("Volcengine Ark (Doubao) Base URL") as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText("Volcengine Doubao generation Base URL") as HTMLInputElement).value).toBe(
       "https://local-volcengine.example/v1"
     );
   });

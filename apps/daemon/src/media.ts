@@ -21,8 +21,10 @@
 //                              with auto-detection for Azure OpenAI
 //                              deployments based on the configured base URL
 //   * provider 'volcengine' → Volcengine Ark async tasks API for
-//                              Doubao Seedance 1.5 Pro (video) and Seedream
-//                              (image)
+//                              Doubao Seedance 2.0 / legacy 1.5 Pro (video)
+//                              and Seedream (image)
+//   * provider 'volcengine-ark' → generic Ark chat/embedding API for
+//                              allowlisted understanding/vectorization models
 //   * provider 'grok'       → xAI Imagine API: synchronous
 //                              /v1/images/generations for grok-imagine-image
 //                              and async /v1/videos/generations + GET poll
@@ -125,6 +127,9 @@ type MediaContext = {
   promptInfluence: number | undefined;
   compositionDir: string | null;
   imageRef: ImageRef | null;
+  referenceImageUrls: string[];
+  referenceVideoUrl: string | undefined;
+  referenceAudioUrl: string | undefined;
   requestInit: MediaRequestInit;
   /** Additional reference images for multi-image i2v / style reference flows. */
   imageRefs: ImageRef[];
@@ -161,8 +166,6 @@ const SURFACES = new Set(["image", "video", "audio"]);
 const AUDIO_KINDS = new Set(["music", "speech", "sfx"]);
 
 const LEGACY_MEDIA_MODEL_ALIASES: Record<string, string> = {
-  "doubao-seedance-2-0-260128": "doubao-seedance-1.5-pro",
-  "doubao-seedance-2-0-fast-260128": "doubao-seedance-1.5-pro",
   "doubao-seedance-1-0-pro-250528": "doubao-seedance-1.5-pro",
   "doubao-seedance-1-0-lite-i2v-250428": "doubao-seedance-1.5-pro",
   "doubao-seedance-1-0-lite-t2v-250428": "doubao-seedance-1.5-pro",
@@ -251,6 +254,33 @@ async function resolveProjectImage(rel: unknown, projectDir: string): Promise<Im
   };
 }
 
+function normalizeRemoteReferenceUrl(value: unknown, label: string): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const url = value.trim();
+  if (!/^https?:\/\//i.test(url)) {
+    throw new Error(`${label} must be an http(s) URL; upload local media first and pass its reachable URL.`);
+  }
+  return url;
+}
+
+function normalizeRemoteReferenceUrls(values: unknown[], label: string): string[] {
+  const urls: string[] = [];
+  const push = (value: unknown) => {
+    if (Array.isArray(value)) {
+      for (const item of value) push(item);
+      return;
+    }
+    if (typeof value !== "string" || !value.trim()) return;
+    for (const part of value.split(",")) {
+      const normalized = normalizeRemoteReferenceUrl(part, label);
+      if (normalized && !urls.includes(normalized)) urls.push(normalized);
+    }
+  };
+  for (const value of values) push(value);
+  return urls;
+}
+
 function clampNumber(value: unknown, allowed: number[]): number | undefined {
   // Accept exact registry values; otherwise snap to the nearest allowed
   // bucket so a hallucinated `Number.MAX_SAFE_INTEGER` can't bill an
@@ -323,6 +353,10 @@ export async function generateMedia(args: {
   compositionDir?: string;
   image?: string;
   images?: string[];
+  referenceImageUrl?: string;
+  referenceImageUrls?: string[];
+  referenceVideoUrl?: string;
+  referenceAudioUrl?: string;
   onProgress?: ProgressFn;
   requestInit?: MediaRequestInit;
 }) {
@@ -344,6 +378,9 @@ export async function generateMedia(args: {
     promptInfluence,
     compositionDir,
     image,
+    referenceImageUrl,
+    referenceVideoUrl,
+    referenceAudioUrl,
     requestInit
   } = args;
 
@@ -457,6 +494,12 @@ export async function generateMedia(args: {
       imageRefs.push(ref);
     }
   }
+  const normalizedReferenceImageUrls = normalizeRemoteReferenceUrls(
+    [referenceImageUrl, args.referenceImageUrls],
+    "--reference-image-url"
+  );
+  const normalizedReferenceVideoUrl = normalizeRemoteReferenceUrl(referenceVideoUrl, "--reference-video-url");
+  const normalizedReferenceAudioUrl = normalizeRemoteReferenceUrl(referenceAudioUrl, "--reference-audio-url");
 
   // Resolve any user-configured model alias BEFORE we hand the id to a
   // dispatcher (issue #1277). Catalog lookup + surface validation above
@@ -490,6 +533,9 @@ export async function generateMedia(args: {
     // Resolved reference image for i2v / image-edit flows. `null` when
     // the agent didn't pass --image. See resolveProjectImage below.
     imageRef,
+    referenceImageUrls: normalizedReferenceImageUrls,
+    referenceVideoUrl: normalizedReferenceVideoUrl,
+    referenceAudioUrl: normalizedReferenceAudioUrl,
     requestInit: requestInit || {},
     imageRefs
   };
@@ -808,7 +854,8 @@ function withMediaRequestInit(ctx: Pick<MediaContext, "requestInit">, init: Requ
 
 const DEFAULT_MIMO_UNDERSTANDING_MODEL = "mimo-v2.5";
 const DEFAULT_MIMO_BASE_URL = "https://api.xiaomimimo.com/v1";
-const DEFAULT_VOLCENGINE_VIDEO_UNDERSTANDING_MODEL = "doubao-seed-2-0-lite-260215";
+const DEFAULT_VOLCENGINE_ARK_VIDEO_UNDERSTANDING_MODEL = "doubao-seed-2-0-lite-260215";
+const VOLCENGINE_ARK_ALLOWED_VIDEO_UNDERSTANDING_MODELS = new Set([DEFAULT_VOLCENGINE_ARK_VIDEO_UNDERSTANDING_MODEL]);
 
 export type UnderstandingKind = "image" | "audio" | "video";
 
@@ -938,9 +985,20 @@ function understandingModelForKind(
 async function defaultUnderstandingProvider(projectRoot: string, kind: UnderstandingKind): Promise<string> {
   if (kind === "video") {
     const mimoCredentials = await resolveProviderConfig(projectRoot, "mimo");
-    return mimoCredentials.apiKey ? "mimo" : "volcengine";
+    return mimoCredentials.apiKey ? "mimo" : "volcengine-ark";
   }
   return "mimo";
+}
+
+function assertAllowedVolcengineArkUnderstandingModel(model: string): string {
+  if (VOLCENGINE_ARK_ALLOWED_VIDEO_UNDERSTANDING_MODELS.has(model)) return model;
+  throw Object.assign(
+    new Error(
+      `Volcengine Ark understanding only allows ${DEFAULT_VOLCENGINE_ARK_VIDEO_UNDERSTANDING_MODEL}; ` +
+        "use the Volcengine generation provider for ep-* generation/text endpoints."
+    ),
+    { status: 400, code: "MODEL_NOT_ALLOWED" }
+  );
 }
 
 function messageContentToText(content: unknown): string {
@@ -1092,15 +1150,18 @@ async function understandWithMimo(
   };
 }
 
-async function understandVideoWithVolcengine(
+async function understandVideoWithVolcengineArk(
   input: UnderstandMediaInput,
   credentials: ProviderConfig
 ): Promise<UnderstandVideoResult> {
   if (!credentials.apiKey) {
-    throw Object.assign(new Error("no Volcengine Ark API key — configure it in Settings or set ARK_API_KEY"), {
-      status: 400,
-      code: "MISSING_API_KEY"
-    });
+    throw Object.assign(
+      new Error("no Volcengine Ark API key — configure it in Settings or set OD_VOLCENGINE_ARK_API_KEY/ARK_API_KEY"),
+      {
+        status: 400,
+        code: "MISSING_API_KEY"
+      }
+    );
   }
 
   if (input.kind !== "video") {
@@ -1112,11 +1173,8 @@ async function understandVideoWithVolcengine(
 
   const videoUrl = assertSupportedMediaUrl("video", input.mediaUrl);
   const baseUrl = (credentials.baseUrl || "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "");
-  const model = understandingModelForKind(
-    "video",
-    credentials,
-    input.model,
-    DEFAULT_VOLCENGINE_VIDEO_UNDERSTANDING_MODEL
+  const model = assertAllowedVolcengineArkUnderstandingModel(
+    understandingModelForKind("video", credentials, input.model, DEFAULT_VOLCENGINE_ARK_VIDEO_UNDERSTANDING_MODEL)
   );
   const fps = clampVideoUnderstandingFps(input.fps, 8);
   const prompt = input.prompt?.trim() || defaultUnderstandingPrompt("video");
@@ -1153,11 +1211,11 @@ async function understandVideoWithVolcengine(
       }
     )
   );
-  const parsed = await parseUnderstandingResponse(resp, "volcengine", "video");
+  const parsed = await parseUnderstandingResponse(resp, "volcengine-ark", "video");
 
   return {
     ok: true,
-    providerId: "volcengine",
+    providerId: "volcengine-ark",
     kind: "video",
     model,
     content: parsed.content,
@@ -1172,9 +1230,9 @@ export async function understandMedia(input: UnderstandMediaInput): Promise<Unde
     const credentials = await resolveProviderConfig(input.projectRoot, "mimo");
     return understandWithMimo(input, credentials);
   }
-  if (providerId === "volcengine") {
-    const credentials = await resolveProviderConfig(input.projectRoot, "volcengine");
-    return understandVideoWithVolcengine(input, credentials);
+  if (providerId === "volcengine-ark" || providerId === "volcengine") {
+    const credentials = await resolveProviderConfig(input.projectRoot, "volcengine-ark");
+    return understandVideoWithVolcengineArk(input, credentials);
   }
   throw Object.assign(new Error(`unsupported understanding provider: ${providerId}`), {
     status: 400,
@@ -1703,40 +1761,67 @@ async function renderVolcengineVideo(
   onProgress?: ProgressFn
 ): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error("no Volcengine Ark API key — configure it in Settings or set ARK_API_KEY");
+    throw new Error("no Volcengine generation API key — configure it in Settings or set OD_VOLCENGINE_API_KEY");
   }
   const baseUrl = (credentials.baseUrl || "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "");
   const wireModel = volcengineVideoWireModel(ctx);
+  const seedance2 = isVolcengineSeedance2Model(ctx, wireModel);
 
-  // Seedance accepts inline `--resolution`, `--duration`, `--ratio` and
-  // `--camerafixed` flags inside the prompt text. We append a flags
-  // suffix so user prompts that already contain them still win.
   const ratio = volcengineRatioFor(ctx.aspect);
-  const durationSec = ctx.length || 5;
-  const resolution = "720p";
+  const durationSec = seedance2 ? volcengineSeedance2DurationFor(ctx.length) : ctx.length || 5;
   const promptText = (ctx.prompt && ctx.prompt.trim()) || "A short cinematic clip.";
-  const suffixFlags: string[] = [];
-  if (!/--resolution\b/.test(promptText)) suffixFlags.push(`--resolution ${resolution}`);
-  if (!/--duration\b/.test(promptText)) suffixFlags.push(`--duration ${durationSec}`);
-  if (!/--ratio\b/.test(promptText)) suffixFlags.push(`--ratio ${ratio}`);
-  const fullText = suffixFlags.length ? `${promptText} ${suffixFlags.join(" ")}` : promptText;
+  if (!seedance2 && (ctx.referenceImageUrls.length > 0 || ctx.referenceVideoUrl || ctx.referenceAudioUrl)) {
+    throw new Error(
+      `${ctx.model} does not support remote reference image/video/audio inputs; use doubao-seedance-2-0-260128.`
+    );
+  }
 
-  // Some Seedance endpoints accept an additional `image_url` content entry.
-  // The currently exposed ecommerce default is the tested 1.5 Pro t2v
-  // endpoint, so agents should only pass `--image` when a selected future
-  // model explicitly advertises i2v support.
+  // Seedance 1.5's tested endpoint expects render controls as prompt suffix
+  // flags. Seedance 2.0 exposes those controls as first-class task fields.
+  const fullText = seedance2 ? promptText : volcengineLegacySeedancePrompt(promptText, ratio, durationSec);
   const content: Array<Record<string, unknown>> = [{ type: "text", text: fullText }];
-  if (ctx.modelDef.caps.includes("i2v") && ctx.imageRef && ctx.imageRef.dataUrl) {
+  const referenceImages = ctx.modelDef.caps.includes("i2v") ? ctx.imageRefs : [];
+  for (const imageRef of referenceImages) {
     content.push({
       type: "image_url",
-      image_url: { url: ctx.imageRef.dataUrl }
+      image_url: { url: imageRef.dataUrl },
+      ...(seedance2 ? { role: "reference_image" } : {})
+    });
+  }
+  if (seedance2) {
+    for (const url of ctx.referenceImageUrls) {
+      content.push({
+        type: "image_url",
+        image_url: { url },
+        role: "reference_image"
+      });
+    }
+  }
+  if (seedance2 && ctx.referenceVideoUrl) {
+    content.push({
+      type: "video_url",
+      video_url: { url: ctx.referenceVideoUrl },
+      role: "reference_video"
+    });
+  }
+  if (seedance2 && ctx.referenceAudioUrl) {
+    content.push({
+      type: "audio_url",
+      audio_url: { url: ctx.referenceAudioUrl },
+      role: "reference_audio"
     });
   }
 
-  const taskBody = {
+  const taskBody: Record<string, unknown> = {
     model: wireModel,
     content
   };
+  if (seedance2) {
+    taskBody.generate_audio = ctx.modelDef.caps.includes("audio");
+    taskBody.ratio = ratio;
+    taskBody.duration = durationSec;
+    taskBody.watermark = false;
+  }
 
   const taskResp = await fetch(
     `${baseUrl}/contents/generations/tasks`,
@@ -1777,7 +1862,7 @@ async function renderVolcengineVideo(
   // 3-5 minutes, so without this stream, every i2v dispatch dies
   // mid-flight.
   if (typeof onProgress === "function") {
-    const mode = ctx.imageRef ? "i2v" : "t2v";
+    const mode = referenceImages.length > 0 || ctx.referenceImageUrls.length > 0 ? "i2v" : "t2v";
     onProgress(`volcengine ${mode} task ${taskId} accepted; polling status…`);
   }
   while (Date.now() - startedAt < maxMs) {
@@ -1808,7 +1893,9 @@ async function renderVolcengineVideo(
       onProgress(`volcengine task ${taskId} status=${lastStatus || "pending"} (elapsed ${elapsedSec}s)`);
     }
     if (lastStatus === "succeeded") {
-      videoUrl = pollData?.content?.video_url || null;
+      const rawVideoUrl =
+        pollData?.content?.video_url || pollData?.content?.videoUrl || pollData?.video_url || pollData?.url || null;
+      videoUrl = typeof rawVideoUrl === "string" && rawVideoUrl.length > 0 ? rawVideoUrl : null;
       break;
     }
     if (lastStatus === "failed" || lastStatus === "cancelled") {
@@ -1842,6 +1929,24 @@ function volcengineVideoWireModel(ctx: MediaContext): string {
   return VOLCENGINE_VIDEO_MODEL_MAP[ctx.model] || ctx.model;
 }
 
+function isVolcengineSeedance2Model(ctx: MediaContext, wireModel: string): boolean {
+  return ctx.model.startsWith("doubao-seedance-2-0") || wireModel.startsWith("doubao-seedance-2-0");
+}
+
+function volcengineLegacySeedancePrompt(promptText: string, ratio: string, durationSec: number): string {
+  const resolution = "720p";
+  const suffixFlags: string[] = [];
+  if (!/--resolution\b/.test(promptText)) suffixFlags.push(`--resolution ${resolution}`);
+  if (!/--duration\b/.test(promptText)) suffixFlags.push(`--duration ${durationSec}`);
+  if (!/--ratio\b/.test(promptText)) suffixFlags.push(`--ratio ${ratio}`);
+  return suffixFlags.length ? `${promptText} ${suffixFlags.join(" ")}` : promptText;
+}
+
+function volcengineSeedance2DurationFor(length?: number): number {
+  const requested = typeof length === "number" && Number.isFinite(length) ? Math.round(length) : 5;
+  return Math.min(Math.max(requested, 5), 15);
+}
+
 function volcengineRatioFor(aspect?: string): string {
   // Seedance accepts a fixed list of ratios; map the OD vocabulary to
   // its canonical strings.
@@ -1856,7 +1961,7 @@ function volcengineRatioFor(aspect?: string): string {
 // POST /api/v3/images/generations (OpenAI-compatible payload).
 async function renderVolcengineImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error("no Volcengine Ark API key — configure it in Settings or set ARK_API_KEY");
+    throw new Error("no Volcengine generation API key — configure it in Settings or set OD_VOLCENGINE_API_KEY");
   }
   const baseUrl = (credentials.baseUrl || "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "");
 
@@ -3062,7 +3167,7 @@ async function renderMinimaxVideo(
   if (!ctx.imageRef?.dataUrl) {
     throw new Error(
       `${ctx.model} is image-to-video only and requires --image <project-relative-path>. ` +
-        "For text-to-video, use doubao-seedance-1.5-pro."
+        "For text-to-video, use doubao-seedance-2-0-260128."
     );
   }
 

@@ -1,4 +1,4 @@
-export type AssetLibrarySection = "products" | "commerce-videos";
+export type AssetLibrarySection = "products" | "commerce-videos" | "quality-videos";
 
 export type AssetLibrarySourceKind = "manual" | "upload" | "crawler";
 
@@ -14,6 +14,7 @@ export type AssetLibraryJobStatus = "queued" | "running" | "done" | "failed" | "
 
 export type AssetLibraryJobKind =
   | "ingest"
+  | "product-image-folder-ingest"
   | "process"
   | "slice"
   | "understand"
@@ -66,6 +67,7 @@ export interface CommerceVideoAsset {
   video: {
     durationMs?: number;
     summary?: string;
+    understanding?: AssetLibraryMediaUnderstandingSummary;
     embedding?: AssetLibraryEmbeddingSummary;
   };
   methodology: {
@@ -77,6 +79,37 @@ export interface CommerceVideoAsset {
   metadata?: Record<string, unknown>;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface QualityVideoSourceDeclaration {
+  sourceName: string;
+  sourceUrl?: string;
+  sourceVideoId?: string;
+  public: boolean;
+  declaredAt: number;
+  declaredBy?: "user" | "crawler" | "upload" | "agent";
+}
+
+export interface QualityVideoStructuredReport {
+  hookMethods: string[];
+  sellingPoints: string[];
+  storyboard: string[];
+  styleTags: string[];
+  notes?: string;
+}
+
+export interface QualityVideoAsset extends CommerceVideoAsset {
+  metadata?: Record<string, unknown> & {
+    libraryKind?: "quality-videos";
+    sourceDeclaration?: QualityVideoSourceDeclaration;
+    qualityReport?: QualityVideoStructuredReport;
+    dataLimitations?: string[];
+    compliance?: {
+      publicVideoOriginalStored: boolean;
+      originalVideoRemixed: boolean;
+      sourceDeclared: boolean;
+    };
+  };
 }
 
 export interface CommerceVideoSlice {
@@ -108,6 +141,19 @@ export interface AssetLibraryEmbeddingSummary {
   model: string;
   dimensions?: number;
   vector?: number[];
+  createdAt: number;
+}
+
+export interface AssetLibraryMediaUnderstandingSummary {
+  providerId: string;
+  model: string;
+  content?: string;
+  finishReason?: string;
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
   createdAt: number;
 }
 
@@ -215,6 +261,71 @@ export interface ImportProductImageResponse {
   job: AssetLibraryJob;
 }
 
+export interface ImportProductImagesResponse {
+  job: AssetLibraryJob;
+  count: number;
+}
+
+export interface ProductImageFolderIngestRequest {
+  path: string;
+  recursive?: boolean;
+  dryRun?: boolean;
+  mode?: "serial" | "parallel";
+  concurrency?: number;
+  limit?: number;
+  providerId?: string;
+  model?: string;
+  prompt?: string;
+  processImported?: boolean;
+}
+
+export interface ProductImageFolderIngestSkippedFile {
+  path: string;
+  relativePath: string;
+  reason: "video" | "unsupported" | "directory" | "read_error";
+  mime?: string;
+  error?: string;
+}
+
+export interface ProductImageFolderIngestImageResult {
+  path: string;
+  relativePath: string;
+  fileName: string;
+  productId?: string;
+  processJobId?: string;
+  title?: string;
+  subject?: string;
+  category?: string;
+  clusterId?: string;
+  vision?: Record<string, unknown>;
+  visionText?: string;
+  error?: string;
+}
+
+export interface ProductImageFolderIngestCluster {
+  id: string;
+  category: string;
+  subject: string;
+  images: ProductImageFolderIngestImageResult[];
+}
+
+export interface ProductImageFolderIngestResponse {
+  ok: boolean;
+  dryRun: boolean;
+  rootPath: string;
+  recursive: boolean;
+  mode: "serial" | "parallel";
+  concurrency: number;
+  scanned: {
+    imageCount: number;
+    skippedCount: number;
+  };
+  clusters: ProductImageFolderIngestCluster[];
+  imported: ProductImageFolderIngestImageResult[];
+  failed: ProductImageFolderIngestImageResult[];
+  skipped: ProductImageFolderIngestSkippedFile[];
+}
+
 export interface CommerceVideoAssetsResponse {
   videos: CommerceVideoAsset[];
 }
@@ -222,6 +333,59 @@ export interface CommerceVideoAssetsResponse {
 export interface CommerceVideoAssetResponse {
   video: CommerceVideoAsset;
   slices: CommerceVideoSlice[];
+}
+
+export interface QualityVideoAssetsResponse {
+  videos: QualityVideoAsset[];
+}
+
+export interface QualityVideoAssetResponse {
+  video: QualityVideoAsset;
+  slices: CommerceVideoSlice[];
+}
+
+export type AssetLibrarySearchKind = AssetLibrarySection | "all";
+
+export type AssetLibrarySearchGranularity = "asset" | "slice" | "all";
+
+export interface AssetLibrarySearchRequest {
+  query?: string;
+  tags?: string[];
+  kind?: AssetLibrarySearchKind | AssetLibrarySearchKind[];
+  granularity?: AssetLibrarySearchGranularity;
+  limit?: number;
+  includeVectors?: boolean;
+}
+
+export interface AssetLibrarySearchMatch {
+  kind: AssetLibrarySection;
+  granularity: "asset" | "slice";
+  id: string;
+  assetId: string;
+  sliceId?: string;
+  title: string;
+  subtitle?: string;
+  text: string;
+  tags: string[];
+  status: AssetLibraryStatus;
+  score: number;
+  lexicalScore: number;
+  tagScore: number;
+  vectorScore?: number;
+  vectorDimensions?: number;
+  product?: ProductAsset;
+  video?: CommerceVideoAsset | QualityVideoAsset;
+  slice?: CommerceVideoSlice;
+}
+
+export interface AssetLibrarySearchResponse {
+  query: string;
+  tags: string[];
+  kinds: AssetLibrarySection[];
+  granularity: AssetLibrarySearchGranularity;
+  limit: number;
+  vectorizedQuery: boolean;
+  results: AssetLibrarySearchMatch[];
 }
 
 export interface DeleteCommerceVideoAssetResponse {
@@ -305,6 +469,33 @@ export interface SearchCommerceVideosResponse {
   };
 }
 
+export interface SearchQualityVideosRequest {
+  connectorId?: "bilibili" | "youtube" | "tiktok" | "douyin" | "facebook" | "instagram" | string;
+  sourceName?: string;
+  toolName?: string;
+  query: string;
+  category?: string;
+  keyword?: string;
+  limit?: number;
+  sort?: "hot" | "relevance" | "newest" | "comments" | "favorites" | string;
+  input?: Record<string, unknown>;
+}
+
+export interface ImportQualityVideoSearchRequest extends SearchQualityVideosRequest {}
+
+export interface SearchQualityVideosResponse extends SearchCommerceVideosResponse {
+  search: SearchCommerceVideosResponse["search"] & {
+    sourceName: string;
+    category?: string;
+    keyword?: string;
+  };
+}
+
+export interface ImportQualityVideoSearchResponse extends SearchQualityVideosResponse {
+  videos: QualityVideoAsset[];
+  job: AssetLibraryJob;
+}
+
 export interface CreateCommerceVideoAssetRequest {
   title: string;
   sourceKind?: AssetLibrarySourceKind;
@@ -314,6 +505,20 @@ export interface CreateCommerceVideoAssetRequest {
   product?: Record<string, unknown>;
   video?: Record<string, unknown>;
   methodology?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateQualityVideoAssetRequest {
+  title: string;
+  sourceName: string;
+  sourceUrl?: string;
+  sourceVideoId?: string;
+  category?: string;
+  keyword?: string;
+  product?: Record<string, unknown>;
+  video?: Record<string, unknown>;
+  methodology?: Record<string, unknown>;
+  report?: Partial<QualityVideoStructuredReport>;
   metadata?: Record<string, unknown>;
 }
 

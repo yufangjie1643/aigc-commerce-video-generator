@@ -83,10 +83,13 @@ describe('router entry sub-views', () => {
       { kind: 'home', view: 'tasks' } as Route,
       { kind: 'home', view: 'plugins' } as Route,
       { kind: 'home', view: 'design-systems' } as Route,
-      { kind: 'home', view: 'integrations' } as Route,
     ]) {
       expect(parseRoute(buildPath(route))).toEqual(route);
     }
+  });
+
+  it('routes the removed integrations page back home', () => {
+    expect(parseRoute('/integrations')).toEqual({ kind: 'home', view: 'home' });
   });
 
   it('parses /onboarding as the global onboarding panel', () => {

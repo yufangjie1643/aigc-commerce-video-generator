@@ -26,7 +26,9 @@
   gap: 2px;
   margin-bottom: 10px;
 }
-.mcp-picker-head strong { font-size: 12.5px; }
+.mcp-picker-head strong {
+  font-size: 12.5px;
+}
 .mcp-picker-grid {
   display: grid;
   gap: 6px;
@@ -189,9 +191,11 @@
   user-select: none;
   list-style: none;
 }
-.mcp-picker-group-summary::-webkit-details-marker { display: none; }
+.mcp-picker-group-summary::-webkit-details-marker {
+  display: none;
+}
 .mcp-picker-group-summary::before {
-  content: '▸';
+  content: "▸";
   display: inline-block;
   width: 0.9em;
   flex-shrink: 0;
@@ -230,7 +234,9 @@
   max-width: 50%;
 }
 @media (max-width: 480px) {
-  .mcp-picker-group-summary-hint { display: none; }
+  .mcp-picker-group-summary-hint {
+    display: none;
+  }
 }
 .mcp-picker-group .mcp-picker-grid {
   padding: 4px 8px 10px;
@@ -304,7 +310,9 @@
   gap: 8px;
   min-width: 0;
 }
-.mcp-row-disabled { opacity: 0.55; }
+.mcp-row-disabled {
+  opacity: 0.55;
+}
 /* Template-derived hint shown on saved rows that came from a built-in
    preset (filesystem, github, fetch, higgsfield…). Default-collapsed
    `<details>`; the summary line is the only thing visible until the user
@@ -325,9 +333,11 @@
   user-select: none;
   list-style: none;
 }
-.mcp-row-info-summary::-webkit-details-marker { display: none; }
+.mcp-row-info-summary::-webkit-details-marker {
+  display: none;
+}
 .mcp-row-info-summary::before {
-  content: '▸';
+  content: "▸";
   display: inline-block;
   width: 0.9em;
   flex-shrink: 0;
@@ -400,7 +410,9 @@
   align-items: center;
   flex-shrink: 0;
 }
-.mcp-row-toggle input { width: auto; }
+.mcp-row-toggle input {
+  width: auto;
+}
 .mcp-row-label {
   flex: 1;
   min-width: 0;
@@ -496,7 +508,9 @@
   gap: 8px;
 }
 @media (max-width: 720px) {
-  .mcp-row-grid { grid-template-columns: 1fr; }
+  .mcp-row-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .mcp-row-field {
   display: flex;
@@ -523,7 +537,9 @@
   resize: vertical;
   min-height: 38px;
 }
-.mcp-row-field-stack { width: 100%; }
+.mcp-row-field-stack {
+  width: 100%;
+}
 
 .mcp-foot {
   display: flex;
@@ -532,8 +548,12 @@
   margin-top: 4px;
   flex-wrap: wrap;
 }
-.mcp-foot-spacer { flex: 1; }
-.mcp-saved-msg { color: var(--success, #6c6); }
+.mcp-foot-spacer {
+  flex: 1;
+}
+.mcp-saved-msg {
+  color: var(--success, #6c6);
+}
 
 /* Per-row OAuth Connect/Disconnect control. Sits between the row header
  * and the field grid so the connection state is the FIRST thing the user
@@ -574,8 +594,13 @@
   animation: mcp-oauth-pulse 1.2s ease-in-out infinite;
 }
 @keyframes mcp-oauth-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 .mcp-oauth-actions {
   display: inline-flex;
@@ -1063,11 +1088,7 @@
   gap: 16px;
   padding: 22px 22px 16px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent) 7%, var(--bg-panel)) 0%,
-    var(--bg-panel) 100%
-  );
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, var(--bg-panel)) 0%, var(--bg-panel) 100%);
 }
 .plugin-details-modal__head-titles {
   flex: 1;
@@ -1263,7 +1284,9 @@
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: background 120ms var(--ease-out), color 120ms var(--ease-out);
+  transition:
+    background 120ms var(--ease-out),
+    color 120ms var(--ease-out);
 }
 .plugin-details-modal__hero-tab:hover {
   color: var(--text);
@@ -1296,9 +1319,17 @@
   flex-shrink: 0;
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
 }
-.plugin-details-modal__hero-light.is-red    { background: #ff5f57; }
-.plugin-details-modal__hero-light.is-yellow { background: #febc2e; margin-left: -2px; }
-.plugin-details-modal__hero-light.is-green  { background: #28c840; margin-left: -2px; }
+.plugin-details-modal__hero-light.is-red {
+  background: #ff5f57;
+}
+.plugin-details-modal__hero-light.is-yellow {
+  background: #febc2e;
+  margin-left: -2px;
+}
+.plugin-details-modal__hero-light.is-green {
+  background: #28c840;
+  margin-left: -2px;
+}
 .plugin-details-modal__hero-url {
   flex: 1;
   display: inline-flex;
@@ -1334,7 +1365,10 @@
   font-weight: 500;
   text-decoration: none;
   flex-shrink: 0;
-  transition: color 120ms var(--ease-out), border-color 120ms var(--ease-out), background 120ms var(--ease-out);
+  transition:
+    color 120ms var(--ease-out),
+    border-color 120ms var(--ease-out),
+    background 120ms var(--ease-out);
 }
 .plugin-details-modal__hero-popout:hover {
   color: var(--accent);
@@ -1658,11 +1692,13 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  transition: border-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out),
+  transition:
+    border-color 140ms var(--ease-out),
+    box-shadow 140ms var(--ease-out),
     background-color 140ms var(--ease-out);
 }
 .settings-skills .skills-row::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 8px;
@@ -1688,7 +1724,9 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
-.settings-skills .skills-row-disabled { opacity: 0.55; }
+.settings-skills .skills-row-disabled {
+  opacity: 0.55;
+}
 
 .settings-skills .skills-row-head {
   display: flex;
@@ -1759,7 +1797,8 @@
 }
 .settings-skills .skills-row-summary-mode,
 .settings-skills .skills-row-summary-source,
-.settings-skills .skills-row-summary-category {
+.settings-skills .skills-row-summary-category,
+.settings-skills .skills-row-summary-provenance {
   flex-shrink: 0;
   font-size: 9.5px;
   letter-spacing: 0.06em;
@@ -1785,6 +1824,11 @@
   color: color-mix(in srgb, var(--accent) 80%, var(--text-muted));
   border-color: color-mix(in srgb, var(--accent) 25%, transparent);
   background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.settings-skills .skills-row-summary-provenance {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
 }
 .settings-skills .skills-row-summary-desc {
   display: block;
@@ -2282,4 +2326,3 @@
     padding: 18px 20px 24px;
   }
 }
-

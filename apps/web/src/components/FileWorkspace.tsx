@@ -78,6 +78,7 @@ import { MissingBrandFontsBanner } from './MissingBrandFontsBanner';
 import { PasteTextDialog } from './PasteTextDialog';
 import { QuestionsPanel } from './QuestionsPanel';
 import { QuickSwitcher } from './QuickSwitcher';
+import { StoryboardEditor } from './StoryboardEditor';
 import { SketchEditor } from './SketchEditor';
 import {
   buildSketchDocument,
@@ -233,6 +234,7 @@ export const DESIGN_FILES_TAB = '__design_files__';
 export const DESIGN_SYSTEM_TAB = '__design_system__';
 const QUESTIONS_TAB = '__questions__';
 const BROWSER_TAB_PREFIX = '__browser__:';
+const STORYBOARD_EDITOR_TAB = 'storyboard:editor';
 // Keep at most this many embedded-browser `<webview>`s mounted at once. Each is
 // a full out-of-process Chromium guest (timers, JS, network, a GPU surface), so
 // mounting every open browser tab made memory/CPU grow linearly with tab count.
@@ -1427,6 +1429,7 @@ export function FileWorkspace({
       || activeTab === DESIGN_SYSTEM_TAB
       || activeTab === QUESTIONS_TAB
       || isBrowserTabId(activeTab)
+      || isStoryboardEditorTabId(activeTab)
     ) return null;
     const onDisk = visibleFiles.find((f) => f.name === activeTab);
     if (onDisk) return onDisk;
@@ -1448,6 +1451,7 @@ export function FileWorkspace({
       || activeTab === DESIGN_SYSTEM_TAB
       || activeTab === QUESTIONS_TAB
       || isBrowserTabId(activeTab)
+      || isStoryboardEditorTabId(activeTab)
     ) return null;
     return liveArtifactEntries.find((entry) => entry.tabId === activeTab) ?? null;
   }, [activeTab, liveArtifactEntries]);
@@ -1741,6 +1745,7 @@ export function FileWorkspace({
     && activeTab !== DESIGN_SYSTEM_TAB
     && (activeTab !== DESIGN_FILES_TAB || designFilesTabIsEmpty)
     && !isBrowserTabId(activeTab)
+    && !isStoryboardEditorTabId(activeTab)
     && !isSideChatTabId(activeTab)
     && !isTerminalTabId(activeTab)
     && !activeLiveArtifact
@@ -1761,6 +1766,7 @@ export function FileWorkspace({
     // Browser is owned by this branch's DesignBrowserPanel: spin up a browser
     // tab synchronously (no daemon round-trip) and let the launcher close.
     createBrowser: () => openBrowserTab(),
+    createStoryboardEditor: () => openFile(STORYBOARD_EDITOR_TAB),
     // Terminal needs only the project id — spawn the PTY here and hand the
     // resulting session id back so the launcher opens a terminal:<id> tab.
     // Surface a toast when the daemon can't start one (e.g. node-pty not
@@ -1904,8 +1910,9 @@ export function FileWorkspace({
             const kind = liveArtifact ? 'live-artifact' : onDisk?.kind ?? (isSketchName(name) ? 'sketch' : 'text');
             const isTerminal = isTerminalTabId(name);
             const isSideChat = isSideChatTabId(name);
-            // Terminal and side-chat tabs are not files: give them a friendly
-            // label + glyph instead of the raw `terminal:<id>` / `chat:<id>` id.
+            const isStoryboardEditor = isStoryboardEditorTabId(name);
+            // Terminal, side-chat, and storyboard tabs are not files: give
+            // them a friendly label + glyph instead of their raw ids.
             let label: string;
             if (isTerminal) {
               // Number multiple terminals so the tabs stay distinguishable.
@@ -1919,6 +1926,8 @@ export function FileWorkspace({
                 (c) => c.id === conversationIdFromSideChatTabId(name),
               );
               label = conv?.title?.trim() || t('workspace.sideChatDefaultTitle');
+            } else if (isStoryboardEditor) {
+              label = '分镜剪辑';
             } else {
               label = `${liveArtifact?.title ?? name}${dirtyMark}`;
             }
@@ -1926,7 +1935,9 @@ export function FileWorkspace({
               ? 'terminal'
               : isSideChat
                 ? 'comment'
-                : undefined;
+                : isStoryboardEditor
+                  ? 'kanban'
+                  : undefined;
             return (
               <Tab
                 key={name}
@@ -2241,6 +2252,14 @@ export function FileWorkspace({
             onNewConversation={onNewConversation}
             activeConversationChat={activeConversationChat}
             onRequestOpenFile={openFile}
+          />
+        ) : isStoryboardEditorTabId(activeTab) ? (
+          <StoryboardEditor
+            key={projectId}
+            projectId={projectId}
+            files={visibleFiles}
+            onOpenFile={openFile}
+            onRequestAgentPrompt={onRequestBrowserUsePrompt}
           />
         ) : isTerminalTabId(activeTab) ? (
           <TerminalViewer
@@ -3854,6 +3873,10 @@ function kindIconName(
 
 function isBrowserTabId(tabId: string): boolean {
   return tabId.startsWith(BROWSER_TAB_PREFIX);
+}
+
+function isStoryboardEditorTabId(tabId: string): boolean {
+  return tabId === STORYBOARD_EDITOR_TAB;
 }
 
 function browserTabsFromState(value: OpenTabsState['browserTabs']): BrowserWorkspaceTab[] {

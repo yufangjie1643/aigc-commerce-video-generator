@@ -15,8 +15,8 @@ import type {
   ImportLocalDesignSystemResponse,
   ReplaceProjectWorkingDirResponse,
   SocialShareRequest,
-  SocialShareResponse,
-} from '@open-design/contracts';
+  SocialShareResponse
+} from "@open-design/contracts";
 import type {
   AgentInfo,
   AppVersionInfo,
@@ -60,30 +60,30 @@ import type {
   RenameProjectFileResponse,
   SkillDetail,
   SkillSummary,
-  UpdateDeployConfigRequest,
-} from '../types';
-import type { ArtifactManifest } from '../artifacts/types';
-import { isOpenDesignHostAvailable, openHostExternalUrl } from '@open-design/host';
+  UpdateDeployConfigRequest
+} from "../types";
+import type { ArtifactManifest } from "../artifacts/types";
+import { isOpenDesignHostAvailable, openHostExternalUrl } from "@open-design/host";
 
-export const DEFAULT_DEPLOY_PROVIDER_ID = 'vercel-self';
-export const CLOUDFLARE_PAGES_PROVIDER_ID = 'cloudflare-pages';
+export const DEFAULT_DEPLOY_PROVIDER_ID = "vercel-self";
+export const CLOUDFLARE_PAGES_PROVIDER_ID = "cloudflare-pages";
 export const DEPLOY_PROVIDER_IDS = [DEFAULT_DEPLOY_PROVIDER_ID, CLOUDFLARE_PAGES_PROVIDER_ID] as const;
 
 export type WebDeployProviderId = (typeof DEPLOY_PROVIDER_IDS)[number];
 
 export type WebDeployConfigResponse = DeployConfigResponse;
 export type WebUpdateDeployConfigRequest = UpdateDeployConfigRequest;
-export type WebDeploymentInfo = ProjectDeploymentsResponse['deployments'][number];
+export type WebDeploymentInfo = ProjectDeploymentsResponse["deployments"][number];
 export type WebDeployProjectFileResponse = DeployProjectFileResponse;
 export type WebCloudflarePagesDeploySelection = CloudflarePagesDeploySelection;
 export type WebCloudflarePagesZonesResponse = CloudflarePagesZonesResponse;
 
 export function isDeployProviderId(value: unknown): value is WebDeployProviderId {
-  return typeof value === 'string' && (DEPLOY_PROVIDER_IDS as readonly string[]).includes(value);
+  return typeof value === "string" && (DEPLOY_PROVIDER_IDS as readonly string[]).includes(value);
 }
 
-const VISIBLE_CONNECTOR_IDS = new Set(['github', 'youtube', 'tiktok', 'douyin', 'bilibili']);
-const COOKIE_CONNECTOR_IDS = new Set(['youtube', 'tiktok', 'douyin', 'bilibili']);
+const VISIBLE_CONNECTOR_IDS = new Set(["github", "youtube", "tiktok", "douyin", "bilibili"]);
+const COOKIE_CONNECTOR_IDS = new Set(["youtube", "tiktok", "douyin", "bilibili"]);
 
 function isVisibleConnectorId(connectorId: string): boolean {
   return VISIBLE_CONNECTOR_IDS.has(connectorId.trim().toLowerCase());
@@ -94,20 +94,20 @@ function filterVisibleConnectors(connectors: ConnectorDetail[]): ConnectorDetail
 }
 
 function filterVisibleConnectorStatuses(
-  statuses: ConnectorStatusResponse['statuses'],
-): ConnectorStatusResponse['statuses'] {
+  statuses: ConnectorStatusResponse["statuses"]
+): ConnectorStatusResponse["statuses"] {
   return Object.fromEntries(
-    Object.entries(statuses).filter(([connectorId]) => isVisibleConnectorId(connectorId)),
-  ) as ConnectorStatusResponse['statuses'];
+    Object.entries(statuses).filter(([connectorId]) => isVisibleConnectorId(connectorId))
+  ) as ConnectorStatusResponse["statuses"];
 }
 
 function deployProviderQuery(providerId?: WebDeployProviderId): string {
-  return providerId ? `?providerId=${encodeURIComponent(providerId)}` : '';
+  return providerId ? `?providerId=${encodeURIComponent(providerId)}` : "";
 }
 
 export async function fetchAgents(options?: { throwOnError?: boolean }): Promise<AgentInfo[]> {
   try {
-    const resp = await fetch('/api/agents', { cache: 'no-store' });
+    const resp = await fetch("/api/agents", { cache: "no-store" });
     if (!resp.ok) {
       if (options?.throwOnError) throw new Error(`agents ${resp.status}`);
       return [];
@@ -133,10 +133,10 @@ export async function fetchAgentsStream(args: {
   signal?: AbortSignal;
 }): Promise<AgentInfo[]> {
   const { onAgent, signal } = args;
-  const resp = await fetch('/api/agents?stream=1', {
-    cache: 'no-store',
-    headers: { Accept: 'text/event-stream' },
-    ...(signal ? { signal } : {}),
+  const resp = await fetch("/api/agents?stream=1", {
+    cache: "no-store",
+    headers: { Accept: "text/event-stream" },
+    ...(signal ? { signal } : {})
   });
   if (!resp.ok || !resp.body) {
     throw new Error(`agents stream ${resp.status}`);
@@ -144,14 +144,14 @@ export async function fetchAgentsStream(args: {
   const collected: AgentInfo[] = [];
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
   let done = false;
   const errorMessageFromData = (data: string): string => {
-    if (!data.trim()) return 'agents stream error';
+    if (!data.trim()) return "agents stream error";
     try {
       const parsed = JSON.parse(data) as { error?: unknown; message?: unknown };
       const message = parsed.error ?? parsed.message;
-      if (typeof message === 'string' && message.trim()) return message;
+      if (typeof message === "string" && message.trim()) return message;
     } catch {
       // Fall through to the raw data string below.
     }
@@ -163,21 +163,21 @@ export async function fetchAgentsStream(args: {
     // (one AgentInfo), `error` (terminal failure), and `done` (terminal
     // success). Unknown events are ignored so the protocol can grow without
     // breaking older clients.
-    let eventName = 'message';
+    let eventName = "message";
     const dataLines: string[] = [];
-    for (const line of rawEvent.split('\n')) {
-      if (line.startsWith('event:')) eventName = line.slice(6).trim();
-      else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+    for (const line of rawEvent.split("\n")) {
+      if (line.startsWith("event:")) eventName = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
     }
-    const data = dataLines.join('\n');
-    if (eventName === 'done') {
+    const data = dataLines.join("\n");
+    if (eventName === "done") {
       done = true;
       return;
     }
-    if (eventName === 'error') {
+    if (eventName === "error") {
       throw new Error(errorMessageFromData(data));
     }
-    if (eventName === 'agent' && data) {
+    if (eventName === "agent" && data) {
       try {
         const agent = JSON.parse(data) as AgentInfo;
         collected.push(agent);
@@ -195,7 +195,7 @@ export async function fetchAgentsStream(args: {
       buffer += decoder.decode(value, { stream: true });
       let sep: number;
       // SSE records are separated by a blank line ("\n\n").
-      while ((sep = buffer.indexOf('\n\n')) !== -1) {
+      while ((sep = buffer.indexOf("\n\n")) !== -1) {
         const rawEvent = buffer.slice(0, sep);
         buffer = buffer.slice(sep + 2);
         if (rawEvent.trim().length > 0) handleEvent(rawEvent);
@@ -213,14 +213,14 @@ export async function fetchAgentsStream(args: {
     }
   }
   if (!done) {
-    throw new Error('agents stream ended before done');
+    throw new Error("agents stream ended before done");
   }
   return collected;
 }
 
 export async function fetchSkills(): Promise<SkillSummary[]> {
   try {
-    const resp = await fetch('/api/skills');
+    const resp = await fetch("/api/skills");
     if (!resp.ok) return [];
     const json = (await resp.json()) as { skills: SkillSummary[] };
     return json.skills ?? [];
@@ -236,7 +236,7 @@ export async function fetchSkills(): Promise<SkillSummary[]> {
 // specs/current/skills-and-design-templates.md.
 export async function fetchDesignTemplates(): Promise<SkillSummary[]> {
   try {
-    const resp = await fetch('/api/design-templates');
+    const resp = await fetch("/api/design-templates");
     if (!resp.ok) return [];
     const json = (await resp.json()) as { designTemplates: SkillSummary[] };
     return json.designTemplates ?? [];
@@ -262,11 +262,11 @@ export async function fetchDesignTemplate(id: string): Promise<SkillDetail | nul
 // empty state.
 export async function fetchCodexPets(): Promise<CodexPetsResponse> {
   try {
-    const resp = await fetch('/api/codex-pets');
-    if (!resp.ok) return { pets: [], rootDir: '' };
+    const resp = await fetch("/api/codex-pets");
+    if (!resp.ok) return { pets: [], rootDir: "" };
     return (await resp.json()) as CodexPetsResponse;
   } catch {
-    return { pets: [], rootDir: '' };
+    return { pets: [], rootDir: "" };
   }
 }
 
@@ -275,13 +275,13 @@ export async function fetchCodexPets(): Promise<CodexPetsResponse> {
 // caller can render a status line without having to wrap in try/catch
 // on every keystroke.
 export async function syncCommunityPets(
-  input?: SyncCommunityPetsRequest,
+  input?: SyncCommunityPetsRequest
 ): Promise<SyncCommunityPetsResponse & { error?: string }> {
   try {
-    const resp = await fetch('/api/codex-pets/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input ?? {}),
+    const resp = await fetch("/api/codex-pets/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input ?? {})
     });
     if (!resp.ok) {
       const payload = (await resp.json().catch(() => null)) as { error?: string } | null;
@@ -290,9 +290,9 @@ export async function syncCommunityPets(
         skipped: 0,
         failed: 0,
         total: 0,
-        rootDir: '',
+        rootDir: "",
         errors: [],
-        error: payload?.error ?? `Sync failed (${resp.status})`,
+        error: payload?.error ?? `Sync failed (${resp.status})`
       };
     }
     return (await resp.json()) as SyncCommunityPetsResponse;
@@ -302,9 +302,9 @@ export async function syncCommunityPets(
       skipped: 0,
       failed: 0,
       total: 0,
-      rootDir: '',
+      rootDir: "",
       errors: [],
-      error: err instanceof Error ? err.message : 'Sync request failed',
+      error: err instanceof Error ? err.message : "Sync request failed"
     };
   }
 }
@@ -320,9 +320,12 @@ export function codexPetSpritesheetUrl(pet: CodexPetSummary): string {
 // repeated here so the registry module is self-describing for callers.
 export interface SkillImportInput {
   name: string;
+  displayName?: Record<string, string>;
   description?: string;
+  descriptionI18n?: Record<string, string>;
   body: string;
   triggers?: string[];
+  provenance?: SkillSummary["provenance"];
 }
 
 export interface SkillImportError {
@@ -331,29 +334,29 @@ export interface SkillImportError {
 }
 
 export async function importSkill(
-  input: SkillImportInput,
+  input: SkillImportInput
 ): Promise<{ skill: SkillSummary } | { error: SkillImportError }> {
   try {
-    const resp = await fetch('/api/skills/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+    const resp = await fetch("/api/skills/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     if (!resp.ok) {
       const payload = (await resp.json().catch(() => null)) as { error?: SkillImportError } | null;
       return {
         error: {
           code: payload?.error?.code,
-          message: payload?.error?.message ?? `Import failed (${resp.status}).`,
-        },
+          message: payload?.error?.message ?? `Import failed (${resp.status}).`
+        }
       };
     }
     return (await resp.json()) as { skill: SkillSummary };
   } catch (err) {
     return {
       error: {
-        message: err instanceof Error ? err.message : 'Import request failed.',
-      },
+        message: err instanceof Error ? err.message : "Import request failed."
+      }
     };
   }
 }
@@ -366,43 +369,46 @@ export async function importSkill(
 // "edit my own draft".
 export interface SkillUpdateInput {
   name?: string;
+  displayName?: Record<string, string>;
   description?: string;
+  descriptionI18n?: Record<string, string>;
   body: string;
   triggers?: string[];
+  provenance?: SkillSummary["provenance"];
 }
 
 export async function updateSkill(
   id: string,
-  input: SkillUpdateInput,
+  input: SkillUpdateInput
 ): Promise<{ skill: SkillSummary } | { error: SkillImportError }> {
   try {
     const resp = await fetch(`/api/skills/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     if (!resp.ok) {
       const payload = (await resp.json().catch(() => null)) as { error?: SkillImportError } | null;
       return {
         error: {
           code: payload?.error?.code,
-          message: payload?.error?.message ?? `Update failed (${resp.status}).`,
-        },
+          message: payload?.error?.message ?? `Update failed (${resp.status}).`
+        }
       };
     }
     return (await resp.json()) as { skill: SkillSummary };
   } catch (err) {
     return {
       error: {
-        message: err instanceof Error ? err.message : 'Update request failed.',
-      },
+        message: err instanceof Error ? err.message : "Update request failed."
+      }
     };
   }
 }
 
 export interface SkillFileEntry {
   path: string;
-  kind: 'file' | 'directory';
+  kind: "file" | "directory";
   size: number | null;
 }
 
@@ -420,23 +426,23 @@ export async function fetchSkillFiles(id: string): Promise<SkillFileEntry[]> {
 export async function deleteSkill(id: string): Promise<{ ok: true } | { error: SkillImportError }> {
   try {
     const resp = await fetch(`/api/skills/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
+      method: "DELETE"
     });
     if (!resp.ok) {
       const payload = (await resp.json().catch(() => null)) as { error?: SkillImportError } | null;
       return {
         error: {
           code: payload?.error?.code,
-          message: payload?.error?.message ?? `Delete failed (${resp.status}).`,
-        },
+          message: payload?.error?.message ?? `Delete failed (${resp.status}).`
+        }
       };
     }
     return { ok: true };
   } catch (err) {
     return {
       error: {
-        message: err instanceof Error ? err.message : 'Delete request failed.',
-      },
+        message: err instanceof Error ? err.message : "Delete request failed."
+      }
     };
   }
 }
@@ -465,7 +471,7 @@ export type DesignSystemsResult = { ok: true; designSystems: DesignSystemSummary
 
 export async function fetchDesignSystemsResult(): Promise<DesignSystemsResult> {
   try {
-    const resp = await fetch('/api/design-systems');
+    const resp = await fetch("/api/design-systems");
     if (!resp.ok) return { ok: false };
     const json = (await resp.json()) as { designSystems?: DesignSystemSummary[] };
     return { ok: true, designSystems: json.designSystems ?? [] };
@@ -507,11 +513,11 @@ export async function fetchDesignSystemFile(id: string, filePath: string): Promi
 }
 
 export async function ensureDesignSystemWorkspace(
-  id: string,
+  id: string
 ): Promise<{ project: Project; files: ProjectFile[] } | null> {
   try {
     const resp = await fetch(`/api/design-systems/${encodeURIComponent(id)}/workspace`, {
-      method: 'POST',
+      method: "POST"
     });
     if (!resp.ok) return null;
     return (await resp.json()) as { project: Project; files: ProjectFile[] };
@@ -521,7 +527,7 @@ export async function ensureDesignSystemWorkspace(
 }
 
 function parseDesignSystemDetail(json: unknown): DesignSystemDetail | null {
-  if (!json || typeof json !== 'object') return null;
+  if (!json || typeof json !== "object") return null;
   const wrapper = json as { designSystem?: DesignSystemDetail };
   return wrapper.designSystem ?? (json as DesignSystemDetail);
 }
@@ -530,9 +536,9 @@ export interface DesignSystemDraftInput {
   title: string;
   summary?: string;
   category?: string;
-  surface?: 'web' | 'image' | 'video' | 'audio';
-  status?: 'draft' | 'published';
-  artifactMode?: 'generated' | 'agent-managed';
+  surface?: "web" | "image" | "video" | "audio";
+  status?: "draft" | "published";
+  artifactMode?: "generated" | "agent-managed";
   body?: string;
   sourceNotes?: string;
   provenance?: DesignSystemProvenance;
@@ -540,10 +546,10 @@ export interface DesignSystemDraftInput {
 
 export async function createDesignSystemDraft(input: DesignSystemDraftInput): Promise<DesignSystemDetail | null> {
   try {
-    const resp = await fetch('/api/design-systems', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+    const resp = await fetch("/api/design-systems", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     if (!resp.ok) return null;
     return parseDesignSystemDetail(await resp.json());
@@ -553,13 +559,13 @@ export async function createDesignSystemDraft(input: DesignSystemDraftInput): Pr
 }
 
 export async function startDesignSystemGenerationJob(
-  input: DesignSystemDraftInput,
+  input: DesignSystemDraftInput
 ): Promise<DesignSystemGenerationJob | null> {
   try {
-    const resp = await fetch('/api/design-systems/generation-jobs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+    const resp = await fetch("/api/design-systems/generation-jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     if (!resp.ok) return null;
     const json = (await resp.json()) as { job?: DesignSystemGenerationJob };
@@ -581,11 +587,11 @@ export async function fetchDesignSystemGenerationJob(id: string): Promise<Design
 }
 
 export async function fetchProjectDesignSystemPackageAudit(
-  projectId: string,
+  projectId: string
 ): Promise<DesignSystemPackageAudit | null> {
   try {
     const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/design-system-package-audit`, {
-      cache: 'no-store',
+      cache: "no-store"
     });
     if (!resp.ok) return null;
     const json = (await resp.json()) as { audit?: DesignSystemPackageAudit };
@@ -609,16 +615,16 @@ export async function fetchDesignSystemRevisions(id: string): Promise<DesignSyst
 export async function updateDesignSystemRevisionStatus(
   id: string,
   revisionId: string,
-  status: Extract<DesignSystemRevisionStatus, 'accepted' | 'rejected'>,
+  status: Extract<DesignSystemRevisionStatus, "accepted" | "rejected">
 ): Promise<DesignSystemRevision | null> {
   try {
     const resp = await fetch(
       `/api/design-systems/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revisionId)}`,
       {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      },
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      }
     );
     if (!resp.ok) return null;
     const json = (await resp.json()) as { revision?: DesignSystemRevision };
@@ -630,13 +636,13 @@ export async function updateDesignSystemRevisionStatus(
 
 export async function startDesignSystemRevisionJob(
   id: string,
-  input: DesignSystemRevisionJobRequest,
+  input: DesignSystemRevisionJobRequest
 ): Promise<DesignSystemGenerationJob | null> {
   try {
     const resp = await fetch(`/api/design-systems/${encodeURIComponent(id)}/revision-jobs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     if (!resp.ok) return null;
     const json = (await resp.json()) as { job?: DesignSystemGenerationJob };
@@ -648,13 +654,13 @@ export async function startDesignSystemRevisionJob(
 
 export async function startDesignSystemTokenContractRebuildJob(
   id: string,
-  input: DesignSystemTokenContractRebuildJobRequest = {},
+  input: DesignSystemTokenContractRebuildJobRequest = {}
 ): Promise<DesignSystemTokenContractRebuildJobResponse | null> {
   try {
     const resp = await fetch(`/api/design-systems/${encodeURIComponent(id)}/token-contract/rebuild-jobs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     if (!resp.ok) return null;
     return (await resp.json()) as DesignSystemTokenContractRebuildJobResponse;
@@ -665,13 +671,13 @@ export async function startDesignSystemTokenContractRebuildJob(
 
 export async function updateDesignSystemDraft(
   id: string,
-  input: Partial<DesignSystemDraftInput>,
+  input: Partial<DesignSystemDraftInput>
 ): Promise<DesignSystemDetail | null> {
   try {
     const resp = await fetch(`/api/design-systems/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     if (!resp.ok) return null;
     return parseDesignSystemDetail(await resp.json());
@@ -683,7 +689,7 @@ export async function updateDesignSystemDraft(
 export async function deleteDesignSystemDraft(id: string): Promise<boolean> {
   try {
     const resp = await fetch(`/api/design-systems/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
+      method: "DELETE"
     });
     return resp.ok;
   } catch {
@@ -692,13 +698,13 @@ export async function deleteDesignSystemDraft(id: string): Promise<boolean> {
 }
 
 export async function importLocalDesignSystem(
-  input: ImportLocalDesignSystemRequest,
+  input: ImportLocalDesignSystemRequest
 ): Promise<ImportLocalDesignSystemResponse | { error: SkillImportError }> {
   try {
-    const resp = await fetch('/api/design-systems/import/local', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+    const resp = await fetch("/api/design-systems/import/local", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     if (!resp.ok) {
       return { error: await readImportError(resp) };
@@ -707,48 +713,48 @@ export async function importLocalDesignSystem(
   } catch (err) {
     return {
       error: {
-        message: err instanceof Error ? err.message : 'Import request failed.',
-      },
+        message: err instanceof Error ? err.message : "Import request failed."
+      }
     };
   }
 }
 
 export async function importGitHubDesignSystem(
-  input: ImportGitHubDesignSystemRequest,
+  input: ImportGitHubDesignSystemRequest
 ): Promise<ImportGitHubDesignSystemResponse | { error: SkillImportError }> {
   try {
-    const resp = await fetch('/api/design-systems/import/github', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+    const resp = await fetch("/api/design-systems/import/github", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     if (!resp.ok) return { error: await readImportError(resp) };
     return (await resp.json()) as ImportGitHubDesignSystemResponse;
   } catch (err) {
     return {
       error: {
-        message: err instanceof Error ? err.message : 'Import request failed.',
-      },
+        message: err instanceof Error ? err.message : "Import request failed."
+      }
     };
   }
 }
 
 export async function importShadcnDesignSystem(
-  input: ImportShadcnDesignSystemRequest,
+  input: ImportShadcnDesignSystemRequest
 ): Promise<ImportShadcnDesignSystemResponse | { error: SkillImportError }> {
   try {
-    const resp = await fetch('/api/design-systems/import/shadcn', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+    const resp = await fetch("/api/design-systems/import/shadcn", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     if (!resp.ok) return { error: await readImportError(resp) };
     return (await resp.json()) as ImportShadcnDesignSystemResponse;
   } catch (err) {
     return {
       error: {
-        message: err instanceof Error ? err.message : 'Import request failed.',
-      },
+        message: err instanceof Error ? err.message : "Import request failed."
+      }
     };
   }
 }
@@ -759,15 +765,15 @@ async function readImportError(resp: Response): Promise<SkillImportError> {
     message?: string;
   } | null;
   const error = payload?.error;
-  if (typeof error === 'object' && error !== null) return error;
+  if (typeof error === "object" && error !== null) return error;
   return {
-    message: typeof error === 'string' ? error : (payload?.message ?? `Import failed (${resp.status}).`),
+    message: typeof error === "string" ? error : (payload?.message ?? `Import failed (${resp.status}).`)
   };
 }
 
 export async function fetchPromptTemplates(): Promise<PromptTemplateSummary[]> {
   try {
-    const resp = await fetch('/api/prompt-templates');
+    const resp = await fetch("/api/prompt-templates");
     if (!resp.ok) return [];
     const json = (await resp.json()) as { promptTemplates: PromptTemplateSummary[] };
     return json.promptTemplates ?? [];
@@ -777,8 +783,8 @@ export async function fetchPromptTemplates(): Promise<PromptTemplateSummary[]> {
 }
 
 export async function fetchPromptTemplate(
-  surface: 'image' | 'video',
-  id: string,
+  surface: "image" | "video",
+  id: string
 ): Promise<PromptTemplateDetail | null> {
   try {
     const resp = await fetch(`/api/prompt-templates/${encodeURIComponent(surface)}/${encodeURIComponent(id)}`);
@@ -792,7 +798,7 @@ export async function fetchPromptTemplate(
 
 export async function daemonIsLive(): Promise<boolean> {
   try {
-    const resp = await fetch('/api/health');
+    const resp = await fetch("/api/health");
     return resp.ok;
   } catch {
     return false;
@@ -801,7 +807,7 @@ export async function daemonIsLive(): Promise<boolean> {
 
 export async function fetchConnectors(): Promise<ConnectorDetail[]> {
   try {
-    const resp = await fetch('/api/connectors');
+    const resp = await fetch("/api/connectors");
     if (!resp.ok) return [];
     const json = (await resp.json()) as ConnectorListResponse;
     return filterVisibleConnectors(json.connectors ?? []);
@@ -812,9 +818,9 @@ export async function fetchConnectors(): Promise<ConnectorDetail[]> {
 
 export async function fetchConnectorStatuses(options?: {
   signal?: AbortSignal;
-}): Promise<ConnectorStatusResponse['statuses']> {
+}): Promise<ConnectorStatusResponse["statuses"]> {
   try {
-    const resp = await fetch('/api/connectors/status', { signal: options?.signal });
+    const resp = await fetch("/api/connectors/status", { signal: options?.signal });
     if (!resp.ok) return {};
     const json = (await resp.json()) as ConnectorStatusResponse;
     return filterVisibleConnectorStatuses(json.statuses ?? {});
@@ -836,7 +842,7 @@ export async function fetchConnectorDiscovery(options: { refresh?: boolean } = {
 
   const promise = (async () => {
     try {
-      const params = options.refresh ? '?refresh=true' : '';
+      const params = options.refresh ? "?refresh=true" : "";
       const resp = await fetch(`/api/connectors/discovery${params}`);
       if (!resp.ok) return [];
       const json = (await resp.json()) as ConnectorDiscoveryResponse;
@@ -855,16 +861,16 @@ export async function fetchConnectorDiscovery(options: { refresh?: boolean } = {
 
 export async function fetchConnectorDetail(
   connectorId: string,
-  options: { hydrateTools?: boolean; toolsLimit?: number; toolsCursor?: string } = {},
+  options: { hydrateTools?: boolean; toolsLimit?: number; toolsCursor?: string } = {}
 ): Promise<ConnectorDetail | null> {
   if (!isVisibleConnectorId(connectorId)) return null;
   try {
     const params = new URLSearchParams();
-    if (options.hydrateTools) params.set('hydrateTools', 'true');
-    if (options.toolsLimit !== undefined) params.set('toolsLimit', String(options.toolsLimit));
-    if (options.toolsCursor) params.set('toolsCursor', options.toolsCursor);
+    if (options.hydrateTools) params.set("hydrateTools", "true");
+    if (options.toolsLimit !== undefined) params.set("toolsLimit", String(options.toolsLimit));
+    if (options.toolsCursor) params.set("toolsCursor", options.toolsCursor);
     const query = params.toString();
-    const resp = await fetch(`/api/connectors/${encodeURIComponent(connectorId)}${query ? `?${query}` : ''}`);
+    const resp = await fetch(`/api/connectors/${encodeURIComponent(connectorId)}${query ? `?${query}` : ""}`);
     if (!resp.ok) return null;
     const json = (await resp.json()) as ConnectorDetailResponse;
     const connector = json.connector ?? null;
@@ -876,12 +882,12 @@ export async function fetchConnectorDetail(
 
 export interface ConnectorActionResult {
   connector: ConnectorDetail | null;
-  auth?: ConnectorConnectResponse['auth'];
+  auth?: ConnectorConnectResponse["auth"];
   error?: string;
 }
 
 function popupBlockedMessage(): string {
-  return 'Popup blocked. Allow popups for Open Design and try again.';
+  return "Popup blocked. Allow popups for Open Design and try again.";
 }
 
 export async function openExternalUrl(url: string): Promise<boolean> {
@@ -890,10 +896,10 @@ export async function openExternalUrl(url: string): Promise<boolean> {
     if (opened.ok) return true;
   }
   try {
-    const resp = await fetch('/api/system/open-external', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+    const resp = await fetch("/api/system/open-external", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url })
     });
     if (resp.ok) {
       const json = (await resp.json().catch(() => null)) as { ok?: unknown } | null;
@@ -927,30 +933,30 @@ export async function connectConnector(connectorId: string): Promise<ConnectorAc
   const requiresComposioAuthConfig = !isCookieConnector;
   try {
     if (!useExternalBrowser && requiresComposioAuthConfig) {
-      authWindow = window.open('about:blank', '_blank');
+      authWindow = window.open("about:blank", "_blank");
       renderConnectorAuthLoading(authWindow, {
-        title: 'Initializing auth config…',
-        body: 'Creating or reusing the Composio auth configuration for this app. This can take a moment the first time.',
+        title: "Initializing auth config…",
+        body: "Creating or reusing the Composio auth configuration for this app. This can take a moment the first time."
       });
     }
     if (requiresComposioAuthConfig) {
       const prepare = await prepareConnectorAuthConfig(connectorId);
-      if (prepare.status !== 'ready') {
+      if (prepare.status !== "ready") {
         renderConnectorAuthError(authWindow, prepare.message);
         return { connector: null, error: prepare.message };
       }
       renderConnectorAuthLoading(authWindow, {
-        title: 'Opening authorization…',
-        body: 'The auth config is ready. Preparing the provider authorization page.',
+        title: "Opening authorization…",
+        body: "The auth config is ready. Preparing the provider authorization page."
       });
     } else {
       renderConnectorAuthLoading(authWindow, {
-        title: 'Opening controlled browser…',
-        body: 'Finish login in the browser opened by Open Design, then return here to capture the cookie session.',
+        title: "Opening controlled browser…",
+        body: "Finish login in the browser opened by Open Design, then return here to capture the cookie session."
       });
     }
     const resp = await fetch(`/api/connectors/${encodeURIComponent(connectorId)}/connect`, {
-      method: 'POST',
+      method: "POST"
     });
     if (!resp.ok) {
       const error = await decodeConnectorError(resp);
@@ -958,14 +964,14 @@ export async function connectConnector(connectorId: string): Promise<ConnectorAc
       return { connector: null, error };
     }
     const json = (await resp.json()) as ConnectorConnectResponse;
-    if (json.auth?.kind === 'redirect_required' && json.auth.redirectUrl) {
+    if (json.auth?.kind === "redirect_required" && json.auth.redirectUrl) {
       if (useExternalBrowser) {
         const opened = await openHostExternalUrl(json.auth.redirectUrl);
         if (!opened.ok) {
           return {
             connector: json.connector ?? null,
             auth: json.auth,
-            error: popupBlockedMessage(),
+            error: popupBlockedMessage()
           };
         }
       } else if (authWindow) {
@@ -977,40 +983,40 @@ export async function connectConnector(connectorId: string): Promise<ConnectorAc
         // navigation.
         await openExternalUrl(json.auth.redirectUrl);
       }
-    } else if (json.auth?.kind === 'connected') {
+    } else if (json.auth?.kind === "connected") {
       renderConnectorAuthInfo(authWindow, {
-        title: 'Already connected',
-        body: 'This connector is already authorized. You can close this window.',
+        title: "Already connected",
+        body: "This connector is already authorized. You can close this window."
       });
-    } else if (json.auth?.kind === 'pending') {
+    } else if (json.auth?.kind === "pending") {
       renderConnectorAuthInfo(authWindow, {
-        title: isCookieConnector ? 'Controlled browser opened' : 'Authorization pending',
+        title: isCookieConnector ? "Controlled browser opened" : "Authorization pending",
         body: isCookieConnector
-          ? 'Finish login in the controlled browser, then return here and capture the cookie session.'
-          : 'Authorization is in progress but no redirect URL was returned. Watch for an email confirmation, or open the Composio dashboard to continue.',
+          ? "Finish login in the controlled browser, then return here and capture the cookie session."
+          : "Authorization is in progress but no redirect URL was returned. Watch for an email confirmation, or open the Composio dashboard to continue."
       });
     } else {
       renderConnectorAuthInfo(authWindow, {
-        title: 'No authorization URL returned',
-        body: 'The connector responded without a redirect URL. If this seems wrong, retry from Settings → Connectors, and confirm your Composio API key.',
+        title: "No authorization URL returned",
+        body: "The connector responded without a redirect URL. If this seems wrong, retry from Settings → Connectors, and confirm your Composio API key."
       });
     }
     return { connector: json.connector ?? null, ...(json.auth === undefined ? {} : { auth: json.auth }) };
   } catch (err) {
     renderConnectorAuthError(
       authWindow,
-      err instanceof Error && err.message ? err.message : 'Could not start connector authentication.',
+      err instanceof Error && err.message ? err.message : "Could not start connector authentication."
     );
     return {
       connector: null,
-      error: err instanceof Error && err.message ? err.message : 'Could not start connector authentication.',
+      error: err instanceof Error && err.message ? err.message : "Could not start connector authentication."
     };
   }
 }
 
 export async function captureConnectorAuthorization(connectorId: string): Promise<ConnectorDetail | null> {
   const resp = await fetch(`/api/connectors/${encodeURIComponent(connectorId)}/authorization/capture`, {
-    method: 'POST',
+    method: "POST"
   });
   if (!resp.ok) {
     throw new Error(await decodeConnectorError(resp));
@@ -1020,21 +1026,21 @@ export async function captureConnectorAuthorization(connectorId: string): Promis
 }
 
 async function prepareConnectorAuthConfig(
-  connectorId: string,
-): Promise<{ status: 'ready' } | { status: 'error'; message: string }> {
-  const resp = await fetch('/api/connectors/auth-configs/prepare', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ connectorIds: [connectorId] }),
+  connectorId: string
+): Promise<{ status: "ready" } | { status: "error"; message: string }> {
+  const resp = await fetch("/api/connectors/auth-configs/prepare", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ connectorIds: [connectorId] })
   });
   if (!resp.ok) {
-    return { status: 'error', message: await decodeConnectorError(resp) };
+    return { status: "error", message: await decodeConnectorError(resp) };
   }
   const json = (await resp.json()) as ConnectorAuthConfigPrepareResponse;
   const result = json.results?.[connectorId];
-  if (!result) return { status: 'error', message: 'Auth config initialization did not return a result.' };
-  if (result.status === 'ready') return { status: 'ready' };
-  return { status: 'error', message: result.message };
+  if (!result) return { status: "error", message: "Auth config initialization did not return a result." };
+  if (result.status === "ready") return { status: "ready" };
+  return { status: "error", message: result.message };
 }
 
 function openConnectorAuthRedirect(authWindow: Window | null, redirectUrl: string): void {
@@ -1048,14 +1054,14 @@ function openConnectorAuthRedirect(authWindow: Window | null, redirectUrl: strin
       // clickable fallback in the popup so the user can continue.
     }
   }
-  const opened = window.open(redirectUrl, '_blank');
+  const opened = window.open(redirectUrl, "_blank");
   if (!opened) window.location.assign(redirectUrl);
 }
 
 function renderConnectorAuthLoading(authWindow: Window | null, copy: { title: string; body: string }): void {
   if (!authWindow) return;
   try {
-    authWindow.document.title = 'Connecting…';
+    authWindow.document.title = "Connecting…";
     authWindow.document.body.innerHTML = `
       <main style="min-height:100vh;display:grid;place-items:center;margin:0;background:#0f1115;color:#f6f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
         <div style="display:grid;gap:14px;justify-items:center;text-align:center;padding:32px;">
@@ -1090,7 +1096,7 @@ function renderConnectorAuthInfo(authWindow: Window | null, copy: { title: strin
 
 function renderConnectorAuthRedirect(authWindow: Window, redirectUrl: string): void {
   try {
-    authWindow.document.title = 'Continue authorization';
+    authWindow.document.title = "Continue authorization";
     authWindow.document.body.innerHTML = `
       <main style="min-height:100vh;display:grid;place-items:center;margin:0;background:#0f1115;color:#f6f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
         <div style="display:grid;gap:14px;justify-items:center;text-align:center;padding:32px;">
@@ -1108,7 +1114,7 @@ function renderConnectorAuthRedirect(authWindow: Window, redirectUrl: string): v
 function renderConnectorAuthError(authWindow: Window | null, message: string): void {
   if (!authWindow) return;
   try {
-    authWindow.document.title = 'Connection failed';
+    authWindow.document.title = "Connection failed";
     authWindow.document.body.innerHTML = `
       <main style="min-height:100vh;display:grid;place-items:center;margin:0;background:#0f1115;color:#f6f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
         <div style="display:grid;gap:14px;justify-items:center;text-align:center;padding:32px;">
@@ -1125,12 +1131,12 @@ function renderConnectorAuthError(authWindow: Window | null, message: string): v
 function escapeHtmlText(value: string): string {
   return value.replace(/[&<>]/g, (char) => {
     switch (char) {
-      case '&':
-        return '&amp;';
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
       default:
         return char;
     }
@@ -1140,16 +1146,16 @@ function escapeHtmlText(value: string): string {
 function escapeHtmlAttribute(value: string): string {
   return value.replace(/[&<>"']/g, (char) => {
     switch (char) {
-      case '&':
-        return '&amp;';
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
       case '"':
-        return '&quot;';
+        return "&quot;";
       case "'":
-        return '&#39;';
+        return "&#39;";
       default:
         return char;
     }
@@ -1159,7 +1165,7 @@ function escapeHtmlAttribute(value: string): string {
 export async function disconnectConnector(connectorId: string): Promise<ConnectorDetail | null> {
   try {
     const resp = await fetch(`/api/connectors/${encodeURIComponent(connectorId)}/connection`, {
-      method: 'DELETE',
+      method: "DELETE"
     });
     if (!resp.ok) return null;
     const json = (await resp.json()) as ConnectorDetailResponse;
@@ -1172,7 +1178,7 @@ export async function disconnectConnector(connectorId: string): Promise<Connecto
 export async function cancelConnectorAuthorization(connectorId: string): Promise<ConnectorDetail | null> {
   try {
     const resp = await fetch(`/api/connectors/${encodeURIComponent(connectorId)}/authorization/cancel`, {
-      method: 'POST',
+      method: "POST"
     });
     if (!resp.ok) return null;
     const json = (await resp.json()) as ConnectorDetailResponse;
@@ -1183,20 +1189,20 @@ export async function cancelConnectorAuthorization(connectorId: string): Promise
 }
 
 function isAppVersionInfo(value: unknown): value is AppVersionInfo {
-  if (!value || typeof value !== 'object') return false;
+  if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<AppVersionInfo>;
   return (
-    typeof candidate.version === 'string' &&
-    typeof candidate.channel === 'string' &&
-    typeof candidate.packaged === 'boolean' &&
-    typeof candidate.platform === 'string' &&
-    typeof candidate.arch === 'string'
+    typeof candidate.version === "string" &&
+    typeof candidate.channel === "string" &&
+    typeof candidate.packaged === "boolean" &&
+    typeof candidate.platform === "string" &&
+    typeof candidate.arch === "string"
   );
 }
 
 export async function fetchAppVersionInfo(): Promise<AppVersionInfo | null> {
   try {
-    const resp = await fetch('/api/version');
+    const resp = await fetch("/api/version");
     if (!resp.ok) return null;
     const json = (await resp.json()) as Partial<AppVersionResponse>;
     return isAppVersionInfo(json.version) ? json.version : null;
@@ -1213,14 +1219,14 @@ export type LatestGithubReleaseInfo = {
 
 export async function fetchLatestGithubReleaseInfo(): Promise<LatestGithubReleaseInfo | null> {
   try {
-    const resp = await fetch('/api/github/open-design/releases/latest');
+    const resp = await fetch("/api/github/open-design/releases/latest");
     if (!resp.ok) return null;
     const json = (await resp.json()) as Partial<OpenDesignGithubLatestReleaseResponse>;
-    if (typeof json.tag_name !== 'string' || typeof json.html_url !== 'string') return null;
+    if (typeof json.tag_name !== "string" || typeof json.html_url !== "string") return null;
     return {
       tagName: json.tag_name,
       htmlUrl: json.html_url,
-      stale: json.stale === true,
+      stale: json.stale === true
     };
   } catch {
     return null;
@@ -1248,21 +1254,21 @@ export type SkillExampleResult =
 // daemon-side). Anything other than `'html'` short-circuits to an
 // `unavailable` result so we don't fire a network call against a
 // daemon endpoint that only resolves HTML files. Issue #897.
-export async function fetchSkillExample(id: string, previewType: string = 'html'): Promise<SkillExampleResult> {
-  if (previewType !== 'html') {
+export async function fetchSkillExample(id: string, previewType: string = "html"): Promise<SkillExampleResult> {
+  if (previewType !== "html") {
     return { unavailable: true, kind: previewType };
   }
   try {
     const resp = await fetch(`/api/skills/${encodeURIComponent(id)}/example`);
     if (!resp.ok) {
       if (resp.status === 404) {
-        return { unavailable: true, kind: 'html' };
+        return { unavailable: true, kind: "html" };
       }
       return { error: `HTTP ${resp.status}` };
     }
     return { html: await resp.text() };
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'network error';
+    const message = err instanceof Error ? err.message : "network error";
     return { error: message };
   }
 }
@@ -1279,10 +1285,10 @@ export async function fetchDeployConfig(providerId?: WebDeployProviderId): Promi
 
 export async function updateDeployConfig(input: WebUpdateDeployConfigRequest): Promise<WebDeployConfigResponse | null> {
   try {
-    const resp = await fetch('/api/deploy/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+    const resp = await fetch("/api/deploy/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     if (!resp.ok) {
       const payload = (await resp.json().catch(() => null)) as {
@@ -1300,14 +1306,14 @@ export async function updateDeployConfig(input: WebUpdateDeployConfigRequest): P
 
 export async function fetchCloudflarePagesZones(): Promise<WebCloudflarePagesZonesResponse | null> {
   try {
-    const resp = await fetch('/api/deploy/cloudflare-pages/zones');
+    const resp = await fetch("/api/deploy/cloudflare-pages/zones");
     if (!resp.ok) {
       const payload = (await resp.json().catch(() => null)) as {
         error?: { message?: string };
         message?: string;
       } | null;
       throw new Error(
-        payload?.error?.message || payload?.message || `Could not load Cloudflare zones (${resp.status})`,
+        payload?.error?.message || payload?.message || `Could not load Cloudflare zones (${resp.status})`
       );
     }
     return (await resp.json()) as WebCloudflarePagesZonesResponse;
@@ -1332,17 +1338,17 @@ export async function deployProjectFile(
   projectId: string,
   fileName: string,
   providerId: WebDeployProviderId = DEFAULT_DEPLOY_PROVIDER_ID,
-  cloudflarePages?: WebCloudflarePagesDeploySelection,
+  cloudflarePages?: WebCloudflarePagesDeploySelection
 ): Promise<WebDeployProjectFileResponse> {
   const body = {
     fileName,
     providerId,
-    ...(cloudflarePages ? { cloudflarePages } : {}),
+    ...(cloudflarePages ? { cloudflarePages } : {})
   };
   const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/deploy`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
   });
   if (!resp.ok) {
     const payload = (await resp.json().catch(() => null)) as { error?: { message?: string }; message?: string } | null;
@@ -1353,11 +1359,11 @@ export async function deployProjectFile(
 
 export async function checkDeploymentLink(
   projectId: string,
-  deploymentId: string,
+  deploymentId: string
 ): Promise<WebDeployProjectFileResponse> {
   const resp = await fetch(
     `/api/projects/${encodeURIComponent(projectId)}/deployments/${encodeURIComponent(deploymentId)}/check-link`,
-    { method: 'POST' },
+    { method: "POST" }
   );
   if (!resp.ok) {
     const payload = (await resp.json().catch(() => null)) as { error?: { message?: string }; message?: string } | null;
@@ -1367,10 +1373,10 @@ export async function checkDeploymentLink(
 }
 
 export async function createSocialSharePayload(input: SocialShareRequest): Promise<SocialShareResponse> {
-  const resp = await fetch('/api/social-share', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
+  const resp = await fetch("/api/social-share", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input)
   });
   if (!resp.ok) {
     const payload = (await resp.json().catch(() => null)) as {
@@ -1409,9 +1415,9 @@ export async function fetchProjectFolders(projectId: string): Promise<ProjectFol
 export async function createProjectFolder(projectId: string, name: string): Promise<ProjectFolder | null> {
   try {
     const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/folders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
     });
     if (!resp.ok) return null;
     const json = (await resp.json()) as { folder?: ProjectFolder };
@@ -1424,9 +1430,9 @@ export async function createProjectFolder(projectId: string, name: string): Prom
 export async function deleteProjectFolder(projectId: string, folderPath: string): Promise<boolean> {
   try {
     const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/folders`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: folderPath }),
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: folderPath })
     });
     return resp.ok;
   } catch {
@@ -1466,7 +1472,7 @@ export interface LiveArtifactRefreshResult {
   artifact: LiveArtifact;
   refresh: {
     id: string;
-    status: 'succeeded';
+    status: "succeeded";
     refreshedSourceCount: number;
   };
 }
@@ -1475,10 +1481,10 @@ export class LiveArtifactRefreshError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly code?: string,
+    readonly code?: string
   ) {
     super(message);
-    this.name = 'LiveArtifactRefreshError';
+    this.name = "LiveArtifactRefreshError";
   }
 }
 
@@ -1487,10 +1493,10 @@ export async function refreshLiveArtifact(projectId: string, artifactId: string)
   try {
     resp = await fetch(
       `/api/live-artifacts/${encodeURIComponent(artifactId)}/refresh?projectId=${encodeURIComponent(projectId)}`,
-      { method: 'POST' },
+      { method: "POST" }
     );
   } catch (error) {
-    throw new LiveArtifactRefreshError(error instanceof Error ? error.message : 'Refresh request failed.', 0);
+    throw new LiveArtifactRefreshError(error instanceof Error ? error.message : "Refresh request failed.", 0);
   }
 
   if (!resp.ok) {
@@ -1503,11 +1509,11 @@ export async function refreshLiveArtifact(projectId: string, artifactId: string)
 
 export async function fetchLiveArtifactRefreshes(
   projectId: string,
-  artifactId: string,
+  artifactId: string
 ): Promise<LiveArtifactRefreshLogEntry[]> {
   try {
     const resp = await fetch(
-      `/api/live-artifacts/${encodeURIComponent(artifactId)}/refreshes?projectId=${encodeURIComponent(projectId)}`,
+      `/api/live-artifacts/${encodeURIComponent(artifactId)}/refreshes?projectId=${encodeURIComponent(projectId)}`
     );
     if (!resp.ok) return [];
     const json = (await resp.json()) as { refreshes?: LiveArtifactRefreshLogEntry[] };
@@ -1520,23 +1526,23 @@ export async function fetchLiveArtifactRefreshes(
 export async function updateLiveArtifact(
   projectId: string,
   artifactId: string,
-  input: Pick<LiveArtifact, 'title' | 'status' | 'pinned' | 'preview'> & {
+  input: Pick<LiveArtifact, "title" | "status" | "pinned" | "preview"> & {
     slug?: string;
-    document?: LiveArtifact['document'];
-  },
+    document?: LiveArtifact["document"];
+  }
 ): Promise<LiveArtifact> {
   let resp: Response;
   try {
     resp = await fetch(
       `/api/live-artifacts/${encodeURIComponent(artifactId)}?projectId=${encodeURIComponent(projectId)}`,
       {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      },
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input)
+      }
     );
   } catch (error) {
-    throw new LiveArtifactRefreshError(error instanceof Error ? error.message : 'Update request failed.', 0);
+    throw new LiveArtifactRefreshError(error instanceof Error ? error.message : "Update request failed.", 0);
   }
 
   if (!resp.ok) {
@@ -1546,7 +1552,7 @@ export async function updateLiveArtifact(
 
   const json = (await resp.json()) as { artifact?: LiveArtifact; liveArtifact?: LiveArtifact };
   const artifact = json.liveArtifact ?? json.artifact;
-  if (!artifact) throw new LiveArtifactRefreshError('Update response did not include a live artifact.', resp.status);
+  if (!artifact) throw new LiveArtifactRefreshError("Update response did not include a live artifact.", resp.status);
   return artifact;
 }
 
@@ -1554,7 +1560,7 @@ export async function deleteLiveArtifact(projectId: string, artifactId: string):
   try {
     const resp = await fetch(
       `/api/live-artifacts/${encodeURIComponent(artifactId)}?projectId=${encodeURIComponent(projectId)}`,
-      { method: 'DELETE' },
+      { method: "DELETE" }
     );
     return resp.ok;
   } catch {
@@ -1567,8 +1573,8 @@ async function readApiErrorBody(resp: Response): Promise<{ message: string; code
     const json = (await resp.json()) as { error?: { code?: string; message?: string }; message?: string };
     const message = json.error?.message ?? json.message;
     return {
-      message: typeof message === 'string' && message.length > 0 ? message : `Request failed (${resp.status}).`,
-      ...(typeof json.error?.code === 'string' ? { code: json.error.code } : {}),
+      message: typeof message === "string" && message.length > 0 ? message : `Request failed (${resp.status}).`,
+      ...(typeof json.error?.code === "string" ? { code: json.error.code } : {})
     };
   } catch {
     return { message: `Request failed (${resp.status}).` };
@@ -1579,24 +1585,24 @@ export function liveArtifactDetailUrl(projectId: string, artifactId: string): st
   return `/api/live-artifacts/${encodeURIComponent(artifactId)}?projectId=${encodeURIComponent(projectId)}`;
 }
 
-export type LiveArtifactPreviewVariant = 'rendered' | 'template' | 'rendered-source';
+export type LiveArtifactPreviewVariant = "rendered" | "template" | "rendered-source";
 
 export function liveArtifactPreviewUrl(
   projectId: string,
   artifactId: string,
-  variant: LiveArtifactPreviewVariant = 'rendered',
+  variant: LiveArtifactPreviewVariant = "rendered"
 ): string {
-  const variantQuery = variant === 'rendered' ? '' : `&variant=${encodeURIComponent(variant)}`;
+  const variantQuery = variant === "rendered" ? "" : `&variant=${encodeURIComponent(variant)}`;
   return `/api/live-artifacts/${encodeURIComponent(artifactId)}/preview?projectId=${encodeURIComponent(projectId)}${variantQuery}`;
 }
 
 export async function fetchLiveArtifactCode(
   projectId: string,
   artifactId: string,
-  variant: Exclude<LiveArtifactPreviewVariant, 'rendered'>,
+  variant: Exclude<LiveArtifactPreviewVariant, "rendered">
 ): Promise<string | null> {
   try {
-    const resp = await fetch(liveArtifactPreviewUrl(projectId, artifactId, variant), { cache: 'no-store' });
+    const resp = await fetch(liveArtifactPreviewUrl(projectId, artifactId, variant), { cache: "no-store" });
     if (!resp.ok) return null;
     return await resp.text();
   } catch {
@@ -1614,7 +1620,7 @@ export interface ProjectFilePreviewSection {
 }
 
 export interface ProjectFilePreview {
-  kind: 'pdf' | 'document' | 'presentation' | 'spreadsheet';
+  kind: "pdf" | "document" | "presentation" | "spreadsheet";
   title: string;
   sections: ProjectFilePreviewSection[];
 }
@@ -1622,7 +1628,7 @@ export interface ProjectFilePreview {
 export async function fetchProjectFilePreview(projectId: string, name: string): Promise<ProjectFilePreview | null> {
   try {
     const resp = await fetch(
-      `/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(name)}/preview`,
+      `/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(name)}/preview`
     );
     if (!resp.ok) return null;
     return (await resp.json()) as ProjectFilePreview;
@@ -1634,36 +1640,36 @@ export async function fetchProjectFilePreview(projectId: string, name: string): 
 export async function fetchProjectFileText(
   projectId: string,
   name: string,
-  options?: { cache?: RequestCache; cacheBustKey?: string | number },
+  options?: { cache?: RequestCache; cacheBustKey?: string | number }
 ): Promise<string | null> {
   const url = projectFileUrl(projectId, name);
   const cacheBustKey = options?.cacheBustKey;
   const requestUrl =
     cacheBustKey == null
       ? url
-      : `${url}${url.includes('?') ? '&' : '?'}cacheBust=${encodeURIComponent(String(cacheBustKey))}`;
+      : `${url}${url.includes("?") ? "&" : "?"}cacheBust=${encodeURIComponent(String(cacheBustKey))}`;
   const init: RequestInit = {};
   if (options?.cache) init.cache = options.cache;
 
   try {
     const resp = await fetch(requestUrl, init);
     if (!resp.ok) {
-      console.warn('[fetchProjectFileText] failed:', {
+      console.warn("[fetchProjectFileText] failed:", {
         name,
         projectId,
         status: resp.status,
         statusText: resp.statusText,
-        url: requestUrl,
+        url: requestUrl
       });
       return null;
     }
     return await resp.text();
   } catch (err) {
-    console.warn('[fetchProjectFileText] failed:', {
+    console.warn("[fetchProjectFileText] failed:", {
       error: err,
       name,
       projectId,
-      url: requestUrl,
+      url: requestUrl
     });
     return null;
   }
@@ -1672,7 +1678,7 @@ export async function fetchProjectFileText(
 export async function fetchPreviewComments(projectId: string, conversationId: string): Promise<PreviewComment[]> {
   try {
     const resp = await fetch(
-      `/api/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(conversationId)}/comments`,
+      `/api/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(conversationId)}/comments`
     );
     if (!resp.ok) return [];
     const json = (await resp.json()) as { comments: PreviewComment[] };
@@ -1685,16 +1691,16 @@ export async function fetchPreviewComments(projectId: string, conversationId: st
 export async function upsertPreviewComment(
   projectId: string,
   conversationId: string,
-  input: PreviewCommentUpsertRequest,
+  input: PreviewCommentUpsertRequest
 ): Promise<PreviewComment | null> {
   try {
     const resp = await fetch(
       `/api/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(conversationId)}/comments`,
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input)
+      }
     );
     if (!resp.ok) return null;
     const json = (await resp.json()) as { comment: PreviewComment };
@@ -1708,16 +1714,16 @@ export async function patchPreviewCommentStatus(
   projectId: string,
   conversationId: string,
   commentId: string,
-  status: PreviewCommentStatus,
+  status: PreviewCommentStatus
 ): Promise<PreviewComment | null> {
   try {
     const resp = await fetch(
       `/api/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(conversationId)}/comments/${encodeURIComponent(commentId)}`,
       {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      },
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      }
     );
     if (!resp.ok) return null;
     const json = (await resp.json()) as { comment: PreviewComment };
@@ -1730,12 +1736,12 @@ export async function patchPreviewCommentStatus(
 export async function deletePreviewComment(
   projectId: string,
   conversationId: string,
-  commentId: string,
+  commentId: string
 ): Promise<boolean> {
   try {
     const resp = await fetch(
       `/api/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(conversationId)}/comments/${encodeURIComponent(commentId)}`,
-      { method: 'DELETE' },
+      { method: "DELETE" }
     );
     return resp.ok;
   } catch {
@@ -1747,7 +1753,7 @@ export async function writeProjectTextFile(
   projectId: string,
   name: string,
   content: string,
-  options?: { artifactManifest?: ArtifactManifest },
+  options?: { artifactManifest?: ArtifactManifest }
 ): Promise<ProjectFile | null> {
   const result = await writeProjectTextFileDetailed(projectId, name, content, options);
   return result.ok ? result.file : null;
@@ -1761,13 +1767,13 @@ export async function writeProjectTextFileDetailed(
   projectId: string,
   name: string,
   content: string,
-  options?: { artifactManifest?: ArtifactManifest },
+  options?: { artifactManifest?: ArtifactManifest }
 ): Promise<WriteProjectTextFileResult> {
   try {
     const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/files`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, content, artifactManifest: options?.artifactManifest }),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, content, artifactManifest: options?.artifactManifest })
     });
     if (!resp.ok) {
       const body = await readApiErrorBody(resp);
@@ -1775,26 +1781,26 @@ export async function writeProjectTextFileDetailed(
         ok: false,
         status: resp.status,
         code: body.code,
-        message: body.message || resp.statusText || 'Save failed',
+        message: body.message || resp.statusText || "Save failed"
       };
     }
     const json = (await resp.json()) as { file: ProjectFile };
     return { ok: true, file: json.file };
   } catch {
-    return { ok: false, message: 'Network error while saving the file' };
+    return { ok: false, message: "Network error while saving the file" };
   }
 }
 
 export async function writeProjectBase64File(
   projectId: string,
   name: string,
-  base64: string,
+  base64: string
 ): Promise<ProjectFile | null> {
   try {
     const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/files`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, content: base64, encoding: 'base64' }),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, content: base64, encoding: "base64" })
     });
     if (!resp.ok) return null;
     const json = (await resp.json()) as { file: ProjectFile };
@@ -1807,15 +1813,15 @@ export async function writeProjectBase64File(
 export async function uploadProjectFile(
   projectId: string,
   file: File,
-  desiredName?: string,
+  desiredName?: string
 ): Promise<ProjectFile | null> {
   try {
     const form = new FormData();
-    form.append('file', file);
-    if (desiredName) form.append('name', desiredName);
+    form.append("file", file);
+    if (desiredName) form.append("name", desiredName);
     const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/files`, {
-      method: 'POST',
-      body: form,
+      method: "POST",
+      body: form
     });
     if (!resp.ok) return null;
     const json = (await resp.json()) as { file: ProjectFile };
@@ -1846,14 +1852,14 @@ export interface UploadProjectFilesResult {
 export async function uploadProjectFiles(
   projectId: string,
   files: File[],
-  dir?: string,
+  dir?: string
 ): Promise<UploadProjectFilesResult> {
   if (files.length === 0) return { uploaded: [], failed: [] };
 
   const uploaded: ChatAttachment[] = [];
   const failed: ProjectUploadFailure[] = [];
   let error: string | undefined;
-  const targetDir = dir?.trim() ?? '';
+  const targetDir = dir?.trim() ?? "";
 
   for (let i = 0; i < files.length; i += PROJECT_UPLOAD_BATCH_SIZE) {
     const batch = files.slice(i, i + PROJECT_UPLOAD_BATCH_SIZE);
@@ -1862,11 +1868,11 @@ export async function uploadProjectFiles(
     // The `dir` field MUST be appended before the file parts: the daemon's
     // multer destination resolver reads req.body.dir as each file streams in,
     // and busboy only exposes fields parsed earlier in the multipart body.
-    if (targetDir) form.append('dir', targetDir);
-    for (const f of batch) form.append('files', f);
+    if (targetDir) form.append("dir", targetDir);
+    for (const f of batch) form.append("files", f);
 
     try {
-      const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/upload`, { method: 'POST', body: form });
+      const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/upload`, { method: "POST", body: form });
 
       if (!resp.ok) {
         const payload = (await resp.json().catch(() => null)) as { code?: string; error?: string } | null;
@@ -1888,22 +1894,22 @@ export async function uploadProjectFiles(
         ...responseFiles.map((f) => ({
           path: f.path,
           name: f.originalName ?? f.name,
-          kind: looksLikeImage(f.name) ? ('image' as const) : ('file' as const),
-          size: f.size,
-        })),
+          kind: looksLikeImage(f.name) ? ("image" as const) : ("file" as const),
+          size: f.size
+        }))
       );
       // Server preserves request order; any dropped files are unmatched at the batch tail.
       if (responseFiles.length < batch.length) {
-        error ??= 'some files could not be stored';
+        error ??= "some files could not be stored";
         for (const f of batch.slice(responseFiles.length)) {
           failed.push({
             name: f.name,
-            error: error ?? 'some files could not be stored',
+            error: error ?? "some files could not be stored"
           });
         }
       }
     } catch {
-      error = 'upload request failed';
+      error = "upload request failed";
       for (const f of batch) {
         failed.push({ name: f.name, error });
       }
@@ -1924,9 +1930,9 @@ export function projectRawUrl(projectId: string, filePath: string): string {
   // Encode each path segment individually so a slash inside the file
   // path stays a path separator, not %2F.
   const safePath = filePath
-    .split('/')
+    .split("/")
     .map((seg) => encodeURIComponent(seg))
-    .join('/');
+    .join("/");
   return `/api/projects/${encodeURIComponent(projectId)}/raw/${safePath}`;
 }
 
@@ -1936,7 +1942,7 @@ function looksLikeImage(name: string): boolean {
 
 export async function deleteProjectFile(projectId: string, name: string): Promise<boolean> {
   try {
-    const resp = await fetch(projectRawUrl(projectId, name), { method: 'DELETE' });
+    const resp = await fetch(projectRawUrl(projectId, name), { method: "DELETE" });
     return resp.ok;
   } catch {
     return false;
@@ -1946,12 +1952,12 @@ export async function deleteProjectFile(projectId: string, name: string): Promis
 export async function renameProjectFile(
   projectId: string,
   from: string,
-  to: string,
+  to: string
 ): Promise<RenameProjectFileResponse> {
   const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/files/rename`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to }),
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to })
   });
   if (!resp.ok) {
     const errorBody = await readApiErrorBody(resp);
@@ -1962,10 +1968,10 @@ export async function renameProjectFile(
 
 export async function openFolderDialog(): Promise<string | null> {
   try {
-    const resp = await fetch('/api/dialog/open-folder', { method: 'POST' });
+    const resp = await fetch("/api/dialog/open-folder", { method: "POST" });
     if (!resp.ok) return null;
     const data = await resp.json();
-    return typeof data.path === 'string' && data.path.length > 0 ? data.path : null;
+    return typeof data.path === "string" && data.path.length > 0 ? data.path : null;
   } catch {
     return null;
   }
@@ -1977,16 +1983,16 @@ export async function openFolderDialog(): Promise<string | null> {
 export async function replaceProjectWorkingDir(
   projectId: string,
   baseDir: string,
-  desktopImportToken?: string,
+  desktopImportToken?: string
 ): Promise<ReplaceProjectWorkingDirResponse> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (desktopImportToken) {
-    headers['x-od-desktop-import-token'] = desktopImportToken;
+    headers["x-od-desktop-import-token"] = desktopImportToken;
   }
   const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/working-dir`, {
-    method: 'POST',
+    method: "POST",
     headers,
-    body: JSON.stringify({ baseDir }),
+    body: JSON.stringify({ baseDir })
   });
   if (!resp.ok) {
     const body = await readApiErrorBody(resp);
@@ -1998,26 +2004,26 @@ export async function replaceProjectWorkingDir(
 // Hand-off (open project in local app). The daemon enumerates installed
 // editors on demand (PATH probe + macOS bundle scan), and the POST
 // endpoint spawns the chosen app with the project's resolvedDir.
-export async function fetchHostEditors(): Promise<import('@open-design/contracts').HostEditorsResponse> {
-  const resp = await fetch('/api/editors');
+export async function fetchHostEditors(): Promise<import("@open-design/contracts").HostEditorsResponse> {
+  const resp = await fetch("/api/editors");
   if (!resp.ok) throw new Error(`GET /api/editors failed: ${resp.status}`);
-  return (await resp.json()) as import('@open-design/contracts').HostEditorsResponse;
+  return (await resp.json()) as import("@open-design/contracts").HostEditorsResponse;
 }
 
 export async function openProjectInEditor(
   projectId: string,
-  editorId: import('@open-design/contracts').HostEditorId,
-): Promise<import('@open-design/contracts').OpenProjectInEditorResponse> {
+  editorId: import("@open-design/contracts").HostEditorId
+): Promise<import("@open-design/contracts").OpenProjectInEditorResponse> {
   const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/open-in`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ editorId }),
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ editorId })
   });
   if (!resp.ok) {
     const body = await readApiErrorBody(resp);
     throw new Error(body.message);
   }
-  return (await resp.json()) as import('@open-design/contracts').OpenProjectInEditorResponse;
+  return (await resp.json()) as import("@open-design/contracts").OpenProjectInEditorResponse;
 }
 
 export async function fetchDesignSystemPreview(id: string): Promise<string | null> {
@@ -2055,12 +2061,12 @@ export async function fetchPluginPreviewHtml(id: string): Promise<SkillExampleRe
   try {
     const resp = await fetch(`/api/plugins/${encodeURIComponent(id)}/preview`);
     if (!resp.ok) {
-      if (resp.status === 404) return { unavailable: true, kind: 'html' };
+      if (resp.status === 404) return { unavailable: true, kind: "html" };
       return { error: `HTTP ${resp.status}` };
     }
     return { html: await resp.text() };
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'network error';
+    const message = err instanceof Error ? err.message : "network error";
     return { error: message };
   }
 }
@@ -2072,12 +2078,12 @@ export async function fetchPluginExampleHtml(pluginId: string, stem: string): Pr
   try {
     const resp = await fetch(`/api/plugins/${encodeURIComponent(pluginId)}/example/${encodeURIComponent(stem)}`);
     if (!resp.ok) {
-      if (resp.status === 404) return { unavailable: true, kind: 'html' };
+      if (resp.status === 404) return { unavailable: true, kind: "html" };
       return { error: `HTTP ${resp.status}` };
     }
     return { html: await resp.text() };
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'network error';
+    const message = err instanceof Error ? err.message : "network error";
     return { error: message };
   }
 }
@@ -2099,67 +2105,67 @@ export async function fetchPluginAssetText(pluginId: string, relpath: string): P
 
 function encodePluginAssetPath(relpath: string): string {
   return relpath
-    .replace(/^\.\//, '')
+    .replace(/^\.\//, "")
     .split(/[\\/]/)
     .filter(Boolean)
     .map((seg) => encodeURIComponent(seg))
-    .join('/');
+    .join("/");
 }
 
 export async function installSkill(input: InstallInput): Promise<{ skill: SkillSummary } | { error: string }> {
   try {
-    const resp = await fetch('/api/skills/install', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+    const resp = await fetch("/api/skills/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     const json = await resp.json();
-    if (!resp.ok) return { error: json.error ?? 'Install failed' };
+    if (!resp.ok) return { error: json.error ?? "Install failed" };
     return json as InstallSkillResponse;
   } catch {
-    return { error: 'Network error' };
+    return { error: "Network error" };
   }
 }
 
 export async function uninstallSkill(id: string): Promise<{ ok: true } | { error: string }> {
   try {
     const resp = await fetch(`/api/skills/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
+      method: "DELETE"
     });
     const json = await resp.json();
-    if (!resp.ok) return { error: json.error ?? 'Uninstall failed' };
+    if (!resp.ok) return { error: json.error ?? "Uninstall failed" };
     return { ok: true };
   } catch {
-    return { error: 'Network error' };
+    return { error: "Network error" };
   }
 }
 
 export async function installDesignSystem(
-  input: InstallInput,
+  input: InstallInput
 ): Promise<{ designSystem: DesignSystemSummary } | { error: string }> {
   try {
-    const resp = await fetch('/api/design-systems/install', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+    const resp = await fetch("/api/design-systems/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     });
     const json = await resp.json();
-    if (!resp.ok) return { error: json.error ?? 'Install failed' };
+    if (!resp.ok) return { error: json.error ?? "Install failed" };
     return json as InstallDesignSystemResponse;
   } catch {
-    return { error: 'Network error' };
+    return { error: "Network error" };
   }
 }
 
 export async function uninstallDesignSystem(id: string): Promise<{ ok: true } | { error: string }> {
   try {
     const resp = await fetch(`/api/design-systems/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
+      method: "DELETE"
     });
     const json = await resp.json();
-    if (!resp.ok) return { error: json.error ?? 'Uninstall failed' };
+    if (!resp.ok) return { error: json.error ?? "Uninstall failed" };
     return { ok: true };
   } catch {
-    return { error: 'Network error' };
+    return { error: "Network error" };
   }
 }

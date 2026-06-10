@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const shellCss = readFileSync(new URL('../../src/styles/shell.css', import.meta.url), 'utf8');
 const routinesCss = readFileSync(new URL('../../src/styles/viewer/routines.css', import.meta.url), 'utf8');
+const drawerCss = readFileSync(new URL('../../src/styles/workspace/drawer.css', import.meta.url), 'utf8');
 const entryLayoutCss = readFileSync(new URL('../../src/styles/home/entry-layout.css', import.meta.url), 'utf8');
 
 function cssDeclarations(css: string, selector: string): string {
@@ -72,6 +73,27 @@ describe('workspace tabs chrome styles', () => {
     expect(ruleValue(railDivider, 'width')).toBe('1px');
     expect(ruleValue(railDivider, 'background')).toBe(hairlineColor);
     expect(ruleValue(railDivider, 'transform')).toBe('scaleX(0.5)');
+  });
+
+  it('keeps first-run onboarding visually focused on runtime choice', () => {
+    for (const selector of [
+      '.entry-shell--onboarding .onboarding-view__hero',
+      '.entry-shell--onboarding .onboarding-view__steps',
+      '.entry-shell--onboarding .onboarding-view__actions',
+    ]) {
+      expect(ruleValue(cssDeclarations(entryLayoutCss, selector), 'display')).toBe('none');
+    }
+  });
+
+  it('keeps project handoff icon-only inside the workspace action row', () => {
+    const trigger = cssDeclarations(drawerCss, '.app .ws-tabs-actions .handoff-trigger');
+    const label = cssDeclarations(drawerCss, '.app .ws-tabs-actions .handoff-trigger-label');
+
+    expect(ruleValue(trigger, 'width')).toBe('28px');
+    expect(ruleValue(trigger, 'min-width')).toBe('28px');
+    expect(ruleValue(trigger, 'padding')).toBe('0');
+    expect(ruleValue(trigger, 'gap')).toBe('0');
+    expect(ruleValue(label, 'display')).toBe('none');
   });
 
   it('keeps workspace tabs compact and centered in the top chrome', () => {

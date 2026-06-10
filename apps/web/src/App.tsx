@@ -15,7 +15,6 @@ import {
 } from '@open-design/contracts/analytics';
 import type { AmrModelsResponse, ChatSessionMode } from '@open-design/contracts';
 import { EntryView } from './components/EntryView';
-import type { IntegrationTab } from './components/IntegrationsView';
 import { MarketplaceView } from './components/MarketplaceView';
 import { PluginDetailView } from './components/PluginDetailView';
 import type { CreateInput, ImportClaudeDesignOutcome } from './components/NewProjectPanel';
@@ -321,7 +320,6 @@ function AppInner() {
   const [settingsWelcome, setSettingsWelcome] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] = useState<SettingsSection>('execution');
   const [settingsHighlight, setSettingsHighlight] = useState<SettingsHighlight>(null);
-  const [integrationInitialTab, setIntegrationInitialTab] = useState<IntegrationTab>('mcp');
   const [daemonLive, setDaemonLive] = useState(false);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const amrModelsRef = useRef<AmrModelsResponse | null>(null);
@@ -399,7 +397,7 @@ function AppInner() {
 
   // v2 schema removed the standalone `app_launch` event; the initial
   // page_view fires from each top-level page surface (home / projects /
-  // automations / plugins / design_systems / integrations) instead.
+  // automations / plugins / design_systems) instead.
   // `detectClientType` still feeds analytics identity via the provider.
   void detectClientType;
 
@@ -1299,7 +1297,11 @@ function AppInner() {
         projectId: project.id,
         fileName: null,
       } as const;
-      openWorkspaceTab(projectRoute);
+      try {
+        openWorkspaceTab(projectRoute);
+      } catch (err) {
+        console.warn('Failed to open workspace tab for new project', project.id, err);
+      }
       navigate(projectRoute);
       return true;
     },
@@ -1605,17 +1607,6 @@ function AppInner() {
     section: SettingsSection = 'execution',
     opts?: { highlight?: SettingsHighlight },
   ) => {
-    if (section === 'composio' || section === 'mcpClient' || section === 'integrations') {
-      setIntegrationInitialTab(
-        section === 'composio'
-          ? 'connectors'
-          : section === 'mcpClient'
-            ? 'mcp'
-            : 'use-everywhere',
-      );
-      navigate({ kind: 'home', view: 'integrations' });
-      return;
-    }
     setSettingsWelcome(false);
     setSettingsInitialSection(section);
     setSettingsHighlight(opts?.highlight ?? null);
@@ -1630,9 +1621,8 @@ function AppInner() {
   }, [openSettings]);
 
   const openMcpSettings = useCallback(() => {
-    setIntegrationInitialTab('mcp');
-    navigate({ kind: 'home', view: 'integrations' });
-  }, []);
+    openSettings('mcpClient');
+  }, [openSettings]);
 
   // The composer "+" menu's "add plugin" / "add connector" rows route to the
   // home plugin-registry / connector-integration surfaces.
@@ -1641,9 +1631,8 @@ function AppInner() {
   }, []);
 
   const openConnectorIntegrations = useCallback(() => {
-    setIntegrationInitialTab('connectors');
-    navigate({ kind: 'home', view: 'integrations' });
-  }, []);
+    openSettings('composio');
+  }, [openSettings]);
 
   const handleCompleteOnboarding = useCallback(() => {
     const current = latestPersistedConfigRef.current;
@@ -1823,8 +1812,6 @@ function AppInner() {
         config={config}
         providerModelsCache={providerModelsCache}
         onProviderModelsCacheChange={setProviderModelsCache}
-        integrationInitialTab={integrationInitialTab}
-        composioConfigLoading={composioConfigLoading}
         daemonLive={daemonLive}
         onModeChange={handleModeChange}
         onAgentChange={handleAgentChange}
@@ -1850,8 +1837,9 @@ function AppInner() {
         onChangeDefaultDesignSystem={handleChangeDefaultDesignSystem}
         onCreateDesignSystem={() => navigate({ kind: 'design-system-create' })}
         onOpenDesignSystem={(id: string) => navigate({ kind: 'design-system-detail', designSystemId: id })}
+        onSkillsRefresh={refreshSkills}
+        onSkillsChanged={handleSkillsChanged}
         onDesignSystemsRefresh={refreshDesignSystems}
-        onPersistComposioKey={handleConfigPersistComposioKey}
         onOpenSettings={openSettings}
         onCompleteOnboarding={handleCompleteOnboarding}
       />

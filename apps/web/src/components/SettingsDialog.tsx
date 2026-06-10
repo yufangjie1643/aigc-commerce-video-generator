@@ -255,12 +255,12 @@ const SETTINGS_MEDIA_PROVIDER_IDS = new Set<MediaProviderId>([
   "leonardo",
   "tavily"
 ]);
-const UNDERSTANDING_API_PROVIDER_IDS: MediaProviderId[] = ["mimo", "volcengine"];
+const UNDERSTANDING_API_PROVIDER_IDS: MediaProviderId[] = ["mimo", "volcengine-ark"];
 
 type MediaWorkflowGroupId = "video" | "image" | "voice" | "sound" | "research";
 
 const MEDIA_WORKFLOW_AVAILABLE_MODEL_IDS = new Set([
-  "doubao-seedance-1.5-pro",
+  "doubao-seedance-2-0-260128",
   "image-01",
   "image-01-live",
   "speech-2.8-hd",
@@ -4245,7 +4245,7 @@ export function ConnectorSection({
    *  section-local Save button can flip from "Saving…" back to idle. */
   onPersistComposioKey: (composio: AppConfig["composio"]) => Promise<void> | void;
   /** Optional analytics hook for the integrations surface. The parent
-   *  (IntegrationsView) wires this so connectors-tab clicks emit on
+   *  (SettingsDialog) wires this so connectors-tab clicks emit on
    *  `page_name: 'integrations'`; when omitted (SettingsDialog uses the
    *  settings page family instead), no event is fired. */
   onConnectorsTabClick?: (

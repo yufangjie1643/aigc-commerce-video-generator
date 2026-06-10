@@ -162,14 +162,24 @@ describe("HomeView workbench task chips", () => {
     renderHome({ onSubmit });
 
     await clickHomeRailChip("video-generation");
-    await waitFor(() => expect(homeHeroPromptText()).toContain("你是带货视频生成助手"));
-    await setHomePrompt("Generate a 20-second product-selling video for a portable blender.");
+    await waitFor(() => expect(homeHeroPromptText()).toContain("你是带货视频六阶段工作流助手"));
+    expect(homeHeroPromptText()).toContain("先判断任务类型");
+    expect(homeHeroPromptText()).toContain(
+      "请用我刚上传的商品素材生成一条 9:16 竖版带货短视频。严格按 commerce-video 六阶段流程执行"
+    );
+    expect(homeHeroPromptText()).toContain("用户已明确要求一键成片");
+    expect(homeHeroPromptText()).toContain("商品素材上传 -> 剧本生成 -> 基础分镜 -> 一键成片 -> 任务进度 -> 预览导出");
+    expect(homeHeroPromptText()).toContain("每次只完成当前阶段");
+    expect(homeHeroPromptText()).toContain("一键成片阶段只创建生成任务");
+    expect(homeHeroPromptText()).not.toContain("直接进入一键链路");
+    expect(homeHeroPromptText()).not.toContain("media generate");
+    await setHomePrompt("Generate a <=15s product-selling video for a portable blender with preview/export.");
     await submitHome();
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(
         expect.objectContaining({
-          prompt: "Generate a 20-second product-selling video for a portable blender.",
+          prompt: "Generate a <=15s product-selling video for a portable blender with preview/export.",
           conversationMode: "comprehensive",
           pluginId: null,
           appliedPluginSnapshotId: null,

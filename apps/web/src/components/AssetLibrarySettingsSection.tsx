@@ -1,44 +1,45 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Button } from '@open-design/components';
-import type {
-  AssetLibraryToolConfig,
-  EmbeddingProviderConfig,
-} from '@open-design/contracts';
+import { useEffect, useMemo, useState } from "react";
+import { Button } from "@open-design/components";
+import type { AssetLibraryToolConfig, EmbeddingProviderConfig } from "@open-design/contracts";
 import {
   fetchAssetLibraryConfig,
   saveAssetLibraryToolConfig,
   saveEmbeddingConfig,
   testAssetLibraryToolConfig,
-  testEmbeddingConfig,
-} from '../providers/asset-library';
-import { Icon } from './Icon';
-import styles from './AssetLibrarySettingsSection.module.css';
+  testEmbeddingConfig
+} from "../providers/asset-library";
+import { Icon } from "./Icon";
+import styles from "./AssetLibrarySettingsSection.module.css";
 
-type Status = { kind: 'idle' } | { kind: 'ok' | 'error'; message: string };
+type Status = { kind: "idle" } | { kind: "ok" | "error"; message: string };
+
+const VOLCENGINE_ARK_EMBEDDING_BASE_URL = "https://ark.cn-beijing.volces.com";
+const VOLCENGINE_ARK_EMBEDDING_ENDPOINT_PATH = "/api/v3/embeddings/multimodal";
+const VOLCENGINE_ARK_EMBEDDING_MODEL = "doubao-embedding-vision-251215";
 
 export function AssetLibrarySettingsSection() {
   const [tools, setTools] = useState<AssetLibraryToolConfig | null>(null);
   const [embedding, setEmbedding] = useState<EmbeddingProviderConfig | null>(null);
-  const [apiKey, setApiKey] = useState('');
-  const [headersJson, setHeadersJson] = useState('{}');
-  const [mappingJson, setMappingJson] = useState('{}');
+  const [apiKey, setApiKey] = useState("");
+  const [headersJson, setHeadersJson] = useState("{}");
+  const [mappingJson, setMappingJson] = useState("{}");
   const [showApiKey, setShowApiKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  const [status, setStatus] = useState<Status>({ kind: "idle" });
 
   async function reload() {
     setLoading(true);
-    setStatus({ kind: 'idle' });
+    setStatus({ kind: "idle" });
     try {
       const config = await fetchAssetLibraryConfig();
       setTools(config.tools);
       setEmbedding(config.embedding);
-      setApiKey('');
+      setApiKey("");
       setHeadersJson(JSON.stringify(config.embedding.headers ?? {}, null, 2));
       setMappingJson(JSON.stringify(config.embedding.inputMapping ?? {}, null, 2));
     } catch (err) {
-      setStatus({ kind: 'error', message: err instanceof Error ? err.message : String(err) });
+      setStatus({ kind: "error", message: err instanceof Error ? err.message : String(err) });
     } finally {
       setLoading(false);
     }
@@ -49,19 +50,19 @@ export function AssetLibrarySettingsSection() {
   }, []);
 
   const endpoint = useMemo(() => {
-    if (!embedding) return '';
-    return `${embedding.baseUrl.replace(/\/+$/, '')}${embedding.endpointPath.startsWith('/') ? embedding.endpointPath : `/${embedding.endpointPath}`}`;
+    if (!embedding) return "";
+    return `${embedding.baseUrl.replace(/\/+$/, "")}${embedding.endpointPath.startsWith("/") ? embedding.endpointPath : `/${embedding.endpointPath}`}`;
   }, [embedding]);
 
   async function saveTools() {
     if (!tools) return;
-    setBusy('tools-save');
+    setBusy("tools-save");
     try {
       const result = await saveAssetLibraryToolConfig(tools);
       setTools(result.tools);
-      setStatus({ kind: 'ok', message: 'Local tool paths saved.' });
+      setStatus({ kind: "ok", message: "Local tool paths saved." });
     } catch (err) {
-      setStatus({ kind: 'error', message: err instanceof Error ? err.message : String(err) });
+      setStatus({ kind: "error", message: err instanceof Error ? err.message : String(err) });
     } finally {
       setBusy(null);
     }
@@ -69,18 +70,18 @@ export function AssetLibrarySettingsSection() {
 
   async function testTools() {
     if (!tools) return;
-    setBusy('tools-test');
+    setBusy("tools-test");
     try {
       const result = await testAssetLibraryToolConfig(tools);
       setTools(result.tools);
       setStatus({
-        kind: result.ok ? 'ok' : 'error',
+        kind: result.ok ? "ok" : "error",
         message: result.ok
-          ? 'ffmpeg and ffprobe are available.'
-          : result.tools.lastVerificationError ?? 'Tool verification failed.',
+          ? "ffmpeg and ffprobe are available."
+          : (result.tools.lastVerificationError ?? "Tool verification failed.")
       });
     } catch (err) {
-      setStatus({ kind: 'error', message: err instanceof Error ? err.message : String(err) });
+      setStatus({ kind: "error", message: err instanceof Error ? err.message : String(err) });
     } finally {
       setBusy(null);
     }
@@ -88,15 +89,15 @@ export function AssetLibrarySettingsSection() {
 
   async function saveEmbedding() {
     if (!embedding) return;
-    setBusy('embedding-save');
+    setBusy("embedding-save");
     try {
       const payload = embeddingPayload(embedding, apiKey, headersJson, mappingJson);
       const result = await saveEmbeddingConfig(payload);
       setEmbedding(result.embedding);
-      setApiKey('');
-      setStatus({ kind: 'ok', message: 'Vectorization provider saved.' });
+      setApiKey("");
+      setStatus({ kind: "ok", message: "Vectorization provider saved." });
     } catch (err) {
-      setStatus({ kind: 'error', message: err instanceof Error ? err.message : String(err) });
+      setStatus({ kind: "error", message: err instanceof Error ? err.message : String(err) });
     } finally {
       setBusy(null);
     }
@@ -104,17 +105,17 @@ export function AssetLibrarySettingsSection() {
 
   async function testEmbedding() {
     if (!embedding) return;
-    setBusy('embedding-test');
+    setBusy("embedding-test");
     try {
       const result = await testEmbeddingConfig(embeddingPayload(embedding, apiKey, headersJson, mappingJson));
       setStatus({
-        kind: result.ok ? 'ok' : 'error',
+        kind: result.ok ? "ok" : "error",
         message: result.ok
-          ? `Embedding connection OK${result.dimensions ? `, ${result.dimensions} dimensions` : ''}.`
-          : result.detail ?? result.kind,
+          ? `Embedding connection OK${result.dimensions ? `, ${result.dimensions} dimensions` : ""}.`
+          : (result.detail ?? result.kind)
       });
     } catch (err) {
-      setStatus({ kind: 'error', message: err instanceof Error ? err.message : String(err) });
+      setStatus({ kind: "error", message: err instanceof Error ? err.message : String(err) });
     } finally {
       setBusy(null);
     }
@@ -131,11 +132,11 @@ export function AssetLibrarySettingsSection() {
     );
   }
 
-  const toolsState = tools.lastVerificationError ? 'error' : tools.lastVerifiedAt ? 'ok' : 'idle';
-  const toolsStateLabel =
-    toolsState === 'ok' ? '已验证' : toolsState === 'error' ? '需检查' : '待验证';
-  const providerLabel = embedding.providerId === 'custom' ? 'Custom endpoint' : 'Volcengine Ark';
-  const keyLabel = embedding.apiKeyConfigured ? `已配置 ...${embedding.apiKeyTail ?? ''}` : '未配置 Key';
+  const toolsState = tools.lastVerificationError ? "error" : tools.lastVerifiedAt ? "ok" : "idle";
+  const toolsStateLabel = toolsState === "ok" ? "已验证" : toolsState === "error" ? "需检查" : "待验证";
+  const providerLabel = embedding.providerId === "custom" ? "Custom endpoint" : "Volcengine Ark";
+  const keyLabel = embedding.apiKeyConfigured ? `已配置 ...${embedding.apiKeyTail ?? ""}` : "未配置 Key";
+  const isVolcengineArkEmbedding = embedding.providerId === "volcengine-ark";
 
   return (
     <section className={styles.section}>
@@ -147,19 +148,17 @@ export function AssetLibrarySettingsSection() {
                 <Icon name="terminal" size={15} />
               </span>
               <h3>本地视频处理工具</h3>
-              <span className={`${styles.badge} ${styles[`badge-${toolsState}`]}`}>
-                {toolsStateLabel}
-              </span>
+              <span className={`${styles.badge} ${styles[`badge-${toolsState}`]}`}>{toolsStateLabel}</span>
             </div>
             <p>切片、抽帧和探测元数据会优先使用这里的本地路径。</p>
           </div>
           <div className={styles.headerActions}>
-            <Button variant="subtle" onClick={() => void testTools()} disabled={busy === 'tools-test'}>
-              <Icon name={busy === 'tools-test' ? 'spinner' : 'terminal'} size={14} />
+            <Button variant="subtle" onClick={() => void testTools()} disabled={busy === "tools-test"}>
+              <Icon name={busy === "tools-test" ? "spinner" : "terminal"} size={14} />
               测试工具
             </Button>
-            <Button variant="primary" onClick={() => void saveTools()} disabled={busy === 'tools-save'}>
-              <Icon name={busy === 'tools-save' ? 'spinner' : 'check'} size={14} />
+            <Button variant="primary" onClick={() => void saveTools()} disabled={busy === "tools-save"}>
+              <Icon name={busy === "tools-save" ? "spinner" : "check"} size={14} />
               保存路径
             </Button>
           </div>
@@ -173,7 +172,9 @@ export function AssetLibrarySettingsSection() {
             <input
               className={styles.monoInput}
               value={tools.ffmpegPath}
-              onChange={(event) => setTools((current) => current ? { ...current, ffmpegPath: event.target.value } : current)}
+              onChange={(event) =>
+                setTools((current) => (current ? { ...current, ffmpegPath: event.target.value } : current))
+              }
             />
           </label>
           <label className={styles.field}>
@@ -184,7 +185,9 @@ export function AssetLibrarySettingsSection() {
             <input
               className={styles.monoInput}
               value={tools.ffprobePath}
-              onChange={(event) => setTools((current) => current ? { ...current, ffprobePath: event.target.value } : current)}
+              onChange={(event) =>
+                setTools((current) => (current ? { ...current, ffprobePath: event.target.value } : current))
+              }
             />
           </label>
           <label className={styles.toggleRow}>
@@ -195,7 +198,9 @@ export function AssetLibrarySettingsSection() {
             <input
               type="checkbox"
               checked={tools.autoDetectEnabled}
-              onChange={(event) => setTools((current) => current ? { ...current, autoDetectEnabled: event.target.checked } : current)}
+              onChange={(event) =>
+                setTools((current) => (current ? { ...current, autoDetectEnabled: event.target.checked } : current))
+              }
             />
             <span className={styles.switchTrack} aria-hidden="true" />
           </label>
@@ -229,25 +234,27 @@ export function AssetLibrarySettingsSection() {
                 <Icon name="sparkles" size={15} />
               </span>
               <h3>向量化模型</h3>
-              <span className={`${styles.badge} ${embedding.apiKeyConfigured ? styles['badge-ok'] : styles['badge-idle']}`}>
+              <span
+                className={`${styles.badge} ${embedding.apiKeyConfigured ? styles["badge-ok"] : styles["badge-idle"]}`}
+              >
                 {keyLabel}
               </span>
             </div>
             <p>用于摘要、标签、关键帧和多模态检索向量生成。</p>
           </div>
           <div className={styles.headerActions}>
-            <Button variant="subtle" onClick={() => void testEmbedding()} disabled={busy === 'embedding-test'}>
-              <Icon name={busy === 'embedding-test' ? 'spinner' : 'sparkles'} size={14} />
+            <Button variant="subtle" onClick={() => void testEmbedding()} disabled={busy === "embedding-test"}>
+              <Icon name={busy === "embedding-test" ? "spinner" : "sparkles"} size={14} />
               测试连接
             </Button>
-            <Button variant="primary" onClick={() => void saveEmbedding()} disabled={busy === 'embedding-save'}>
-              <Icon name={busy === 'embedding-save' ? 'spinner' : 'check'} size={14} />
+            <Button variant="primary" onClick={() => void saveEmbedding()} disabled={busy === "embedding-save"}>
+              <Icon name={busy === "embedding-save" ? "spinner" : "check"} size={14} />
               保存向量化
             </Button>
           </div>
         </div>
         <div className={styles.providerSummary}>
-          <span className={styles.providerMark}>{embedding.providerId === 'custom' ? 'API' : 'Ark'}</span>
+          <span className={styles.providerMark}>{embedding.providerId === "custom" ? "API" : "Ark"}</span>
           <div>
             <strong>{providerLabel}</strong>
             <span>{embedding.model}</span>
@@ -258,31 +265,56 @@ export function AssetLibrarySettingsSection() {
             <span className={styles.labelRow}>供应商</span>
             <select
               value={embedding.providerId}
-              onChange={(event) => setEmbedding((current) => current ? { ...current, providerId: event.target.value as EmbeddingProviderConfig['providerId'] } : current)}
+              onChange={(event) =>
+                setEmbedding((current) => {
+                  if (!current) return current;
+                  const providerId = event.target.value as EmbeddingProviderConfig["providerId"];
+                  if (providerId === "volcengine-ark") {
+                    return {
+                      ...current,
+                      providerId,
+                      baseUrl: VOLCENGINE_ARK_EMBEDDING_BASE_URL,
+                      endpointPath: VOLCENGINE_ARK_EMBEDDING_ENDPOINT_PATH,
+                      model: VOLCENGINE_ARK_EMBEDDING_MODEL
+                    };
+                  }
+                  return { ...current, providerId };
+                })
+              }
             >
               <option value="volcengine-ark">Volcengine Ark</option>
               <option value="custom">Custom</option>
             </select>
           </label>
           <label className={styles.field}>
-            <span className={styles.labelRow}>模型</span>
+            <span className={styles.labelRow}>
+              <span>模型</span>
+              {isVolcengineArkEmbedding ? <span className={styles.fieldHint}>Ark 白名单固定</span> : null}
+            </span>
             <input
               value={embedding.model}
-              onChange={(event) => setEmbedding((current) => current ? { ...current, model: event.target.value } : current)}
+              readOnly={isVolcengineArkEmbedding}
+              onChange={(event) =>
+                setEmbedding((current) => (current ? { ...current, model: event.target.value } : current))
+              }
             />
           </label>
           <label className={styles.field}>
             <span className={styles.labelRow}>Base URL</span>
             <input
               value={embedding.baseUrl}
-              onChange={(event) => setEmbedding((current) => current ? { ...current, baseUrl: event.target.value } : current)}
+              onChange={(event) =>
+                setEmbedding((current) => (current ? { ...current, baseUrl: event.target.value } : current))
+              }
             />
           </label>
           <label className={styles.field}>
             <span className={styles.labelRow}>Endpoint Path</span>
             <input
               value={embedding.endpointPath}
-              onChange={(event) => setEmbedding((current) => current ? { ...current, endpointPath: event.target.value } : current)}
+              onChange={(event) =>
+                setEmbedding((current) => (current ? { ...current, endpointPath: event.target.value } : current))
+              }
             />
           </label>
           <label className={`${styles.field} ${styles.fieldFull}`}>
@@ -292,18 +324,20 @@ export function AssetLibrarySettingsSection() {
             </span>
             <span className={styles.secretField}>
               <input
-                type={showApiKey ? 'text' : 'password'}
+                type={showApiKey ? "text" : "password"}
                 value={apiKey}
                 onChange={(event) => setApiKey(event.target.value)}
-                placeholder={embedding.apiKeyConfigured ? `Configured ...${embedding.apiKeyTail ?? ''}` : 'Paste API key'}
+                placeholder={
+                  embedding.apiKeyConfigured ? `Configured ...${embedding.apiKeyTail ?? ""}` : "Paste API key"
+                }
               />
               <button
                 type="button"
                 className={styles.secretButton}
                 onClick={() => setShowApiKey((current) => !current)}
-                aria-label={showApiKey ? '隐藏 API Key' : '显示 API Key'}
+                aria-label={showApiKey ? "隐藏 API Key" : "显示 API Key"}
               >
-                <Icon name={showApiKey ? 'eye-off' : 'eye'} size={14} />
+                <Icon name={showApiKey ? "eye-off" : "eye"} size={14} />
               </button>
             </span>
           </label>
@@ -316,11 +350,19 @@ export function AssetLibrarySettingsSection() {
           <div className={styles.grid}>
             <label className={`${styles.field} ${styles.fieldFull}`}>
               <span className={styles.labelRow}>Headers JSON</span>
-              <textarea value={headersJson} onChange={(event) => setHeadersJson(event.target.value)} spellCheck={false} />
+              <textarea
+                value={headersJson}
+                onChange={(event) => setHeadersJson(event.target.value)}
+                spellCheck={false}
+              />
             </label>
             <label className={`${styles.field} ${styles.fieldFull}`}>
               <span className={styles.labelRow}>Input Mapping JSON</span>
-              <textarea value={mappingJson} onChange={(event) => setMappingJson(event.target.value)} spellCheck={false} />
+              <textarea
+                value={mappingJson}
+                onChange={(event) => setMappingJson(event.target.value)}
+                spellCheck={false}
+              />
             </label>
           </div>
         </details>
@@ -330,12 +372,12 @@ export function AssetLibrarySettingsSection() {
         </div>
       </div>
 
-      {status.kind !== 'idle' ? (
+      {status.kind !== "idle" ? (
         <p
-          className={`${styles.status} ${status.kind === 'ok' ? styles.statusOk : styles.statusError}`}
-          role={status.kind === 'error' ? 'alert' : 'status'}
+          className={`${styles.status} ${status.kind === "ok" ? styles.statusOk : styles.statusError}`}
+          role={status.kind === "error" ? "alert" : "status"}
         >
-          <Icon name={status.kind === 'ok' ? 'check' : 'alert-triangle'} size={14} />
+          <Icon name={status.kind === "ok" ? "check" : "alert-triangle"} size={14} />
           {status.message}
         </p>
       ) : null}
@@ -347,27 +389,27 @@ function embeddingPayload(
   embedding: EmbeddingProviderConfig,
   apiKey: string,
   headersJson: string,
-  mappingJson: string,
+  mappingJson: string
 ): Partial<EmbeddingProviderConfig> & { preserveApiKey?: boolean } {
   return {
     ...embedding,
     apiKey,
     ...(!apiKey && embedding.apiKeyConfigured ? { preserveApiKey: true } : {}),
-    headers: parseStringJsonObject(headersJson, 'Headers JSON'),
-    inputMapping: parseJsonObject(mappingJson, 'Input Mapping JSON') as EmbeddingProviderConfig['inputMapping'],
+    headers: parseStringJsonObject(headersJson, "Headers JSON"),
+    inputMapping: parseJsonObject(mappingJson, "Input Mapping JSON") as EmbeddingProviderConfig["inputMapping"]
   };
 }
 
 function parseStringJsonObject(value: string, label: string): Record<string, string> {
   const parsed = parseJsonObject(value, label);
   return Object.fromEntries(
-    Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+    Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === "string")
   );
 }
 
 function parseJsonObject(value: string, label: string): Record<string, unknown> {
-  const parsed = JSON.parse(value || '{}');
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+  const parsed = JSON.parse(value || "{}");
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error(`${label} must be a JSON object.`);
   }
   return parsed as Record<string, unknown>;

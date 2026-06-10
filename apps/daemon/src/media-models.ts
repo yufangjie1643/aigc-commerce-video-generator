@@ -46,10 +46,19 @@ export const MEDIA_PROVIDERS: MediaProvider[] = [
   },
   {
     id: "volcengine",
-    label: "Volcengine Ark (Doubao)",
-    hint: "Seedance 1.5 Pro",
+    label: "Volcengine Doubao generation",
+    hint: "Seedance / Seedream / Doubao TTS endpoints",
     integrated: true,
+    defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3"
+  },
+  {
+    id: "volcengine-ark",
+    label: "Volcengine Ark understanding",
+    hint: "Official video understanding + multimodal embeddings",
+    integrated: true,
+    settingsVisible: false,
     defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    docsUrl: "https://console.volcengine.com/ark",
     supportsVideoUnderstanding: true,
     defaultVideoUnderstandingModel: "doubao-seed-2-0-lite-260215"
   },
@@ -453,12 +462,26 @@ export const IMAGE_MODELS: MediaModel[] = [
 
 export const VIDEO_MODELS: MediaModel[] = [
   {
+    id: "doubao-seedance-2-0-260128",
+    label: "doubao-seedance-2.0",
+    hint: "Volcengine Ark · Seedance 2.0 multimodal video",
+    provider: "volcengine",
+    caps: ["t2v", "i2v", "audio"],
+    default: true
+  },
+  {
+    id: "doubao-seedance-2-0-fast-260128",
+    label: "doubao-seedance-2.0-fast",
+    hint: "Volcengine Ark · Seedance 2.0 fast multimodal video",
+    provider: "volcengine",
+    caps: ["t2v", "i2v", "audio"]
+  },
+  {
     id: "doubao-seedance-1.5-pro",
     label: "doubao-seedance-1.5-pro",
-    hint: "Volcengine Ark · tested endpoint",
+    hint: "Volcengine Ark · legacy endpoint",
     provider: "volcengine",
-    caps: ["t2v", "audio"],
-    default: true
+    caps: ["t2v", "audio"]
   },
 
   {
@@ -662,7 +685,7 @@ export const AUDIO_MODELS_BY_KIND: Record<AudioKind, MediaModel[]> = {
 };
 
 export const MEDIA_ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4"];
-export const VIDEO_LENGTHS_SEC = [3, 5, 8, 10, 15, 30];
+export const VIDEO_LENGTHS_SEC = [3, 5, 8, 10, 11, 15, 30];
 export const AUDIO_DURATIONS_SEC = [5, 10, 15, 30, 60, 120];
 
 export function findMediaModel(id: string): MediaModel | null {

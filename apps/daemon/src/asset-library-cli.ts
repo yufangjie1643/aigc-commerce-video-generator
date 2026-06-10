@@ -23,7 +23,9 @@ const STRING_FLAGS = new Set([
   "summary",
   "text",
   "metadata-json",
+  "report-json",
   "patch-json",
+  "source-name",
   "source-url",
   "source-video-id",
   "duration-ms",
@@ -44,8 +46,16 @@ const STRING_FLAGS = new Set([
   "purpose",
   "note",
   "limit",
+  "concurrency",
+  "mode",
   "ids",
   "query",
+  "keyword",
+  "tag",
+  "tags",
+  "kind",
+  "kinds",
+  "granularity",
   "sort",
   "prompt",
   "prompt-file",
@@ -65,7 +75,14 @@ const BOOLEAN_FLAGS = new Set([
   "no-include-slices",
   "include-embeddings",
   "no-include-embeddings",
-  "only-unprocessed"
+  "include-vectors",
+  "only-unprocessed",
+  "recursive",
+  "no-recursive",
+  "dry-run",
+  "process",
+  "no-process",
+  "yes"
 ]);
 
 export async function runAssetsCli(args: string[]): Promise<{ exitCode: number }> {
@@ -85,7 +102,7 @@ export async function runAssetsCli(args: string[]): Promise<{ exitCode: number }
 
   const positionals = positionalArgs(args, STRING_FLAGS);
   const [section, action, first, second] = positionals;
-  if (!section || !action) {
+  if (!section || (section !== "status" && section !== "search" && !action)) {
     printAssetsHelp();
     return { exitCode: 2 };
   }
@@ -93,11 +110,17 @@ export async function runAssetsCli(args: string[]): Promise<{ exitCode: number }
   const base = (await resolveDaemonUrl({ flagUrl: flags["daemon-url"] })).replace(/\/$/, "");
   try {
     switch (section) {
+      case "status":
+        await runAssetStatus(base, action, flags);
+        return { exitCode: 0 };
       case "tools":
         await runAssetTools(base, action, flags);
         return { exitCode: 0 };
       case "embedding":
         await runAssetEmbedding(base, action, flags);
+        return { exitCode: 0 };
+      case "search":
+        await runAssetSearch(base, action, first, flags);
         return { exitCode: 0 };
       case "products":
         await runAssetProducts(base, action, first, second, flags);
@@ -105,6 +128,10 @@ export async function runAssetsCli(args: string[]): Promise<{ exitCode: number }
       case "commerce-videos":
       case "commerce":
         await runCommerceVideos(base, action, first, second, flags);
+        return { exitCode: 0 };
+      case "quality-videos":
+      case "quality":
+        await runQualityVideos(base, action, first, second, flags);
         return { exitCode: 0 };
       case "jobs":
         await runAssetJobs(base, action, first, flags);
@@ -121,6 +148,77 @@ export async function runAssetsCli(args: string[]): Promise<{ exitCode: number }
       console.error(`[assets] ${error.message}`);
     }
     return { exitCode: error.status ? 1 : 2 };
+  }
+}
+
+async function runAssetStatus(base: string, action: string | undefined, flags: Record<string, any>) {
+  if (action && action !== "get") {
+    throw new Error("usage: od assets status [--json]");
+  }
+  const [tools, embedding, productsData, videosData, qualityData] = await Promise.all([
+    requestJson(base, "/api/asset-library/tool-config"),
+    requestJson(base, "/api/asset-library/embedding-config"),
+    requestJson(base, "/api/asset-library/products"),
+    requestJson(base, "/api/asset-library/commerce-videos"),
+    requestJson(base, "/api/asset-library/quality-videos")
+  ]);
+  const products = Array.isArray(productsData.products) ? productsData.products : [];
+  const videos = Array.isArray(videosData.videos) ? videosData.videos : [];
+  const qualityVideos = Array.isArray(qualityData.videos) ? qualityData.videos : [];
+  const status = {
+    ok: true,
+    tools: tools.tools ?? tools,
+    embedding: embedding.embedding ?? embedding,
+    products: {
+      count: products.length,
+      byStatus: countByStatus(products),
+      recent: products.slice(0, 10).map(productSummary)
+    },
+    commerceVideos: {
+      count: videos.length,
+      byStatus: countByStatus(videos),
+      recent: videos.slice(0, 10).map(commerceVideoSummary)
+    },
+    qualityVideos: {
+      count: qualityVideos.length,
+      byStatus: countByStatus(qualityVideos),
+      recent: qualityVideos.slice(0, 10).map(commerceVideoSummary)
+    }
+  };
+  if (flags.json) return writeJson(status);
+
+  const toolConfig = status.tools ?? {};
+  const embeddingConfig = status.embedding ?? {};
+  console.log(
+    `[assets] products=${status.products.count} commerceVideos=${status.commerceVideos.count} qualityVideos=${status.qualityVideos.count}`
+  );
+  console.log(
+    `tools=ffmpeg:${toolConfig.ffmpegPath ? "configured" : "missing"} ffprobe:${toolConfig.ffprobePath ? "configured" : "missing"}`
+  );
+  console.log(
+    `embedding=${embeddingConfig.apiKeyConfigured ? "configured" : "missing"} provider=${embeddingConfig.providerId ?? "-"} model=${embeddingConfig.model ?? "-"}`
+  );
+  if (status.products.recent.length > 0) {
+    console.log("recent products:");
+    for (const product of status.products.recent) {
+      console.log(`  ${product.id}\t${product.status}\t${product.category || "-"}\t${product.title}`);
+    }
+  }
+  if (status.commerceVideos.recent.length > 0) {
+    console.log("recent commerce videos:");
+    for (const video of status.commerceVideos.recent) {
+      console.log(
+        `  ${video.id}\t${video.status}\t${video.sourceConnectorId || video.sourceKind || "-"}\t${video.title}`
+      );
+    }
+  }
+  if (status.qualityVideos.recent.length > 0) {
+    console.log("recent quality videos:");
+    for (const video of status.qualityVideos.recent) {
+      console.log(
+        `  ${video.id}\t${video.status}\t${video.sourceConnectorId || video.sourceKind || "-"}\t${video.title}`
+      );
+    }
   }
 }
 
@@ -181,6 +279,33 @@ async function runAssetEmbedding(base: string, action: string, flags: Record<str
   }
 }
 
+async function runAssetSearch(
+  base: string,
+  action: string | undefined,
+  first: string | undefined,
+  flags: Record<string, any>
+) {
+  const prompt = await readPromptFromFlags(flags);
+  const query = flags.query ?? flags.keyword ?? prompt ?? action ?? first;
+  const tags = splitList(flags.tags ?? flags.tag);
+  if (!query && tags.length === 0) {
+    throw new Error(
+      "usage: od assets search [--query <text>|--prompt-file <path|->] [--tags a,b] [--kind products|commerce-videos|quality-videos|all] [--granularity asset|slice|all] [--limit <n>] [--json]"
+    );
+  }
+  const body = {
+    ...(query ? { query } : {}),
+    ...(tags.length ? { tags } : {}),
+    ...(flags.kind || flags.kinds ? { kind: splitList(flags.kind ?? flags.kinds) } : {}),
+    ...(flags.granularity ? { granularity: flags.granularity } : {}),
+    ...(flags.limit ? { limit: Number(flags.limit) } : {}),
+    ...(flags["include-vectors"] ? { includeVectors: true } : {})
+  };
+  const data = await requestJson(base, "/api/asset-library/search", { method: "POST", body });
+  if (flags.json) return writeJson(data);
+  return printAssetSearchResults(data);
+}
+
 async function runAssetProducts(
   base: string,
   action: string,
@@ -239,6 +364,40 @@ async function runAssetProducts(
         ? writeJson(out)
         : console.log(`[assets] product image imported ${out.product?.id ?? "-"} job=${out.job?.id ?? "-"}`);
     }
+    case "import-folder":
+    case "ingest-folder": {
+      const folderPath = flags.path ?? first;
+      if (!folderPath) {
+        throw new Error(
+          "usage: od assets products import-folder <folder> [--mode serial|parallel] [--concurrency <n>] [--dry-run] [--json]"
+        );
+      }
+      const prompt = await readPromptFromFlags(flags);
+      const body = {
+        path: folderPath,
+        recursive: flags["no-recursive"] ? false : true,
+        dryRun: Boolean(flags["dry-run"]),
+        mode: flags.mode === "serial" ? "serial" : "parallel",
+        concurrency: flags.concurrency ? Number(flags.concurrency) : undefined,
+        limit: flags.limit ? Number(flags.limit) : undefined,
+        providerId: flags.provider,
+        model: flags.model,
+        ...(prompt ? { prompt } : {}),
+        ...(flags["no-process"] ? { processImported: false } : flags.process ? { processImported: true } : {})
+      };
+      const data = await requestJson(base, "/api/asset-library/products/import/folder", {
+        method: "POST",
+        body
+      });
+      if (flags.wait && !data.dryRun) {
+        for (const item of data.imported ?? []) {
+          if (item.processJobId) {
+            item.processJob = await waitForJob(base, { id: item.processJobId }, flags);
+          }
+        }
+      }
+      return flags.json ? writeJson(data) : printProductFolderIngest(data);
+    }
     case "process": {
       if (!first) throw new Error("usage: od assets products process <id> [--wait] [--json]");
       const data = await requestJson(base, `/api/asset-library/products/${encodeURIComponent(first)}/process`, {
@@ -251,13 +410,29 @@ async function runAssetProducts(
     }
     case "update": {
       if (!first)
-        throw new Error("usage: od assets products update <id> [--title <title>] [--patch-json <json>] [--json]");
+        throw new Error("usage: od assets products update <id> --yes [--title <title>] [--patch-json <json>] [--json]");
+      if (!flags.yes) {
+        throw new Error(`dangerous operation: re-run with --yes to update product asset ${first}`);
+      }
       const body = productUpdateBodyFromFlags(flags);
       const data = await requestJson(base, `/api/asset-library/products/${encodeURIComponent(first)}`, {
         method: "PATCH",
         body
       });
       return flags.json ? writeJson(data) : console.log(`[assets] product updated ${data.product?.id ?? "-"}`);
+    }
+    case "delete": {
+      if (!first) throw new Error("usage: od assets products delete <id> --yes [--json]");
+      if (!flags.yes) {
+        throw new Error(`dangerous operation: re-run with --yes to delete product asset ${first}`);
+      }
+      const data = await requestJson(base, `/api/asset-library/products/${encodeURIComponent(first)}`, {
+        method: "DELETE"
+      });
+      if (flags.json) return writeJson(data);
+      console.log(`[assets] product deleted ${data.product?.id ?? first}`);
+      if (data.warning) console.warn(`[assets] warning: ${data.warning}`);
+      return;
     }
     case "embed": {
       if (!first)
@@ -290,7 +465,7 @@ async function runAssetProducts(
     }
     default:
       throw new Error(
-        "usage: od assets products <list|get|import|import-image|import-upload|update|process|embed|context>"
+        "usage: od assets products <list|get|import|import-image|import-folder|import-upload|update|delete|process|embed|context>"
       );
   }
 }
@@ -480,14 +655,30 @@ async function runCommerceVideos(
     case "update": {
       if (!first)
         throw new Error(
-          "usage: od assets commerce-videos update <id> [--title <title>] [--patch-json <json>] [--json]"
+          "usage: od assets commerce-videos update <id> --yes [--title <title>] [--patch-json <json>] [--json]"
         );
+      if (!flags.yes) {
+        throw new Error(`dangerous operation: re-run with --yes to update commerce video asset ${first}`);
+      }
       const body = commerceVideoUpdateBodyFromFlags(flags);
       const data = await requestJson(base, `/api/asset-library/commerce-videos/${encodeURIComponent(first)}`, {
         method: "PATCH",
         body
       });
       return flags.json ? writeJson(data) : console.log(`[assets] commerce video updated ${data.video?.id ?? "-"}`);
+    }
+    case "delete": {
+      if (!first) throw new Error("usage: od assets commerce-videos delete <id> --yes [--json]");
+      if (!flags.yes) {
+        throw new Error(`dangerous operation: re-run with --yes to delete commerce video asset ${first}`);
+      }
+      const data = await requestJson(base, `/api/asset-library/commerce-videos/${encodeURIComponent(first)}`, {
+        method: "DELETE"
+      });
+      if (flags.json) return writeJson(data);
+      console.log(`[assets] commerce video deleted ${data.video?.id ?? first}`);
+      if (data.warning) console.warn(`[assets] warning: ${data.warning}`);
+      return;
     }
     case "embed": {
       if (!first)
@@ -544,7 +735,188 @@ async function runCommerceVideos(
     }
     default:
       throw new Error(
-        "usage: od assets commerce-videos <list|get|search|import|import-crawler|import-search|import-upload|update|process|slice|batch-process|embed|slices|methodology|methodology-summary>"
+        "usage: od assets commerce-videos <list|get|search|import|import-crawler|import-search|import-upload|update|delete|process|slice|batch-process|embed|slices|methodology|methodology-summary>"
+      );
+  }
+}
+
+async function runQualityVideos(
+  base: string,
+  action: string,
+  first: string | undefined,
+  second: string | undefined,
+  flags: Record<string, any>
+) {
+  switch (action) {
+    case "list": {
+      const query = new URLSearchParams();
+      if (flags.query) query.set("query", flags.query);
+      if (flags.category) query.set("category", flags.category);
+      if (flags.keyword) query.set("keyword", flags.keyword);
+      if (flags.limit) query.set("limit", flags.limit);
+      const data = await requestJson(base, `/api/asset-library/quality-videos${query.size ? `?${query}` : ""}`);
+      if (flags.json) return writeJson(data);
+      for (const video of data.videos ?? []) {
+        const source = video.metadata?.sourceDeclaration?.sourceName ?? video.sourceConnectorId ?? video.sourceKind;
+        console.log(`${video.id}\t${video.status}\t${source || "-"}\t${video.title}`);
+      }
+      return;
+    }
+    case "get": {
+      if (!first) throw new Error("usage: od assets quality-videos get <id> [--json]");
+      const data = await requestJson(base, `/api/asset-library/quality-videos/${encodeURIComponent(first)}`);
+      return flags.json ? writeJson(data) : printCommerceVideo(data.video, data.slices);
+    }
+    case "search": {
+      const body = qualityVideoSearchBodyFromFlags(flags, first, second);
+      if (!body.query) {
+        throw new Error(
+          "usage: od assets quality-videos search --query <text> [--source-name <name>] [--connector <id>] [--limit <n>] [--json]"
+        );
+      }
+      const data = await requestJson(base, "/api/asset-library/quality-videos/search", { method: "POST", body });
+      if (flags.json) return writeJson(data);
+      console.log(
+        `[assets] found ${data.items?.length ?? 0} quality video candidates source=${body.sourceName ?? body.connectorId}`
+      );
+      for (const item of data.items ?? []) {
+        const metrics = item.metrics && typeof item.metrics === "object" ? item.metrics : {};
+        const views = metrics.play ?? metrics.view ?? metrics.views ?? "-";
+        const likes = metrics.like ?? metrics.likes ?? "-";
+        console.log(
+          `${item.videoId ?? item.bvid ?? item.id ?? "-"}\t${item.title ?? "-"}\t${item.author ?? "-"}\tviews=${views}\tlike=${likes}\t${item.url ?? item.permalink ?? "-"}`
+        );
+      }
+      return;
+    }
+    case "import-search": {
+      const body = qualityVideoSearchBodyFromFlags(flags, first, second);
+      if (!body.query) {
+        throw new Error(
+          "usage: od assets quality-videos import-search --query <text> [--source-name <name>] [--connector <id>] [--limit <n>] [--json]"
+        );
+      }
+      const data = await requestJson(base, "/api/asset-library/quality-videos/import/search", {
+        method: "POST",
+        body
+      });
+      return flags.json
+        ? writeJson(data)
+        : console.log(`[assets] saved ${data.videos?.length ?? 0} quality video reports query=${body.query}`);
+    }
+    case "import-upload": {
+      const localPath = flags.path ?? first;
+      if (!localPath) {
+        throw new Error(
+          "usage: od assets quality-videos import-upload <localpath> [--title <title>] [--source-name owned-upload] [--wait] [--json]"
+        );
+      }
+      const data = await uploadQualityVideo(base, localPath, flags);
+      const out = flags.wait ? { ...data, job: await waitForJob(base, data.job, flags) } : data;
+      return flags.json
+        ? writeJson(out)
+        : console.log(`[assets] uploaded owned quality video ${out.video?.id ?? "-"} job=${out.job?.id ?? "-"}`);
+    }
+    case "import": {
+      const body = qualityVideoImportBodyFromFlags(flags, first);
+      const prompt = await readPromptFromFlags(flags);
+      if (prompt) body.metadata = { ...(body.metadata ?? {}), prompt };
+      if (!body.title || !body.sourceName || (!body.sourceUrl && !body.sourceVideoId)) {
+        throw new Error(
+          "usage: od assets quality-videos import --title <title> --source-name <name> [--source-url <url>|--source-video-id <id>] [--report-json <json>] [--json]"
+        );
+      }
+      const data = await requestJson(base, "/api/asset-library/quality-videos", { method: "POST", body });
+      return flags.json ? writeJson(data) : console.log(`[assets] quality video report saved ${data.video?.id ?? "-"}`);
+    }
+    case "update": {
+      if (!first)
+        throw new Error(
+          "usage: od assets quality-videos update <id> --yes [--title <title>] [--patch-json <json>] [--json]"
+        );
+      if (!flags.yes) {
+        throw new Error(`dangerous operation: re-run with --yes to update quality video asset ${first}`);
+      }
+      const data = await requestJson(base, `/api/asset-library/quality-videos/${encodeURIComponent(first)}`, {
+        method: "PATCH",
+        body: commerceVideoUpdateBodyFromFlags(flags)
+      });
+      return flags.json ? writeJson(data) : console.log(`[assets] quality video updated ${data.video?.id ?? "-"}`);
+    }
+    case "delete": {
+      if (!first) throw new Error("usage: od assets quality-videos delete <id> --yes [--json]");
+      if (!flags.yes) {
+        throw new Error(`dangerous operation: re-run with --yes to delete quality video asset ${first}`);
+      }
+      const data = await requestJson(base, `/api/asset-library/quality-videos/${encodeURIComponent(first)}`, {
+        method: "DELETE"
+      });
+      if (flags.json) return writeJson(data);
+      console.log(`[assets] quality video deleted ${data.video?.id ?? first}`);
+      if (data.warning) console.warn(`[assets] warning: ${data.warning}`);
+      return;
+    }
+    case "process": {
+      if (!first) throw new Error("usage: od assets quality-videos process <id> [--wait] [--json]");
+      const data = await requestJson(base, `/api/asset-library/quality-videos/${encodeURIComponent(first)}/process`, {
+        method: "POST"
+      });
+      const out = flags.wait ? { ...data, job: await waitForJob(base, data.job, flags) } : data;
+      return flags.json
+        ? writeJson(out)
+        : console.log(`[assets] quality video job ${out.job?.id ?? "-"} ${out.job?.status ?? "-"}`);
+    }
+    case "embed": {
+      if (!first)
+        throw new Error(
+          "usage: od assets quality-videos embed <id> [--text <text>|--prompt-file <path|->] [--include-slices|--no-include-slices] [--wait] [--json]"
+        );
+      const prompt = await readPromptFromFlags(flags);
+      const data = await requestJson(base, `/api/asset-library/quality-videos/${encodeURIComponent(first)}/embed`, {
+        method: "POST",
+        body: {
+          ...(flags.text || prompt ? { text: flags.text ?? prompt } : {}),
+          ...(flags["include-slices"] ? { includeSlices: true } : {}),
+          ...(flags["no-include-slices"] ? { includeSlices: false } : {})
+        }
+      });
+      const out = flags.wait ? { ...data, job: await waitForJob(base, data.job, flags) } : data;
+      return flags.json
+        ? writeJson(out)
+        : console.log(`[assets] quality video embedding job ${out.job?.id ?? "-"} ${out.job?.status ?? "-"}`);
+    }
+    case "methodology":
+    case "report": {
+      if (!first) throw new Error("usage: od assets quality-videos report <id> [--json]");
+      const data = await requestJson(base, `/api/asset-library/quality-videos/${encodeURIComponent(first)}`);
+      const report = data.video?.metadata?.qualityReport ?? {};
+      if (flags.json) return writeJson({ report, methodology: data.video?.methodology ?? {} });
+      console.log(`Hook methods: ${(report.hookMethods ?? data.video?.methodology?.hooks ?? []).join(", ") || "-"}`);
+      console.log(
+        `Selling points: ${(report.sellingPoints ?? data.video?.methodology?.sellingTriggers ?? []).join(", ") || "-"}`
+      );
+      console.log(`Storyboard: ${(report.storyboard ?? data.video?.methodology?.structure ?? []).join(" > ") || "-"}`);
+      console.log(`Style: ${(report.styleTags ?? data.video?.methodology?.styleTags ?? []).join(", ") || "-"}`);
+      return;
+    }
+    case "methodology-summary": {
+      const body = {
+        ids: splitList(flags.ids),
+        query: flags.query ?? (flags.ids ? undefined : first),
+        limit: flags.limit ? Number(flags.limit) : undefined,
+        ...(flags["no-include-slices"] ? { includeSlices: false } : {})
+      };
+      const data = await requestJson(base, "/api/asset-library/quality-videos/methodology-summary", {
+        method: "POST",
+        body
+      });
+      if (flags.json) return writeJson(data);
+      console.log(data.prompt ?? "");
+      return;
+    }
+    default:
+      throw new Error(
+        "usage: od assets quality-videos <list|get|search|import|import-search|import-upload|update|delete|process|embed|report|methodology-summary>"
       );
   }
 }
@@ -627,6 +999,58 @@ function commerceVideoUpdateBodyFromFlags(flags: Record<string, any>) {
   return body;
 }
 
+function qualityVideoSearchBodyFromFlags(
+  flags: Record<string, any>,
+  first: string | undefined,
+  second: string | undefined
+) {
+  return {
+    connectorId: flags.connector ?? first ?? flags["source-name"] ?? "bilibili",
+    sourceName: flags["source-name"] ?? flags.connector ?? first ?? "bilibili",
+    toolName: flags.tool,
+    query: flags.query ?? second ?? flags.keyword ?? flags.category,
+    category: flags.category,
+    keyword: flags.keyword,
+    limit: flags.limit ? Number(flags.limit) : undefined,
+    sort: flags.sort ?? "hot",
+    input: jsonFlag(flags["input-json"], {})
+  };
+}
+
+function qualityVideoImportBodyFromFlags(flags: Record<string, any>, first: string | undefined) {
+  const methodology = {
+    ...jsonFlag(flags["methodology-json"], {}),
+    ...(typeof flags.hooks === "string" ? { hooks: splitList(flags.hooks) } : {}),
+    ...(typeof flags.structure === "string" ? { structure: splitList(flags.structure) } : {}),
+    ...(typeof flags["selling-triggers"] === "string" ? { sellingTriggers: splitList(flags["selling-triggers"]) } : {}),
+    ...(typeof flags["style-tags"] === "string" ? { styleTags: splitList(flags["style-tags"]) } : {})
+  };
+  const report = {
+    ...jsonFlag(flags["report-json"], {}),
+    ...(typeof flags.hooks === "string" ? { hookMethods: splitList(flags.hooks) } : {}),
+    ...(typeof flags["selling-points"] === "string" ? { sellingPoints: splitList(flags["selling-points"]) } : {}),
+    ...(typeof flags.structure === "string" ? { storyboard: splitList(flags.structure) } : {}),
+    ...(typeof flags["style-tags"] === "string" ? { styleTags: splitList(flags["style-tags"]) } : {})
+  };
+  return {
+    title: flags.title ?? first,
+    sourceName: flags["source-name"] ?? flags.connector,
+    sourceUrl: flags["source-url"] ?? flags.url,
+    sourceVideoId: flags["source-video-id"] ?? flags["video-id"],
+    category: flags.category,
+    keyword: flags.keyword ?? flags.query,
+    video: {
+      ...jsonFlag(flags["video-json"], {}),
+      ...(typeof flags.summary === "string" ? { summary: flags.summary } : {})
+    },
+    methodology,
+    report,
+    metadata: {
+      ...jsonFlag(flags["metadata-json"], {})
+    }
+  };
+}
+
 async function uploadCommerceVideo(base: string, localPath: string, flags: Record<string, any>) {
   const fs = await import("node:fs/promises");
   const path = await import("node:path");
@@ -635,6 +1059,25 @@ async function uploadCommerceVideo(base: string, localPath: string, flags: Recor
   form.append("file", new Blob([bytes], { type: "application/octet-stream" }), path.basename(localPath));
   if (flags.title) form.append("title", flags.title);
   const resp = await fetch(`${base}/api/asset-library/commerce-videos/import/upload`, {
+    method: "POST",
+    body: form
+  });
+  return parseResponse(resp);
+}
+
+async function uploadQualityVideo(base: string, localPath: string, flags: Record<string, any>) {
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
+  const bytes = await fs.readFile(localPath);
+  const form = new FormData();
+  form.append("file", new Blob([bytes], { type: "application/octet-stream" }), path.basename(localPath));
+  appendFormText(form, "title", flags.title);
+  appendFormText(form, "sourceName", flags["source-name"]);
+  appendFormText(form, "category", flags.category);
+  appendFormText(form, "keyword", flags.keyword ?? flags.query);
+  appendFormText(form, "metadataJson", flags["metadata-json"]);
+  appendFormText(form, "reportJson", flags["report-json"]);
+  const resp = await fetch(`${base}/api/asset-library/quality-videos/import/upload`, {
     method: "POST",
     body: form
   });
@@ -733,11 +1176,52 @@ function outputEmbedding(data: any, flags: Record<string, any>) {
   console.log(`apiKey=${embedding.apiKeyConfigured ? `configured (...${embedding.apiKeyTail ?? "****"})` : "missing"}`);
 }
 
+function printAssetSearchResults(data: any) {
+  const results = Array.isArray(data.results) ? data.results : [];
+  console.log(
+    `[assets] matches=${results.length} query=${data.query || "-"} vectorized=${data.vectorizedQuery ? "yes" : "no"}`
+  );
+  for (const result of results) {
+    const ref = result.sliceId ? `${result.assetId}#${result.sliceId}` : result.assetId;
+    const score = typeof result.score === "number" ? result.score.toFixed(3) : "-";
+    const vector = typeof result.vectorScore === "number" ? ` vector=${result.vectorScore.toFixed(3)}` : "";
+    const tags = Array.isArray(result.tags) && result.tags.length ? ` tags=${result.tags.slice(0, 5).join(",")}` : "";
+    const subtitle = result.subtitle ? ` (${result.subtitle})` : "";
+    console.log(
+      `${result.kind}\t${result.granularity}\t${ref}\tscore=${score}${vector}\t${result.title}${subtitle}${tags}`
+    );
+  }
+}
+
 function printProduct(product: any) {
   console.log(`${product.id}\t${product.status}\t${product.title}`);
   console.log(`subject=${product.subject || "-"}`);
   console.log(`category=${product.category || "-"}`);
   console.log(`sellingPoints=${(product.product?.sellingPoints ?? []).join(", ") || "-"}`);
+}
+
+function printProductFolderIngest(data: any) {
+  const importedCount = Array.isArray(data.imported) ? data.imported.length : 0;
+  const failedCount = Array.isArray(data.failed) ? data.failed.length : 0;
+  const skippedCount = Array.isArray(data.skipped) ? data.skipped.length : 0;
+  console.log(
+    `[assets] product folder ${data.dryRun ? "dry-run" : "imported"} images=${data.scanned?.imageCount ?? 0} imported=${importedCount} failed=${failedCount} skipped=${skippedCount} mode=${data.mode ?? "-"} concurrency=${data.concurrency ?? "-"}`
+  );
+  for (const cluster of data.clusters ?? []) {
+    console.log(`cluster ${cluster.id}\t${cluster.category}\t${cluster.images?.length ?? 0}`);
+    for (const image of cluster.images ?? []) {
+      const id = image.productId ? `\t${image.productId}` : "";
+      const error = image.error ? `\terror=${image.error}` : "";
+      console.log(`  ${image.relativePath}${id}${error}`);
+    }
+  }
+  if (skippedCount > 0) {
+    console.log("skipped:");
+    for (const item of (data.skipped ?? []).slice(0, 50)) {
+      console.log(`  ${item.relativePath}\t${item.reason}`);
+    }
+    if (skippedCount > 50) console.log(`  ... ${skippedCount - 50} more`);
+  }
 }
 
 function printCommerceVideo(video: any, slices: any[]) {
@@ -806,6 +1290,39 @@ function splitList(value: unknown): string[] {
     .filter(Boolean);
 }
 
+function countByStatus(items: any[]) {
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    const status = typeof item?.status === "string" && item.status ? item.status : "unknown";
+    counts[status] = (counts[status] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function productSummary(product: any) {
+  return {
+    id: product?.id ?? "",
+    title: product?.title ?? "",
+    status: product?.status ?? "",
+    subject: product?.subject ?? "",
+    category: product?.category ?? "",
+    imageCount: Array.isArray(product?.files) ? product.files.length : 0
+  };
+}
+
+function commerceVideoSummary(video: any) {
+  return {
+    id: video?.id ?? "",
+    title: video?.title ?? "",
+    status: video?.status ?? "",
+    sourceKind: video?.sourceKind ?? "",
+    sourceConnectorId: video?.sourceConnectorId ?? "",
+    subject: video?.product?.subject ?? "",
+    category: video?.product?.category ?? "",
+    sliceCount: Array.isArray(video?.video?.slices) ? video.video.slices.length : undefined
+  };
+}
+
 function jsonFlag(value: unknown, fallback: any) {
   if (typeof value !== "string" || value.length === 0) return fallback;
   try {
@@ -832,6 +1349,8 @@ function writeJson(data: any) {
 
 function printAssetsHelp() {
   console.log(`Usage:
+  od assets status [--json]
+
   od assets tools get [--json]
   od assets tools set [--ffmpeg-path <path>] [--ffprobe-path <path>] [--auto-detect|--no-auto-detect] [--json]
   od assets tools test [--json]
@@ -841,6 +1360,12 @@ function printAssetsHelp() {
                           [--endpoint-path <path>] [--model <id>] [--headers-json <json>]
                           [--input-mapping-json <json>] [--preserve-api-key] [--json]
   od assets embedding test [--api-key <key>] [--json]
+      Volcengine Ark vectorization is limited to doubao-embedding-vision-251215.
+      Use --provider custom for non-Ark gateways or other embedding models.
+
+  od assets search [--query <text>|--prompt-file <path|->] [--tags a,b]
+                   [--kind products|commerce-videos|quality-videos|all]
+                   [--granularity asset|slice|all] [--limit <n>] [--include-vectors] [--json]
 
   od assets products list [--query <text>] [--limit <n>] [--json]
   od assets products get <id> [--json]
@@ -848,8 +1373,12 @@ function printAssetsHelp() {
                             [--selling-points a,b] [--prompt-file <path|->] [--json]
   od assets products import-image <localpath> [--title <title>] [--subject <text>]
                             [--category <text>] [--selling-points a,b] [--wait] [--json]
-  od assets products update <id> [--title <title>] [--subject <text>] [--category <text>]
+  od assets products import-folder <folder> [--mode serial|parallel] [--concurrency <n>]
+                            [--provider <id>] [--model <id>] [--prompt-file <path|->]
+                            [--dry-run] [--no-recursive] [--no-process] [--wait] [--json]
+  od assets products update <id> --yes [--title <title>] [--subject <text>] [--category <text>]
                             [--selling-points a,b] [--summary <text>] [--patch-json <json>] [--json]
+  od assets products delete <id> --yes [--json]
   od assets products process <id> [--wait] [--json]
   od assets products embed <id> [--text <text>|--prompt-file <path|->] [--wait] [--json]
   od assets products context <projectId> <assetId> [--purpose <text>] [--note <text>] [--json]
@@ -868,8 +1397,9 @@ function printAssetsHelp() {
   od assets commerce-videos import-search --connector bilibili --query <text>
                                           [--limit <n>] [--sort hot|newest|comments|favorites] [--json]
   od assets commerce-videos import-upload <localpath> [--title <title>] [--wait] [--json]
-  od assets commerce-videos update <id> [--title <title>] [--summary <text>] [--product-json <json>]
+  od assets commerce-videos update <id> --yes [--title <title>] [--summary <text>] [--product-json <json>]
                                   [--video-json <json>] [--methodology-json <json>] [--patch-json <json>] [--json]
+  od assets commerce-videos delete <id> --yes [--json]
   od assets commerce-videos process <id> [--wait] [--json]
   od assets commerce-videos slice <id> [--wait] [--json]
   od assets commerce-videos batch-process [--ids <id,id>] [--query <text>] [--limit <n>]
@@ -880,11 +1410,28 @@ function printAssetsHelp() {
   od assets commerce-videos methodology <id> [--json]
   od assets commerce-videos methodology-summary [--ids <id,id>] [--query <text>] [--limit <n>] [--json]
 
+  od assets quality-videos list [--query <text>] [--category <text>] [--keyword <text>] [--limit <n>] [--json]
+  od assets quality-videos get <id> [--json]
+  od assets quality-videos search --query <text> [--source-name facebook|instagram|bilibili|...]
+                                [--connector <id>] [--tool <name>] [--category <text>] [--keyword <text>] [--json]
+  od assets quality-videos import --title <title> --source-name <name>
+                                [--source-url <url>|--source-video-id <id>] [--report-json <json>]
+                                [--hooks a,b] [--selling-points a,b] [--structure a,b] [--style-tags a,b] [--json]
+  od assets quality-videos import-search --query <text> [--source-name <name>] [--connector <id>]
+                                       [--category <text>] [--keyword <text>] [--limit <n>] [--json]
+  od assets quality-videos import-upload <localpath> [--title <title>] [--source-name owned-upload] [--wait] [--json]
+  od assets quality-videos update <id> --yes [--title <title>] [--summary <text>] [--patch-json <json>] [--json]
+  od assets quality-videos delete <id> --yes [--json]
+  od assets quality-videos process <id> [--wait] [--json]
+  od assets quality-videos embed <id> [--text <text>|--prompt-file <path|->] [--wait] [--json]
+  od assets quality-videos report <id> [--json]
+  od assets quality-videos methodology-summary [--ids <id,id>] [--query <text>] [--limit <n>] [--json]
+
   od assets jobs get <jobId> [--json]
   od assets jobs wait <jobId> [--json]
 
 Common options:
   --daemon-url <url>   Open Design daemon HTTP base.
   --json               Emit raw JSON for scripted callers.
-  --prompt-file <path|-> stores long import notes without shell quoting.`);
+  --prompt-file <path|-> stores long import notes or search prompts without shell quoting.`);
 }

@@ -41,6 +41,12 @@ export interface LauncherContext {
    * round-trip — so it returns void and creates/focuses the tab itself.
    */
   createBrowser?: () => void;
+  /**
+   * Open the storyboard-level editing surface. This is a local workspace tool:
+   * it prepares shot-level changes and hands targeted prompts back to the
+   * active agent instead of creating daemon state.
+   */
+  createStoryboardEditor?: () => void;
 }
 
 export interface LauncherAction {
@@ -49,9 +55,13 @@ export interface LauncherAction {
   /** Icon shown to the left of the label; any name from the shared icon set. */
   iconName: IconName;
   /** i18n key for the action label (e.g. workspace.newTerminal). */
-  labelKey: keyof Dict;
+  labelKey?: keyof Dict;
+  /** Direct label for small local tools that do not yet need full i18n fanout. */
+  label?: string;
   /** Optional i18n key for a secondary description line. */
   descriptionKey?: keyof Dict;
+  /** Optional direct secondary description. */
+  description?: string;
   /** Invoked when the user picks the action; the menu closes afterwards. */
   run: (ctx: LauncherContext) => void;
 }
@@ -89,6 +99,16 @@ export function buildLauncherActions(ctx: LauncherContext): LauncherAction[] {
       // id to thread through openTab here.
       run: (runCtx) => {
         runCtx.createBrowser?.();
+      },
+    });
+  }
+  if (ctx.createStoryboardEditor) {
+    actions.push({
+      id: 'storyboard-editor',
+      iconName: 'kanban',
+      label: '分镜剪辑',
+      run: (runCtx) => {
+        runCtx.createStoryboardEditor?.();
       },
     });
   }

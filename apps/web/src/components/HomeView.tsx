@@ -7,7 +7,7 @@
 // surface by lifting its plugin orchestration up here so the prompt
 // textarea can live centered in the hero.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
   ApplyResult,
   ChatSessionMode,
@@ -17,10 +17,10 @@ import type {
   InstalledPluginRecord,
   ProjectKind,
   AudioVoiceOption
-} from '@open-design/contracts';
-import { DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID } from '@open-design/contracts';
-import { projectKindToTracking } from '@open-design/contracts/analytics';
-import { useAnalytics } from '../analytics/provider';
+} from "@open-design/contracts";
+import { DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID } from "@open-design/contracts";
+import { projectKindToTracking } from "@open-design/contracts/analytics";
+import { useAnalytics } from "../analytics/provider";
 import {
   trackHomeChatComposerClick,
   trackPageView,
@@ -28,16 +28,16 @@ import {
   trackPluginReplacementModalSurfaceView,
   trackPluginReplacementResult,
   trackRecentProjectsClick
-} from '../analytics/events';
-import { applyPlugin, listPlugins, renderPluginBriefTemplate, resolvePluginQueryFallback } from '../state/projects';
-import { fetchMcpServers } from '../state/mcp';
-import { useI18n } from '../i18n';
-import { localizeSkillName, localizeSkillPrompt } from '../i18n/content';
-import { fetchElevenLabsVoiceOptions } from '../providers/elevenlabs-voices';
-import { IMAGE_MODELS } from '../media/models';
-import { mergeAihubmixImageModels, useAIHubMixImageModels } from '../media/aihubmix-image-models';
-import { fetchProjectFiles, openFolderDialog, projectFileUrl } from '../providers/registry';
-import { isOpenDesignHostAvailable, pickHostWorkingDir } from '@open-design/host';
+} from "../analytics/events";
+import { applyPlugin, listPlugins, renderPluginBriefTemplate, resolvePluginQueryFallback } from "../state/projects";
+import { fetchMcpServers } from "../state/mcp";
+import { useI18n } from "../i18n";
+import { localizeSkillName, localizeSkillPrompt } from "../i18n/content";
+import { fetchElevenLabsVoiceOptions } from "../providers/elevenlabs-voices";
+import { IMAGE_MODELS } from "../media/models";
+import { mergeAihubmixImageModels, useAIHubMixImageModels } from "../media/aihubmix-image-models";
+import { fetchProjectFiles, openFolderDialog, projectFileUrl } from "../providers/registry";
+import { isOpenDesignHostAvailable, pickHostWorkingDir } from "@open-design/host";
 import type {
   DesignSystemSummary,
   Project,
@@ -45,33 +45,33 @@ import type {
   ProjectMetadata,
   PromptTemplateSummary,
   SkillSummary
-} from '../types';
-import { inlineMentionToken, mentionTokenPresent } from '../utils/inlineMentions';
-import { missingRequiredInputs, pluginInputsAreValid } from '../utils/pluginRequiredInputs';
-import { HomeHero, type ExamplePromptInfo, type HomeHeroHandle } from './HomeHero';
-import { findChip, type HomeHeroChip } from './home-hero/chips';
+} from "../types";
+import { inlineMentionToken, mentionTokenPresent } from "../utils/inlineMentions";
+import { missingRequiredInputs, pluginInputsAreValid } from "../utils/pluginRequiredInputs";
+import { HomeHero, type ExamplePromptInfo, type HomeHeroHandle } from "./HomeHero";
+import { findChip, type HomeHeroChip } from "./home-hero/chips";
 import {
   buildHomeMediaComposer,
   homeMediaSurfaceForChipId,
   metadataForHomeMediaComposer,
   normalizeHomeMediaInputs,
   type HomeComposerMediaSurface
-} from './home-hero/media-surfaces';
+} from "./home-hero/media-surfaces";
 import {
   buildPluginAuthoringInputs,
   buildPluginAuthoringPromptForInputs,
   PLUGIN_AUTHORING_PROMPT,
   PLUGIN_AUTHORING_PROMPT_TEMPLATE,
   type HomePromptHandoff
-} from './home-hero/plugin-authoring';
-import { PluginDetailsModal } from './PluginDetailsModal';
-import { HomeTemplatesReveal } from './HomeTemplatesReveal';
-import { PluginsHomeSection } from './PluginsHomeSection';
-import type { PluginLoopSubmit } from './PluginLoopHome';
-import type { FacetSelection } from './plugins-home/facets';
-import type { PluginUseAction } from './plugins-home/useActions';
-import { RecentProjectsStrip } from './RecentProjectsStrip';
-import { AnimatePresence } from 'motion/react';
+} from "./home-hero/plugin-authoring";
+import { PluginDetailsModal } from "./PluginDetailsModal";
+import { HomeTemplatesReveal } from "./HomeTemplatesReveal";
+import { PluginsHomeSection } from "./PluginsHomeSection";
+import type { PluginLoopSubmit } from "./PluginLoopHome";
+import type { FacetSelection } from "./plugins-home/facets";
+import type { PluginUseAction } from "./plugins-home/useActions";
+import { RecentProjectsStrip } from "./RecentProjectsStrip";
+import { AnimatePresence } from "motion/react";
 
 interface ActivePlugin {
   record: InstalledPluginRecord;
@@ -159,9 +159,9 @@ interface PendingPluginUseHandoff {
 }
 
 const AUTHORING_DEFAULT_SCENARIO_INPUTS = {
-  artifactKind: 'Open Design plugin',
-  audience: 'Open Design plugin authors',
-  topic: 'packaging a reusable workflow as an Open Design plugin'
+  artifactKind: "Open Design plugin",
+  audience: "Open Design plugin authors",
+  topic: "packaging a reusable workflow as an Open Design plugin"
 };
 
 type HomeDesignSystemOption = {
@@ -169,22 +169,22 @@ type HomeDesignSystemOption = {
   title: string;
   isDefault: boolean;
   auto?: boolean;
-  group?: 'Personal' | 'Official preset' | 'Enterprise';
+  group?: "Personal" | "Official preset" | "Enterprise";
   category?: string;
   summary?: string;
   swatches?: string[];
   logoUrl?: string;
 };
 
-const AUTO_DESIGN_SYSTEM_OPTION_ID = '__auto-design-system__';
-const LEGACY_AUTO_DESIGN_SYSTEM_TITLES = new Set(['自动选择风格参考']);
+const AUTO_DESIGN_SYSTEM_OPTION_ID = "__auto-design-system__";
+const LEGACY_AUTO_DESIGN_SYSTEM_TITLES = new Set(["自动选择风格参考"]);
 
 interface Props {
   projects: Project[];
   projectsLoading?: boolean;
   designSystems?: DesignSystemSummary[];
   defaultDesignSystemId?: string | null;
-  onSubmit: (payload: PluginLoopSubmit) => void;
+  onSubmit: (payload: PluginLoopSubmit) => unknown;
   onOpenProject: (id: string) => void;
   onViewAllProjects: () => void;
   onBrowseRegistry?: () => void;
@@ -193,7 +193,7 @@ interface Props {
   // Stage B: optional callbacks the rail's migration chips need.
   // HomeView itself never imports them; EntryShell threads them
   // through so the dispatcher can stay declarative.
-  onOpenNewProject?: (tab: 'template') => void;
+  onOpenNewProject?: (tab: "template") => void;
   promptHandoff?: HomePromptHandoff | null;
   skills?: SkillSummary[];
   skillsLoading?: boolean;
@@ -234,7 +234,7 @@ export function HomeView({
   useEffect(() => {
     if (homePageViewFiredRef.current) return;
     homePageViewFiredRef.current = true;
-    trackPageView(analytics.track, { page_name: 'home' });
+    trackPageView(analytics.track, { page_name: "home" });
   }, [analytics.track]);
   const [plugins, setPlugins] = useState<InstalledPluginRecord[]>([]);
   const [pluginsLoading, setPluginsLoading] = useState(true);
@@ -249,7 +249,7 @@ export function HomeView({
   const [fallbackProjectKind, setFallbackProjectKind] = useState<ProjectKind | null>(null);
   const [fallbackProjectMetadata, setFallbackProjectMetadata] = useState<ProjectMetadata | null>(null);
   const [active, setActive] = useState<ActivePlugin | null>(null);
-  const [sessionMode, setSessionMode] = useState<ChatSessionMode>('comprehensive');
+  const [sessionMode, setSessionMode] = useState<ChatSessionMode>("comprehensive");
   const [activeSkill, setActiveSkill] = useState<SkillSummary | null>(null);
   const [selectedPluginContexts, setSelectedPluginContexts] = useState<SelectedPluginContext[]>([]);
   const [selectedMcpContexts, setSelectedMcpContexts] = useState<SelectedMcpContext[]>([]);
@@ -262,13 +262,15 @@ export function HomeView({
   const [workingDirToken, setWorkingDirToken] = useState<string | null>(null);
   const [mcpServers, setMcpServers] = useState<McpServerConfig[]>([]);
   const [mcpLoading, setMcpLoading] = useState(true);
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState("");
   const [promptEditedByUser, setPromptEditedByUser] = useState(false);
   const examplePromptInfoRef = useRef<ExamplePromptInfo | null>(null);
   const handleExamplePromptStatusChange = useCallback((info: ExamplePromptInfo | null) => {
     examplePromptInfoRef.current = info;
   }, []);
   const [error, setError] = useState<string | null>(null);
+  const [submitInFlight, setSubmitInFlight] = useState(false);
+  const submitInFlightRef = useRef(false);
   const [designSystemLogoById, setDesignSystemLogoById] = useState<Record<string, string>>({});
   const [elevenLabsVoices, setElevenLabsVoices] = useState<AudioVoiceOption[]>([]);
   const [elevenLabsVoicesLoading, setElevenLabsVoicesLoading] = useState(false);
@@ -292,12 +294,12 @@ export function HomeView({
       lastPluginReplacementViewRef.current = null;
       return;
     }
-    const key = `${pendingReplacement.pluginBefore ?? ''}->${pendingReplacement.pluginAfter}`;
+    const key = `${pendingReplacement.pluginBefore ?? ""}->${pendingReplacement.pluginAfter}`;
     if (lastPluginReplacementViewRef.current === key) return;
     lastPluginReplacementViewRef.current = key;
     trackPluginReplacementModalSurfaceView(analytics.track, {
-      page_name: 'home',
-      area: 'plugin_replacement_modal'
+      page_name: "home",
+      area: "plugin_replacement_modal"
     });
   }, [pendingReplacement, analytics.track]);
   const inputRef = useRef<HomeHeroHandle | null>(null);
@@ -307,9 +309,9 @@ export function HomeView({
   const activePluginApplyRequestRef = useRef(0);
   const scrollHomeToTop = useCallback(() => {
     requestAnimationFrame(() => {
-      const scrollContainer = homeViewRef.current?.closest('.entry-main--scroll');
+      const scrollContainer = homeViewRef.current?.closest(".entry-main--scroll");
       if (!(scrollContainer instanceof HTMLElement)) return;
-      if (typeof scrollContainer.scrollTo === 'function') {
+      if (typeof scrollContainer.scrollTo === "function") {
         scrollContainer.scrollTo({ top: 0, left: 0 });
       } else {
         scrollContainer.scrollTop = 0;
@@ -327,10 +329,10 @@ export function HomeView({
       });
     };
     load();
-    window.addEventListener('open-design:plugins-changed', load);
+    window.addEventListener("open-design:plugins-changed", load);
     return () => {
       cancelled = true;
-      window.removeEventListener('open-design:plugins-changed', load);
+      window.removeEventListener("open-design:plugins-changed", load);
     };
   }, []);
 
@@ -347,7 +349,7 @@ export function HomeView({
   }, []);
 
   useEffect(() => {
-    if (active?.mediaSurface !== 'audio' || active.inputs.model !== 'elevenlabs-v3') return;
+    if (active?.mediaSurface !== "audio" || active.inputs.model !== "elevenlabs-v3") return;
     if (elevenLabsVoicesLoaded) return;
     const controller = new AbortController();
     setElevenLabsVoicesLoading(true);
@@ -372,10 +374,10 @@ export function HomeView({
   }, [active?.mediaSurface, active?.inputs.model, elevenLabsVoicesLoaded]);
 
   const elevenLabsVoiceWarning = useMemo(() => {
-    if (active?.mediaSurface !== 'audio' || active.inputs.model !== 'elevenlabs-v3') return null;
+    if (active?.mediaSurface !== "audio" || active.inputs.model !== "elevenlabs-v3") return null;
     if (elevenLabsVoicesError) return elevenLabsVoicesError;
     if (elevenLabsVoicesLoaded && elevenLabsVoices.length === 0) {
-      return 'No configured ElevenLabs voices were returned. Using Rachel (default).';
+      return "No configured ElevenLabs voices were returned. Using Rachel (default).";
     }
     return null;
   }, [
@@ -431,10 +433,10 @@ export function HomeView({
     if (!promptHandoff || consumedHandoffIdRef.current === promptHandoff.id) return;
     consumedHandoffIdRef.current = promptHandoff.id;
     setError(null);
-    if (promptHandoff.source === 'plugin-use') {
+    if (promptHandoff.source === "plugin-use") {
       setPendingPluginUseHandoff({
         pluginId: promptHandoff.pluginId,
-        action: promptHandoff.action ?? 'use',
+        action: promptHandoff.action ?? "use",
         ...(promptHandoff.inputs ? { inputs: promptHandoff.inputs } : {})
       });
       if (promptHandoff.focus) {
@@ -449,7 +451,7 @@ export function HomeView({
     setSelectedPluginContexts([]);
     setSelectedMcpContexts([]);
     setSelectedConnectorContexts([]);
-    setFallbackProjectKind('other');
+    setFallbackProjectKind("other");
     setFallbackProjectMetadata(null);
     if (promptHandoff.focus) {
       pendingPromptFocusEndRef.current = true;
@@ -458,8 +460,8 @@ export function HomeView({
     setPromptEditedByUser(false);
     setPendingAuthoringPrompt(promptHandoff.prompt);
     setPendingAuthoringInputs(promptHandoff.inputs);
-    setPendingAuthoringChipId('create-plugin');
-    setPendingChipId('create-plugin');
+    setPendingAuthoringChipId("create-plugin");
+    setPendingChipId("create-plugin");
     scrollHomeToTop();
   }, [promptHandoff, scrollHomeToTop]);
 
@@ -516,6 +518,7 @@ export function HomeView({
     return active.record.title;
   }, [active, t]);
   const showActivePluginChip = useMemo(() => shouldShowActivePluginChip(active), [active]);
+  const activePluginBlocksSubmit = sessionMode !== "comprehensive" && Boolean(active && !active.inputsValid);
 
   const selectableSkills = useMemo(() => skills.filter((skill) => !skill.aggregatesExamples), [skills]);
 
@@ -525,7 +528,7 @@ export function HomeView({
     let cancelled = false;
     const personalSystems = designSystems.filter(
       (system) =>
-        system.projectId && designSystemOptionGroup(system) === 'Personal' && (system.status ?? 'draft') === 'published'
+        system.projectId && designSystemOptionGroup(system) === "Personal" && (system.status ?? "draft") === "published"
     );
     if (personalSystems.length === 0) {
       setDesignSystemLogoById((current) => (Object.keys(current).length === 0 ? current : {}));
@@ -799,12 +802,12 @@ export function HomeView({
   //     while still routing the plugin as the active driver.
   async function routePluginUse(
     record: InstalledPluginRecord,
-    action: PluginUseAction = 'use',
+    action: PluginUseAction = "use",
     inputs?: Record<string, unknown>
   ) {
-    if (action === 'use-with-query') {
+    if (action === "use-with-query") {
       const renderedQuery = previewPluginReplacement(record, undefined, inputs ? { inputs } : undefined);
-      const trimmedQuery = renderedQuery?.trim() ?? '';
+      const trimmedQuery = renderedQuery?.trim() ?? "";
       const currentDraft = prompt.trim();
       // Append, don't replace: keep the user's draft and add the plugin
       // query below it (matching the old requestPluginContextUse behavior).
@@ -971,7 +974,7 @@ export function HomeView({
       }
       // The user explicitly cancelled the host picker — respect that and do
       // not pop a second dialog.
-      if ('canceled' in result && result.canceled) return;
+      if ("canceled" in result && result.canceled) return;
       // The host is present but could not service the pick (mixed-version
       // upgrade where the preload lacks `project.pickWorkingDir`, or a host
       // error). We must NOT fall back to openFolderDialog() here: the browser
@@ -980,7 +983,7 @@ export function HomeView({
       // auth gate and surface as a confusing late create-time failure.
       // Surface the host error instead and keep the existing working dir.
       setError(
-        `Couldn't open the folder picker (${'reason' in result ? result.reason : 'host unavailable'}). Please update Open Design and try again.`
+        `Couldn't open the folder picker (${"reason" in result ? result.reason : "host unavailable"}). Please update Open Design and try again.`
       );
       return;
     }
@@ -1042,7 +1045,7 @@ export function HomeView({
     setFallbackProjectMetadata(null);
     setPendingApplyId(null);
     setPendingChipId(null);
-    setPrompt('');
+    setPrompt("");
     setPromptEditedByUser(false);
   }
 
@@ -1067,7 +1070,7 @@ export function HomeView({
     setFallbackProjectMetadata(null);
     setActiveSkill(skill);
     setError(null);
-    const replacement = nextPrompt ?? localizeSkillPrompt(locale, skill) ?? '';
+    const replacement = nextPrompt ?? localizeSkillPrompt(locale, skill) ?? "";
     if (replacement.trim().length > 0) {
       setPrompt(replacement);
       setPromptEditedByUser(false);
@@ -1120,33 +1123,33 @@ export function HomeView({
     const nextInputs = buildPluginAuthoringInputs(goal);
     const nextPrompt = buildPluginAuthoringPromptForInputs(nextInputs);
     runWithReplacementConfirmation(
-      'Plugin authoring',
+      "Plugin authoring",
       nextPrompt,
       async () => {
         setActive(null);
         setActiveSkill(null);
-        setFallbackProjectKind('other');
+        setFallbackProjectKind("other");
         setFallbackProjectMetadata(null);
         setError(null);
         setPrompt(nextPrompt);
         setPromptEditedByUser(false);
         setPendingAuthoringPrompt(nextPrompt);
         setPendingAuthoringInputs(nextInputs);
-        setPendingAuthoringChipId(chipId ?? 'create-plugin');
-        setPendingChipId(chipId ?? 'create-plugin');
+        setPendingAuthoringChipId(chipId ?? "create-plugin");
+        setPendingChipId(chipId ?? "create-plugin");
         focusPromptAtEnd();
       },
       {
         before: active?.record.id ?? null,
-        after: 'od-plugin-authoring'
+        after: "od-plugin-authoring"
       }
     );
   }
 
   useEffect(() => {
     if (!pendingAuthoringChipId || pluginsLoading) return;
-    const authoringRecord = plugins.find((plugin) => plugin.id === 'od-plugin-authoring');
-    const record = authoringRecord ?? plugins.find((plugin) => plugin.id === 'od-new-generation');
+    const authoringRecord = plugins.find((plugin) => plugin.id === "od-plugin-authoring");
+    const record = authoringRecord ?? plugins.find((plugin) => plugin.id === "od-new-generation");
     setPendingAuthoringChipId(null);
     if (!record) {
       setPendingChipId(null);
@@ -1158,7 +1161,7 @@ export function HomeView({
       return;
     }
     void usePlugin(record, pendingAuthoringPrompt, {
-      projectKind: 'other',
+      projectKind: "other",
       chipId: pendingAuthoringChipId,
       inputs: authoringRecord ? pendingAuthoringInputs : AUTHORING_DEFAULT_SCENARIO_INPUTS,
       ...(authoringRecord ? { queryTemplate: PLUGIN_AUTHORING_PROMPT_TEMPLATE } : {})
@@ -1178,22 +1181,22 @@ export function HomeView({
     // (create-plugin, open-template-picker) are action
     // shortcuts. Failure paths below still fire because the user did pick
     // the chip — error state belongs in the run lifecycle event.
-    const chipElement: 'plugin_chip' | 'action_chip' =
-      chip.action.kind === 'apply-scenario' || chip.action.kind === 'apply-figma-migration'
-        ? 'plugin_chip'
-        : 'action_chip';
+    const chipElement: "plugin_chip" | "action_chip" =
+      chip.action.kind === "apply-scenario" || chip.action.kind === "apply-figma-migration"
+        ? "plugin_chip"
+        : "action_chip";
     trackHomeChatComposerClick(analytics.track, {
-      page_name: 'home',
-      area: 'chat_composer',
+      page_name: "home",
+      area: "chat_composer",
       element: chipElement,
       chip_id: chip.id
     });
     switch (chip.action.kind) {
-      case 'apply-scenario':
-      case 'apply-figma-migration': {
+      case "apply-scenario":
+      case "apply-figma-migration": {
         const targetId = chip.action.pluginId;
         const record = plugins.find((p) => p.id === targetId);
-        const scenarioQueryTemplate = chip.action.kind === 'apply-scenario' ? chip.action.queryTemplate : undefined;
+        const scenarioQueryTemplate = chip.action.kind === "apply-scenario" ? chip.action.queryTemplate : undefined;
         if (!record) {
           if (scenarioQueryTemplate) {
             activePluginApplyRequestRef.current += 1;
@@ -1251,12 +1254,12 @@ export function HomeView({
           ...(scenarioQueryTemplate !== undefined ? { queryTemplate: scenarioQueryTemplate } : {}),
           projectMetadata: chip.action.projectMetadata ?? null
         };
-        const hasSeedPrompt = typeof scenarioQueryTemplate === 'string' && scenarioQueryTemplate.trim().length > 0;
+        const hasSeedPrompt = typeof scenarioQueryTemplate === "string" && scenarioQueryTemplate.trim().length > 0;
         // Output-type tabs can now be pure workbench task starters:
         // if the chip carries a seed prompt, clicking it should fill the
         // composer with that task instruction. Media-mode chips without a
         // prompt still behave as mode switches and leave the textarea alone.
-        if (chip.group === 'create') {
+        if (chip.group === "create") {
           void usePlugin(record, undefined, {
             ...pluginOptions,
             suppressPromptUpdate: !hasSeedPrompt,
@@ -1267,22 +1270,23 @@ export function HomeView({
         }
         return;
       }
-      case 'create-plugin': {
+      case "create-plugin": {
         queuePluginAuthoring(chip.id);
         return;
       }
-      case 'open-template-picker': {
+      case "open-template-picker": {
         if (!onOpenNewProject) {
-          setError('Template picker is not available in this shell.');
+          setError("Template picker is not available in this shell.");
           return;
         }
-        onOpenNewProject('template');
+        onOpenNewProject("template");
         return;
       }
     }
   }
 
   async function submit() {
+    if (submitInFlightRef.current) return;
     const trimmed = prompt.trim();
     if (!trimmed && stagedFiles.length === 0) return;
     // P0 ui_click area=chat_composer element=send_button. Fires before the
@@ -1290,147 +1294,154 @@ export function HomeView({
     // even when the run is rejected (missing inputs, apply failure). The
     // subsequent run_created/run_finished events carry the result detail.
     trackHomeChatComposerClick(analytics.track, {
-      page_name: 'home',
-      area: 'chat_composer',
-      element: 'send_button'
+      page_name: "home",
+      area: "chat_composer",
+      element: "send_button"
     });
     let submittedActive = active;
-    let submittedPluginActive = sessionMode === 'comprehensive' ? null : submittedActive;
+    let submittedPluginActive = sessionMode === "comprehensive" ? null : submittedActive;
     if (submittedPluginActive && !submittedPluginActive.inputsValid) {
       const missing = missingRequiredInputs(submittedPluginActive.inputFields, submittedPluginActive.inputs);
       setError(
         missing.length > 0
-          ? `Fill the required plugin ${missing.length === 1 ? 'parameter' : 'parameters'} before running: ${missing.join(', ')}.`
-          : 'Fill the required plugin parameters before running.'
+          ? `Fill the required plugin ${missing.length === 1 ? "parameter" : "parameters"} before running: ${missing.join(", ")}.`
+          : "Fill the required plugin parameters before running."
       );
       return;
     }
-    const defaultInputs = { prompt: trimmed };
-    const submittedDesignSystemSelection = homeDesignSystemSelectionForInputs(
-      submittedPluginActive?.inputs ?? null,
-      designSystemOptions,
-      trimmed
-    );
-    // Composer inputs with the design-system selection folded in. The deferred
-    // footer/media fields are stripped from this set just below to form the
-    // run-facing inputs.
-    const submittedApplyInputs = submittedPluginActive
-      ? applyHomeDesignSystemSelectionToInputs(
-          submittedPluginActive.inputs,
-          submittedDesignSystemSelection,
-          designSystemOptions
-        )
-      : defaultInputs;
-    // Inputs forwarded to the run AND used to build the run-facing snapshot:
-    // drop every now-hidden footer/media setting so the first-turn
-    // AskUserQuestion flow collects them instead of inheriting a baked-in
-    // default (`ratio: 16:9`, `duration: 5`, `audioType: speech`, …). The
-    // snapshot is resolved from these stripped inputs too — the daemon renders
-    // `## Plugin inputs` from `snapshot.inputs` and tells the agent not to
-    // re-ask about anything listed there, so leaving the deferred defaults in
-    // the snapshot would suppress the discovery flow even though
-    // `onSubmit.pluginInputs` was stripped. Stripping only removes non-required
-    // fields (`subject`/`style`/`aspect`/`mediaKind` stay), so the
-    // od-media-generation apply still validates.
-    const submittedPluginInputs = submittedPluginActive
-      ? stripArtifactFooterInputs(submittedApplyInputs)
-      : defaultInputs;
-    const activeInputsChangedForSubmit = submittedPluginActive
-      ? !inputsEqual(
-          submittedPluginActive.result?.appliedPlugin?.inputs ?? submittedPluginActive.inputs,
-          submittedPluginInputs
-        )
-      : false;
-    if (submittedPluginActive && (!submittedPluginActive.result || activeInputsChangedForSubmit)) {
-      const result = await resolveActivePlugin(submittedPluginActive.record, submittedPluginInputs);
-      if (!result) {
-        setError(`Failed to apply ${submittedPluginActive.record.title}. Check the plugin parameters and try again.`);
-        return;
+    submitInFlightRef.current = true;
+    setSubmitInFlight(true);
+    try {
+      const defaultInputs = { prompt: trimmed };
+      const submittedDesignSystemSelection = homeDesignSystemSelectionForInputs(
+        submittedPluginActive?.inputs ?? null,
+        designSystemOptions,
+        trimmed
+      );
+      // Composer inputs with the design-system selection folded in. The deferred
+      // footer/media fields are stripped from this set just below to form the
+      // run-facing inputs.
+      const submittedApplyInputs = submittedPluginActive
+        ? applyHomeDesignSystemSelectionToInputs(
+            submittedPluginActive.inputs,
+            submittedDesignSystemSelection,
+            designSystemOptions
+          )
+        : defaultInputs;
+      // Inputs forwarded to the run AND used to build the run-facing snapshot:
+      // drop every now-hidden footer/media setting so the first-turn
+      // AskUserQuestion flow collects them instead of inheriting a baked-in
+      // default (`ratio: 16:9`, `duration: 5`, `audioType: speech`, …). The
+      // snapshot is resolved from these stripped inputs too — the daemon renders
+      // `## Plugin inputs` from `snapshot.inputs` and tells the agent not to
+      // re-ask about anything listed there, so leaving the deferred defaults in
+      // the snapshot would suppress the discovery flow even though
+      // `onSubmit.pluginInputs` was stripped. Stripping only removes non-required
+      // fields (`subject`/`style`/`aspect`/`mediaKind` stay), so the
+      // od-media-generation apply still validates.
+      const submittedPluginInputs = submittedPluginActive
+        ? stripArtifactFooterInputs(submittedApplyInputs)
+        : defaultInputs;
+      const activeInputsChangedForSubmit = submittedPluginActive
+        ? !inputsEqual(
+            submittedPluginActive.result?.appliedPlugin?.inputs ?? submittedPluginActive.inputs,
+            submittedPluginInputs
+          )
+        : false;
+      if (submittedPluginActive && (!submittedPluginActive.result || activeInputsChangedForSubmit)) {
+        const result = await resolveActivePlugin(submittedPluginActive.record, submittedPluginInputs);
+        if (!result) {
+          setError(`Failed to apply ${submittedPluginActive.record.title}. Check the plugin parameters and try again.`);
+          return;
+        }
+        submittedPluginActive = { ...submittedPluginActive, result, inputs: submittedPluginInputs };
+        submittedActive = submittedPluginActive;
+        setActive(submittedPluginActive);
       }
-      submittedPluginActive = { ...submittedPluginActive, result, inputs: submittedPluginInputs };
-      submittedActive = submittedPluginActive;
-      setActive(submittedPluginActive);
+      // Reconcile each selected context against the serialized prompt text before
+      // forwarding it. Inline-backed contexts (inserted as `@mention` pills) are
+      // only sent while their token survives in the prompt — the Lexical composer
+      // lets users delete a mention pill (backspace, edit), and when they do that
+      // plugin/MCP/connector should stop being sent. Context-only `Use`
+      // selections never carry a token, so they stay in the payload until the
+      // user explicitly clears them.
+      const contextPlugins = selectedPluginContexts
+        .filter((item) => !item.inlineBacked || mentionTokenPresent(trimmed, item.record.title))
+        .map((item) => ({
+          id: item.record.id,
+          title: item.record.title,
+          ...(item.record.manifest?.description ? { description: item.record.manifest.description } : {})
+        }));
+      const contextMcpServers = selectedMcpContexts
+        .filter((item) => !item.inlineBacked || mentionTokenPresent(trimmed, item.server.label || item.server.id))
+        .map((item) => ({
+          id: item.server.id,
+          ...(item.server.label ? { label: item.server.label } : {}),
+          ...(item.server.transport ? { transport: item.server.transport } : {}),
+          ...(item.server.url ? { url: item.server.url } : {}),
+          ...(item.server.command ? { command: item.server.command } : {})
+        }));
+      const contextConnectors = selectedConnectorContexts
+        .filter((item) => !item.inlineBacked || mentionTokenPresent(trimmed, item.connector.name))
+        .map((item) => ({
+          id: item.connector.id,
+          name: item.connector.name,
+          provider: item.connector.provider,
+          category: item.connector.category,
+          status: item.connector.status,
+          ...(item.connector.accountLabel ? { accountLabel: item.connector.accountLabel } : {})
+        }));
+      const submittedProjectKind =
+        submittedActive?.projectKind ?? fallbackProjectKind ?? projectKindForSkill(activeSkill) ?? "other";
+      const submittedProjectMetadata = submittedActive?.mediaSurface
+        ? metadataForHomeMediaComposer(submittedActive.mediaSurface, submittedActive.inputs, promptTemplates)
+        : homeCreateProjectMetadata(
+            submittedProjectKind,
+            submittedActive?.inputs ?? null,
+            submittedActive?.projectMetadata ?? fallbackProjectMetadata ?? null
+          );
+      // Scenario plugins (chips / preset cards) and explicit skill picks are
+      // mutually exclusive routing sources — never send both (#2972).
+      const resolvedSkillId = submittedPluginActive ? null : (activeSkill?.id ?? null);
+      const routedPluginId =
+        sessionMode === "design"
+          ? (submittedPluginActive?.record.id ?? DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID)
+          : sessionMode === "chat"
+            ? (submittedPluginActive?.record.id ?? null)
+            : null;
+      await onSubmit({
+        prompt: trimmed,
+        pluginId: routedPluginId,
+        skillId: resolvedSkillId,
+        appliedPluginSnapshotId: submittedPluginActive?.result?.appliedPlugin?.snapshotId ?? null,
+        pluginTitle: submittedPluginActive?.record.title ?? null,
+        taskKind: submittedPluginActive?.result?.appliedPlugin?.taskKind ?? null,
+        pluginInputs: submittedPluginInputs,
+        projectKind: submittedProjectKind,
+        projectMetadata: submittedProjectMetadata,
+        designSystemId: submittedDesignSystemSelection?.id ?? null,
+        contextPlugins,
+        contextMcpServers,
+        contextConnectors,
+        attachments: stagedFiles,
+        ...(workingDir ? { workingDir } : {}),
+        ...(workingDirToken ? { workingDirToken } : {}),
+        conversationMode: sessionMode,
+        ...(() => {
+          if (!examplePromptInfoRef.current) return {};
+          const key = "od:example-prompt-used";
+          if (localStorage.getItem(key)) return {};
+          localStorage.setItem(key, "1");
+          return { examplePromptContext: examplePromptInfoRef.current };
+        })()
+      });
+      setSelectedPluginContexts([]);
+      setSelectedMcpContexts([]);
+      setSelectedConnectorContexts([]);
+    } finally {
+      submitInFlightRef.current = false;
+      setSubmitInFlight(false);
     }
-    // Reconcile each selected context against the serialized prompt text before
-    // forwarding it. Inline-backed contexts (inserted as `@mention` pills) are
-    // only sent while their token survives in the prompt — the Lexical composer
-    // lets users delete a mention pill (backspace, edit), and when they do that
-    // plugin/MCP/connector should stop being sent. Context-only `Use`
-    // selections never carry a token, so they stay in the payload until the
-    // user explicitly clears them.
-    const contextPlugins = selectedPluginContexts
-      .filter((item) => !item.inlineBacked || mentionTokenPresent(trimmed, item.record.title))
-      .map((item) => ({
-        id: item.record.id,
-        title: item.record.title,
-        ...(item.record.manifest?.description ? { description: item.record.manifest.description } : {})
-      }));
-    const contextMcpServers = selectedMcpContexts
-      .filter((item) => !item.inlineBacked || mentionTokenPresent(trimmed, item.server.label || item.server.id))
-      .map((item) => ({
-        id: item.server.id,
-        ...(item.server.label ? { label: item.server.label } : {}),
-        ...(item.server.transport ? { transport: item.server.transport } : {}),
-        ...(item.server.url ? { url: item.server.url } : {}),
-        ...(item.server.command ? { command: item.server.command } : {})
-      }));
-    const contextConnectors = selectedConnectorContexts
-      .filter((item) => !item.inlineBacked || mentionTokenPresent(trimmed, item.connector.name))
-      .map((item) => ({
-        id: item.connector.id,
-        name: item.connector.name,
-        provider: item.connector.provider,
-        category: item.connector.category,
-        status: item.connector.status,
-        ...(item.connector.accountLabel ? { accountLabel: item.connector.accountLabel } : {})
-      }));
-    const submittedProjectKind =
-      submittedActive?.projectKind ?? fallbackProjectKind ?? projectKindForSkill(activeSkill) ?? 'other';
-    const submittedProjectMetadata = submittedActive?.mediaSurface
-      ? metadataForHomeMediaComposer(submittedActive.mediaSurface, submittedActive.inputs, promptTemplates)
-      : homeCreateProjectMetadata(
-          submittedProjectKind,
-          submittedActive?.inputs ?? null,
-          submittedActive?.projectMetadata ?? fallbackProjectMetadata ?? null
-        );
-    // Scenario plugins (chips / preset cards) and explicit skill picks are
-    // mutually exclusive routing sources — never send both (#2972).
-    const resolvedSkillId = submittedPluginActive ? null : (activeSkill?.id ?? null);
-    const routedPluginId =
-      sessionMode === 'design'
-        ? (submittedPluginActive?.record.id ?? DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID)
-        : sessionMode === 'chat'
-          ? (submittedPluginActive?.record.id ?? null)
-          : null;
-    onSubmit({
-      prompt: trimmed,
-      pluginId: routedPluginId,
-      skillId: resolvedSkillId,
-      appliedPluginSnapshotId: submittedPluginActive?.result?.appliedPlugin?.snapshotId ?? null,
-      pluginTitle: submittedPluginActive?.record.title ?? null,
-      taskKind: submittedPluginActive?.result?.appliedPlugin?.taskKind ?? null,
-      pluginInputs: submittedPluginInputs,
-      projectKind: submittedProjectKind,
-      projectMetadata: submittedProjectMetadata,
-      designSystemId: submittedDesignSystemSelection?.id ?? null,
-      contextPlugins,
-      contextMcpServers,
-      contextConnectors,
-      attachments: stagedFiles,
-      ...(workingDir ? { workingDir } : {}),
-      ...(workingDirToken ? { workingDirToken } : {}),
-      conversationMode: sessionMode,
-      ...(() => {
-        if (!examplePromptInfoRef.current) return {};
-        const key = 'od:example-prompt-used';
-        if (localStorage.getItem(key)) return {};
-        localStorage.setItem(key, '1');
-        return { examplePromptContext: examplePromptInfoRef.current };
-      })()
-    });
-    setSelectedPluginContexts([]);
-    setSelectedMcpContexts([]);
-    setSelectedConnectorContexts([]);
   }
 
   return (
@@ -1482,11 +1493,11 @@ export function HomeView({
         skillsLoading={skillsLoading}
         mcpOptions={enabledMcpServers}
         mcpLoading={mcpLoading}
-        connectorOptions={connectors.filter((connector) => connector.status === 'connected')}
+        connectorOptions={connectors.filter((connector) => connector.status === "connected")}
         pendingPluginId={pendingApplyId}
         pendingChipId={pendingChipId}
         submitDisabled={
-          Boolean(pendingApplyId) || Boolean(pendingAuthoringChipId) || Boolean(active && !active.inputsValid)
+          submitInFlight || Boolean(pendingApplyId) || Boolean(pendingAuthoringChipId) || activePluginBlocksSubmit
         }
         onPickPlugin={(record, nextPrompt) => addPluginContext(record, nextPrompt)}
         onPickExamplePlugin={useExamplePlugin}
@@ -1517,9 +1528,9 @@ export function HomeView({
           const project = projects.find((p) => p.id === id);
           const projectKind = projectKindToTracking(project?.metadata?.kind);
           trackRecentProjectsClick(analytics.track, {
-            page_name: 'home',
-            area: 'recent_projects',
-            element: 'project_card',
+            page_name: "home",
+            area: "recent_projects",
+            element: "project_card",
             project_id: id,
             ...(projectKind ? { project_kind: projectKind } : {})
           });
@@ -1527,9 +1538,9 @@ export function HomeView({
         }}
         onViewAll={() => {
           trackRecentProjectsClick(analytics.track, {
-            page_name: 'home',
-            area: 'recent_projects',
-            element: 'view_all'
+            page_name: "home",
+            area: "recent_projects",
+            element: "view_all"
           });
           onViewAllProjects();
         }}
@@ -1554,7 +1565,7 @@ export function HomeView({
           <PluginDetailsModal
             record={detailsRecord}
             onClose={() => setDetailsRecord(null)}
-            onUse={(record) => void routePluginUse(record, 'use')}
+            onUse={(record) => void routePluginUse(record, "use")}
             isApplying={pendingApplyId === detailsRecord.id}
           />
         ) : null}
@@ -1562,31 +1573,31 @@ export function HomeView({
       {pendingReplacement ? (
         <div className="home-hero-confirm__backdrop" role="presentation">
           <div className="home-hero-confirm" role="dialog" aria-modal="true" aria-labelledby="home-hero-confirm-title">
-            <h2 id="home-hero-confirm-title">{t('homeHero.confirmReplaceTitle')}</h2>
-            <p>{t('homeHero.confirmReplaceBody', { title: pendingReplacement.title })}</p>
+            <h2 id="home-hero-confirm-title">{t("homeHero.confirmReplaceTitle")}</h2>
+            <p>{t("homeHero.confirmReplaceBody", { title: pendingReplacement.title })}</p>
             <div className="home-hero-confirm__actions">
               <button
                 type="button"
                 className="home-hero-confirm__secondary"
                 onClick={() => {
                   trackPluginReplacementModalClick(analytics.track, {
-                    page_name: 'home',
-                    area: 'plugin_replacement_modal',
-                    element: 'cancel'
+                    page_name: "home",
+                    area: "plugin_replacement_modal",
+                    element: "cancel"
                   });
                   setPendingReplacement(null);
                 }}
               >
-                {t('common.cancel')}
+                {t("common.cancel")}
               </button>
               <button
                 type="button"
                 className="home-hero-confirm__primary"
                 onClick={() => {
                   trackPluginReplacementModalClick(analytics.track, {
-                    page_name: 'home',
-                    area: 'plugin_replacement_modal',
-                    element: 'replace'
+                    page_name: "home",
+                    area: "plugin_replacement_modal",
+                    element: "replace"
                   });
                   const pluginBefore = pendingReplacement.pluginBefore;
                   const pluginAfter = pendingReplacement.pluginAfter;
@@ -1603,26 +1614,26 @@ export function HomeView({
                     try {
                       await action();
                       trackPluginReplacementResult(analytics.track, {
-                        page_name: 'home',
-                        area: 'plugin_replacement',
-                        plugin_before: pluginBefore ?? '',
+                        page_name: "home",
+                        area: "plugin_replacement",
+                        plugin_before: pluginBefore ?? "",
                         plugin_after: pluginAfter,
-                        result: 'success'
+                        result: "success"
                       });
                     } catch (err) {
                       trackPluginReplacementResult(analytics.track, {
-                        page_name: 'home',
-                        area: 'plugin_replacement',
-                        plugin_before: pluginBefore ?? '',
+                        page_name: "home",
+                        area: "plugin_replacement",
+                        plugin_before: pluginBefore ?? "",
                         plugin_after: pluginAfter,
-                        result: 'failed',
+                        result: "failed",
                         error_code: err instanceof Error ? err.message : String(err)
                       });
                     }
                   })();
                 }}
               >
-                {t('homeHero.confirmReplace')}
+                {t("homeHero.confirmReplace")}
               </button>
             </div>
           </div>
@@ -1634,19 +1645,19 @@ export function HomeView({
 
 function projectKindForSkill(skill: SkillSummary | null): ProjectKind | null {
   if (!skill) return null;
-  if (skill.mode === 'deck') return 'deck';
-  if (skill.mode === 'prototype') return 'prototype';
-  if (skill.mode === 'template') return 'template';
-  if (skill.mode === 'image' || skill.surface === 'image') return 'image';
-  if (skill.mode === 'video' || skill.surface === 'video') return 'video';
-  if (skill.mode === 'audio' || skill.surface === 'audio') return 'audio';
-  return 'other';
+  if (skill.mode === "deck") return "deck";
+  if (skill.mode === "prototype") return "prototype";
+  if (skill.mode === "template") return "template";
+  if (skill.mode === "image" || skill.surface === "image") return "image";
+  if (skill.mode === "video" || skill.surface === "video") return "video";
+  if (skill.mode === "audio" || skill.surface === "audio") return "audio";
+  return "other";
 }
 
 function defaultPluginIdForChip(chipId: string | null): string | null {
   if (!chipId) return null;
   const chip = findChip(chipId);
-  if (chip?.action.kind === 'apply-scenario' || chip?.action.kind === 'apply-figma-migration') {
+  if (chip?.action.kind === "apply-scenario" || chip?.action.kind === "apply-figma-migration") {
     return chip.action.pluginId;
   }
   return null;
@@ -1664,51 +1675,51 @@ function shouldShowActivePluginChip(active: ActivePlugin | null): boolean {
 // workflow chip there should add a row here too.
 function facetSelectionForChip(chipId: string): FacetSelection | null {
   switch (chipId) {
-    case 'video-crawler':
-      return { category: 'video', subcategory: 'video-reference-breakdown' };
-    case 'asset-analysis':
-      return { category: 'image', subcategory: 'image-product-assets' };
-    case 'script-storyboard':
-      return { category: 'hyperframes', subcategory: 'hyperframes-storyboards' };
-    case 'video-generation':
-      return { category: 'video', subcategory: null };
-    case 'generation-diagnostics':
-      return { category: 'video', subcategory: 'video-product-demo' };
-    case 'image':
-      return { category: 'image', subcategory: null };
-    case 'video':
-      return { category: 'video', subcategory: null };
-    case 'hyperframes':
-      return { category: 'hyperframes', subcategory: null };
-    case 'audio':
-      return { category: 'audio', subcategory: null };
+    case "video-crawler":
+      return { category: "video", subcategory: "video-reference-breakdown" };
+    case "asset-analysis":
+      return { category: "image", subcategory: "image-product-assets" };
+    case "script-storyboard":
+      return { category: "hyperframes", subcategory: "hyperframes-storyboards" };
+    case "video-generation":
+      return { category: "video", subcategory: null };
+    case "generation-diagnostics":
+      return { category: "video", subcategory: "video-product-demo" };
+    case "image":
+      return { category: "image", subcategory: null };
+    case "video":
+      return { category: "video", subcategory: null };
+    case "hyperframes":
+      return { category: "hyperframes", subcategory: null };
+    case "audio":
+      return { category: "audio", subcategory: null };
     default:
       return null;
   }
 }
 
-function homeHeroChipLabelForId(chipId: string, t: ReturnType<typeof useI18n>['t']): string {
+function homeHeroChipLabelForId(chipId: string, t: ReturnType<typeof useI18n>["t"]): string {
   switch (chipId) {
-    case 'prototype':
-      return t('homeHero.chip.prototype');
-    case 'live-artifact':
-      return t('homeHero.chip.liveArtifact');
-    case 'deck':
-      return t('homeHero.chip.deck');
-    case 'image':
-      return t('homeHero.chip.image');
-    case 'video':
-      return t('homeHero.chip.video');
-    case 'hyperframes':
-      return t('homeHero.chip.hyperframes');
-    case 'audio':
-      return t('homeHero.chip.audio');
-    case 'create-plugin':
-      return t('homeHero.chip.createPlugin');
-    case 'figma':
-      return t('homeHero.chip.figma');
-    case 'template':
-      return t('homeHero.chip.template');
+    case "prototype":
+      return t("homeHero.chip.prototype");
+    case "live-artifact":
+      return t("homeHero.chip.liveArtifact");
+    case "deck":
+      return t("homeHero.chip.deck");
+    case "image":
+      return t("homeHero.chip.image");
+    case "video":
+      return t("homeHero.chip.video");
+    case "hyperframes":
+      return t("homeHero.chip.hyperframes");
+    case "audio":
+      return t("homeHero.chip.audio");
+    case "create-plugin":
+      return t("homeHero.chip.createPlugin");
+    case "figma":
+      return t("homeHero.chip.figma");
+    case "template":
+      return t("homeHero.chip.template");
     default:
       return findChip(chipId)?.label ?? chipId;
   }
@@ -1719,9 +1730,9 @@ function homeHeroChipLabelForId(chipId: string, t: ReturnType<typeof useI18n>['t
 // defer model / ratio / resolution / duration / audio type to the first-turn
 // discovery flow instead of inline pre-flight controls.
 const ARTIFACT_FOOTER_FIELD_NAMES = new Set([
-  'fidelity',
-  'slideCount',
-  'speakerNotes',
+  "fidelity",
+  "slideCount",
+  "speakerNotes",
   // Media surfaces (image/video/audio/hyperframes) defer the same way. These
   // were dropped from the footer but `buildHomeMediaComposer` still seeds them
   // (`model: gpt-image-2`, `ratio: 16:9`, `duration: 5`, `audioType: speech`,
@@ -1729,12 +1740,12 @@ const ARTIFACT_FOOTER_FIELD_NAMES = new Set([
   // with baked-in defaults and the first-turn AskUserQuestion flow has nothing
   // left to ask. `subject` / `style` / `aspect` / `mediaKind` are intentionally
   // NOT listed: the od-media-generation apply still validates against them.
-  'model',
-  'ratio',
-  'resolution',
-  'duration',
-  'audioType',
-  'voice'
+  "model",
+  "ratio",
+  "resolution",
+  "duration",
+  "audioType",
+  "voice"
 ]);
 
 // These hidden footer settings must NOT be seeded into the Home composer's
@@ -1753,7 +1764,7 @@ function stripArtifactFooterInputs(inputs: Record<string, unknown>): Record<stri
 }
 
 function footerInputNamesForChip(chipId: string | null): string[] {
-  if (chipId === 'image' || chipId === 'video') return ['designSystem'];
+  if (chipId === "image" || chipId === "video") return ["designSystem"];
   // hyperframes / audio surface no pre-flight settings — the agent asks for
   // ratio / duration / model / audio kind via AskUserQuestion during the run.
   return [];
@@ -1782,11 +1793,11 @@ function designSystemOptionsForHome(
   systems: DesignSystemSummary[],
   defaultDesignSystemId: string | null,
   logoById: Record<string, string>,
-  t: ReturnType<typeof useI18n>['t']
+  t: ReturnType<typeof useI18n>["t"]
 ): HomeDesignSystemOption[] {
   const selectable = systems.filter((system) => {
     if (!system.title) return false;
-    if (system.source === 'user' || system.isEditable === true) return (system.status ?? 'draft') === 'published';
+    if (system.source === "user" || system.isEditable === true) return (system.status ?? "draft") === "published";
     return true;
   });
   const systemOptions = selectable
@@ -1808,41 +1819,41 @@ function designSystemOptionsForHome(
     });
   const autoOption: HomeDesignSystemOption = {
     id: AUTO_DESIGN_SYSTEM_OPTION_ID,
-    title: t('homeHero.footer.autoDesignSystem'),
+    title: t("homeHero.footer.autoDesignSystem"),
     isDefault: false,
     auto: true,
-    summary: t('homeHero.footer.autoDesignSystemSummary')
+    summary: t("homeHero.footer.autoDesignSystemSummary")
   };
   // Only a user-owned ("Personal") design system should be pre-selected as the
   // default. Official/enterprise presets must not auto-select — when the user
   // has no personal default, the composer defaults to "Auto" (which matches a
   // fitting system from the prompt) rather than locking onto a starter preset.
-  const defaultOption = systemOptions.find((option) => option.isDefault && option.group === 'Personal');
+  const defaultOption = systemOptions.find((option) => option.isDefault && option.group === "Personal");
   if (!defaultOption) return [autoOption, ...systemOptions];
   return [defaultOption, autoOption, ...systemOptions.filter((option) => option.id !== defaultOption.id)];
 }
 
-function designSystemOptionGroup(system: DesignSystemSummary): 'Personal' | 'Official preset' | 'Enterprise' {
-  if (system.source === 'user' || system.isEditable === true) return 'Personal';
-  if (system.source === 'installed') return 'Enterprise';
-  return 'Official preset';
+function designSystemOptionGroup(system: DesignSystemSummary): "Personal" | "Official preset" | "Enterprise" {
+  if (system.source === "user" || system.isEditable === true) return "Personal";
+  if (system.source === "installed") return "Enterprise";
+  return "Official preset";
 }
 
-function designSystemGroupOrder(group: 'Personal' | 'Official preset' | 'Enterprise'): number {
-  if (group === 'Personal') return 0;
-  if (group === 'Official preset') return 1;
+function designSystemGroupOrder(group: "Personal" | "Official preset" | "Enterprise"): number {
+  if (group === "Personal") return 0;
+  if (group === "Official preset") return 1;
   return 2;
 }
 
 function findDesignSystemLogoFile(files: ProjectFile[]): ProjectFile | null {
   const logoCandidates = files
-    .filter((file) => file.type !== 'dir')
+    .filter((file) => file.type !== "dir")
     .filter((file) => {
       const name = file.path ?? file.name;
-      return file.kind === 'image' || /\.(svg|png|jpe?g|webp|gif)$/iu.test(name);
+      return file.kind === "image" || /\.(svg|png|jpe?g|webp|gif)$/iu.test(name);
     });
   return (
-    logoCandidates.find((file) => (file.path ?? file.name).toLowerCase() === 'assets/logo.svg') ??
+    logoCandidates.find((file) => (file.path ?? file.name).toLowerCase() === "assets/logo.svg") ??
     logoCandidates.find((file) =>
       /(^|\/)(logo|wordmark|brand-mark|brandmark|mark|icon|favicon)[^/]*\.(svg|png|jpe?g|webp|gif)$/iu.test(
         file.path ?? file.name
@@ -1857,10 +1868,10 @@ function withHomeDesignSystemDefault(
   fields: InputFieldSpec[],
   designSystemOptions: HomeDesignSystemOption[]
 ): Record<string, unknown> | undefined {
-  if (!fields.some((field) => field.name === 'designSystem')) return provided;
+  if (!fields.some((field) => field.name === "designSystem")) return provided;
   const current = provided?.designSystem;
-  const currentText = current === undefined || current === null ? '' : String(current).trim();
-  if (currentText.length > 0 && currentText !== 'the active project design system') {
+  const currentText = current === undefined || current === null ? "" : String(current).trim();
+  if (currentText.length > 0 && currentText !== "the active project design system") {
     return provided;
   }
   const selected = designSystemOptions[0];
@@ -1877,9 +1888,9 @@ function homeDesignSystemSelectionForInputs(
   prompt: string
 ): HomeDesignSystemOption | null {
   const value = inputs?.designSystem;
-  if (typeof value !== 'string') return null;
+  if (typeof value !== "string") return null;
   const selectedTitle = value.trim();
-  if (!selectedTitle || selectedTitle === 'the active project design system') return null;
+  if (!selectedTitle || selectedTitle === "the active project design system") return null;
   const selected = designSystemOptions.find((option) => option.title === selectedTitle);
   if (selected?.auto || isAutoDesignSystemTitle(selectedTitle, designSystemOptions)) {
     return autoSelectHomeDesignSystem(prompt, designSystemOptions);
@@ -1894,7 +1905,7 @@ function applyHomeDesignSystemSelectionToInputs(
 ): Record<string, unknown> {
   if (!selected) return inputs;
   const current = inputs.designSystem;
-  if (typeof current !== 'string' || !isAutoDesignSystemTitle(current, designSystemOptions)) return inputs;
+  if (typeof current !== "string" || !isAutoDesignSystemTitle(current, designSystemOptions)) return inputs;
   return {
     ...inputs,
     designSystem: selected.title
@@ -1918,8 +1929,8 @@ function autoSelectHomeDesignSystem(
   let best: { option: HomeDesignSystemOption; score: number } | null = null;
   for (const option of candidates) {
     const title = normalizeAutoDesignSystemText(option.title);
-    const category = normalizeAutoDesignSystemText(option.category ?? '');
-    const summary = normalizeAutoDesignSystemText(option.summary ?? '');
+    const category = normalizeAutoDesignSystemText(option.category ?? "");
+    const summary = normalizeAutoDesignSystemText(option.summary ?? "");
     const haystack = `${title} ${category} ${summary}`;
     let score = 0;
     if (title && promptText.includes(title)) score += 18;
@@ -1937,7 +1948,7 @@ function autoSelectHomeDesignSystem(
 }
 
 function normalizeAutoDesignSystemText(value: string): string {
-  return value.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return value.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function autoDesignSystemTokens(value: string): string[] {
@@ -1954,29 +1965,29 @@ function autoDesignSystemTokens(value: string): string[] {
 }
 
 const AUTO_DESIGN_SYSTEM_STOP_WORDS = new Set([
-  'the',
-  'and',
-  'for',
-  'with',
-  'using',
-  'create',
-  'make',
-  'build',
-  'page',
-  'site',
-  'app',
-  'web',
-  'design',
-  'system',
-  'style',
-  '一个',
-  '这个',
-  '使用',
-  '生成',
-  '设计',
-  '页面',
-  '网站',
-  '应用'
+  "the",
+  "and",
+  "for",
+  "with",
+  "using",
+  "create",
+  "make",
+  "build",
+  "page",
+  "site",
+  "app",
+  "web",
+  "design",
+  "system",
+  "style",
+  "一个",
+  "这个",
+  "使用",
+  "生成",
+  "设计",
+  "页面",
+  "网站",
+  "应用"
 ]);
 
 function estimatePluginContextItemCount(record: InstalledPluginRecord): number {
@@ -2019,7 +2030,7 @@ function extractPluginInputsFromPrompt(
   // appended after a user-owned draft prefix: the prefix is mutable and must
   // not be baked into the anchored template, otherwise editing it would break
   // placeholder extraction and leave pluginInputs stale.
-  let pattern = options?.allowPrefix ? '[\\s\\S]*?' : '^';
+  let pattern = options?.allowPrefix ? "[\\s\\S]*?" : "^";
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = TEMPLATE_INPUT_PATTERN.exec(template)) !== null) {
@@ -2027,19 +2038,19 @@ function extractPluginInputsFromPrompt(
     const key = match[1];
     if (!key) continue;
     pattern += escapeRegExp(template.slice(lastIndex, match.index));
-    pattern += '([\\s\\S]*?)';
+    pattern += "([\\s\\S]*?)";
     keys.push(key);
     lastIndex = match.index + placeholder.length;
   }
   if (keys.length === 0) return null;
   pattern += escapeRegExp(template.slice(lastIndex));
-  const renderedMatch = new RegExp(pattern + '$').exec(prompt);
+  const renderedMatch = new RegExp(pattern + "$").exec(prompt);
   if (!renderedMatch) return null;
   const next: Record<string, unknown> = {};
   keys.forEach((key, index) => {
     const field = fieldByName.get(key);
     if (!field) return;
-    const raw = renderedMatch[index + 1] ?? '';
+    const raw = renderedMatch[index + 1] ?? "";
     next[key] = coercePromptInputValue(raw, field);
   });
   return next;
@@ -2047,33 +2058,33 @@ function extractPluginInputsFromPrompt(
 
 function coercePromptInputValue(raw: string, field: InputFieldSpec): unknown {
   const rawType = (field as { type?: unknown }).type;
-  const type = typeof rawType === 'string' ? rawType : 'string';
+  const type = typeof rawType === "string" ? rawType : "string";
   const trimmed = raw.trim();
-  if (type === 'number') {
+  if (type === "number") {
     if (trimmed.length === 0) return undefined;
     const parsed = Number(trimmed);
     return Number.isFinite(parsed) ? parsed : raw;
   }
-  if (type === 'boolean') {
-    if (trimmed.toLowerCase() === 'true') return true;
-    if (trimmed.toLowerCase() === 'false') return false;
+  if (type === "boolean") {
+    if (trimmed.toLowerCase() === "true") return true;
+    if (trimmed.toLowerCase() === "false") return false;
   }
-  if (type === 'select' && Array.isArray(field.options) && field.options.includes(trimmed)) {
+  if (type === "select" && Array.isArray(field.options) && field.options.includes(trimmed)) {
     return trimmed;
   }
   return raw;
 }
 
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function removePluginMentionFromPrompt(prompt: string, record: InstalledPluginRecord): string {
   const token = inlineMentionToken(record.title);
   return prompt
-    .replace(new RegExp(`(^|\\s)${escapeRegExp(token)}(?=\\s|$)`, 'g'), ' ')
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/\n[ \t]+/g, '\n')
+    .replace(new RegExp(`(^|\\s)${escapeRegExp(token)}(?=\\s|$)`, "g"), " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
     .trim();
 }
 
@@ -2082,8 +2093,8 @@ function removeContextMentionsFromPrompt(prompt: string, labels: string[]): stri
   return uniqueLabels.reduce((current, label) => {
     const token = inlineMentionToken(label);
     return current.replace(
-      new RegExp(`(^|[\\s([{"'])${escapeRegExp(token)}(?=$|\\s|[.,;:!?)}\\]"'])([^\\S\\r\\n])?`, 'g'),
-      '$1'
+      new RegExp(`(^|[\\s([{"'])${escapeRegExp(token)}(?=$|\\s|[.,;:!?)}\\]"'])([^\\S\\r\\n])?`, "g"),
+      "$1"
     );
   }, prompt);
 }

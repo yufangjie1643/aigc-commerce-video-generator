@@ -82,7 +82,8 @@ const ENV_KEYS: Record<string, string[]> = {
   // who pastes an Azure deployment URL into the OpenAI Base URL field
   // gets the credential picked up automatically.
   openai: ["OD_OPENAI_API_KEY", "OPENAI_API_KEY", "AZURE_API_KEY", "AZURE_OPENAI_API_KEY"],
-  volcengine: ["OD_VOLCENGINE_API_KEY", "ARK_API_KEY", "VOLCENGINE_API_KEY"],
+  volcengine: ["OD_VOLCENGINE_API_KEY", "VOLCENGINE_API_KEY"],
+  "volcengine-ark": ["OD_VOLCENGINE_ARK_API_KEY", "ARK_API_KEY", "VOLCENGINE_ARK_API_KEY"],
   mimo: ["OD_MIMO_API_KEY", "MIMO_API_KEY", "XIAOMI_MIMO_API_KEY"],
   // OD_GROK_API_KEY first (the project-reserved override, same shape as
   // every other provider above), then XAI_API_KEY as the canonical

@@ -107,7 +107,6 @@ function renderOnboarding(
     onDeleteProject: vi.fn(),
     onRenameProject: vi.fn(),
     onChangeDefaultDesignSystem: vi.fn(),
-    onPersistComposioKey: vi.fn(),
     onOpenSettings: vi.fn(),
     onCompleteOnboarding: vi.fn(),
     ...overrides,
@@ -173,7 +172,6 @@ function renderHome(
     onDeleteProject: vi.fn(),
     onRenameProject: vi.fn(),
     onChangeDefaultDesignSystem: vi.fn(),
-    onPersistComposioKey: vi.fn(),
     onOpenSettings: vi.fn(),
     onCompleteOnboarding: vi.fn(),
     ...overrides,
@@ -326,19 +324,22 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     });
   });
 
-  it('excludes AMR from the Local CLI agent list', async () => {
-    vi.useFakeTimers();
+  it('selects a local CLI and finishes onboarding from the runtime card', async () => {
     globalThis.fetch = vi.fn(async () =>
       jsonResponse({ loggedIn: false, profile: 'prod', user: null, configPath: '/x' }),
     ) as typeof fetch;
-    renderOnboarding();
+    const props = renderOnboarding();
 
     fireEvent.click(screen.getByRole('button', { name: /Local coding agent/i }));
-    await vi.advanceTimersByTimeAsync(300);
 
-    const localPanel = screen.getByText('Local CLI').closest('.onboarding-view__setup-panel');
-    expect(localPanel?.textContent).toContain('Claude Code');
-    expect(localPanel?.textContent).not.toContain('AMR');
+    expect(props.onModeChange).toHaveBeenCalledWith('daemon');
+    expect(props.onAgentChange).toHaveBeenLastCalledWith('claude-code');
+    expect(props.onCompleteOnboarding).toHaveBeenCalledTimes(1);
+    expect(latestTrackedEvent('onboarding_complete_result')).toMatchObject({
+      result: 'completed',
+      completion_type: 'completed_without_design_system',
+      runtime_type: 'local_cli',
+    });
   });
 
   it('keeps AMR login pending while device authorization is waiting', async () => {
@@ -425,7 +426,7 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
     globalThis.fetch = fetchMock as typeof fetch;
-    renderOnboarding();
+    const props = renderOnboarding();
 
     const signIn = await screen.findByRole('button', { name: /Sign in to continue/i });
     vi.useFakeTimers();
@@ -438,7 +439,11 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     await act(async () => {});
 
     expect(screen.queryByText('Signing in…')).toBeNull();
-    expect(screen.getByRole('button', { name: /^Continue$/i }).hasAttribute('disabled')).toBe(false);
+    expect(props.onCompleteOnboarding).toHaveBeenCalledTimes(1);
+    expect(latestTrackedEvent('onboarding_complete_result')).toMatchObject({
+      result: 'completed',
+      runtime_type: 'local_cli',
+    });
   });
 
   it('cancels AMR login and re-enables onboarding after the login timeout', async () => {
@@ -765,71 +770,25 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/subscribe'))).toBe(false);
   });
 
-  it('persists the BYOK config before finishing onboarding', async () => {
-    globalThis.fetch = vi.fn(async (input, init) => {
+  it('finishes onboarding after selecting the BYOK runtime card', async () => {
+    globalThis.fetch = vi.fn(async (input) => {
       const url = String(input);
       if (url.endsWith('/api/integrations/vela/status')) {
         return jsonResponse({ loggedIn: false, profile: 'prod', user: null, configPath: '/x' });
-      }
-      if (url.endsWith('/api/provider/models') && init?.method === 'POST') {
-        return jsonResponse({
-          ok: true,
-          kind: 'success',
-          latencyMs: 10,
-          models: [
-            { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-            { id: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
-          ],
-        });
-      }
-      if (url.endsWith('/api/test/connection') && init?.method === 'POST') {
-        return jsonResponse({
-          ok: true,
-          kind: 'success',
-          latencyMs: 12,
-          model: 'claude-opus-4-8',
-          sample: 'Connected',
-        });
       }
       throw new Error(`unexpected fetch: ${url}`);
     }) as typeof fetch;
     const props = renderOnboarding();
 
     fireEvent.click(screen.getByRole('button', { name: /Bring your own key/i }));
-    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'test-api-key' } });
-    fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://api.anthropic.com' } });
-    fireEvent.click(screen.getByRole('button', { name: /Fetch models/i }));
-    await waitFor(() => {
-      expect(screen.getByText('Fetched 2 models.')).toBeTruthy();
-    });
-    chooseDropdownOption('Model', /claude-opus-4-8/i);
-    fireEvent.click(screen.getByRole('button', { name: /^Test$/i }));
-    await waitFor(() => {
-      expect(screen.getByText(/Connected\. Replied in 12 ms/i)).toBeTruthy();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /^Continue$/i }));
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'About you' })).toBeTruthy();
-    });
-    // About you -> newsletter step
-    fireEvent.click(screen.getByRole('button', { name: /^Continue$/i }));
-    await waitFor(() => {
-      expect(document.querySelector('.onboarding-view__email-input')).toBeTruthy();
-    });
-    fireEvent.click(screen.getByRole('button', { name: /Finish setup/i }));
 
     expect(props.onModeChange).toHaveBeenCalledWith('api');
-    expect(props.onApiModelChange).toHaveBeenCalledWith('claude-opus-4-8');
-    expect(props.onConfigPersist).toHaveBeenCalled();
     expect(props.onCompleteOnboarding).toHaveBeenCalledTimes(1);
-    expect((props.onConfigPersist as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]).toMatchObject({
-      mode: 'api',
-      apiProtocol: 'anthropic',
-      apiKey: 'test-api-key',
-      baseUrl: 'https://api.anthropic.com',
-      model: 'claude-opus-4-8',
-      apiProviderBaseUrl: null,
+    expect(props.onConfigPersist).not.toHaveBeenCalled();
+    expect(latestTrackedEvent('onboarding_complete_result')).toMatchObject({
+      result: 'completed',
+      completion_type: 'completed_without_design_system',
+      runtime_type: 'byok',
     });
   });
 

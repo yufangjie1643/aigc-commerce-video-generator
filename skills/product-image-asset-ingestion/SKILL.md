@@ -5,7 +5,7 @@ description: |
   the Open Design product asset library: recursively find images, ignore
   videos, run image/vision understanding, cluster visually identical or
   same-SKU product photos, import product images with `od assets products
-  import-image`, and report imported asset ids, skipped files, and uncertain
+  import-folder`, and report imported asset ids, skipped files, and uncertain
   clusters. Trigger for Chinese requests such as “把这个文件夹里的图片分门别类加入商品素材库”,
   “分类导入商品图片”, “运行视觉理解，相同商品放到一个门类下”, or “整理服饰鞋包图片素材库”.
 triggers:
@@ -34,26 +34,40 @@ Turn a local folder tree of ecommerce product images into product asset-library 
 
 ## Workflow
 
-1. Inventory the directory:
+1. Prefer the built-in product folder ingestion command. It recursively scans images, skips videos/non-images, runs native image understanding, clusters visually, and imports every accepted image in one internal batch. Use serial mode when the user/provider is rate-limit sensitive; otherwise use conservative parallel mode:
 
 ```powershell
-python skills\product-image-asset-ingestion\scripts\inventory_product_images.py --root "<folder>" --output ".od\asset-library\analysis\product-image-ingestion"
+& $env:OD_NODE_BIN $env:OD_BIN assets products import-folder "<folder>" `
+  --mode parallel `
+  --concurrency 3 `
+  --wait `
+  --json
 ```
 
-Read `manifest.json`. If there are zero images, report that and stop. If videos exist, mention they were skipped.
+POSIX shell:
 
-2. Run visual understanding for each image using the best available image-understanding capability in the environment, such as MiniMax MCP `understand_image`, model-native image input, or a configured image understanding endpoint. Do not fake labels from filenames. If no image-understanding tool is available, give the manifest path and ask the user to enable an image understanding provider.
+```bash
+"$OD_NODE_BIN" "$OD_BIN" assets products import-folder "<folder>" \
+  --mode parallel \
+  --concurrency 3 \
+  --wait \
+  --json
+```
 
-For each image, extract:
+Use `--mode serial --concurrency 1` when provider calls must be strictly sequential. Use `--dry-run` to inspect visual clusters without importing. Always prefer `--json` and parse returned `clusters`, `imported`, `failed`, and `skipped`.
+
+2. Only fall back to manual single-image ingestion when `import-folder` is unavailable. In that fallback, first check `od assets products import-image --help`, then run real visual understanding for each image using the best available image-understanding capability. Do not fake labels from filenames. If no image-understanding tool is available, ask the user to enable/configure an image understanding provider.
+
+For manual fallback, extract:
 
 - product type, silhouette, dominant color, material, pattern/print, visible details
 - whether it is a main shot, detail shot, model/lifestyle shot, packaging, or duplicate
 - a short factual Chinese label
 - uncertainty notes
 
-3. Cluster images by visual identity. Use a stable `clusterId` such as `dress-shirt-blue-001` or a Chinese slug. Keep an `uncertain` cluster when images are too ambiguous; import it only if the user explicitly asked to import everything.
+3. Manual fallback clustering: group by visual identity. Use a stable `clusterId` such as `dress-shirt-blue-001` or a Chinese slug. Keep an `uncertain` cluster when images are too ambiguous; import it only if the user explicitly asked to import everything.
 
-4. Import with the product asset CLI, one image per record, all records in the same visual product group sharing the same `category` and `subject`:
+4. Manual fallback import uses one image per record, all records in the same visual product group sharing the same `category` and `subject`:
 
 ```powershell
 pnpm exec od assets products import-image "<absolute-image-path>" `
@@ -94,4 +108,5 @@ Most missing details in this workflow have defaults; act instead of asking. If a
 - Never claim visual analysis happened unless an image-understanding tool actually inspected the images.
 - Do not ask the user to confirm obvious folder traversal or whether to ignore videos when they already said not to handle videos.
 - Do not use `od assets commerce-videos` for product images.
+- Do not call Python or write ad hoc batch scripts for normal folder ingestion. Use `od assets products import-folder`; if batching must be customized, use OD's built-in serial/parallel flags first.
 - Do not invent fabric, brand, size, price, or claims that are not visible or supplied.

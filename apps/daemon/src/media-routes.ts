@@ -25,6 +25,22 @@ function stringField(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isObviousCommerceVideoGenerateRequest(body: any): boolean {
+  if (body?.surface !== "video") return false;
+  const haystack = [
+    stringField(body?.prompt),
+    stringField(body?.output),
+    stringField(body?.referenceVideoUrl),
+    ...(Array.isArray(body?.images) ? body.images.map(stringField) : [])
+  ]
+    .join("\n")
+    .toLowerCase();
+  if (!haystack) return false;
+  return /commerce-video|product[-\s]?selling|marketplace|sku|offer\/cta|带货|电商.{0,12}视频|商品.{0,12}(短视频|视频)|商品素材上传|剧本生成|基础分镜|一键成片|任务进度|预览导出/.test(
+    haystack
+  );
+}
+
 function mediaProviderProbePath(providerId: string, baseUrl: string): string {
   const lower = baseUrl.toLowerCase().replace(/\/+$/, "");
   if (providerId === "elevenlabs") {
@@ -321,6 +337,14 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
     if (!model) {
       return sendApiError(res, 400, "BAD_REQUEST", "model is required");
     }
+    if (isObviousCommerceVideoGenerateRequest(req.body)) {
+      return sendApiError(
+        res,
+        409,
+        "COMMERCE_VIDEO_WORKFLOW_REQUIRED",
+        "This looks like an ecommerce/product selling video request. Use the commerce-video staged workflow instead of direct media generate so 商品素材上传 -> 剧本生成 -> 基础分镜 -> 一键成片 -> 任务进度 -> 预览导出 stays isolated."
+      );
+    }
 
     const policy = mediaPolicyForGrant(options.grant);
     if (!policy.ok) {
@@ -370,6 +394,10 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
         compositionDir: req.body?.compositionDir,
         image: req.body?.image,
         images: Array.isArray(req.body?.images) ? req.body.images : undefined,
+        referenceImageUrl: typeof req.body?.referenceImageUrl === "string" ? req.body.referenceImageUrl : undefined,
+        referenceImageUrls: Array.isArray(req.body?.referenceImageUrls) ? req.body.referenceImageUrls : undefined,
+        referenceVideoUrl: typeof req.body?.referenceVideoUrl === "string" ? req.body.referenceVideoUrl : undefined,
+        referenceAudioUrl: typeof req.body?.referenceAudioUrl === "string" ? req.body.referenceAudioUrl : undefined,
         onProgress: (line: any) => appendTaskProgress(task, line),
         requestInit: proxyDispatcher.requestInit
       })

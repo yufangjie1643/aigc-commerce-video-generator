@@ -80,8 +80,11 @@ describe("composeSystemPrompt", () => {
 
     expect(prompt).toContain("# Comprehensive mode — business workbench orchestration");
     expect(prompt).toContain("do not emit the default Design discovery `<question-form>`");
+    expect(prompt).toContain("od assets status --json");
+    expect(prompt).toContain("od assets search --query");
     expect(prompt).toContain("od assets commerce-videos search");
     expect(prompt).toContain("video-generation-pipeline");
+    expect(prompt).toContain("Generated commerce-video outputs are project artifacts, not source material-library assets");
     expect(prompt.indexOf("# Comprehensive mode — business workbench orchestration")).toBeLessThan(
       prompt.indexOf("RULE 1")
     );
@@ -272,7 +275,9 @@ describe("composeSystemPrompt", () => {
     expect(prompt).toContain("`references/html-in-canvas.md`");
     expect(prompt).toContain("media generate --surface video --model hyperframes-html --composition-dir");
     expect(prompt).not.toContain("that path is\n   intentionally rejected for this model");
-    expect(prompt).toContain("For ecommerce/product selling video briefs, obey the Ecommerce selling-video gate");
+    expect(prompt).toContain(
+      "For ecommerce/product selling video briefs, follow the Ecommerce selling-video staged workflow"
+    );
   });
 
   it("turns media generation into brief question behavior in question mode", () => {
@@ -294,35 +299,60 @@ describe("composeSystemPrompt", () => {
     expect(prompt).not.toContain("Dispatch immediately when the brief is complete");
   });
 
-  it("adds the ecommerce selling-video configuration workflow for video projects", () => {
+  it("adds the ecommerce selling-video staged workflow for video projects", () => {
     const prompt = composeSystemPrompt({
       metadata: {
         kind: "video",
-        videoModel: "doubao-seedance-1.5-pro",
+        videoModel: "doubao-seedance-2-0-260128",
         videoLength: 20,
         videoAspect: "9:16"
       } as any
     });
 
-    expect(prompt).toContain("### Ecommerce selling-video configuration workflow");
-    expect(prompt).toContain("Requirement Q&A");
-    expect(prompt).toContain("Local references");
-    expect(prompt).toContain("references/ecommerce-selling-video.md");
-    expect(prompt).toContain("Asset upload gate");
-    expect(prompt).toContain("Storyboard confirmation");
-    expect(prompt).toContain("Generation readiness");
-    expect(prompt).toContain("`requirement_qa`");
-    expect(prompt).toContain("`reference_choice`");
+    expect(prompt).toContain("### Ecommerce selling-video staged workflow");
+    expect(prompt).toContain("### Commerce-video task-type classifier");
+    expect(prompt).toContain("Default injected prompt for strict staged mode");
+    expect(prompt).toContain(
+      "请用我刚上传的商品素材生成一条 9:16 竖版带货短视频。严格按 commerce-video 六阶段流程执行：商品素材上传、剧本生成、基础分镜、一键成片、任务进度、预览导出。现在只执行第 1 阶段「商品素材上传」，完成后标记当前阶段并询问我是否进入「剧本生成」。不要生成剧本、不要生成分镜、不要创建成片任务。"
+    );
+    expect(prompt).toContain("Full-auto injected prompt for explicit one-click mode");
+    expect(prompt).toContain("用户已明确要求一键成片");
+    expect(prompt).toContain("不要在阶段之间停下来询问");
+    expect(prompt).toContain("Do not classify a stage-list mention of 一键成片 as full-auto");
+    expect(prompt).toContain("Default chain: 商品素材上传 -> 剧本生成 -> 基础分镜 -> 一键成片 -> 任务进度 -> 预览导出");
+    expect(prompt).toContain(
+      "Complete only the current stage, then stop and ask the user whether to enter the next stage"
+    );
+    expect(prompt).toContain("Stage name 一键成片 alone is not permission for full automation");
+    expect(prompt).toContain("Full automation requires explicit wording such as 全自动一键成片");
+    expect(prompt).toContain("Do not treat 完整 commerce-video 工作流");
+    expect(prompt).toContain(
+      'Do not call direct `"$OD_NODE_BIN" "$OD_BIN" media generate` for ecommerce/product selling videos'
+    );
+    expect(prompt).toContain('`"$OD_NODE_BIN" "$OD_BIN" commerce-video materials');
+    expect(prompt).toContain('`"$OD_NODE_BIN" "$OD_BIN" commerce-video script');
+    expect(prompt).toContain('`"$OD_NODE_BIN" "$OD_BIN" commerce-video storyboard');
+    expect(prompt).toContain('`"$OD_NODE_BIN" "$OD_BIN" commerce-video generate');
+    expect(prompt).toContain('`"$OD_NODE_BIN" "$OD_BIN" commerce-video jobs');
+    expect(prompt).toContain('`"$OD_NODE_BIN" "$OD_BIN" commerce-video wait');
+    expect(prompt).toContain('`"$OD_NODE_BIN" "$OD_BIN" commerce-video preview');
+    expect(prompt).toContain('`"$OD_NODE_BIN" "$OD_BIN" commerce-video export');
+    expect(prompt).toContain("`product_source`");
     expect(prompt).toContain("`asset_manifest`");
     expect(prompt).toContain("`storyboard[]`");
+    expect(prompt).toContain("`preview_export`");
     expect(prompt).toContain("`retry_or_diagnostics`");
-    expect(prompt).toContain("--image <project-relative-path>");
-    expect(prompt).toContain("only choose image-to-video when the user explicitly asks");
+    expect(prompt).toContain("duration `min(lengthSeconds, 15)` or 15s when length is unknown");
+    expect(prompt).toContain("Generated commerce-video outputs are project artifacts, not source material-library assets");
+    expect(prompt).toContain("never call `assets commerce-videos import");
     expect(prompt).toContain("`minimax-video-01`");
-    expect(prompt).toContain("`doubao-seedance-1.5-pro`");
-    expect(prompt).toContain('do not call `"$OD_NODE_BIN" "$OD_BIN" media generate --surface video ...`');
-    expect(prompt).not.toContain("Otherwise make a stated assumption");
-    expect(prompt.indexOf("### Ecommerce selling-video configuration workflow")).toBeGreaterThan(
+    expect(prompt).toContain("`doubao-seedance-2-0-260128`");
+    expect(prompt).not.toContain(
+      "product input -> script -> storyboard -> TTS/BGM/subtitles -> <=15s finished video -> preview/export"
+    );
+    expect(prompt).not.toContain('do not call `"$OD_NODE_BIN" "$OD_BIN" media generate --surface video ...`');
+    expect(prompt).not.toContain("Requirement Q&A");
+    expect(prompt.indexOf("### Ecommerce selling-video staged workflow")).toBeGreaterThan(
       prompt.indexOf("This is a **video** project")
     );
   });
@@ -333,7 +363,10 @@ describe("composeSystemPrompt", () => {
     const reference = readFileSync(path.join(mediaScenarioRoot, "references/ecommerce-selling-video.md"), "utf8");
 
     expect(scenarioSkill).toContain("references/ecommerce-selling-video.md");
-    expect(reference).toContain("## Required Gates");
+    expect(scenarioSkill).toContain("商品素材上传 -> 剧本生成 -> 基础分镜 -> 一键成片 -> 任务进度 -> 预览导出");
+    expect(scenarioSkill).toContain("Do not treat the stage name 一键成片 as permission for full automation");
+    expect(reference).toContain("## Staged Chain");
+    expect(reference).toContain("Finish exactly one stage, ask whether to enter the next stage");
     expect(reference).toContain("## Image-to-Video Rule");
     expect(reference).toContain("## Pattern A");
     expect(reference).toContain("## Pattern E");

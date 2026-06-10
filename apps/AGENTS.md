@@ -24,6 +24,14 @@ Follow the root `AGENTS.md` first. This file only records module-level boundarie
 - Domain routes describe a product capability or data model. `/api/active` belongs in `apps/daemon/src/routes/active-context.ts` because transient UI focus is its own domain, while chat routes own persistent conversation and run state.
 - Add endpoints to an existing route file when they share the same domain language and dependency set. Split a new module under `apps/daemon/src/routes/` when the endpoint introduces a distinct domain or has little dependency overlap with existing route modules.
 
+## Web/daemon payload and media-loading discipline
+
+- List endpoints that feed index, gallery, workbench, or dashboard views must return list-card DTOs, not full detail DTOs. Keep heavy fields such as raw embedding vectors, full media-understanding transcripts, large provider payloads, logs, rendered artifacts, and binary/file contents on detail, download, or explicit expansion endpoints.
+- When a capability needs both list and detail views, the daemon should make the distinction visible in code with a named list-slimming helper or dedicated list DTO type. The shared contracts should allow list responses to omit heavy detail-only fields without forcing consumers to receive placeholder payloads.
+- Frontend list views must not mount `<video>`, `<audio>`, iframe previews, or other media elements with real `src` values for every row/card just to render a gallery. Use thumbnails, static placeholders, or explicit preview buttons; load the original media only when the user opens a preview or expands a specific item.
+- Effects that trigger initial web/daemon fetches must be safe under React StrictMode double invocation in development. Use in-flight request guards, abort handling, or a local data cache so dev-mode diagnostics do not double daemon traffic or mask production performance characteristics.
+- Before adding a media-heavy workbench or expanding an existing list payload, measure response size, request count, and first usable render time through the normal web proxy path. Treat repeated same-origin file requests and MB-scale JSON list responses as product bugs, not incidental dev-server noise.
+
 ## Test layout
 
 - App tests live in each app's `tests/` directory, sibling to `src/`; preserve source-relative subpaths inside `tests/` when useful.
