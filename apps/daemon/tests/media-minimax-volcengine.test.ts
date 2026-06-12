@@ -1,0 +1,531 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { generateMedia, understandMedia } from "../src/media.js";
+
+const TEST_MINIMAX_BASE_URL = "https://api.minimaxi.com/v1";
+const TEST_VOLCENGINE_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
+const TEST_IMAGE_URL = "https://cdn.example.test/minimax-image.png";
+const TEST_VIDEO_URL = "https://cdn.example.test/ark-video.mp4";
+const TEST_REFERENCE_IMAGE_URL_1 = "https://cdn.example.test/reference-image-1.jpg";
+const TEST_REFERENCE_IMAGE_URL_2 = "https://cdn.example.test/reference-image-2.jpg";
+const TEST_REFERENCE_VIDEO_URL = "https://cdn.example.test/reference-video.mp4";
+const TEST_REFERENCE_AUDIO_URL = "https://cdn.example.test/reference-audio.mp3";
+const TEST_MINIMAX_VIDEO_URL = "https://cdn.example.test/minimax-video.mp4";
+const TEST_IMAGE_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
+const TEST_VIDEO_BYTES = Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70]);
+
+describe("MiniMax and Volcengine ecommerce media models", () => {
+  let root: string;
+  let projectRoot: string;
+  let projectsRoot: string;
+  const realFetch = globalThis.fetch;
+  const originalMediaConfigDir = process.env.OD_MEDIA_CONFIG_DIR;
+  const originalDataDir = process.env.OD_DATA_DIR;
+  const originalVolcenginePollMs = process.env.OD_VOLCENGINE_VIDEO_MAX_POLL_MS;
+  const originalMinimaxPollMs = process.env.OD_MINIMAX_VIDEO_MAX_POLL_MS;
+
+  beforeEach(async () => {
+    root = await mkdtemp(path.join(tmpdir(), "od-minimax-volcengine-"));
+    projectRoot = path.join(root, "project-root");
+    projectsRoot = path.join(projectRoot, ".od", "projects");
+    await mkdir(projectsRoot, { recursive: true });
+    delete process.env.OD_MEDIA_CONFIG_DIR;
+    delete process.env.OD_DATA_DIR;
+    delete process.env.OD_MINIMAX_API_KEY;
+    delete process.env.MINIMAX_API_KEY;
+    delete process.env.OD_VOLCENGINE_API_KEY;
+    delete process.env.OD_VOLCENGINE_ARK_API_KEY;
+    delete process.env.ARK_API_KEY;
+    delete process.env.VOLCENGINE_ARK_API_KEY;
+    delete process.env.VOLCENGINE_API_KEY;
+    process.env.OD_VOLCENGINE_VIDEO_MAX_POLL_MS = "60000";
+    process.env.OD_MINIMAX_VIDEO_MAX_POLL_MS = "60000";
+  });
+
+  afterEach(async () => {
+    globalThis.fetch = realFetch;
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    if (originalMediaConfigDir == null) {
+      delete process.env.OD_MEDIA_CONFIG_DIR;
+    } else {
+      process.env.OD_MEDIA_CONFIG_DIR = originalMediaConfigDir;
+    }
+    if (originalDataDir == null) {
+      delete process.env.OD_DATA_DIR;
+    } else {
+      process.env.OD_DATA_DIR = originalDataDir;
+    }
+    if (originalVolcenginePollMs == null) {
+      delete process.env.OD_VOLCENGINE_VIDEO_MAX_POLL_MS;
+    } else {
+      process.env.OD_VOLCENGINE_VIDEO_MAX_POLL_MS = originalVolcenginePollMs;
+    }
+    if (originalMinimaxPollMs == null) {
+      delete process.env.OD_MINIMAX_VIDEO_MAX_POLL_MS;
+    } else {
+      process.env.OD_MINIMAX_VIDEO_MAX_POLL_MS = originalMinimaxPollMs;
+    }
+    delete process.env.OD_MINIMAX_API_KEY;
+    delete process.env.MINIMAX_API_KEY;
+    delete process.env.OD_VOLCENGINE_API_KEY;
+    delete process.env.OD_VOLCENGINE_ARK_API_KEY;
+    delete process.env.ARK_API_KEY;
+    delete process.env.VOLCENGINE_ARK_API_KEY;
+    delete process.env.VOLCENGINE_API_KEY;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  async function writeConfig(data: unknown) {
+    const file = path.join(projectRoot, ".od", "media-config.json");
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, JSON.stringify(data), "utf8");
+  }
+
+  it("renders MiniMax image-01 through /image_generation and stores downloaded bytes", async () => {
+    await writeConfig({
+      providers: {
+        minimax: {
+          apiKey: "minimax-test-key",
+          baseUrl: TEST_MINIMAX_BASE_URL
+        }
+      }
+    });
+
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      if (url === `${TEST_MINIMAX_BASE_URL}/image_generation`) {
+        expect(init?.method).toBe("POST");
+        expect(init?.headers).toMatchObject({
+          authorization: "Bearer minimax-test-key",
+          "content-type": "application/json"
+        });
+        expect(JSON.parse(String(init?.body))).toEqual({
+          model: "image-01",
+          prompt: "A clean ecommerce hero image for a stainless steel kettle.",
+          aspect_ratio: "16:9",
+          response_format: "url",
+          n: 1,
+          prompt_optimizer: false
+        });
+        return new Response(
+          JSON.stringify({
+            data: { image_urls: [TEST_IMAGE_URL] },
+            base_resp: { status_code: 0, status_msg: "success" }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      if (url === TEST_IMAGE_URL) {
+        return new Response(TEST_IMAGE_BYTES, {
+          status: 200,
+          headers: { "content-type": "image/png" }
+        });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateMedia({
+      projectRoot,
+      projectsRoot,
+      projectId: "project-1",
+      surface: "image",
+      model: "image-01",
+      prompt: "A clean ecommerce hero image for a stainless steel kettle.",
+      aspect: "16:9",
+      output: "minimax.png"
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.providerId).toBe("minimax");
+    expect(result.providerNote).toContain("minimax/image-01");
+    expect(result.providerNote).toContain("16:9");
+    const bytes = await readFile(path.join(projectsRoot, "project-1", "minimax.png"));
+    expect(bytes.equals(TEST_IMAGE_BYTES)).toBe(true);
+  });
+
+  it("maps doubao-seedance-1.5-pro to the tested Ark endpoint id", async () => {
+    vi.useFakeTimers();
+    await writeConfig({
+      providers: {
+        volcengine: {
+          apiKey: "ark-test-key",
+          baseUrl: TEST_VOLCENGINE_BASE_URL
+        }
+      }
+    });
+    let createBody: Record<string, unknown> | null = null;
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      if (url === `${TEST_VOLCENGINE_BASE_URL}/contents/generations/tasks`) {
+        createBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return new Response(JSON.stringify({ id: "ark-task-1" }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url === `${TEST_VOLCENGINE_BASE_URL}/contents/generations/tasks/ark-task-1`) {
+        return new Response(JSON.stringify({ status: "succeeded", content: { video_url: TEST_VIDEO_URL } }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url === TEST_VIDEO_URL) {
+        return new Response(TEST_VIDEO_BYTES, {
+          status: 200,
+          headers: { "content-type": "video/mp4" }
+        });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const resultPromise = generateMedia({
+      projectRoot,
+      projectsRoot,
+      projectId: "project-1",
+      surface: "video",
+      model: "doubao-seedance-1.5-pro",
+      prompt: "A polished kettle launch clip.",
+      aspect: "16:9",
+      length: 5,
+      image: "reference.png",
+      output: "ark.mp4"
+    });
+
+    await vi.waitFor(() => expect(createBody).not.toBeNull());
+    await vi.advanceTimersByTimeAsync(4000);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    const result = await resultPromise;
+
+    expect(createBody).toEqual({
+      model: "ep-20260514120705-pqv86",
+      content: [
+        {
+          type: "text",
+          text: "A polished kettle launch clip. --resolution 720p --duration 5 --ratio 16:9"
+        }
+      ]
+    });
+    expect(result.providerId).toBe("volcengine");
+    expect(result.providerNote).toContain("volcengine/ep-20260514120705-pqv86");
+    const bytes = await readFile(path.join(projectsRoot, "project-1", "ark.mp4"));
+    expect(bytes.equals(TEST_VIDEO_BYTES)).toBe(true);
+  });
+
+  it("submits Seedance 2.0 through the native Ark task fields", async () => {
+    vi.useFakeTimers();
+    await writeConfig({
+      providers: {
+        volcengine: {
+          apiKey: "ark-test-key",
+          baseUrl: TEST_VOLCENGINE_BASE_URL
+        }
+      }
+    });
+    const projectDir = path.join(projectsRoot, "project-1");
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(path.join(projectDir, "reference.png"), TEST_IMAGE_BYTES);
+
+    let createBody: Record<string, unknown> | null = null;
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      if (url === `${TEST_VOLCENGINE_BASE_URL}/contents/generations/tasks`) {
+        createBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return new Response(JSON.stringify({ id: "ark-task-seedance-2" }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url === `${TEST_VOLCENGINE_BASE_URL}/contents/generations/tasks/ark-task-seedance-2`) {
+        return new Response(JSON.stringify({ status: "succeeded", content: { video_url: TEST_VIDEO_URL } }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url === TEST_VIDEO_URL) {
+        return new Response(TEST_VIDEO_BYTES, {
+          status: 200,
+          headers: { "content-type": "video/mp4" }
+        });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const resultPromise = generateMedia({
+      projectRoot,
+      projectsRoot,
+      projectId: "project-1",
+      surface: "video",
+      model: "doubao-seedance-2-0-260128",
+      prompt: "A polished kettle launch clip.",
+      aspect: "16:9",
+      length: 11,
+      referenceImageUrls: [TEST_REFERENCE_IMAGE_URL_1, TEST_REFERENCE_IMAGE_URL_2],
+      referenceVideoUrl: TEST_REFERENCE_VIDEO_URL,
+      referenceAudioUrl: TEST_REFERENCE_AUDIO_URL,
+      output: "ark-seedance-2.mp4"
+    });
+
+    await vi.waitFor(() => expect(createBody).not.toBeNull());
+    await vi.advanceTimersByTimeAsync(4000);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    const result = await resultPromise;
+
+    expect(createBody).toEqual({
+      model: "doubao-seedance-2-0-260128",
+      content: [
+        {
+          type: "text",
+          text: "A polished kettle launch clip."
+        },
+        {
+          type: "image_url",
+          image_url: { url: TEST_REFERENCE_IMAGE_URL_1 },
+          role: "reference_image"
+        },
+        {
+          type: "image_url",
+          image_url: { url: TEST_REFERENCE_IMAGE_URL_2 },
+          role: "reference_image"
+        },
+        {
+          type: "video_url",
+          video_url: { url: TEST_REFERENCE_VIDEO_URL },
+          role: "reference_video"
+        },
+        {
+          type: "audio_url",
+          audio_url: { url: TEST_REFERENCE_AUDIO_URL },
+          role: "reference_audio"
+        }
+      ],
+      generate_audio: true,
+      ratio: "16:9",
+      duration: 11,
+      watermark: false
+    });
+    expect(result.model).toBe("doubao-seedance-2-0-260128");
+    expect(result.providerNote).toContain("volcengine/doubao-seedance-2-0-260128");
+    expect(result.providerNote).toContain("11s");
+  });
+
+  it("uses the separate Volcengine Ark config for video understanding", async () => {
+    await writeConfig({
+      providers: {
+        volcengine: {
+          apiKey: "generation-key",
+          baseUrl: "https://generation.example.test/api/v3"
+        },
+        "volcengine-ark": {
+          apiKey: "understanding-key",
+          baseUrl: TEST_VOLCENGINE_BASE_URL
+        }
+      }
+    });
+
+    let requestBody: Record<string, unknown> | null = null;
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      expect(String(input)).toBe(`${TEST_VOLCENGINE_BASE_URL}/chat/completions`);
+      expect(init?.method).toBe("POST");
+      expect(init?.headers).toMatchObject({
+        authorization: "Bearer understanding-key",
+        "content-type": "application/json"
+      });
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "This video shows a product demo." }, finish_reason: "stop" }],
+          usage: { prompt_tokens: 12, completion_tokens: 8, total_tokens: 20 }
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await understandMedia({
+      projectRoot,
+      kind: "video",
+      providerId: "volcengine",
+      mediaUrl: "data:video/mp4;base64,AAAA",
+      prompt: "Summarize the clip.",
+      fps: 3
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(requestBody).toEqual({
+      model: "doubao-seed-2-0-lite-260215",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Summarize the clip." },
+            { type: "video_url", video_url: { url: "data:video/mp4;base64,AAAA", fps: 3 } }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1800
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      providerId: "volcengine-ark",
+      kind: "video",
+      model: "doubao-seed-2-0-lite-260215",
+      content: "This video shows a product demo."
+    });
+    expect(result.usage).toEqual({ promptTokens: 12, completionTokens: 8, totalTokens: 20 });
+  });
+
+  it("rejects non-allowlisted Volcengine Ark video understanding models before fetch", async () => {
+    await writeConfig({
+      providers: {
+        "volcengine-ark": {
+          apiKey: "understanding-key",
+          baseUrl: TEST_VOLCENGINE_BASE_URL,
+          videoUnderstandingModel: "doubao-seed-2-0-pro-260215"
+        }
+      }
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      understandMedia({
+        projectRoot,
+        kind: "video",
+        providerId: "volcengine-ark",
+        mediaUrl: "data:video/mp4;base64,AAAA"
+      })
+    ).rejects.toMatchObject({
+      status: 400,
+      code: "MODEL_NOT_ALLOWED"
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("renders MiniMax video only through image-to-video", async () => {
+    vi.useFakeTimers();
+    await writeConfig({
+      providers: {
+        minimax: {
+          apiKey: "minimax-test-key",
+          baseUrl: TEST_MINIMAX_BASE_URL
+        }
+      }
+    });
+    const projectDir = path.join(projectsRoot, "project-1");
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(path.join(projectDir, "reference.png"), TEST_IMAGE_BYTES);
+
+    let submitBody: Record<string, unknown> | null = null;
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      if (url === `${TEST_MINIMAX_BASE_URL}/video_generation`) {
+        expect(init?.method).toBe("POST");
+        expect(init?.headers).toMatchObject({
+          authorization: "Bearer minimax-test-key",
+          "content-type": "application/json"
+        });
+        submitBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        expect(submitBody.first_frame_image).toEqual(expect.stringMatching(/^data:image\/png;base64,/));
+        return new Response(
+          JSON.stringify({
+            task_id: "minimax-task-1",
+            base_resp: { status_code: 0, status_msg: "success" }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      if (url === `${TEST_MINIMAX_BASE_URL}/query/video_generation?task_id=minimax-task-1`) {
+        return new Response(
+          JSON.stringify({
+            status: "Success",
+            file_id: "minimax-file-1",
+            base_resp: { status_code: 0, status_msg: "success" }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      if (url === `${TEST_MINIMAX_BASE_URL}/files/retrieve?file_id=minimax-file-1`) {
+        return new Response(
+          JSON.stringify({
+            file: { download_url: TEST_MINIMAX_VIDEO_URL },
+            base_resp: { status_code: 0, status_msg: "success" }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      if (url === TEST_MINIMAX_VIDEO_URL) {
+        return new Response(TEST_VIDEO_BYTES, {
+          status: 200,
+          headers: { "content-type": "video/mp4" }
+        });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const resultPromise = generateMedia({
+      projectRoot,
+      projectsRoot,
+      projectId: "project-1",
+      surface: "video",
+      model: "minimax-video-01",
+      prompt: "Animate this zoo poster into a friendly entrance reveal.",
+      aspect: "16:9",
+      length: 6,
+      image: "reference.png",
+      output: "minimax-i2v.mp4"
+    });
+
+    await vi.waitFor(() => expect(submitBody).not.toBeNull());
+    await vi.advanceTimersByTimeAsync(4000);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    const result = await resultPromise;
+
+    expect(submitBody).toEqual({
+      model: "MiniMax-Hailuo-2.3",
+      first_frame_image: expect.stringMatching(/^data:image\/png;base64,/),
+      prompt: "Animate this zoo poster into a friendly entrance reveal.",
+      duration: 6,
+      resolution: "768P",
+      prompt_optimizer: false
+    });
+    expect(result.providerId).toBe("minimax");
+    expect(result.providerNote).toContain("minimax/MiniMax-Hailuo-2.3");
+    expect(result.providerNote).toContain("i2v");
+    const bytes = await readFile(path.join(projectsRoot, "project-1", "minimax-i2v.mp4"));
+    expect(bytes.equals(TEST_VIDEO_BYTES)).toBe(true);
+  });
+
+  it("rejects MiniMax video when no first-frame image is provided", async () => {
+    await writeConfig({
+      providers: {
+        minimax: {
+          apiKey: "minimax-test-key",
+          baseUrl: TEST_MINIMAX_BASE_URL
+        }
+      }
+    });
+
+    await expect(
+      generateMedia({
+        projectRoot,
+        projectsRoot,
+        projectId: "project-1",
+        surface: "video",
+        model: "minimax-video-01",
+        prompt: "A text-only zoo promotional clip.",
+        aspect: "16:9",
+        length: 6,
+        output: "minimax-no-image.mp4"
+      })
+    ).rejects.toThrow(/requires --image/);
+  });
+});

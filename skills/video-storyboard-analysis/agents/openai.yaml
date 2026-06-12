@@ -1,0 +1,4 @@
+interface:
+  display_name: "Video Storyboard Analysis"
+  short_description: "Analyze product videos into reusable storyboard scripts."
+  default_prompt: "Analyze this video into a timestamped storyboard script."
