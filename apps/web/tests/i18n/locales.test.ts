@@ -4,7 +4,6 @@ import { resolveSystemLocale } from '../../src/i18n';
 import { en } from '../../src/i18n/locales/en';
 import { id } from '../../src/i18n/locales/id';
 import { zhCN } from '../../src/i18n/locales/zh-CN';
-import { zhTW } from '../../src/i18n/locales/zh-TW';
 import { LOCALES, LOCALE_LABEL, type Dict, type Locale } from '../../src/i18n/types';
 
 const EXPECTED_LOCALES = ['en', 'id', 'de', 'zh-CN', 'zh-TW', 'pt-BR', 'es-ES', 'ru', 'fa', 'ar', 'ja', 'ko', 'pl', 'hu', 'fr', 'uk', 'tr', 'th', 'it'];
@@ -32,7 +31,7 @@ async function loadDict(locale: Locale): Promise<Dict> {
 
 function explicitLocaleKeys(locale: Locale): string[] {
   const source = readFileSync(new URL(`../../src/i18n/locales/${locale}.ts`, import.meta.url), 'utf8');
-  return Array.from(source.matchAll(/'([^']+)':/g), (match) => match[1] ?? '').filter(Boolean);
+  return Array.from(source.matchAll(/["']([^"']+)["']:/g), (match) => match[1] ?? '').filter(Boolean);
 }
 
 describe('i18n locales', () => {
@@ -126,7 +125,7 @@ describe('i18n locales', () => {
     }
   });
 
-  it('keeps Chinese integrations copy translated instead of falling back to English', () => {
+  it('keeps zh-CN integrations copy translated instead of falling back to English', () => {
     const translatedKeys: Array<keyof Dict> = [
       'entry.navIntegrations',
       'integrations.kicker',
@@ -153,11 +152,10 @@ describe('i18n locales', () => {
 
     for (const key of translatedKeys) {
       expect(zhCN[key], `zh-CN.${key}`).not.toBe(en[key]);
-      expect(zhTW[key], `zh-TW.${key}`).not.toBe(en[key]);
     }
   });
 
-  it('keeps Routines settings page copy translated in Chinese (issue #1372)', () => {
+  it('keeps Routines settings page copy translated in zh-CN (issue #1372)', () => {
     const translatedKeys: Array<keyof Dict> = [
       'routines.title',
       'routines.subtitle',
@@ -178,8 +176,16 @@ describe('i18n locales', () => {
 
     for (const key of translatedKeys) {
       expect(zhCN[key], `zh-CN.${key}`).not.toBe(en[key]);
-      expect(zhTW[key], `zh-TW.${key}`).not.toBe(en[key]);
     }
+  });
+
+  it('uses ecommerce video starter prompts in zh-CN chat empty state', () => {
+    expect(zhCN['chat.example1Title']).toBe('上传商品素材');
+    expect(zhCN['chat.example2Title']).toBe('生成带货脚本');
+    expect(zhCN['chat.example3Title']).toBe('批量产出视频');
+    expect(zhCN['chat.example1Prompt']).toContain('下一步');
+    expect(zhCN['chat.example1Prompt']).toContain('带货视频');
+    expect(zhCN['chat.example3Prompt']).toContain('入库标签');
   });
 
   it('declares CI-sensitive Indonesian fallback keys explicitly', () => {

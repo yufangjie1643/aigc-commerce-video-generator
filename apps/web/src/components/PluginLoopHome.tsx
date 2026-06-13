@@ -13,6 +13,7 @@ import {
 } from '../state/projects';
 import { useI18n } from '../i18n';
 import { localizePluginDescription, localizePluginTitle } from './plugins-home/localization';
+import { isCommerceVideoTemplate } from './plugins-home/facets';
 import { Icon } from './Icon';
 import { PluginDetailsModal } from './PluginDetailsModal';
 import { TrustBadge } from './TrustBadge';
@@ -23,9 +24,6 @@ import { trackPluginLoopClick } from '../analytics/events';
 export interface PluginLoopSubmit {
   prompt: string;
   pluginId: string | null;
-  // Marketplace trust of the routed plugin (official / community / …), used
-  // to attribute project_create_result to a plugin type. Null when no plugin.
-  pluginType?: string | null;
   skillId?: string | null;
   appliedPluginSnapshotId: string | null;
   pluginTitle: string | null;
@@ -94,7 +92,7 @@ export function PluginLoopHome({ onSubmit }: Props) {
   }, []);
 
   const sortedPlugins = useMemo(() => {
-    return [...plugins].sort((a, b) => {
+    return plugins.filter(isCommerceVideoTemplate).sort((a, b) => {
       const aHasQuery = Boolean(a.manifest?.od?.useCase?.query);
       const bHasQuery = Boolean(b.manifest?.od?.useCase?.query);
       if (aHasQuery !== bHasQuery) return aHasQuery ? -1 : 1;
@@ -171,16 +169,16 @@ export function PluginLoopHome({ onSubmit }: Props) {
   return (
     <div className="plugin-loop-home" data-testid="plugin-loop-home">
       <div className="plugin-loop-home__hero">
-        <h2 className="plugin-loop-home__title">What do you want to design?</h2>
+        <h2 className="plugin-loop-home__title">What product video do you want to create?</h2>
         <p className="plugin-loop-home__subtitle">
-          Pick a plugin below, click <strong>Use example query</strong> to load
+          Pick a template below, click <strong>Use example query</strong> to load
           a starter prompt, then press <kbd>Enter</kbd>.
         </p>
         {active ? (
           <div className="plugin-loop-home__active" data-active-plugin-id={active.record.id}>
             <span className="plugin-loop-home__active-chip">
               <span className="plugin-loop-home__active-dot" aria-hidden />
-              <span>Plugin: {localizePluginTitle(locale, active.record)}</span>
+              <span>Template: {localizePluginTitle(locale, active.record)}</span>
               <button
                 type="button"
                 className="plugin-loop-home__active-clear"
@@ -208,8 +206,8 @@ export function PluginLoopHome({ onSubmit }: Props) {
             onKeyDown={onKeyDown}
             placeholder={
               active
-                ? 'Edit the example query or write your own…'
-                : 'Type a prompt, or pick a plugin below to load an example…'
+                ? 'Edit the product-video example or write your own…'
+                : 'Type a product brief, or pick a template below to load an example…'
             }
             rows={3}
           />
@@ -232,17 +230,17 @@ export function PluginLoopHome({ onSubmit }: Props) {
       </div>
 
       <div className="plugin-loop-home__rail-header">
-        <span>Plugins</span>
+        <span>Templates</span>
         <span className="plugin-loop-home__rail-count">
           {loading ? '…' : `${sortedPlugins.length} installed`}
         </span>
       </div>
       <div className="plugin-loop-home__grid" role="list">
         {loading ? (
-          <div className="plugin-loop-home__empty">Loading plugins…</div>
+          <div className="plugin-loop-home__empty">Loading templates…</div>
         ) : sortedPlugins.length === 0 ? (
           <div className="plugin-loop-home__empty">
-            No plugins installed. Install one with{' '}
+            No ecommerce video templates installed. Install one with{' '}
             <code>od plugin install &lt;source&gt;</code>.
           </div>
         ) : (
@@ -314,7 +312,7 @@ export function PluginLoopHome({ onSubmit }: Props) {
                     onClick={() => { trackPluginLoopClick(analytics.track, { page_name: 'plugins', area: 'plugin_loop', element: 'card_details', plugin_id: p.id }); openDetails(p); }}
                     aria-label={`View details for ${p.title}`}
                     data-testid={`view-details-${p.id}`}
-                    title="View plugin details"
+                    title="View template details"
                   >
                     <Icon name="eye" size={12} />
                     <span>Details</span>
@@ -334,8 +332,8 @@ export function PluginLoopHome({ onSubmit }: Props) {
                           ? 'Reload example query'
                           : 'Use example query'
                         : isActive
-                          ? 'Plugin active'
-                          : 'Use plugin'}
+                          ? 'Template active'
+                          : 'Use template'}
                   </button>
                 </div>
               </div>

@@ -100,7 +100,6 @@ function renderEntryView(overrides: Partial<ComponentProps<typeof EntryView>> = 
       onDeleteProject={vi.fn()}
       onRenameProject={vi.fn()}
       onChangeDefaultDesignSystem={vi.fn()}
-      onPersistComposioKey={vi.fn()}
       onOpenSettings={vi.fn()}
       onCompleteOnboarding={vi.fn()}
       {...overrides}

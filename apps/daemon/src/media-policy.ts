@@ -1,6 +1,6 @@
 import type { MediaExecutionMode, MediaExecutionPolicy, MediaSurface } from '@open-design/contracts';
 
-const MEDIA_EXECUTION_MODES = new Set<MediaExecutionMode>(['enabled', 'disabled']);
+const MEDIA_EXECUTION_MODES = new Set<MediaExecutionMode>(['enabled', 'question', 'disabled']);
 const MEDIA_SURFACES = new Set<MediaSurface>(['image', 'video', 'audio']);
 
 export interface MediaPolicyTarget {
@@ -31,7 +31,7 @@ export function parseMediaExecutionPolicyInput(value: unknown):
   if (!MEDIA_EXECUTION_MODES.has(rawMode as MediaExecutionMode)) {
     return {
       ok: false,
-      message: 'mediaExecution.mode must be enabled or disabled',
+      message: 'mediaExecution.mode must be enabled, question, or disabled',
     };
   }
   const mode = rawMode as MediaExecutionMode;
@@ -82,6 +82,12 @@ export function mediaPolicyDenial(
     return {
       code: 'MEDIA_EXECUTION_DISABLED',
       message: 'media generation is disabled for this run',
+    };
+  }
+  if (policy.mode === 'question') {
+    return {
+      code: 'MEDIA_EXECUTION_QUESTION_MODE',
+      message: 'media generation is in question mode for this run',
     };
   }
   if (

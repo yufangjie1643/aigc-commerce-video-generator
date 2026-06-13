@@ -42,6 +42,7 @@ function sameOwner(left: Record<string, unknown>, right: Record<string, unknown>
   return left.repository === right.repository &&
     left.workflow === right.workflow &&
     left.runId === right.runId &&
+    left.runAttempt === right.runAttempt &&
     left.commit === right.commit;
 }
 
@@ -119,29 +120,17 @@ export async function reserveVersion(options: {
       headers: { "if-none-match": "*" },
       objectKey,
     });
-    const accept = (reservation: BetaVersionReservation) => {
-      writeJson(join(options.metadataDir, "reserved-version.lock.json"), reservation);
+    if (result.ok) {
+      const readBack = await assertCurrentVersionReservation(options.storage, releaseVersion, objectKey);
+      writeJson(join(options.metadataDir, "reserved-version.lock.json"), readBack);
       return {
         objectKey,
-        reservation,
+        reservation: readBack,
         url: publicUrl(options.publicOrigin, `beta/versions/${releaseVersion}`, "version.lock.json"),
       };
-    };
-    if (result.ok) {
-      return accept(await assertCurrentVersionReservation(options.storage, releaseVersion, objectKey));
     }
     if (result.status !== 412) {
       throw new Error(`version reservation PUT ${objectKey} failed with HTTP ${result.status}${result.body.length > 0 ? `: ${result.body}` : ""}`);
-    }
-    // A 412 means the lock object already exists. The conditional PUT is not
-    // idempotent, so this can be an ambiguous-success: a transient reset (the
-    // exact failure the network retry recovers from) can drop the response
-    // after R2 already created OUR lock, and the retried PUT then sees 412.
-    // Read the lock back — if this run owns it, the reservation truly succeeded.
-    // Only a lock owned by a different run is a real collision.
-    const existing = await readVersionReservation(options.storage, objectKey);
-    if (existing != null && validateVersionReservation(existing, releaseVersion) == null) {
-      return accept(existing);
     }
     if (options.manualOverride) {
       throw new Error(`release_version ${releaseVersion} is already reserved at ${objectKey}`);

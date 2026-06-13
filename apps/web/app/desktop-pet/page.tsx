@@ -1,5 +1,5 @@
-import { DesktopPetClient } from './client';
+import { redirect } from 'next/navigation';
 
 export default function DesktopPetPage() {
-  return <DesktopPetClient />;
+  redirect('/');
 }

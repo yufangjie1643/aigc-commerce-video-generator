@@ -11,7 +11,6 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$ReleaseVersion,
   [Parameter(Mandatory = $true)]
-  [AllowEmptyString()]
   [string]$ReleaseAssetSuffix,
   [Parameter(Mandatory = $true)]
   [string]$ReleaseChannel,

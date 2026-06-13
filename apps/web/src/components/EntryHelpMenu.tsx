@@ -2,9 +2,8 @@
 //
 // Mirrors the Lovart-style "?" affordance shown in the bottom-left
 // corner of the workspace: a single round button that opens a small
-// popover with the four external help links we want every user to be
-// one click away from — GitHub issues for help, GitHub PRs for feature
-// requests, releases for the changelog, and the desktop download.
+// popover with the product support links we want every user to be one
+// click away from: help, feature requests, releases, and desktop download.
 //
 // The links open in a new tab (with safe `noopener` rel) and are
 // labeled via the i18n dictionary so locale switching keeps the menu
@@ -27,8 +26,6 @@ const ISSUES_URL = `${REPO}/issues/new`;
 const PRS_URL = `${REPO}/pulls`;
 const RELEASES_URL = `${REPO}/releases`;
 const LATEST_RELEASE_URL = `${REPO}/releases/latest`;
-const X_URL = 'https://x.com/nexudotio';
-const DISCORD_URL = 'https://discord.gg/mHAjSMV6gz';
 
 const ext = { target: '_blank', rel: 'noreferrer noopener' } as const;
 
@@ -186,31 +183,6 @@ export function EntryHelpMenu() {
               <Icon name="download" size={14} />
             </span>
             <span>{t('entry.helpDownloadDesktop')}</span>
-          </a>
-          <div className="entry-help-popover__divider" aria-hidden />
-          <a
-            className="entry-help-popover__item"
-            href={X_URL}
-            {...ext}
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <span className="entry-help-popover__icon" aria-hidden>
-              <Icon name="external-link" size={14} />
-            </span>
-            <span>{t('entry.followXLabel')}</span>
-          </a>
-          <a
-            className="entry-help-popover__item"
-            href={DISCORD_URL}
-            {...ext}
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <span className="entry-help-popover__icon" aria-hidden>
-              <Icon name="discord" size={14} />
-            </span>
-            <span>{t('entry.discordLabel')}</span>
           </a>
         </motion.div>
       ) : null}

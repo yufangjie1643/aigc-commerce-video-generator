@@ -5,18 +5,10 @@ import type { Dict } from '../../i18n/types';
 import { Icon, type IconName } from '../Icon';
 import type { ProjectFile, ProjectFileKind } from '../../types';
 import type { WorkspaceContextItem } from '@open-design/contracts';
-import type { TabLauncherClickProps } from '@open-design/contracts/analytics';
 import type { LauncherAction, LauncherContext } from './tab-launcher';
 import styles from './TabLauncherMenu.module.css';
 
 type TranslateFn = (key: keyof Dict, vars?: Record<string, string | number>) => string;
-
-// Page/area/project_id are filled by the host (FileWorkspace); the menu only
-// supplies the event-specific fields.
-export type TabLauncherTrackInput = Omit<
-  TabLauncherClickProps,
-  'page_name' | 'area' | 'project_id'
->;
 
 interface Props {
   /** The "+" button the menu is anchored to (for fixed positioning). */
@@ -34,8 +26,6 @@ interface Props {
   /** Open the chosen file in a new tab (wired to FileWorkspace.openFile). */
   onOpenFile: (name: string) => void;
   onOpenTab?: (tabId: string) => void;
-  /** Fire a tab-launcher ui_click (host fills page/area/project_id). */
-  onTrack?: (input: TabLauncherTrackInput) => void;
   onClose: () => void;
 }
 
@@ -53,7 +43,6 @@ export function TabLauncherMenu({
   launcherContext,
   onOpenFile,
   onOpenTab,
-  onTrack,
   onClose,
 }: Props) {
   const t = useT();
@@ -145,27 +134,13 @@ export function TabLauncherMenu({
 
   const openSet = useMemo(() => new Set(openTabNames), [openTabNames]);
 
-  // Fire once when the launcher opens (the menu mounts only while open).
-  useEffect(() => {
-    onTrack?.({ element: 'open' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function chooseFile(file: ProjectFile) {
-    onTrack?.({ element: 'open_file', file_kind: file.kind });
-    onOpenFile(file.name);
+  function chooseFile(name: string) {
+    onOpenFile(name);
     onClose();
   }
 
   function chooseTab(item: WorkspaceContextItem) {
-    onTrack?.({ element: 'open_tab', tab_kind: item.kind });
     if (item.tabId) onOpenTab?.(item.tabId);
-    onClose();
-  }
-
-  function runLauncherAction(action: LauncherAction) {
-    onTrack?.({ element: 'create', action_id: action.id });
-    action.run(launcherContext);
     onClose();
   }
 
@@ -180,7 +155,7 @@ export function TabLauncherMenu({
       e.preventDefault();
       const file = results[selected] ?? null;
       if (file) {
-        chooseFile(file);
+        chooseFile(file.name);
         return;
       }
       const tabIndex = selected - results.length;
@@ -190,7 +165,8 @@ export function TabLauncherMenu({
       } else if (actions[0]) {
         // No file matches the query but "Create new" actions exist — Enter
         // triggers the first action so the keyboard path is never a dead end.
-        runLauncherAction(actions[0]);
+        actions[0].run(launcherContext);
+        onClose();
       }
     }
   }
@@ -228,10 +204,7 @@ export function TabLauncherMenu({
           <button
             type="button"
             className={`${styles.chip} ${kindFilter === 'all' ? styles.chipActive : ''}`}
-            onClick={() => {
-              onTrack?.({ element: 'filter', kind_filter: 'all' });
-              setKindFilter('all');
-            }}
+            onClick={() => setKindFilter('all')}
           >
             {t('workspace.allFiles')}
           </button>
@@ -240,10 +213,7 @@ export function TabLauncherMenu({
               key={kind}
               type="button"
               className={`${styles.chip} ${kindFilter === kind ? styles.chipActive : ''}`}
-              onClick={() => {
-                onTrack?.({ element: 'filter', kind_filter: kind });
-                setKindFilter(kind);
-              }}
+              onClick={() => setKindFilter(kind)}
             >
               {kindLabel(kind, t)}
             </button>
@@ -256,25 +226,31 @@ export function TabLauncherMenu({
           <section className={styles.section}>
             <div className={styles.sectionHeader}>{t('workspace.createNew')}</div>
             <ul className={styles.list}>
-              {actions.map((action) => (
-                <li key={action.id}>
-                  <button
-                    type="button"
-                    className={styles.row}
-                    onClick={() => runLauncherAction(action)}
-                  >
-                    <span className={styles.rowIcon} aria-hidden>
-                      <Icon name={action.iconName} size={15} />
-                    </span>
-                    <span className={styles.rowBody}>
-                      <span className={styles.rowName}>{t(action.labelKey)}</span>
-                      {action.descriptionKey ? (
-                        <span className={styles.rowMeta}>{t(action.descriptionKey)}</span>
-                      ) : null}
-                    </span>
-                  </button>
-                </li>
-              ))}
+              {actions.map((action) => {
+                const label = action.label ?? (action.labelKey ? t(action.labelKey) : action.id);
+                const description =
+                  action.description ?? (action.descriptionKey ? t(action.descriptionKey) : null);
+                return (
+                  <li key={action.id}>
+                    <button
+                      type="button"
+                      className={styles.row}
+                      onClick={() => {
+                        action.run(launcherContext);
+                        onClose();
+                      }}
+                    >
+                      <span className={styles.rowIcon} aria-hidden>
+                        <Icon name={action.iconName} size={15} />
+                      </span>
+                      <span className={styles.rowBody}>
+                        <span className={styles.rowName}>{label}</span>
+                        {description ? <span className={styles.rowMeta}>{description}</span> : null}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         ) : null}
@@ -292,7 +268,7 @@ export function TabLauncherMenu({
                       type="button"
                       className={`${styles.row} ${selectableIndex === selected ? styles.rowSelected : ''}`}
                       onMouseEnter={() => setSelected(selectableIndex)}
-                      onClick={() => chooseFile(file)}
+                      onClick={() => chooseFile(file.name)}
                       data-selectable-idx={selectableIndex}
                       data-testid="tab-launcher-result"
                     >

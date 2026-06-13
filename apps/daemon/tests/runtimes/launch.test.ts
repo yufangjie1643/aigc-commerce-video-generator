@@ -2,6 +2,10 @@ import { delimiter, join } from 'node:path';
 import { realpathSync, symlinkSync } from 'node:fs';
 import { test } from 'vitest';
 import {
+  parseWindowsRegistryPathValue,
+  readWindowsEnvironmentPathDirs,
+} from '../../src/runtimes/launch.js';
+import {
   applyAgentLaunchEnv,
   assert,
   chmodSync,
@@ -29,6 +33,7 @@ test('applyAgentLaunchEnv prepends nodeBinDir and wrapper dir, deduping PATH', (
     launch,
     '/node/bin',
     [],
+    [],
   );
 
   assert.equal(
@@ -48,6 +53,7 @@ test('applyAgentLaunchEnv appends toolchain dirs so shebang interpreters (e.g. b
     { childPathPrepend: ['/opt/homebrew/bin'] },
     '/node/bin',
     ['/home/me/.bun/bin', '/usr/bin'],
+    [],
   );
 
   const parts = (env.PATH as string).split(delimiter);
@@ -64,6 +70,19 @@ test('applyAgentLaunchEnv appends toolchain dirs so shebang interpreters (e.g. b
   );
 });
 
+test('applyAgentLaunchEnv appends refreshed path dirs missing from the inherited daemon PATH', () => {
+  const env = applyAgentLaunchEnv(
+    { PATH: ['/usr/bin', '/bin'].join(delimiter) },
+    { childPathPrepend: [] },
+    '',
+    [],
+    ['/opt/ffmpeg/bin', '/usr/bin'],
+  );
+
+  const parts = (env.PATH as string).split(delimiter);
+  assert.deepEqual(parts, ['/usr/bin', '/bin', '/opt/ffmpeg/bin']);
+});
+
 test('applyAgentLaunchEnv updates the Path key in-place without creating a competing PATH key', () => {
   // On Windows, process.env spreads the search path under 'Path' (not 'PATH').
   // This test uses POSIX-compatible paths so it runs cross-platform and
@@ -73,7 +92,7 @@ test('applyAgentLaunchEnv updates the Path key in-place without creating a compe
   };
   const launch = { childPathPrepend: ['/opt/agent/bin'] };
 
-  const env = applyAgentLaunchEnv(base, launch, '/opt/node/bin', []);
+  const env = applyAgentLaunchEnv(base, launch, '/opt/node/bin', [], []);
 
   // Original 'Path' key must be updated in-place.
   assert.ok('Path' in env, 'original Path key must be preserved');
@@ -87,6 +106,32 @@ test('applyAgentLaunchEnv updates the Path key in-place without creating a compe
   assert.ok(parts.includes('/usr/bin'), '/usr/bin must be retained');
 });
 
+test('parseWindowsRegistryPathValue extracts REG_SZ and REG_EXPAND_SZ Path values', () => {
+  assert.equal(
+    parseWindowsRegistryPathValue(
+      [
+        '',
+        'HKEY_CURRENT_USER\\Environment',
+        '    Path    REG_EXPAND_SZ    %SystemRoot%\\System32;C:\\ffmpeg\\bin',
+        '',
+      ].join('\r\n'),
+    ),
+    '%SystemRoot%\\System32;C:\\ffmpeg\\bin',
+  );
+  assert.equal(
+    parseWindowsRegistryPathValue(
+      [
+        '',
+        'HKEY_CURRENT_USER\\Environment',
+        '    Path    REG_SZ    C:\\Users\\User\\.local\\bin',
+        '',
+      ].join('\r\n'),
+    ),
+    'C:\\Users\\User\\.local\\bin',
+  );
+  assert.equal(parseWindowsRegistryPathValue('HKEY_CURRENT_USER\\Environment\r\n'), null);
+});
+
 winTest('applyAgentLaunchEnv injects Node binary dir and wrapper dir into a Windows env that has only Path and no nodejs entry', () => {
   // On Windows, GUI-launched daemons inherit process.env with 'Path' (not
   // 'PATH') and the nodejs install directory is often absent from the
@@ -97,7 +142,7 @@ winTest('applyAgentLaunchEnv injects Node binary dir and wrapper dir into a Wind
   };
   const launch = { childPathPrepend: ['C:\\Users\\User\\AppData\\Roaming\\npm'] };
 
-  const env = applyAgentLaunchEnv(windowsBase, launch, 'C:\\Program Files\\nodejs', []);
+  const env = applyAgentLaunchEnv(windowsBase, launch, 'C:\\Program Files\\nodejs', [], []);
 
   // Original 'Path' key must be updated in-place — no competing 'PATH' key.
   assert.ok('Path' in env, 'original Path key must be preserved');
@@ -115,6 +160,29 @@ winTest('applyAgentLaunchEnv injects Node binary dir and wrapper dir into a Wind
   assert.ok(parts.includes('C:\\Windows'), 'Windows dir must be retained');
   // No empty entries from splitting.
   assert.ok(parts.every((p: string) => p.length > 0), 'no empty path entries allowed');
+});
+
+winTest('readWindowsEnvironmentPathDirs reads and expands user and machine Path registry values', () => {
+  const queriedKeys: string[] = [];
+  const dirs = readWindowsEnvironmentPathDirs(
+    {
+      SystemRoot: 'C:\\Windows',
+      USERPROFILE: 'C:\\Users\\User',
+    },
+    (key) => {
+      queriedKeys.push(key);
+      if (key.startsWith('HKLM\\')) return '%SystemRoot%\\System32;C:\\ffmpeg\\bin';
+      if (key.startsWith('HKCU\\')) return '%USERPROFILE%\\.local\\bin';
+      return null;
+    },
+  );
+
+  assert.deepEqual(dirs, [
+    'C:\\Windows\\System32',
+    'C:\\ffmpeg\\bin',
+    'C:\\Users\\User\\.local\\bin',
+  ]);
+  assert.equal(queriedKeys.length, 2);
 });
 
 fsTest('resolveAgentLaunch selects nvm-installed codex under a minimal PATH and prepends its dirname', () => {

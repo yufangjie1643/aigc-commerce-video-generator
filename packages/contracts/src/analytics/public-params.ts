@@ -15,7 +15,6 @@ export interface AnalyticsPublicParams {
   event_id: string;
   request_id?: string;
   event_schema_version: number;
-  env: string;
   ui_version: string;
   session_id: string;
   // v2 rename: was `anonymous_id` in schema v1. The value is still the
@@ -36,10 +35,6 @@ export type TrackingConfigureType =
   | 'local_cli'
   | 'byok'
   | 'both'
-  // AMR sign-in is the user's only configured generation path — no local
-  // CLI detected and no BYOK key saved. Counts toward the "configured"
-  // funnel stage alongside local_cli/byok/both.
-  | 'amr'
   | 'none'
   | 'unknown';
 
@@ -85,7 +80,6 @@ export const ANALYTICS_HEADER_REQUEST_ID = 'x-od-analytics-request-id';
 //   identity PostHog already saw on prior runs.
 export interface AnalyticsConfigResponse {
   enabled: boolean;
-  env: string;
   key: string | null;
   host: string | null;
   installationId?: string | null;

@@ -67,8 +67,7 @@ describe('HomeView working-dir picker host fallback', () => {
 
     renderHome();
 
-    fireEvent.click(screen.getByTestId('working-dir-trigger'));
-    fireEvent.click(screen.getByTestId('working-dir-pick'));
+    fireEvent.click(screen.getByRole('button', { name: 'Local storage' }));
 
     await waitFor(() => {
       expect(screen.getByText(/Couldn't open the folder picker/i)).toBeTruthy();
@@ -84,8 +83,7 @@ describe('HomeView working-dir picker host fallback', () => {
 
     renderHome();
 
-    fireEvent.click(screen.getByTestId('working-dir-trigger'));
-    fireEvent.click(screen.getByTestId('working-dir-pick'));
+    fireEvent.click(screen.getByRole('button', { name: 'Local storage' }));
 
     await waitFor(() => {
       expect(mockedOpenFolderDialog).toHaveBeenCalledTimes(1);
@@ -100,8 +98,7 @@ describe('HomeView working-dir picker host fallback', () => {
 
     renderHome();
 
-    fireEvent.click(screen.getByTestId('working-dir-trigger'));
-    fireEvent.click(screen.getByTestId('working-dir-pick'));
+    fireEvent.click(screen.getByRole('button', { name: 'Local storage' }));
 
     await waitFor(() => {
       expect(mockedPickHostWorkingDir).toHaveBeenCalledTimes(1);

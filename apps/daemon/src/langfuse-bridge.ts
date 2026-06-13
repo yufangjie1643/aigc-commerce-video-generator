@@ -10,7 +10,6 @@
 
 import { createHash } from 'node:crypto';
 import os from 'node:os';
-import path from 'node:path';
 
 import { modelIdForTracking } from '@open-design/contracts/analytics';
 
@@ -18,7 +17,6 @@ import { readAppConfig } from './app-config.js';
 import type { AppVersionInfo } from './app-version.js';
 import { listMessages } from './db.js';
 import {
-  deriveLangfuseDeliveryState,
   readTelemetrySinkConfig,
   reportRunCompleted,
   reportRunFeedback,
@@ -28,13 +26,10 @@ import {
   type AttachmentManifestEntry,
   type EventsSummary,
   type FeedbackReportContext,
-  type LangfuseDeliveryState,
-  type InputTextSnapshotManifestEntry,
   type ObjectManifestCompleteness,
   type MessageSummary,
   type ReportContext,
   type RuntimeInfo,
-  type TelemetrySinkConfig,
   type ToolCallSummary,
   type TurnInfo,
 } from './langfuse-trace.js';
@@ -47,15 +42,9 @@ import {
   type RunTelemetryTimestamps,
   type RunUsageAnalytics,
 } from './run-analytics-observability.js';
-import {
-  collectStderrTailSummary,
-  collectStdoutTailSummary,
-  summarizeRunDiagnosticsForAnalytics,
-} from './run-diagnostics.js';
+import { collectStderrTailSummary } from './run-diagnostics.js';
 import { classifyRunFailure } from './run-failure-classification.js';
 import { deriveRunErrorCode, runResultFromStatus } from './run-result.js';
-import { buildTraceObjectManifests } from './trace-object-manifest.js';
-import type { TraceArtifactObjectSource } from './trace-object-manifest.js';
 
 interface DaemonRunRecord {
   id: string;
@@ -87,20 +76,11 @@ interface DaemonRunRecord {
   designSystemId?: string;
   clientType?: 'desktop' | 'web' | 'unknown';
   promptTelemetry?: PromptStackTelemetry;
-  projectAttachmentPaths?: string[];
-  projectMetadata?: Record<string, unknown> | null;
 }
 
 interface TraceSafeManifestResult {
   attachmentManifest: AttachmentManifestEntry[];
   artifactManifest: ArtifactManifestEntry[];
-  completeness: ObjectManifestCompleteness;
-}
-
-interface FinalTraceSafeManifests {
-  attachmentManifest: AttachmentManifestEntry[];
-  artifactManifest: ArtifactManifestEntry[];
-  inputTextSnapshotManifest?: InputTextSnapshotManifestEntry[];
   completeness: ObjectManifestCompleteness;
 }
 
@@ -135,87 +115,6 @@ function getRuntimeInfo(appVersion?: AppVersionInfo | null): RuntimeInfo {
   }
   cachedRuntime = info;
   return info;
-}
-
-function deriveManifestCompleteness(
-  entries: Array<
-    AttachmentManifestEntry | ArtifactManifestEntry | InputTextSnapshotManifestEntry
-  >,
-  fallbackUnavailableSelected: boolean,
-): ObjectManifestCompleteness {
-  if (fallbackUnavailableSelected) return 'unavailable';
-  if (entries.length === 0) return 'unavailable';
-  if (entries.some((entry) => entry.status === 'unavailable')) return 'unavailable';
-  if (entries.some((entry) => entry.status === 'partial')) return 'partial';
-  return 'complete';
-}
-
-function mergeTraceSafeManifests(
-  fallback: TraceSafeManifestResult,
-  uploaded: Awaited<ReturnType<typeof buildTraceObjectManifests>>,
-): FinalTraceSafeManifests {
-  const attachmentManifest = uploaded?.attachmentManifest ?? fallback.attachmentManifest;
-  const artifactManifest = uploaded?.artifactManifest ?? fallback.artifactManifest;
-  const inputTextSnapshotManifest = uploaded?.inputTextSnapshotManifest;
-  const entries = [
-    ...attachmentManifest,
-    ...artifactManifest,
-    ...(inputTextSnapshotManifest ?? []),
-  ];
-  const selectedFallbackUnavailable =
-    fallback.completeness === 'unavailable' &&
-    (uploaded === undefined ||
-      (uploaded.attachmentManifest === undefined && fallback.attachmentManifest.length > 0) ||
-      (uploaded.artifactManifest === undefined && fallback.artifactManifest.length > 0));
-  return {
-    attachmentManifest,
-    artifactManifest,
-    ...(inputTextSnapshotManifest ? { inputTextSnapshotManifest } : {}),
-    completeness: deriveManifestCompleteness(entries, selectedFallbackUnavailable),
-  };
-}
-
-function inferObjectRegistrationRelayUrl(env: NodeJS.ProcessEnv = process.env): string | null {
-  const objectRelayUrl = env.OPEN_DESIGN_OBJECT_RELAY_URL?.trim();
-  if (!objectRelayUrl) {
-    const telemetryRelayUrl = env.OPEN_DESIGN_TELEMETRY_RELAY_URL?.trim();
-    return telemetryRelayUrl ? telemetryRelayUrl.replace(/\/+$/, '') : null;
-  }
-  try {
-    const url = new URL(objectRelayUrl);
-    url.pathname = url.pathname.replace(/\/api\/objects\/batch\/?$/, '/api/langfuse');
-    return url.toString().replace(/\/+$/, '');
-  } catch {
-    return objectRelayUrl.replace(/\/api\/objects\/batch\/?$/, '/api/langfuse').replace(/\/+$/, '');
-  }
-}
-
-function parsePositiveInt(value: string | undefined, fallback: number): number {
-  if (value === undefined) return fallback;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function parseNonNegativeInt(value: string | undefined, fallback: number): number {
-  if (value === undefined) return fallback;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-}
-
-function objectRegistrationTelemetryConfig(
-  env: NodeJS.ProcessEnv = process.env,
-): Extract<TelemetrySinkConfig, { kind: 'relay' }> | null {
-  const relayUrl = inferObjectRegistrationRelayUrl(env);
-  if (!relayUrl) return null;
-  return {
-    kind: 'relay',
-    relayUrl,
-    timeoutMs: parsePositiveInt(
-      env.OPEN_DESIGN_OBJECT_RELAY_TIMEOUT_MS ?? env.OPEN_DESIGN_TELEMETRY_TIMEOUT_MS,
-      20_000,
-    ),
-    retries: parseNonNegativeInt(env.OPEN_DESIGN_TELEMETRY_RETRIES, 1),
-  };
 }
 
 function turnInfoFromRun(
@@ -610,31 +509,6 @@ function summarizeProducedFiles(items: unknown): ArtifactSummary[] {
   return out;
 }
 
-function buildTraceObjectArtifactSources(items: unknown): TraceArtifactObjectSource[] {
-  if (!Array.isArray(items)) return [];
-  const out: TraceArtifactObjectSource[] = [];
-  for (const item of items) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-    const obj = item as Record<string, unknown>;
-    const slug = sanitizeProducedFileSlug(obj);
-    if (!slug) continue;
-    const rawPath = typeof obj.path === 'string' && obj.path.trim()
-      ? obj.path
-      : typeof obj.name === 'string' && obj.name.trim()
-        ? obj.name
-        : undefined;
-    out.push({
-      summary: {
-        slug,
-        type: typeof obj.kind === 'string' ? obj.kind : 'unknown',
-        sizeBytes: typeof obj.size === 'number' ? obj.size : 0,
-      },
-      ...(rawPath ? { sourcePath: rawPath } : {}),
-    });
-  }
-  return out;
-}
-
 function collectPriorUserAttachments(
   messages: Array<Record<string, unknown>>,
   assistantIndex: number,
@@ -830,14 +704,12 @@ function normalizeStatus(s: string): ReportContext['run']['status'] {
 
 export async function reportRunCompletedFromDaemon(
   opts: ReportRunCompletedFromDaemonOpts,
-): Promise<LangfuseDeliveryState> {
+): Promise<void> {
   try {
     const { db, dataDir, run } = opts;
     const cfg = await readAppConfig(dataDir);
     const prefs = cfg.telemetry ?? {};
-    if (prefs.metrics !== true) {
-      return deriveLangfuseDeliveryState(prefs, null);
-    }
+    if (prefs.metrics !== true) return;
     const installationId = cfg.installationId ?? null;
 
     let messageContent = '';
@@ -914,42 +786,18 @@ export async function reportRunCompletedFromDaemon(
     const stderr = status === 'succeeded'
       ? undefined
       : collectStderrTailSummary(run.events);
-    const stdout = status === 'succeeded'
-      ? undefined
-      : collectStdoutTailSummary(run.events);
     const turn = turnInfoFromRun(run, usageAnalytics.agent_reported_model);
     const runtime: RuntimeInfo = {
       ...getRuntimeInfo(opts.appVersion ?? null),
       ...(run.clientType ? { clientType: run.clientType } : {}),
     };
-    const artifacts = summarizeProducedFiles(producedFilesRaw);
-    const diagnostics = summarizeRunDiagnosticsForAnalytics({
-      events: run.events,
-      exitCode: run.exitCode ?? null,
-      signal: run.signal ?? null,
-      cancelRequested: run.status === 'canceled',
-      firstTokenSeen: Boolean(run.analyticsTelemetry?.firstTokenAt),
-      artifactWriteSeen: artifacts.length > 0,
-    });
     const manifests = buildTraceSafeManifests({
       projectId: run.projectId,
       runId: run.id,
       attachmentsRaw,
       producedFilesRaw,
     });
-    const objectManifestOptions = {
-      installationId,
-      projectId: run.projectId ?? '',
-      runId: run.id,
-      projectsRoot: path.join(dataDir, 'projects'),
-      ...(run.projectMetadata ? { projectMetadata: run.projectMetadata } : {}),
-      ...(run.projectAttachmentPaths ? { attachmentPaths: run.projectAttachmentPaths } : {}),
-      artifacts: buildTraceObjectArtifactSources(producedFilesRaw),
-      prompt: telemetryPrompt,
-      prefs,
-      ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}),
-    } satisfies Parameters<typeof buildTraceObjectManifests>[0];
-    const buildContext = (finalManifests: FinalTraceSafeManifests): ReportContext => ({
+    const ctx: ReportContext = {
       installationId,
       projectId: run.projectId ?? '',
       conversationId: run.conversationId ?? '',
@@ -965,8 +813,6 @@ export async function reportRunCompletedFromDaemon(
         timings,
         ...(run.analyticsTelemetry ? { timingMarks: run.analyticsTelemetry } : {}),
         ...(stderr ? { stderr } : {}),
-        ...(stdout ? { stdout } : {}),
-        diagnostics,
       },
       message: {
         messageId: run.assistantMessageId ?? '',
@@ -978,13 +824,10 @@ export async function reportRunCompletedFromDaemon(
         output: redactSecrets(messageContent),
         ...(usage ? { usage } : {}),
       },
-      artifacts,
-      attachmentManifest: finalManifests.attachmentManifest,
-      artifactManifest: finalManifests.artifactManifest,
-      ...(finalManifests.inputTextSnapshotManifest
-        ? { inputTextSnapshotManifest: finalManifests.inputTextSnapshotManifest }
-        : {}),
-      manifestCompleteness: finalManifests.completeness,
+      artifacts: summarizeProducedFiles(producedFilesRaw),
+      attachmentManifest: manifests.attachmentManifest,
+      artifactManifest: manifests.artifactManifest,
+      manifestCompleteness: manifests.completeness,
       tools: collectToolCalls(run.events, startedAt, endedAt),
       agentEvents: collectAgentEvents(run.events, startedAt, endedAt, run.agentId),
       eventsSummary: summarizeEvents(run.events, durationMs),
@@ -992,35 +835,14 @@ export async function reportRunCompletedFromDaemon(
       ...(turn ? { turn } : {}),
       runtime,
       ...(run.promptTelemetry ? { promptTelemetry: run.promptTelemetry } : {}),
-    });
+    };
 
-    const registrationManifests = await buildTraceObjectManifests({
-      ...objectManifestOptions,
-      uploadMode: 'manifest-only',
-    });
-    if (registrationManifests) {
-      await reportRunCompleted(
-        buildContext(mergeTraceSafeManifests(manifests, registrationManifests)),
-        {
-          config: objectRegistrationTelemetryConfig(),
-          ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}),
-        },
-      );
-    }
-
-    const uploadedManifests = await buildTraceObjectManifests(objectManifestOptions);
-    const finalManifests = mergeTraceSafeManifests(manifests, uploadedManifests);
-    return await reportRunCompleted(
-      buildContext(finalManifests),
+    await reportRunCompleted(
+      ctx,
       opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {},
     );
   } catch (err) {
     console.warn('[langfuse-bridge] report failed:', String(err));
-    return {
-      langfuse_expected: true,
-      langfuse_delivery_status: 'failed',
-      langfuse_drop_reason: 'network_error',
-    };
   }
 }
 

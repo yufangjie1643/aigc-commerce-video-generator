@@ -5,7 +5,7 @@ import type {
   PreviewCommentPosition,
   PreviewCommentSelectionKind,
   PreviewAnnotationStyle,
-  PreviewVisualMarkKind,
+  PreviewVisualMarkKind
 } from './comments';
 import type { ResearchOptions } from './research';
 import type { RunContextSelection } from './context.js';
@@ -14,7 +14,7 @@ import type { AppliedPluginSnapshot } from '../plugins/apply.js';
 import type { McpAuthMode, McpServerConfig, McpTransport } from './mcp';
 
 export type ChatRole = 'user' | 'assistant';
-export type ChatSessionMode = 'design' | 'chat';
+export type ChatSessionMode = 'design' | 'chat' | 'comprehensive';
 export type ChatCommentSelectionKind = PreviewCommentSelectionKind | 'visual';
 
 export interface ChatRequest {
@@ -73,18 +73,9 @@ export type ChatAnalyticsEntryFrom =
   | 'chat_composer'
   | 'design_system_create'
   | 'onboarding_design_system'
-  | 'regenerate_from_review'
-  // A turn started by the "Continue the run" affordance on a resumable failed
-  // run. Lets run_created / run_finished isolate resume-continuations so the
-  // recovery mechanism's usage and success rate are measurable.
-  | 'resume_continue';
+  | 'regenerate_from_review';
 
-export type ChatAnalyticsLengthBucket =
-  | '0'
-  | '1_50'
-  | '51_200'
-  | '201_500'
-  | '500_plus';
+export type ChatAnalyticsLengthBucket = '0' | '1_50' | '51_200' | '201_500' | '500_plus';
 
 export type ChatAnalyticsDesignSystemOrigin =
   | 'onboarding'
@@ -252,22 +243,10 @@ export interface ChatRunStatusResponse {
   status: ChatRunStatus;
   createdAt: number;
   updatedAt: number;
-  cancelRequested?: boolean;
-  childPid?: number | null;
-  processGroupId?: number | null;
-  childExited?: boolean;
-  childExitObservedAt?: number | null;
   exitCode?: number | null;
   signal?: string | null;
   error?: string | null;
   errorCode?: string | null;
-  /** True when this terminal failure can be recovered by resuming the agent's
-   *  existing CLI session (a transient upstream drop / inactivity timeout on a
-   *  session-resuming runtime), rather than only restarting from scratch. The
-   *  chat uses it to offer a Continue affordance; the next turn in the same
-   *  conversation resumes the persisted session. Absent/false on success,
-   *  non-resumable failures, and runtimes without CLI session resume. */
-  resumable?: boolean;
   /** Absolute path to the per-run JSONL event log the daemon mirrors
    *  the SSE stream to (see runs.ts `runsLogDir`). Null when the
    *  daemon was launched without event persistence configured. */
@@ -284,7 +263,6 @@ export interface ChatRunListResponse {
 
 export interface ChatRunCancelResponse {
   ok: true;
-  run?: ChatRunStatusResponse;
 }
 
 export interface ChatAttachment {
@@ -374,11 +352,6 @@ export interface ChatMessage {
   createdAt?: number;
   runId?: string;
   runStatus?: ChatRunStatus;
-  /** True when this message's failed run can be recovered by resuming the
-   *  agent's CLI session (transient upstream drop / inactivity on a
-   *  session-resuming runtime). Drives the chat's Continue affordance; mirrors
-   *  ChatRunStatusResponse.resumable. */
-  resumable?: boolean;
   lastRunEventId?: string;
   startedAt?: number;
   endedAt?: number;

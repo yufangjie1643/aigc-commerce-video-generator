@@ -58,7 +58,7 @@ describe('DesignsTab empty state', () => {
 
 
     // Verify CTA Button is present
-    const ctaButton = screen.getByRole('button', { name: 'New project' });
+    const ctaButton = screen.getByRole('button', { name: 'New video project' });
     expect(ctaButton).toBeTruthy();
 
     // Verify clicking the CTA Button invokes the onNewProject callback
@@ -83,7 +83,7 @@ describe('DesignsTab empty state', () => {
     expect(screen.getByText('No projects yet.')).toBeTruthy();
 
     // Verify CTA Button is NOT present
-    expect(screen.queryByRole('button', { name: 'New project' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'New video project' })).toBeNull();
   });
 
   it('renders No projects match your search when projects exist but query filters them out', () => {
@@ -116,6 +116,6 @@ describe('DesignsTab empty state', () => {
     // Verify 'No projects match your search.' is present
     expect(screen.getByText('No projects match your search.')).toBeTruthy();
     expect(screen.queryByText('No projects yet.')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'New project' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'New video project' })).toBeNull();
   });
 });

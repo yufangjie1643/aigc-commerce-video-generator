@@ -70,7 +70,6 @@ export function minimalAgentDef(
   };
 }
 
-export const amp = requireAgent('amp');
 export const codex = requireAgent('codex');
 export const hermes = requireAgent('hermes');
 export const kimi = requireAgent('kimi');
@@ -90,13 +89,19 @@ export const opencode = requireAgent('opencode');
 export const grokBuild = requireAgent('grok-build');
 export const aider = requireAgent('aider');
 export const antigravity = requireAgent('antigravity');
-export const codebuddy = requireAgent('codebuddy');
 export const deepseekMaxPromptArgBytes = (() => {
   assert.ok(
     deepseek.maxPromptArgBytes !== undefined,
     'deepseek must define maxPromptArgBytes for argv budget tests',
   );
   return deepseek.maxPromptArgBytes;
+})();
+export const grokBuildMaxPromptArgBytes = (() => {
+  assert.ok(
+    grokBuild.maxPromptArgBytes !== undefined,
+    'grok-build must define maxPromptArgBytes for argv budget tests',
+  );
+  return grokBuild.maxPromptArgBytes;
 })();
 const originalDisablePlugins = process.env.OD_CODEX_DISABLE_PLUGINS;
 const originalPath = process.env.PATH;

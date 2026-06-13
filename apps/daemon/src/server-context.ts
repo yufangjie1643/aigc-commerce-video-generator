@@ -59,16 +59,7 @@ export interface ProjectPreviewScopeDeps {
 }
 
 export interface TelemetryDeps {
-  reportFinalizedMessage: (
-    saved: any,
-    body?: any,
-    options?: {
-      analyticsContext?: any;
-      projectId?: string;
-      conversationId?: string;
-      reportTrigger?: 'final_message' | 'terminal_fallback';
-    },
-  ) => void;
+  reportFinalizedMessage: (saved: any, body?: any) => void;
   /**
    * Best-effort Langfuse score emission for assistant-turn user ratings.
    * Returns the categorical outcome so the API surface in chat-routes can

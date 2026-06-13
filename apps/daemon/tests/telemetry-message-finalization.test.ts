@@ -1,112 +1,94 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from "vitest";
 
 import {
   FORM_ANSWERED_GENERIC_OVERRIDE,
   composeChatUserRequestForAgent,
   createFinalizedMessageTelemetryReporter,
   shouldReportRunCompletedFromMessage,
-  shouldReportRunCompletionTelemetryFallbackStatus,
-  telemetryPromptFromRunRequest,
-} from '../src/server.js';
+  telemetryPromptFromRunRequest
+} from "../src/server.js";
 
-describe('Langfuse message finalization gate', () => {
+describe("Langfuse message finalization gate", () => {
   const terminalMessage = {
-    id: 'assistant-1',
-    role: 'assistant',
-    content: 'final answer',
-    runId: 'run-1',
-    runStatus: 'succeeded',
+    id: "assistant-1",
+    role: "assistant",
+    content: "final answer",
+    runId: "run-1",
+    runStatus: "succeeded"
   };
 
-  it('does not report when only terminal runStatus has been persisted', () => {
+  it("does not report when only terminal runStatus has been persisted", () => {
     expect(
       shouldReportRunCompletedFromMessage(terminalMessage, {
-        ...terminalMessage,
-      }),
+        ...terminalMessage
+      })
     ).toBe(false);
   });
 
-  it('reports only on the final telemetry-marked message write', () => {
+  it("reports only on the final telemetry-marked message write", () => {
     expect(
       shouldReportRunCompletedFromMessage(terminalMessage, {
         ...terminalMessage,
         producedFiles: [],
-        telemetryFinalized: true,
-      }),
+        telemetryFinalized: true
+      })
     ).toBe(true);
   });
 
-  it('ignores non-terminal run statuses even if marked finalized', () => {
+  it("ignores non-terminal run statuses even if marked finalized", () => {
     expect(
-      shouldReportRunCompletedFromMessage(
-        { ...terminalMessage, runStatus: 'running' },
-        { telemetryFinalized: true },
-      ),
+      shouldReportRunCompletedFromMessage({ ...terminalMessage, runStatus: "running" }, { telemetryFinalized: true })
     ).toBe(false);
   });
 
-  it('schedules terminal fallback only for failed and canceled runs', () => {
-    expect(shouldReportRunCompletionTelemetryFallbackStatus('failed')).toBe(true);
-    expect(shouldReportRunCompletionTelemetryFallbackStatus('canceled')).toBe(true);
-    expect(shouldReportRunCompletionTelemetryFallbackStatus('succeeded')).toBe(false);
-    expect(shouldReportRunCompletionTelemetryFallbackStatus('running')).toBe(false);
-  });
-
-  it('uses the explicit current prompt for telemetry instead of the full transcript', () => {
+  it("uses the explicit current prompt for telemetry instead of the full transcript", () => {
     expect(
       telemetryPromptFromRunRequest(
-        '## user\npre-consent brief\n\n## assistant\ndraft\n\n## user\npost-consent revision',
-        'post-consent revision',
-      ),
-    ).toBe('post-consent revision');
+        "## user\npre-consent brief\n\n## assistant\ndraft\n\n## user\npost-consent revision",
+        "post-consent revision"
+      )
+    ).toBe("post-consent revision");
   });
 
-  it('falls back to the legacy message when currentPrompt is absent', () => {
-    expect(telemetryPromptFromRunRequest('legacy prompt', undefined)).toBe(
-      'legacy prompt',
-    );
+  it("falls back to the legacy message when currentPrompt is absent", () => {
+    expect(telemetryPromptFromRunRequest("legacy prompt", undefined)).toBe("legacy prompt");
   });
 
-  it('promotes discovery form answers above the transcript with a build-now instruction', () => {
+  it("promotes discovery form answers above the transcript with a build-now instruction", () => {
     const currentPrompt = [
-      '[form answers \u2014 discovery]',
-      '- output: Dashboard / tool UI',
-      '- brand: Pick a direction for me [value: pick_direction]',
-    ].join('\n');
-    const prompt = composeChatUserRequestForAgent(
-      '## user\ninitial brief\n\n## assistant\n<form/>',
-      currentPrompt,
-    );
+      "[form answers \u2014 discovery]",
+      "- output: Dashboard / tool UI",
+      "- brand: Pick a direction for me [value: pick_direction]"
+    ].join("\n");
+    const prompt = composeChatUserRequestForAgent("## user\ninitial brief\n\n## assistant\n<form/>", currentPrompt);
 
-    expect(prompt).toContain('## Latest user turn - form answers submitted');
+    expect(prompt).toContain("## Latest user turn - form answers submitted");
     expect(prompt).toContain(currentPrompt);
-    expect(prompt).toContain('The user has answered the discovery form.');
-    expect(prompt).toContain('For Branch B answers, build now instead of asking another brief.');
-    expect(prompt.indexOf('## Full conversation transcript')).toBeGreaterThan(
-      prompt.indexOf(currentPrompt),
-    );
+    expect(prompt).toContain("The user has answered the discovery form.");
+    expect(prompt).toContain("For Branch B answers, build now instead of asking another brief.");
+    expect(prompt.indexOf("## Full conversation transcript")).toBeGreaterThan(prompt.indexOf(currentPrompt));
   });
 
-  it('task-type form answers trigger the build transition just like discovery', () => {
+  it("task-type form answers trigger the build transition just like discovery", () => {
     const prompt = composeChatUserRequestForAgent(
-      '## user\ninitial brief',
-      '[form answers - task-type]\n- taskType: Slide deck',
+      "## user\ninitial brief",
+      "[form answers - task-type]\n- taskType: Slide deck"
     );
 
-    expect(prompt).toContain('The user has answered the task-type form.');
-    expect(prompt).toContain('build now instead of asking another brief');
-    expect(prompt).not.toContain('Treat these form answers as the active user turn');
+    expect(prompt).toContain("The user has answered the task-type form.");
+    expect(prompt).toContain("build now instead of asking another brief");
+    expect(prompt).not.toContain("Treat these form answers as the active user turn");
   });
 
-  it('unknown form ids get the generic transition without forcing the build', () => {
+  it("unknown form ids get the generic transition without forcing the build", () => {
     const prompt = composeChatUserRequestForAgent(
-      '## user\ninitial brief',
-      '[form answers - preferences]\n- theme: dark',
+      "## user\ninitial brief",
+      "[form answers - preferences]\n- theme: dark"
     );
 
-    expect(prompt).toContain('The user has answered the preferences form.');
-    expect(prompt).toContain('Treat these form answers as the active user turn');
-    expect(prompt).not.toContain('build now instead of asking another brief');
+    expect(prompt).toContain("The user has answered the preferences form.");
+    expect(prompt).toContain("Treat these form answers as the active user turn");
+    expect(prompt).not.toContain("build now instead of asking another brief");
   });
 
   // `agy -c` carries its own conversation memory, so packing the
@@ -117,41 +99,41 @@ describe('Langfuse message finalization gate', () => {
   // on turn 2, looking like the discovery form loop never breaks.
   // With `skipTranscript: true`, only the latest user turn ships and
   // the misleading "## Full conversation transcript" header is dropped.
-  it('drops the transcript and transcript header when skipTranscript is true', () => {
+  it("drops the transcript and transcript header when skipTranscript is true", () => {
     const currentPrompt = [
-      '[form answers — discovery]',
-      '- output: Dashboard / tool UI',
-      '- brand: Pick a direction for me [value: pick_direction]',
-    ].join('\n');
+      "[form answers — discovery]",
+      "- output: Dashboard / tool UI",
+      "- brand: Pick a direction for me [value: pick_direction]"
+    ].join("\n");
     const transcript = [
-      '## user',
-      '初始需求',
-      '',
-      '## assistant',
+      "## user",
+      "初始需求",
+      "",
+      "## assistant",
       '<question-form id="discovery">…</question-form>',
-      '',
-      '## user',
-      currentPrompt,
-    ].join('\n');
+      "",
+      "## user",
+      currentPrompt
+    ].join("\n");
 
     const prompt = composeChatUserRequestForAgent(transcript, currentPrompt, {
-      skipTranscript: true,
+      skipTranscript: true
     });
 
     // The form-answer transition still fires — that drives RULE 2 / 3.
-    expect(prompt).toContain('The user has answered the discovery form.');
+    expect(prompt).toContain("The user has answered the discovery form.");
     // The latest user turn is preserved verbatim.
     expect(prompt).toContain(currentPrompt);
     // The transcript header is dropped — it was misleading because the
     // body underneath is no longer a transcript.
-    expect(prompt).not.toContain('## Full conversation transcript');
+    expect(prompt).not.toContain("## Full conversation transcript");
     // The prior assistant turn's `<question-form>` markup must NOT
     // leak in — that's the form-loop regression we're guarding.
     // (The transition block legitimately mentions "<question-form>"
     // in prose, so the assertion targets the opening tag the prior
     // turn carried, not the bare substring.)
     expect(prompt).not.toContain('<question-form id="discovery">');
-    expect(prompt).not.toContain('## assistant');
+    expect(prompt).not.toContain("## assistant");
   });
 
   // The aggressive form-answered OVERRIDE block is what tells weak
@@ -161,67 +143,67 @@ describe('Langfuse message finalization gate', () => {
   // because silently weakening any of them — e.g. dropping the
   // markdown-fence ban or the "subagents stopped" hallucination ban —
   // reintroduces the form-echo regression we hit in PR #3157 on GPT-OSS.
-  it('FORM_ANSWERED_SYSTEM_OVERRIDE pins the anti-patterns weak plain agents need spelled out', async () => {
-    const { FORM_ANSWERED_SYSTEM_OVERRIDE } = await import('../src/server.js');
+  it("FORM_ANSWERED_SYSTEM_OVERRIDE pins the anti-patterns weak plain agents need spelled out", async () => {
+    const { FORM_ANSWERED_SYSTEM_OVERRIDE } = await import("../src/server.js");
 
     // Headline must call out that this is a follow-up turn, not turn 1.
-    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain('## OVERRIDE — form already answered');
-    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain('turn 2 or later');
+    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain("## OVERRIDE — form already answered");
+    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain("turn 2 or later");
     // RULE 1 stays in the prompt so turn 1 can still emit a valid form;
     // OVERRIDE just demotes it to documentation for follow-up turns.
-    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain('Treat RULE 1\nas read-only documentation');
+    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain("Treat RULE 1\nas read-only documentation");
 
     // Forbidden anti-patterns observed in real captures:
-    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain('`<question-form>` tag of any id');
-    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain('```json fenced block');
-    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain('Form-asking prose');
+    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain("`<question-form>` tag of any id");
+    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain("```json fenced block");
+    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain("Form-asking prose");
     expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain('"subagents stopped"');
 
     // Required path: route to RULE 2 / RULE 3 so the model still
     // emits the `<artifact>` block on the same turn.
-    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain('RULE 2');
-    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain('RULE 3');
-    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain('`<artifact>`');
+    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain("RULE 2");
+    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain("RULE 3");
+    expect(FORM_ANSWERED_SYSTEM_OVERRIDE).toContain("`<artifact>`");
   });
 
-  it('FORM_ANSWERED_GENERIC_OVERRIDE is used for non-discovery/task-type form ids', () => {
+  it("FORM_ANSWERED_GENERIC_OVERRIDE is used for non-discovery/task-type form ids", () => {
     // Non-build-transition forms should get a smaller override that only
     // suppresses re-asking — not the RULE 2 / RULE 3 / artifact directive.
-    expect(FORM_ANSWERED_GENERIC_OVERRIDE).toContain('## OVERRIDE — form already answered');
-    expect(FORM_ANSWERED_GENERIC_OVERRIDE).toContain('turn 2 or later');
-    expect(FORM_ANSWERED_GENERIC_OVERRIDE).toContain('Do not ask the same form again');
+    expect(FORM_ANSWERED_GENERIC_OVERRIDE).toContain("## OVERRIDE — form already answered");
+    expect(FORM_ANSWERED_GENERIC_OVERRIDE).toContain("turn 2 or later");
+    expect(FORM_ANSWERED_GENERIC_OVERRIDE).toContain("Do not ask the same form again");
     // Must NOT contain the artifact-build directive that only applies to
     // discovery / task-type — sending it for an unrelated form id would give
     // the model contradictory instructions.
-    expect(FORM_ANSWERED_GENERIC_OVERRIDE).not.toContain('RULE 2');
-    expect(FORM_ANSWERED_GENERIC_OVERRIDE).not.toContain('RULE 3');
-    expect(FORM_ANSWERED_GENERIC_OVERRIDE).not.toContain('`<artifact>`');
+    expect(FORM_ANSWERED_GENERIC_OVERRIDE).not.toContain("RULE 2");
+    expect(FORM_ANSWERED_GENERIC_OVERRIDE).not.toContain("RULE 3");
+    expect(FORM_ANSWERED_GENERIC_OVERRIDE).not.toContain("`<artifact>`");
   });
 
-  it('FORM_ANSWERED_SYSTEM_OVERRIDE only fires through composeChatUserRequestForAgent\'s transition gate', async () => {
+  it("FORM_ANSWERED_SYSTEM_OVERRIDE only fires through composeChatUserRequestForAgent's transition gate", async () => {
     // Defense-in-depth check: a turn that is NOT a form-answer follow-up
     // (no `[form answers — …]` header in `currentPrompt`) must not
     // surface any of the OVERRIDE language, even when `message` carries
     // a transcript that mentions question-form. Otherwise we'd suppress
     // the legitimate turn-1 form ask.
     const transcript = '## user\n初始需求\n\n## assistant\n<question-form id="discovery">...</question-form>';
-    const currentPrompt = '继续做点修改';
+    const currentPrompt = "继续做点修改";
 
     const prompt = composeChatUserRequestForAgent(transcript, currentPrompt);
-    expect(prompt).not.toContain('OVERRIDE — form already answered');
-    expect(prompt).not.toContain('Treat RULE 1');
+    expect(prompt).not.toContain("OVERRIDE — form already answered");
+    expect(prompt).not.toContain("Treat RULE 1");
   });
 
-  it('also drops the transcript on a non-form turn when skipTranscript is true', () => {
+  it("also drops the transcript on a non-form turn when skipTranscript is true", () => {
     // Without a form-answer transition, the function previously returned
     // `message` verbatim. With skipTranscript the body must come from
     // `currentPrompt` instead so a follow-up `agy -c` turn doesn't carry
     // the duplicate transcript.
-    const transcript = '## user\n第一轮\n\n## assistant\n回答\n\n## user\n第二轮 follow-up';
-    const currentPrompt = '第二轮 follow-up';
+    const transcript = "## user\n第一轮\n\n## assistant\n回答\n\n## user\n第二轮 follow-up";
+    const currentPrompt = "第二轮 follow-up";
 
     const skipped = composeChatUserRequestForAgent(transcript, currentPrompt, {
-      skipTranscript: true,
+      skipTranscript: true
     });
     expect(skipped).toBe(currentPrompt);
 
@@ -231,240 +213,60 @@ describe('Langfuse message finalization gate', () => {
     expect(kept).toBe(transcript);
   });
 
-  it('invokes Langfuse reporting once when the final message write is marked', () => {
+  it("keeps the transcript for comprehensive workbench turns even when resume is available", () => {
+    const transcript = [
+      "## user",
+      "把这个文件夹里的商品图片分门别类写入项目商品素材",
+      "",
+      "## assistant",
+      "视觉聚类结果：白色短款牛仔裙、蓝色中长款牛仔半身裙。8 个类，15 张 jpg 全部覆盖。",
+      "",
+      "## user",
+      "根据你生成的8个分类，把素材写入项目商品素材"
+    ].join("\n");
+    const currentPrompt = "根据你生成的8个分类，把素材写入项目商品素材";
+
+    const kept = composeChatUserRequestForAgent(transcript, currentPrompt, {
+      skipTranscript: true,
+      sessionMode: "comprehensive"
+    });
+
+    expect(kept).toBe(transcript);
+    expect(kept).toContain("视觉聚类结果：白色短款牛仔裙");
+  });
+
+  it("invokes Langfuse reporting once when the final message write is marked", () => {
     const run = {
-      id: 'run-1',
-      projectId: 'project-1',
-      conversationId: 'conv-1',
-      assistantMessageId: 'assistant-1',
-      status: 'succeeded',
+      id: "run-1",
+      projectId: "project-1",
+      conversationId: "conv-1",
+      assistantMessageId: "assistant-1",
+      status: "succeeded",
       createdAt: 1,
       updatedAt: 2,
-      events: [],
+      events: []
     };
     const report = vi.fn();
     const reporter = createFinalizedMessageTelemetryReporter({
       design: { runs: { get: vi.fn(() => run) } },
-      db: 'db',
-      dataDir: '/tmp/od-data',
+      db: "db",
+      dataDir: "/tmp/od-data",
       reportedRuns: new Set<string>(),
-      getAppVersion: () => ({ version: '0.7.0', channel: 'beta', packaged: true }),
-      report,
+      getAppVersion: () => ({ version: "0.7.0", channel: "beta", packaged: true }),
+      report
     });
 
-    reporter(
-      { ...terminalMessage, endedAt: 1234 },
-      { telemetryFinalized: true },
-    );
-    reporter(
-      { ...terminalMessage, endedAt: 1234 },
-      { telemetryFinalized: true },
-    );
+    reporter({ ...terminalMessage, endedAt: 1234 }, { telemetryFinalized: true });
+    reporter({ ...terminalMessage, endedAt: 1234 }, { telemetryFinalized: true });
 
     expect(report).toHaveBeenCalledTimes(1);
     expect(report).toHaveBeenCalledWith({
-      db: 'db',
-      dataDir: '/tmp/od-data',
+      db: "db",
+      dataDir: "/tmp/od-data",
       run,
-      persistedRunStatus: 'succeeded',
+      persistedRunStatus: "succeeded",
       persistedEndedAt: 1234,
-      appVersion: { version: '0.7.0', channel: 'beta', packaged: true },
+      appVersion: { version: "0.7.0", channel: "beta", packaged: true }
     });
-  });
-
-  it('allows a real final message report after a terminal fallback report', async () => {
-    const run = {
-      id: 'run-failed-late-final',
-      projectId: 'project-1',
-      conversationId: 'conv-1',
-      assistantMessageId: 'assistant-1',
-      status: 'failed',
-      createdAt: 1,
-      updatedAt: 2,
-      events: [],
-    };
-    const capture = vi.fn<(event: { insertId?: string }) => void>();
-    const report = vi.fn(async (_args: any) => ({
-      langfuse_expected: true,
-      langfuse_delivery_status: 'accepted' as const,
-    }));
-    const reporter = createFinalizedMessageTelemetryReporter({
-      design: {
-        analytics: { capture },
-        getAppVersion: () => '0.7.0',
-        runs: { get: vi.fn(() => run) },
-      },
-      db: 'db',
-      dataDir: '/tmp/od-data',
-      reportedRuns: new Set<string>(),
-      report,
-    });
-
-    reporter(
-      { ...terminalMessage, runId: run.id, runStatus: 'failed', endedAt: 1234 },
-      { telemetryFinalized: true },
-      {
-        analyticsContext: {
-          deviceId: 'device-1',
-          sessionId: 'session-1',
-          clientType: 'desktop',
-          locale: 'zh-CN',
-          requestId: 'request-1',
-        },
-        reportTrigger: 'terminal_fallback',
-      },
-    );
-    reporter(
-      { ...terminalMessage, runId: run.id, runStatus: 'failed', endedAt: 1235 },
-      { telemetryFinalized: true },
-      {
-        analyticsContext: {
-          deviceId: 'device-1',
-          sessionId: 'session-1',
-          clientType: 'desktop',
-          locale: 'zh-CN',
-          requestId: 'request-1',
-        },
-        reportTrigger: 'final_message',
-      },
-    );
-    reporter(
-      { ...terminalMessage, runId: run.id, runStatus: 'failed', endedAt: 1236 },
-      { telemetryFinalized: true },
-      {
-        analyticsContext: {
-          deviceId: 'device-1',
-          sessionId: 'session-1',
-          clientType: 'desktop',
-          locale: 'zh-CN',
-          requestId: 'request-1',
-        },
-        reportTrigger: 'final_message',
-      },
-    );
-    await Promise.resolve();
-
-    expect(report).toHaveBeenCalledTimes(2);
-    expect(report.mock.calls.map(([call]) => call.persistedEndedAt)).toEqual([
-      1234,
-      1235,
-    ]);
-    expect(capture).toHaveBeenCalledTimes(3);
-    expect(capture.mock.calls.map(([call]) => call.insertId)).toEqual(expect.arrayContaining([
-      'run-failed-late-final-langfuse-report-terminal_fallback-accepted',
-      'run-failed-late-final-langfuse-report-final_message-accepted',
-      'run-failed-late-final-langfuse-report-final_message-skipped-duplicate_run',
-    ]));
-  });
-
-  it('captures Langfuse report acceptance after final message reporting resolves', async () => {
-    const run = {
-      id: 'run-accepted',
-      projectId: 'project-1',
-      conversationId: 'conv-1',
-      assistantMessageId: 'assistant-1',
-      agentId: 'codex',
-      model: 'default',
-      status: 'succeeded',
-      createdAt: 1,
-      updatedAt: 2,
-      events: [],
-    };
-    const capture = vi.fn();
-    const report = vi.fn(async () => ({
-      langfuse_expected: true,
-      langfuse_delivery_status: 'accepted' as const,
-    }));
-    const reporter = createFinalizedMessageTelemetryReporter({
-      design: {
-        analytics: { capture },
-        getAppVersion: () => '0.7.0',
-        runs: { get: vi.fn(() => run) },
-      },
-      db: 'db',
-      dataDir: '/tmp/od-data',
-      reportedRuns: new Set<string>(),
-      getAppVersion: () => ({ version: '0.7.0', channel: 'beta', packaged: true }),
-      report,
-    });
-
-    reporter(
-      { ...terminalMessage, runId: run.id, endedAt: 1234 },
-      { telemetryFinalized: true },
-      {
-        analyticsContext: {
-          deviceId: 'device-1',
-          sessionId: 'session-1',
-          clientType: 'desktop',
-          locale: 'zh-CN',
-          requestId: 'request-1',
-        },
-        projectId: 'project-1',
-        conversationId: 'conv-1',
-        reportTrigger: 'terminal_fallback',
-      },
-    );
-    await Promise.resolve();
-
-    expect(capture).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventName: 'langfuse_report_result',
-        insertId: 'run-accepted-langfuse-report-terminal_fallback-accepted',
-        properties: expect.objectContaining({
-          run_id: 'run-accepted',
-          langfuse_trace_id: 'run-accepted',
-          langfuse_expected: true,
-          langfuse_delivery_status: 'accepted',
-          langfuse_report_result: 'accepted',
-          langfuse_report_trigger: 'terminal_fallback',
-        }),
-      }),
-    );
-  });
-
-  it('captures skipped Langfuse reporting when a finalized message references a missing run', () => {
-    const capture = vi.fn();
-    const reporter = createFinalizedMessageTelemetryReporter({
-      design: {
-        analytics: { capture },
-        getAppVersion: () => '0.7.0',
-        runs: { get: vi.fn(() => undefined) },
-      },
-      db: 'db',
-      dataDir: '/tmp/od-data',
-      reportedRuns: new Set<string>(),
-      getAppVersion: () => ({ version: '0.7.0', channel: 'beta', packaged: true }),
-      report: vi.fn(),
-    });
-
-    reporter(
-      { ...terminalMessage, runId: 'run-missing', endedAt: 1234 },
-      { telemetryFinalized: true },
-      {
-        analyticsContext: {
-          deviceId: 'device-1',
-          sessionId: 'session-1',
-          clientType: 'desktop',
-          locale: 'zh-CN',
-          requestId: 'request-1',
-        },
-        projectId: 'project-1',
-        conversationId: 'conv-1',
-      },
-    );
-
-    expect(capture).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventName: 'langfuse_report_result',
-        insertId: 'run-missing-langfuse-report-final_message-skipped-run_not_found',
-        properties: expect.objectContaining({
-          project_id: 'project-1',
-          conversation_id: 'conv-1',
-          run_id: 'run-missing',
-          langfuse_report_result: 'skipped',
-          langfuse_report_skip_reason: 'run_not_found',
-        }),
-      }),
-    );
   });
 });

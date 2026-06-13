@@ -326,7 +326,7 @@ describe('connector detail responses', () => {
 
     await expect(service.listConnectorDiscovery()).resolves.toEqual(
       expect.objectContaining({
-        connectors: [
+        connectors: expect.arrayContaining([
           expect.objectContaining({
             id: 'external_docs',
             tools: [
@@ -337,7 +337,7 @@ describe('connector detail responses', () => {
             ],
             featuredToolNames: ['docs.search', 'docs.update_page', 'docs.delete_page', 'docs.sync'],
           }),
-        ],
+        ]),
       }),
     );
 

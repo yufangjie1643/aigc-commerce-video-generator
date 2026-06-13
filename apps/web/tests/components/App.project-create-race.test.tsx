@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { App } from '../../src/App';
-import type { AgentInfo, AppConfig, Project } from '../../src/types';
+import { App } from "../../src/App";
+import type { AgentInfo, AppConfig, Project } from "../../src/types";
 import {
   fetchComposioConfigFromDaemon,
   fetchDaemonConfig,
@@ -12,8 +12,8 @@ import {
   mergeDaemonConfig,
   saveConfig,
   syncComposioConfigToDaemon,
-  syncConfigToDaemon,
-} from '../../src/state/config';
+  syncConfigToDaemon
+} from "../../src/state/config";
 import {
   daemonIsLive,
   fetchAgentsStream,
@@ -23,18 +23,22 @@ import {
   fetchPromptTemplates,
   fetchSkills,
   replaceProjectWorkingDir,
-  uploadProjectFiles,
-} from '../../src/providers/registry';
+  uploadProjectFiles
+} from "../../src/providers/registry";
 import {
   createProject,
   deleteProject,
   getProject,
   listProjects,
   listTemplates,
-  patchProject,
-} from '../../src/state/projects';
+  patchProject
+} from "../../src/state/projects";
 
-vi.mock('../../src/components/EntryView', () => ({
+const workspaceTabsMocks = vi.hoisted(() => ({
+  openWorkspaceTab: vi.fn()
+}));
+
+vi.mock("../../src/components/EntryView", () => ({
   EntryView: ({
     onCreateProject,
     onDeleteProject,
@@ -42,7 +46,7 @@ vi.mock('../../src/components/EntryView', () => ({
     onOpenProject,
     onRefreshAgents,
     agents,
-    projects,
+    projects
   }: {
     onCreateProject: (input: unknown) => void;
     onDeleteProject: (id: string) => void;
@@ -58,17 +62,14 @@ vi.mock('../../src/components/EntryView', () => ({
     projects: Project[];
   }) => (
     <main>
-      {window.location.pathname === '/' ? (
-        <div data-testid="entry-home-surface" />
-      ) : null}
       <button
         type="button"
         onClick={() =>
           onCreateProject({
-            name: 'Fresh project',
+            name: "Fresh project",
             skillId: null,
             designSystemId: null,
-            metadata: { kind: 'prototype' },
+            metadata: { kind: "prototype" }
           })
         }
       >
@@ -78,12 +79,12 @@ vi.mock('../../src/components/EntryView', () => ({
         type="button"
         onClick={() =>
           onCreateProject({
-            name: 'Dir project',
+            name: "Dir project",
             skillId: null,
             designSystemId: null,
-            metadata: { kind: 'prototype', userWorkingDir: '/Users/me/external' },
-            userWorkingDirToken: 'wd-token',
-            pendingFiles: [new File(['hi'], 'note.txt', { type: 'text/plain' })],
+            metadata: { kind: "prototype", userWorkingDir: "/Users/me/external" },
+            userWorkingDirToken: "wd-token",
+            pendingFiles: [new File(["hi"], "note.txt", { type: "text/plain" })]
           })
         }
       >
@@ -93,10 +94,10 @@ vi.mock('../../src/components/EntryView', () => ({
         type="button"
         onClick={() =>
           void onImportFolderResponse?.({
-            conversationId: 'conv-import',
+            conversationId: "conv-import",
             entryFile: null,
             ok: true,
-            projectId: 'project-new',
+            projectId: "project-new"
           })
         }
       >
@@ -124,14 +125,14 @@ vi.mock('../../src/components/EntryView', () => ({
         </div>
       ))}
     </main>
-  ),
+  )
 }));
 
-vi.mock('../../src/components/ProjectView', () => ({
+vi.mock("../../src/components/ProjectView", () => ({
   ProjectView: ({
     onBack,
     onProjectsRefresh,
-    project,
+    project
   }: {
     onBack: () => void;
     onProjectsRefresh: () => Promise<void>;
@@ -146,32 +147,30 @@ vi.mock('../../src/components/ProjectView', () => ({
         Refresh projects
       </button>
     </main>
-  ),
+  )
 }));
 
-vi.mock('../../src/components/WorkspaceTabsBar', () => ({
+vi.mock("../../src/components/WorkspaceTabsBar", () => ({
   WorkspaceTabsBar: () => null,
-  openWorkspaceTab: () => {},
+  openWorkspaceTab: workspaceTabsMocks.openWorkspaceTab
 }));
 
-vi.mock('../../src/components/pet/PetOverlay', () => ({
-  PetOverlay: () => null,
+vi.mock("../../src/components/pet/PetOverlay", () => ({
+  PetOverlay: () => null
 }));
 
-vi.mock('../../src/components/pet/pets', () => ({
-  migrateCustomPetAtlas: vi.fn().mockResolvedValue(null),
+vi.mock("../../src/components/pet/pets", () => ({
+  migrateCustomPetAtlas: vi.fn().mockResolvedValue(null)
 }));
 
-vi.mock('../../src/components/SettingsDialog', () => ({
+vi.mock("../../src/components/SettingsDialog", () => ({
   SettingsDialog: () => null,
   switchApiProtocolConfig: (config: AppConfig) => config,
-  updateCurrentApiProtocolConfig: (config: AppConfig) => config,
+  updateCurrentApiProtocolConfig: (config: AppConfig) => config
 }));
 
-vi.mock('../../src/providers/registry', async () => {
-  const actual = await vi.importActual<typeof import('../../src/providers/registry')>(
-    '../../src/providers/registry',
-  );
+vi.mock("../../src/providers/registry", async () => {
+  const actual = await vi.importActual<typeof import("../../src/providers/registry")>("../../src/providers/registry");
   return {
     ...actual,
     daemonIsLive: vi.fn(),
@@ -182,14 +181,12 @@ vi.mock('../../src/providers/registry', async () => {
     fetchPromptTemplates: vi.fn(),
     fetchSkills: vi.fn(),
     replaceProjectWorkingDir: vi.fn(),
-    uploadProjectFiles: vi.fn(),
+    uploadProjectFiles: vi.fn()
   };
 });
 
-vi.mock('../../src/state/projects', async () => {
-  const actual = await vi.importActual<typeof import('../../src/state/projects')>(
-    '../../src/state/projects',
-  );
+vi.mock("../../src/state/projects", async () => {
+  const actual = await vi.importActual<typeof import("../../src/state/projects")>("../../src/state/projects");
   return {
     ...actual,
     createProject: vi.fn(),
@@ -197,14 +194,12 @@ vi.mock('../../src/state/projects', async () => {
     getProject: vi.fn(),
     listProjects: vi.fn(),
     listTemplates: vi.fn(),
-    patchProject: vi.fn(),
+    patchProject: vi.fn()
   };
 });
 
-vi.mock('../../src/state/config', async () => {
-  const actual = await vi.importActual<typeof import('../../src/state/config')>(
-    '../../src/state/config',
-  );
+vi.mock("../../src/state/config", async () => {
+  const actual = await vi.importActual<typeof import("../../src/state/config")>("../../src/state/config");
   return {
     ...actual,
     fetchDaemonConfig: vi.fn().mockResolvedValue({}),
@@ -213,7 +208,7 @@ vi.mock('../../src/state/config', async () => {
     mergeDaemonConfig: vi.fn(),
     saveConfig: vi.fn(),
     syncComposioConfigToDaemon: vi.fn().mockResolvedValue(true),
-    syncConfigToDaemon: vi.fn().mockResolvedValue(undefined),
+    syncConfigToDaemon: vi.fn().mockResolvedValue(undefined)
   };
 });
 
@@ -241,15 +236,15 @@ const mockedSyncComposioConfigToDaemon = vi.mocked(syncComposioConfigToDaemon);
 const mockedSyncConfigToDaemon = vi.mocked(syncConfigToDaemon);
 
 const baseConfig: AppConfig = {
-  mode: 'daemon',
-  apiKey: '',
-  apiProtocol: 'anthropic',
-  apiVersion: '',
-  baseUrl: 'https://api.anthropic.com',
-  model: 'claude-sonnet-4-5',
-  apiProviderBaseUrl: 'https://api.anthropic.com',
+  mode: "daemon",
+  apiKey: "",
+  apiProtocol: "anthropic",
+  apiVersion: "",
+  baseUrl: "https://api.anthropic.com",
+  model: "claude-sonnet-4-5",
+  apiProviderBaseUrl: "https://api.anthropic.com",
   apiProtocolConfigs: {},
-  agentId: 'codex',
+  agentId: "codex",
   skillId: null,
   designSystemId: null,
   onboardingCompleted: true,
@@ -257,27 +252,27 @@ const baseConfig: AppConfig = {
   mediaProviders: {},
   composio: {},
   agentModels: {},
-  agentCliEnv: {},
+  agentCliEnv: {}
 };
 
 const freshProject: Project = {
-  id: 'project-new',
-  name: 'Fresh project',
+  id: "project-new",
+  name: "Fresh project",
   skillId: null,
   designSystemId: null,
   createdAt: 1778244000000,
   updatedAt: 1778244000000,
-  metadata: { kind: 'prototype' },
+  metadata: { kind: "prototype" }
 };
 
 const existingProject: Project = {
-  id: 'project-existing',
-  name: 'Existing project',
+  id: "project-existing",
+  name: "Existing project",
   skillId: null,
   designSystemId: null,
   createdAt: 1778243000000,
   updatedAt: 1778243000000,
-  metadata: { kind: 'prototype' },
+  metadata: { kind: "prototype" }
 };
 
 function deferred<T>() {
@@ -288,9 +283,9 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-describe('App project creation routing', () => {
+describe("App project creation routing", () => {
   beforeEach(() => {
-    window.history.replaceState(null, '', '/');
+    window.history.replaceState(null, "", "/");
     mockedDaemonIsLive.mockResolvedValue(true);
     mockedFetchAgentsStream.mockResolvedValue([]);
     mockedFetchSkills.mockResolvedValue([]);
@@ -303,20 +298,21 @@ describe('App project creation routing', () => {
     mockedFetchComposioConfigFromDaemon.mockResolvedValue(null);
     mockedMergeDaemonConfig.mockImplementation((local) => local);
     mockedLoadConfig.mockReturnValue({ ...baseConfig });
+    workspaceTabsMocks.openWorkspaceTab.mockImplementation(() => undefined);
     mockedUploadProjectFiles.mockResolvedValue({ uploaded: [], failed: [] });
     mockedCreateProject.mockResolvedValue({
       project: freshProject,
-      conversationId: 'conv-new',
+      conversationId: "conv-new"
     });
     mockedDeleteProject.mockResolvedValue(true);
     mockedGetProject.mockResolvedValue(null);
     mockedPatchProject.mockResolvedValue(freshProject);
     vi.stubGlobal(
-      'fetch',
+      "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({}),
-      }),
+        json: async () => ({})
+      })
     );
   });
 
@@ -326,22 +322,22 @@ describe('App project creation routing', () => {
     vi.clearAllMocks();
   });
 
-  it('auto-picks the first available agent in registry order after streamed probes settle', async () => {
+  it("auto-picks the first available agent in registry order after streamed probes settle", async () => {
     const codexAgent: AgentInfo = {
-      id: 'codex',
-      name: 'Codex CLI',
-      bin: 'codex',
+      id: "codex",
+      name: "Codex CLI",
+      bin: "codex",
       available: true,
-      version: '0.80.0',
-      models: [{ id: 'default', label: 'Default' }],
+      version: "0.80.0",
+      models: [{ id: "default", label: "Default" }]
     };
     const claudeAgent: AgentInfo = {
-      id: 'claude',
-      name: 'Claude Code',
-      bin: 'claude',
+      id: "claude",
+      name: "Claude Code",
+      bin: "claude",
       available: true,
-      version: '1.0.0',
-      models: [{ id: 'default', label: 'Default' }],
+      version: "1.0.0",
+      models: [{ id: "default", label: "Default" }]
     };
     mockedLoadConfig.mockReturnValue({ ...baseConfig, agentId: null });
     mockedListProjects.mockResolvedValue([]);
@@ -354,34 +350,28 @@ describe('App project creation routing', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(mockedSaveConfig).toHaveBeenCalledWith(
-        expect.objectContaining({ agentId: 'claude' }),
-      );
+      expect(mockedSaveConfig).toHaveBeenCalledWith(expect.objectContaining({ agentId: "claude" }));
     });
-    expect(
-      mockedSaveConfig.mock.calls.some(([saved]) => saved.agentId === 'codex'),
-    ).toBe(false);
-    expect(mockedSyncConfigToDaemon).toHaveBeenCalledWith(
-      expect.objectContaining({ agentId: 'claude' }),
-    );
+    expect(mockedSaveConfig.mock.calls.some(([saved]) => saved.agentId === "codex")).toBe(false);
+    expect(mockedSyncConfigToDaemon).toHaveBeenCalledWith(expect.objectContaining({ agentId: "claude" }));
   });
 
-  it('ignores stale streamed writes from an older bootstrap after a newer rescan', async () => {
+  it("ignores stale streamed writes from an older bootstrap after a newer rescan", async () => {
     const staleCodexAgent: AgentInfo = {
-      id: 'codex',
-      name: 'Stale Codex CLI',
-      bin: 'codex',
+      id: "codex",
+      name: "Stale Codex CLI",
+      bin: "codex",
       available: false,
       version: null,
-      models: [],
+      models: []
     };
     const refreshedCodexAgent: AgentInfo = {
-      id: 'codex',
-      name: 'Fresh Codex CLI',
-      bin: 'codex',
+      id: "codex",
+      name: "Fresh Codex CLI",
+      bin: "codex",
       available: true,
-      version: '0.80.0',
-      models: [{ id: 'default', label: 'Default' }],
+      version: "0.80.0",
+      models: [{ id: "default", label: "Default" }]
     };
     const staleBootstrap = deferred<AgentInfo[]>();
     let emitStaleAgent: ((agent: AgentInfo) => void) | null = null;
@@ -398,12 +388,10 @@ describe('App project creation routing', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Refresh agents' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Refresh agents" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('entry-agent-codex').textContent).toBe(
-        'Fresh Codex CLI',
-      );
+      expect(screen.getByTestId("entry-agent-codex").textContent).toBe("Fresh Codex CLI");
     });
 
     await act(async () => {
@@ -412,47 +400,41 @@ describe('App project creation routing', () => {
       await staleBootstrap.promise;
     });
 
-    expect(screen.getByTestId('entry-agent-codex').textContent).toBe(
-      'Fresh Codex CLI',
-    );
+    expect(screen.getByTestId("entry-agent-codex").textContent).toBe("Fresh Codex CLI");
   });
 
-  it('does not auto-pick from a partial rescan when an older bootstrap settles', async () => {
+  it("does not auto-pick from a partial rescan when an older bootstrap settles", async () => {
     const codexAgent: AgentInfo = {
-      id: 'codex',
-      name: 'Codex CLI',
-      bin: 'codex',
+      id: "codex",
+      name: "Codex CLI",
+      bin: "codex",
       available: true,
-      version: '0.80.0',
-      models: [{ id: 'default', label: 'Default' }],
+      version: "0.80.0",
+      models: [{ id: "default", label: "Default" }]
     };
     const claudeAgent: AgentInfo = {
-      id: 'claude',
-      name: 'Claude Code',
-      bin: 'claude',
+      id: "claude",
+      name: "Claude Code",
+      bin: "claude",
       available: true,
-      version: '1.0.0',
-      models: [{ id: 'default', label: 'Default' }],
+      version: "1.0.0",
+      models: [{ id: "default", label: "Default" }]
     };
     const staleBootstrap = deferred<AgentInfo[]>();
     const rescan = deferred<AgentInfo[]>();
     mockedLoadConfig.mockReturnValue({ ...baseConfig, agentId: null });
     mockedListProjects.mockResolvedValue([]);
-    mockedFetchAgentsStream
-      .mockReturnValueOnce(staleBootstrap.promise)
-      .mockImplementationOnce(({ onAgent }) => {
-        onAgent(codexAgent);
-        return rescan.promise;
-      });
+    mockedFetchAgentsStream.mockReturnValueOnce(staleBootstrap.promise).mockImplementationOnce(({ onAgent }) => {
+      onAgent(codexAgent);
+      return rescan.promise;
+    });
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Refresh agents' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Refresh agents" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('entry-agent-codex').textContent).toBe(
-        'Codex CLI',
-      );
+      expect(screen.getByTestId("entry-agent-codex").textContent).toBe("Codex CLI");
     });
 
     await act(async () => {
@@ -465,42 +447,36 @@ describe('App project creation routing', () => {
     });
 
     await waitFor(() => {
-      expect(mockedSaveConfig).toHaveBeenCalledWith(
-        expect.objectContaining({ agentId: 'claude' }),
-      );
+      expect(mockedSaveConfig).toHaveBeenCalledWith(expect.objectContaining({ agentId: "claude" }));
     });
-    expect(
-      mockedSaveConfig.mock.calls.some(([saved]) => saved.agentId === 'codex'),
-    ).toBe(false);
+    expect(mockedSaveConfig.mock.calls.some(([saved]) => saved.agentId === "codex")).toBe(false);
   });
 
-  it('keeps auto-pick gated while rescanning from an empty agent state', async () => {
+  it("keeps auto-pick gated while rescanning from an empty agent state", async () => {
     const codexAgent: AgentInfo = {
-      id: 'codex',
-      name: 'Codex CLI',
-      bin: 'codex',
+      id: "codex",
+      name: "Codex CLI",
+      bin: "codex",
       available: true,
-      version: '0.80.0',
-      models: [{ id: 'default', label: 'Default' }],
+      version: "0.80.0",
+      models: [{ id: "default", label: "Default" }]
     };
     const claudeAgent: AgentInfo = {
-      id: 'claude',
-      name: 'Claude Code',
-      bin: 'claude',
+      id: "claude",
+      name: "Claude Code",
+      bin: "claude",
       available: true,
-      version: '1.0.0',
-      models: [{ id: 'default', label: 'Default' }],
+      version: "1.0.0",
+      models: [{ id: "default", label: "Default" }]
     };
     const initialProbe = deferred<AgentInfo[]>();
     const rescan = deferred<AgentInfo[]>();
     mockedLoadConfig.mockReturnValue({ ...baseConfig, agentId: null });
     mockedListProjects.mockResolvedValue([]);
-    mockedFetchAgentsStream
-      .mockReturnValueOnce(initialProbe.promise)
-      .mockImplementationOnce(({ onAgent }) => {
-        onAgent(codexAgent);
-        return rescan.promise;
-      });
+    mockedFetchAgentsStream.mockReturnValueOnce(initialProbe.promise).mockImplementationOnce(({ onAgent }) => {
+      onAgent(codexAgent);
+      return rescan.promise;
+    });
 
     render(<App />);
 
@@ -512,12 +488,10 @@ describe('App project creation routing', () => {
       await initialProbe.promise;
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Refresh agents' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Refresh agents" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('entry-agent-codex').textContent).toBe(
-        'Codex CLI',
-      );
+      expect(screen.getByTestId("entry-agent-codex").textContent).toBe("Codex CLI");
     });
 
     await act(async () => {
@@ -526,40 +500,58 @@ describe('App project creation routing', () => {
     });
 
     await waitFor(() => {
-      expect(mockedSaveConfig).toHaveBeenCalledWith(
-        expect.objectContaining({ agentId: 'claude' }),
-      );
+      expect(mockedSaveConfig).toHaveBeenCalledWith(expect.objectContaining({ agentId: "claude" }));
     });
-    expect(
-      mockedSaveConfig.mock.calls.some(([saved]) => saved.agentId === 'codex'),
-    ).toBe(false);
+    expect(mockedSaveConfig.mock.calls.some(([saved]) => saved.agentId === "codex")).toBe(false);
   });
 
-  it('keeps a newly created project open when the initial project list resolves stale', async () => {
+  it("keeps a newly created project open when the initial project list resolves stale", async () => {
     const bootstrapProjects = deferred<Project[]>();
-    mockedListProjects
-      .mockReturnValueOnce(bootstrapProjects.promise)
-      .mockResolvedValue([]);
+    mockedListProjects.mockReturnValueOnce(bootstrapProjects.promise).mockResolvedValue([]);
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create project' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create project" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
+      expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
     });
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(window.location.pathname).toBe("/projects/project-new");
 
     await act(async () => {
       bootstrapProjects.resolve([]);
       await bootstrapProjects.promise;
     });
 
-    expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
+    expect(window.location.pathname).toBe("/projects/project-new");
   });
 
-  it('keeps a newly created project open when a post-create refresh resolves stale', async () => {
+  it("keeps navigating to a newly created project when workspace tab state throws", async () => {
+    mockedListProjects.mockResolvedValue([]);
+    workspaceTabsMocks.openWorkspaceTab.mockImplementationOnce(() => {
+      throw new Error("workspace tab state unavailable");
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Create project" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
+    });
+    expect(window.location.pathname).toBe("/projects/project-new");
+    expect(workspaceTabsMocks.openWorkspaceTab).toHaveBeenCalledWith({
+      kind: "project",
+      projectId: "project-new",
+      fileName: null
+    });
+
+    warnSpy.mockRestore();
+  });
+
+  it("keeps a newly created project open when a post-create refresh resolves stale", async () => {
     const bootstrapProjects = deferred<Project[]>();
     const staleRefreshProjects = deferred<Project[]>();
     mockedListProjects
@@ -569,33 +561,33 @@ describe('App project creation routing', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create project' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create project" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
+      expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
     });
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(window.location.pathname).toBe("/projects/project-new");
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh projects' }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh projects" }));
 
     await act(async () => {
       staleRefreshProjects.resolve([]);
       await staleRefreshProjects.promise;
     });
 
-    expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
+    expect(window.location.pathname).toBe("/projects/project-new");
 
     await act(async () => {
       bootstrapProjects.resolve([]);
       await bootstrapProjects.promise;
     });
 
-    expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
+    expect(window.location.pathname).toBe("/projects/project-new");
   });
 
-  it('ignores an older stale project list after a newer response confirms the local project', async () => {
+  it("ignores an older stale project list after a newer response confirms the local project", async () => {
     const bootstrapProjects = deferred<Project[]>();
     const refreshedProjects = deferred<Project[]>();
     mockedListProjects
@@ -605,33 +597,33 @@ describe('App project creation routing', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create project' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create project" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
+      expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
     });
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(window.location.pathname).toBe("/projects/project-new");
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh projects' }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh projects" }));
 
     await act(async () => {
       refreshedProjects.resolve([freshProject]);
       await refreshedProjects.promise;
     });
 
-    expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
+    expect(window.location.pathname).toBe("/projects/project-new");
 
     await act(async () => {
       bootstrapProjects.resolve([]);
       await bootstrapProjects.promise;
     });
 
-    expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
+    expect(window.location.pathname).toBe("/projects/project-new");
   });
 
-  it('does not revive nonlocal projects from an older list after a newer empty refresh', async () => {
+  it("does not revive nonlocal projects from an older list after a newer empty refresh", async () => {
     const bootstrapProjects = deferred<Project[]>();
     const createRefreshProjects = deferred<Project[]>();
     mockedListProjects
@@ -641,14 +633,14 @@ describe('App project creation routing', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create project' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create project" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
+      expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
     });
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(window.location.pathname).toBe("/projects/project-new");
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh projects' }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh projects" }));
     expect(mockedListProjects).toHaveBeenCalledTimes(2);
 
     await act(async () => {
@@ -656,30 +648,27 @@ describe('App project creation routing', () => {
       await createRefreshProjects.promise;
     });
 
-    expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
+    expect(window.location.pathname).toBe("/projects/project-new");
 
     await act(async () => {
       bootstrapProjects.resolve([existingProject]);
       await bootstrapProjects.promise;
     });
 
-    expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
+    expect(window.location.pathname).toBe("/projects/project-new");
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to projects' }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to projects" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('entry-home-surface')).toBeTruthy();
-      expect(screen.getByTestId('entry-project-project-new').textContent).toContain(
-        'Fresh project',
-      );
+      expect(screen.getByTestId("entry-project-project-new").textContent).toContain("Fresh project");
     });
-    expect(window.location.pathname).toBe('/');
-    expect(screen.queryByTestId('entry-project-project-existing')).toBeNull();
+    expect(window.location.pathname).toBe("/projects");
+    expect(screen.queryByTestId("entry-project-project-existing")).toBeNull();
   });
 
-  it('does not re-add a locally deleted project when an older project list resolves stale', async () => {
+  it("does not re-add a locally deleted project when an older project list resolves stale", async () => {
     const initialProjects = deferred<Project[]>();
     const staleRefreshProjects = deferred<Project[]>();
     mockedListProjects
@@ -694,25 +683,23 @@ describe('App project creation routing', () => {
       await initialProjects.promise;
     });
 
-    expect(screen.getByTestId('entry-project-project-new').textContent).toContain(
-      'Fresh project',
-    );
+    expect(screen.getByTestId("entry-project-project-new").textContent).toContain("Fresh project");
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Fresh project' }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Fresh project" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
+      expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh projects' }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh projects" }));
     expect(mockedListProjects).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to projects' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete Fresh project' }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to projects" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Fresh project" }));
 
     await waitFor(() => {
-      expect(mockedDeleteProject).toHaveBeenCalledWith('project-new');
-      expect(screen.queryByTestId('entry-project-project-new')).toBeNull();
+      expect(mockedDeleteProject).toHaveBeenCalledWith("project-new");
+      expect(screen.queryByTestId("entry-project-project-new")).toBeNull();
     });
 
     await act(async () => {
@@ -720,10 +707,10 @@ describe('App project creation routing', () => {
       await staleRefreshProjects.promise;
     });
 
-    expect(screen.queryByTestId('entry-project-project-new')).toBeNull();
+    expect(screen.queryByTestId("entry-project-project-new")).toBeNull();
   });
 
-  it('keeps a host-imported project routable when getProject and the list lag behind', async () => {
+  it("keeps a host-imported project routable when getProject and the list lag behind", async () => {
     // Desktop import flow (handleImportFolderResponse fallback): the host
     // bridge has already POSTed the import, but `/api/projects/:id` and
     // `/api/projects` are both still catching up. Without a placeholder
@@ -739,7 +726,7 @@ describe('App project creation routing', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Host import folder' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Host import folder" }));
 
     await act(async () => {
       importListProjects.resolve([]);
@@ -747,20 +734,20 @@ describe('App project creation routing', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('project-view')).toBeTruthy();
+      expect(screen.getByTestId("project-view")).toBeTruthy();
     });
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(window.location.pathname).toBe("/projects/project-new");
 
     await act(async () => {
       bootstrapProjects.resolve([]);
       await bootstrapProjects.promise;
     });
 
-    expect(screen.getByTestId('project-view')).toBeTruthy();
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(screen.getByTestId("project-view")).toBeTruthy();
+    expect(window.location.pathname).toBe("/projects/project-new");
   });
 
-  it('hydrates a host-import placeholder from an older project list that contains the import', async () => {
+  it("hydrates a host-import placeholder from an older project list that contains the import", async () => {
     const bootstrapProjects = deferred<Project[]>();
     const importListProjects = deferred<Project[]>();
     mockedListProjects
@@ -771,7 +758,7 @@ describe('App project creation routing', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Host import folder' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Host import folder" }));
 
     await act(async () => {
       importListProjects.resolve([]);
@@ -779,21 +766,21 @@ describe('App project creation routing', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('project-view')).toBeTruthy();
+      expect(screen.getByTestId("project-view")).toBeTruthy();
     });
-    expect(screen.getByTestId('project-title').textContent).toBe('');
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(screen.getByTestId("project-title").textContent).toBe("");
+    expect(window.location.pathname).toBe("/projects/project-new");
 
     await act(async () => {
       bootstrapProjects.resolve([freshProject]);
       await bootstrapProjects.promise;
     });
 
-    expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
+    expect(window.location.pathname).toBe("/projects/project-new");
   });
 
-  it('does not revive unrelated projects from an older list that hydrates a host import', async () => {
+  it("does not revive unrelated projects from an older list that hydrates a host import", async () => {
     const bootstrapProjects = deferred<Project[]>();
     const importListProjects = deferred<Project[]>();
     mockedListProjects
@@ -804,7 +791,7 @@ describe('App project creation routing', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Host import folder' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Host import folder" }));
 
     await act(async () => {
       importListProjects.resolve([]);
@@ -812,28 +799,26 @@ describe('App project creation routing', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('project-view')).toBeTruthy();
+      expect(screen.getByTestId("project-view")).toBeTruthy();
     });
-    expect(screen.getByTestId('project-title').textContent).toBe('');
-    expect(window.location.pathname).toBe('/projects/project-new');
+    expect(screen.getByTestId("project-title").textContent).toBe("");
+    expect(window.location.pathname).toBe("/projects/project-new");
 
     await act(async () => {
       bootstrapProjects.resolve([freshProject, existingProject]);
       await bootstrapProjects.promise;
     });
 
-    expect(screen.getByTestId('project-title').textContent).toBe('Fresh project');
-    fireEvent.click(screen.getByRole('button', { name: 'Back to projects' }));
+    expect(screen.getByTestId("project-title").textContent).toBe("Fresh project");
+    fireEvent.click(screen.getByRole("button", { name: "Back to projects" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('entry-project-project-new').textContent).toContain(
-        'Fresh project',
-      );
+      expect(screen.getByTestId("entry-project-project-new").textContent).toContain("Fresh project");
     });
-    expect(screen.queryByTestId('entry-project-project-existing')).toBeNull();
+    expect(screen.queryByTestId("entry-project-project-existing")).toBeNull();
   });
 
-  it('switches to the picked working dir before uploading staged Home attachments', async () => {
+  it("switches to the picked working dir before uploading staged Home attachments", async () => {
     // Regression for the "picked working dir + staged attachment" case:
     // replaceProjectWorkingDir flips metadata.baseDir to the external folder,
     // so it must run BEFORE uploadProjectFiles — otherwise the staged files
@@ -844,29 +829,23 @@ describe('App project creation routing', () => {
 
     render(<App />);
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Create project with working dir' }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Create project with working dir" }));
 
     await waitFor(() => {
       expect(mockedReplaceProjectWorkingDir).toHaveBeenCalledTimes(1);
       expect(mockedUploadProjectFiles).toHaveBeenCalledTimes(1);
     });
 
-    expect(mockedReplaceProjectWorkingDir).toHaveBeenCalledWith(
-      'project-new',
-      '/Users/me/external',
-      'wd-token',
-    );
+    expect(mockedReplaceProjectWorkingDir).toHaveBeenCalledWith("project-new", "/Users/me/external", "wd-token");
     // Both target the same project id, and the working-dir handoff is ordered
     // strictly before the upload so the files land in the final tree.
-    expect(mockedUploadProjectFiles.mock.calls[0]?.[0]).toBe('project-new');
+    expect(mockedUploadProjectFiles.mock.calls[0]?.[0]).toBe("project-new");
     const replaceOrder = mockedReplaceProjectWorkingDir.mock.invocationCallOrder[0]!;
     const uploadOrder = mockedUploadProjectFiles.mock.invocationCallOrder[0]!;
     expect(replaceOrder).toBeLessThan(uploadOrder);
   });
 
-  it('short-circuits the upload + auto-send when the working-dir handoff fails', async () => {
+  it("short-circuits the upload + auto-send when the working-dir handoff fails", async () => {
     // Regression for the swallowed-failure case: the desktop working-dir token
     // has a ~60s TTL, so a slow user (or any rejected POST) makes
     // replaceProjectWorkingDir throw AFTER the project already exists. The old
@@ -876,15 +855,11 @@ describe('App project creation routing', () => {
     // submit path so the first run cannot proceed on a tree the user did not
     // choose.
     mockedListProjects.mockResolvedValue([]);
-    mockedReplaceProjectWorkingDir.mockRejectedValue(
-      new Error('working-dir token expired'),
-    );
+    mockedReplaceProjectWorkingDir.mockRejectedValue(new Error("working-dir token expired"));
 
     render(<App />);
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Create project with working dir' }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Create project with working dir" }));
 
     await waitFor(() => {
       expect(screen.getByText(/Couldn't apply the chosen folder/i)).toBeTruthy();

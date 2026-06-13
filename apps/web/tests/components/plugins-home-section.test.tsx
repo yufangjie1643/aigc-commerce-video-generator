@@ -1,14 +1,11 @@
 // @vitest-environment jsdom
 
-// Plugins home section — UI contract.
+// Plugins home section — ecommerce video template UI contract.
 //
-// The section renders artifact-kind filters for the starter grid:
-// Prototype / Live Artifact / Slides / Image / Video / HyperFrames / Audio.
-// Prototype, Slides, Image, and Video expose a second row of scene buckets;
-// the smaller Live Artifact, HyperFrames, and Audio slices stay flat. Saved is an
-// orthogonal user collection override, and sparse buckets should fall
-// back to the normal empty-filter state rather than rendering synthetic
-// cards.
+// The starter shelf keeps the plugin-card runtime and saved/search
+// interactions, but its visible information architecture is now the
+// product-video workflow: video templates, product assets, storyboard
+// motion, and voice/caption presets.
 
 import { describe, expect, it, afterEach, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -105,222 +102,156 @@ afterEach(() => {
 });
 
 const sample: InstalledPluginRecord[] = [
-  makePlugin({ id: 'prototype-dashboard', mode: 'prototype', tags: ['dashboard'] }),
-  makePlugin({ id: 'prototype-app', mode: 'prototype', tags: ['mobile-app'] }),
-  makePlugin({ id: 'example-live-dashboard', mode: 'prototype', tags: ['live-dashboard'] }),
-  makePlugin({
-    id: 'image-template-notion-team-dashboard-live-artifact',
-    mode: 'image',
-    tags: ['live-artifact'],
-  }),
-  makePlugin({
-    id: 'example-social-media-matrix-tracker-template',
-    mode: 'template',
-    tags: ['live-artifacts'],
-  }),
-  makePlugin({
-    id: 'example-trading-analysis-dashboard-template',
-    mode: 'template',
-    tags: ['live-artifacts'],
-  }),
-  makePlugin({ id: 'example-live-artifact', mode: 'prototype', tags: ['live-artifact'] }),
-  makePlugin({ id: 'deck-pitch', mode: 'deck', tags: ['pitch-deck'], featured: true }),
-  makePlugin({ id: 'image-logo', mode: 'image', tags: ['logo'] }),
-  makePlugin({ id: 'video-short', mode: 'video', tags: ['short-form'] }),
-  makePlugin({ id: 'video-cinematic', mode: 'video', tags: ['cinematic'] }),
-  makePlugin({ id: 'hyperframes-composition', mode: 'video', tags: ['hyperframes'] }),
-  makePlugin({ id: 'audio-voice', mode: 'audio' }),
-  makePlugin({ id: 'hidden-atom', mode: 'prototype', tags: ['dashboard'], kind: 'atom' }),
+  makePlugin({ id: 'video-demo', mode: 'video', tags: ['product-promo', 'material-proof'], featured: true }),
+  makePlugin({ id: 'video-hook', mode: 'video', tags: ['product-promo', 'viral-hook'] }),
+  makePlugin({ id: 'image-sku', mode: 'image', tags: ['product-assets', 'sku'] }),
+  makePlugin({ id: 'image-lifestyle', mode: 'image', tags: ['product-assets', 'lifestyle'] }),
+  makePlugin({ id: 'hyperframes-storyboard', mode: 'video', tags: ['product-promo', 'storyboard', 'hyperframes', 'shot-list'] }),
+  makePlugin({ id: 'audio-voice', mode: 'audio', tags: ['product-promo', 'script', 'voiceover'] }),
+  makePlugin({ id: 'hidden-atom', mode: 'video', tags: ['viral-hook'], kind: 'atom' }),
+  makePlugin({ id: 'hidden-prototype', mode: 'prototype', tags: ['product-promo'] }),
+  makePlugin({ id: 'hidden-deck', mode: 'deck', tags: ['product-promo'] }),
 ];
 
-describe('PluginsHomeSection (community gallery)', () => {
-  it('keeps gallery tiles free of inline Use actions — Use lives in the detail modal', () => {
-    renderSection(sample, { cardLayout: 'gallery' });
-
-    // The tile itself stays a pure preview: name button opens details,
-    // ↗ opens the example page. Use / Use with query are detail-modal
-    // affordances only.
-    expect(screen.getByTestId('plugins-home-details-prototype-dashboard')).toBeTruthy();
-    expect(screen.queryByTestId('plugins-home-use-prototype-dashboard')).toBeNull();
-    expect(screen.queryByTestId('plugins-home-use-menu-prototype-dashboard')).toBeNull();
-    expect(screen.queryByTestId('plugins-home-use-with-query-prototype-dashboard')).toBeNull();
-  });
-
-  it('keeps the inline Use menu on the rich management layout (PluginsView)', () => {
-    renderSection(sample, { cardLayout: 'rich' });
-
-    expect(screen.getByTestId('plugins-home-use-prototype-dashboard')).toBeTruthy();
-  });
-});
-
-describe('PluginsHomeSection (category bar)', () => {
-  it('frames the home shelf as community and can jump to registry', () => {
+describe('PluginsHomeSection (ecommerce video categories)', () => {
+  it('frames the home shelf as ecommerce video templates and can jump to the market', () => {
     const onBrowseRegistry = vi.fn();
     renderSection(sample, { onBrowseRegistry });
 
-    expect(screen.getByText('Community')).toBeTruthy();
+    expect(screen.getByText('Ecommerce video templates')).toBeTruthy();
     fireEvent.click(screen.getByTestId('plugins-home-browse-registry'));
     expect(onBrowseRegistry).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the artifact category row and the default Prototype scene row', () => {
+  it('renders the video workflow category row and the default Video subcategory row', () => {
     renderSection();
 
     expect(screen.getByTestId('plugins-home-row-category')).toBeTruthy();
     expect(screen.getByTestId('plugins-home-chip-saved').textContent).toContain('Saved');
     expect(screen.getByTestId('plugins-home-pill-category-all')).toBeTruthy();
-    expect(screen.getByTestId('plugins-home-pill-category-prototype')).toBeTruthy();
-    expect(screen.getByTestId('plugins-home-pill-category-live-artifact')).toBeTruthy();
-    expect(screen.getByTestId('plugins-home-pill-category-deck')).toBeTruthy();
-    expect(screen.getByTestId('plugins-home-pill-category-image')).toBeTruthy();
     expect(screen.getByTestId('plugins-home-pill-category-video')).toBeTruthy();
+    expect(screen.getByTestId('plugins-home-pill-category-image')).toBeTruthy();
     expect(screen.getByTestId('plugins-home-pill-category-hyperframes')).toBeTruthy();
     expect(screen.getByTestId('plugins-home-pill-category-audio')).toBeTruthy();
-    expect(screen.queryByTestId('plugins-home-pill-category-import')).toBeNull();
-    expect(screen.queryByTestId('plugins-home-pill-category-create')).toBeNull();
-    expect(screen.queryByTestId('plugins-home-pill-category-export')).toBeNull();
+    expect(screen.queryByTestId('plugins-home-pill-category-prototype')).toBeNull();
+    expect(screen.queryByTestId('plugins-home-pill-category-deck')).toBeNull();
+    expect(screen.queryByTestId('plugins-home-pill-category-live-artifact')).toBeNull();
+    expect(screen.queryByTestId('plugins-home-pill-category-from-figma')).toBeNull();
 
-    expect(screen.getByTestId('plugins-home-row-subcategory-prototype')).toBeTruthy();
-    expect(screen.getByTestId('plugins-home-pill-subcategory-prototype-business-dashboards')).toBeTruthy();
-    expect(screen.getByTestId('plugins-home-pill-subcategory-prototype-app-prototypes')).toBeTruthy();
-    expect(screen.getByTestId('plugins-home-pill-subcategory-prototype-developer-tools')).toBeTruthy();
+    expect(screen.getByTestId('plugins-home-row-subcategory-video')).toBeTruthy();
+    expect(screen.getByTestId('plugins-home-pill-subcategory-video-video-hooks')).toBeTruthy();
+    expect(screen.getByTestId('plugins-home-pill-subcategory-video-video-product-demo')).toBeTruthy();
+    expect(screen.getByTestId('plugins-home-pill-subcategory-video-video-platform-shorts')).toBeTruthy();
+    expect(screen.getByTestId('plugins-home-pill-subcategory-video-video-reference-breakdown')).toBeTruthy();
   });
 
-  it('filters Video separately from HyperFrames', () => {
+  it('filters Video separately from Storyboard motion', () => {
     renderSection();
 
-    fireEvent.click(screen.getByTestId('plugins-home-pill-category-video'));
-    expect(pluginIds().sort()).toEqual(['video-cinematic', 'video-short']);
+    expect(screen.getByTestId('plugins-home-pill-category-video').getAttribute('aria-selected')).toBe('true');
+    expect(pluginIds().sort()).toEqual(['video-demo', 'video-hook']);
     expect(screen.getByTestId('plugins-home-row-subcategory-video')).toBeTruthy();
 
     fireEvent.click(screen.getByTestId('plugins-home-pill-category-hyperframes'));
-    expect(pluginIds()).toEqual(['hyperframes-composition']);
-    expect(screen.queryByTestId('plugins-home-row-subcategory-hyperframes')).toBeNull();
-  });
-
-  it('groups Live Artifact as its own flat Community category', () => {
-    renderSection();
-
-    fireEvent.click(screen.getByTestId('plugins-home-pill-category-live-artifact'));
-
-    expect(pluginIds()).toEqual([
-      'example-live-dashboard',
-      'image-template-notion-team-dashboard-live-artifact',
-      'example-social-media-matrix-tracker-template',
-      'example-trading-analysis-dashboard-template',
-      'example-live-artifact',
-    ]);
-    expect(screen.queryByTestId('plugins-home-row-subcategory-live-artifact')).toBeNull();
+    expect(pluginIds()).toEqual(['hyperframes-storyboard']);
+    expect(screen.getByTestId('plugins-home-row-subcategory-hyperframes')).toBeTruthy();
   });
 
   it('keeps sparse subcategories as real filters without adding contribution cards', () => {
     renderSection();
 
-    fireEvent.click(screen.getByTestId('plugins-home-pill-category-video'));
-    fireEvent.click(screen.getByTestId('plugins-home-pill-subcategory-video-social-short-form'));
+    fireEvent.click(screen.getByTestId('plugins-home-pill-subcategory-video-video-hooks'));
 
-    expect(pluginIds()).toEqual(['video-short']);
+    expect(pluginIds()).toEqual(['video-hook']);
     expect(screen.queryByTestId('plugins-home-contribution-card')).toBeNull();
     expect(screen.queryByText(/Contribute a/i)).toBeNull();
   });
 
-  it('saves a plugin, updates the Saved chip, and shows a toast', () => {
+  it('saves a template, updates the Saved chip, and shows a toast', () => {
     renderSection();
 
-    fireEvent.click(screen.getByTestId('plugins-home-save-prototype-dashboard'));
+    fireEvent.click(screen.getByTestId('plugins-home-save-video-hook'));
 
-    expect(screen.getByTestId('plugins-home-save-prototype-dashboard').textContent).toContain('Saved');
+    expect(screen.getByTestId('plugins-home-save-video-hook').textContent).toContain('Saved');
     expect(screen.getByTestId('plugins-home-chip-saved').textContent).toContain('1');
-    expect(screen.getByRole('status').textContent).toContain('Saved prototype-dashboard.');
+    expect(screen.getByRole('status').textContent).toContain('Saved video-hook.');
 
     fireEvent.click(screen.getByTestId('plugins-home-chip-saved'));
-    expect(pluginIds()).toEqual(['prototype-dashboard']);
+    expect(pluginIds()).toEqual(['video-hook']);
   });
 
-  it('localizes plugin card titles, descriptions, search, and save toast', () => {
+  it('localizes template card titles, descriptions, search, and save toast', () => {
     renderSectionInChinese([
       makePlugin({
-        id: 'localized-deck',
-        title: 'Swiss International Deck',
-        titleI18n: { en: 'Swiss International Deck', 'zh-CN': '瑞士国际主义 Deck' },
-        description: '16-column grid.',
-        descriptionI18n: { en: '16-column grid.', 'zh-CN': '16 列网格。' },
-        mode: 'deck',
-        tags: ['grid'],
+        id: 'localized-video',
+        title: 'Skincare Demo Short',
+        titleI18n: { en: 'Skincare Demo Short', 'zh-CN': '护肤品卖点短视频' },
+        description: 'Material proof and CTA.',
+        descriptionI18n: { en: 'Material proof and CTA.', 'zh-CN': '材质证明和行动召唤。' },
+        mode: 'video',
+        tags: ['product-promo', 'material-proof'],
       }),
     ], { preferDefaultFacet: false });
 
-    expect(screen.getAllByText('瑞士国际主义 Deck').length).toBeGreaterThan(0);
-    expect(screen.queryByText('Swiss International Deck')).toBeNull();
+    expect(screen.getAllByText('护肤品卖点短视频').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Skincare Demo Short')).toBeNull();
 
-    fireEvent.change(screen.getByPlaceholderText('搜索插件…'), {
-      target: { value: '瑞士' },
+    fireEvent.change(screen.getByPlaceholderText('搜索任务模板…'), {
+      target: { value: '护肤' },
     });
-    expect(pluginIds()).toEqual(['localized-deck']);
+    expect(pluginIds()).toEqual(['localized-video']);
 
-    fireEvent.click(screen.getByTestId('plugins-home-save-localized-deck'));
-    expect(screen.getByRole('status').textContent).toContain('Saved 瑞士国际主义 Deck.');
+    fireEvent.click(screen.getByTestId('plugins-home-save-localized-video'));
+    expect(screen.getByRole('status').textContent).toContain('Saved 护肤品卖点短视频.');
   });
 
   it('shows the normal empty-filter state for planned empty buckets', () => {
     renderSection();
 
-    fireEvent.click(screen.getByTestId('plugins-home-pill-category-video'));
-    fireEvent.click(screen.getByTestId('plugins-home-pill-subcategory-video-data-explainers'));
+    fireEvent.click(screen.getByTestId('plugins-home-pill-subcategory-video-video-platform-shorts'));
 
     expect(screen.queryByRole('list')).toBeNull();
-    expect(screen.getByText(/No plugins match the current filters/i)).toBeTruthy();
+    expect(screen.getByText(/No templates match the current filters/i)).toBeTruthy();
     expect(screen.queryByTestId('plugins-home-contribution-card')).toBeNull();
   });
 
-  it('keeps HyperFrames and Audio flat', () => {
+  it('shows storyboard motion and voice/caption subcategory rows', () => {
     renderSection();
 
     fireEvent.click(screen.getByTestId('plugins-home-pill-category-hyperframes'));
-    expect(pluginIds()).toEqual(['hyperframes-composition']);
-    expect(screen.queryByTestId('plugins-home-row-subcategory-hyperframes')).toBeNull();
+    expect(pluginIds()).toEqual(['hyperframes-storyboard']);
+    expect(screen.getByTestId('plugins-home-row-subcategory-hyperframes')).toBeTruthy();
 
     fireEvent.click(screen.getByTestId('plugins-home-pill-category-audio'));
     expect(pluginIds()).toEqual(['audio-voice']);
-    expect(screen.queryByTestId('plugins-home-row-subcategory-audio')).toBeNull();
+    expect(screen.getByTestId('plugins-home-row-subcategory-audio')).toBeTruthy();
   });
 
-  it('All pill clears the category filter and only shows user-facing plugins', () => {
+  it('All pill clears the category filter and only shows ecommerce user-facing templates', () => {
     renderSection();
 
     fireEvent.click(screen.getByTestId('plugins-home-pill-category-all'));
     expect(pluginIds().sort()).toEqual([
       'audio-voice',
-      'deck-pitch',
-      'example-live-artifact',
-      'example-live-dashboard',
-      'example-social-media-matrix-tracker-template',
-      'example-trading-analysis-dashboard-template',
-      'hyperframes-composition',
-      'image-logo',
-      'image-template-notion-team-dashboard-live-artifact',
-      'prototype-app',
-      'prototype-dashboard',
-      'video-cinematic',
-      'video-short',
+      'hyperframes-storyboard',
+      'image-lifestyle',
+      'image-sku',
+      'video-demo',
+      'video-hook',
     ]);
   });
 
-  it('Saved chip overrides the category selection and shows only saved plugins', () => {
+  it('Saved chip overrides the category selection and shows only saved templates', () => {
     renderSection();
 
-    fireEvent.click(screen.getByTestId('plugins-home-save-prototype-dashboard'));
-    fireEvent.click(screen.getByTestId('plugins-home-pill-category-video'));
+    fireEvent.click(screen.getByTestId('plugins-home-save-video-hook'));
+    fireEvent.click(screen.getByTestId('plugins-home-pill-category-image'));
     fireEvent.click(screen.getByTestId('plugins-home-chip-saved'));
 
-    expect(pluginIds()).toEqual(['prototype-dashboard']);
+    expect(pluginIds()).toEqual(['video-hook']);
   });
 
   it('Clear filters from the Saved empty state escapes Saved mode back to the full catalog', () => {
-    // Fresh browser, no saved plugins yet. Clicking Saved lands the
-    // user on the empty filter state — the recovery CTA must take
-    // them all the way back to the catalog, not just re-render the
-    // same Saved empty view.
     renderSection();
 
     fireEvent.click(screen.getByTestId('plugins-home-chip-saved'));
@@ -330,18 +261,11 @@ describe('PluginsHomeSection (category bar)', () => {
 
     expect(pluginIds().sort()).toEqual([
       'audio-voice',
-      'deck-pitch',
-      'example-live-artifact',
-      'example-live-dashboard',
-      'example-social-media-matrix-tracker-template',
-      'example-trading-analysis-dashboard-template',
-      'hyperframes-composition',
-      'image-logo',
-      'image-template-notion-team-dashboard-live-artifact',
-      'prototype-app',
-      'prototype-dashboard',
-      'video-cinematic',
-      'video-short',
+      'hyperframes-storyboard',
+      'image-lifestyle',
+      'image-sku',
+      'video-demo',
+      'video-hook',
     ]);
   });
 });

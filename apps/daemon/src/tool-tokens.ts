@@ -1,38 +1,46 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from "node:crypto";
 
 export const DEFAULT_TOOL_TOKEN_TTL_MS = 15 * 60 * 1000;
 
 export const CHAT_TOOL_ENDPOINTS = [
-  '/api/tools/live-artifacts/create',
-  '/api/tools/live-artifacts/list',
-  '/api/tools/live-artifacts/refresh',
-  '/api/tools/live-artifacts/update',
-  '/api/tools/connectors/list',
-  '/api/tools/connectors/execute',
-  '/api/tools/design-systems/read',
-  '/api/tools/media/generate',
+  "/api/tools/live-artifacts/create",
+  "/api/tools/live-artifacts/list",
+  "/api/tools/live-artifacts/refresh",
+  "/api/tools/live-artifacts/update",
+  "/api/tools/connectors/list",
+  "/api/tools/connectors/execute",
+  "/api/tools/design-systems/read",
+  "/api/tools/media/generate",
+  "/api/tools/media/understand",
+  "/api/tools/media/understand-image",
+  "/api/tools/media/understand-audio",
+  "/api/tools/media/understand-video"
 ] as const;
 
 export const CHAT_TOOL_OPERATIONS = [
-  'live-artifacts:create',
-  'live-artifacts:list',
-  'live-artifacts:refresh',
-  'live-artifacts:update',
-  'connectors:list',
-  'connectors:execute',
-  'design-systems:read',
-  'media:generate',
+  "live-artifacts:create",
+  "live-artifacts:list",
+  "live-artifacts:refresh",
+  "live-artifacts:update",
+  "connectors:list",
+  "connectors:execute",
+  "design-systems:read",
+  "media:generate",
+  "media:understand",
+  "media:understand-image",
+  "media:understand-audio",
+  "media:understand-video"
 ] as const;
 
 export type ToolEndpoint = (typeof CHAT_TOOL_ENDPOINTS)[number] | (string & {});
 export type ToolOperation = (typeof CHAT_TOOL_OPERATIONS)[number] | (string & {});
-export type ToolTokenRevocationReason = 'child_exit' | 'sse_end' | 'ttl_expired' | 'manual';
+export type ToolTokenRevocationReason = "child_exit" | "sse_end" | "ttl_expired" | "manual";
 export type ToolTokenErrorCode =
-  | 'TOOL_TOKEN_MISSING'
-  | 'TOOL_TOKEN_INVALID'
-  | 'TOOL_TOKEN_EXPIRED'
-  | 'TOOL_ENDPOINT_DENIED'
-  | 'TOOL_OPERATION_DENIED';
+  | "TOOL_TOKEN_MISSING"
+  | "TOOL_TOKEN_INVALID"
+  | "TOOL_TOKEN_EXPIRED"
+  | "TOOL_ENDPOINT_DENIED"
+  | "TOOL_OPERATION_DENIED";
 
 export interface ToolTokenGrant {
   token: string;
@@ -49,7 +57,7 @@ export interface ToolTokenGrant {
   // run is not plugin-driven; the connector gate is bypassed (legacy
   // behavior).
   pluginSnapshotId?: string;
-  pluginTrust?: 'trusted' | 'restricted' | 'bundled';
+  pluginTrust?: "trusted" | "restricted" | "bundled";
   pluginCapabilitiesGranted?: readonly string[];
 }
 
@@ -61,7 +69,7 @@ export interface MintToolTokenOptions {
   ttlMs?: number;
   nowMs?: number;
   pluginSnapshotId?: string;
-  pluginTrust?: 'trusted' | 'restricted' | 'bundled';
+  pluginTrust?: "trusted" | "restricted" | "bundled";
   pluginCapabilitiesGranted?: readonly string[];
 }
 
@@ -76,11 +84,11 @@ interface StoredToolTokenGrant extends ToolTokenGrant {
 }
 
 function tokenHash(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
+  return createHash("sha256").update(token).digest("hex");
 }
 
 function createOpaqueToolToken(): string {
-  return `odtt_${randomBytes(32).toString('base64url')}`;
+  return `odtt_${randomBytes(32).toString("base64url")}`;
 }
 
 function asPublicGrant(stored: StoredToolTokenGrant): ToolTokenGrant {
@@ -102,18 +110,18 @@ function asPublicGrant(stored: StoredToolTokenGrant): ToolTokenGrant {
 // allow it; today we accept only the exact id form.
 export function checkConnectorAccess(
   grant: ToolTokenGrant,
-  connectorId: string,
+  connectorId: string
 ): { ok: true } | { ok: false; reason: string } {
   if (!grant.pluginSnapshotId) return { ok: true };
-  const tier = grant.pluginTrust ?? 'restricted';
-  if (tier !== 'restricted') return { ok: true };
+  const tier = grant.pluginTrust ?? "restricted";
+  if (tier !== "restricted") return { ok: true };
   const granted = new Set(grant.pluginCapabilitiesGranted ?? []);
-  if (granted.has(`connector:${connectorId}`) || granted.has('connector')) {
+  if (granted.has(`connector:${connectorId}`) || granted.has("connector")) {
     return { ok: true };
   }
   return {
     ok: false,
-    reason: `restricted plugin (snapshot ${grant.pluginSnapshotId}) lacks "connector:${connectorId}" — grant via /api/plugins/:id/trust before retrying`,
+    reason: `restricted plugin (snapshot ${grant.pluginSnapshotId}) lacks "connector:${connectorId}" — grant via /api/plugins/:id/trust before retrying`
   };
 }
 
@@ -124,15 +132,15 @@ export class ToolTokenRegistry {
   mint(options: MintToolTokenOptions): ToolTokenGrant {
     const nowMs = options.nowMs ?? Date.now();
     const ttlMs = options.ttlMs ?? DEFAULT_TOOL_TOKEN_TTL_MS;
-    if (!options.runId) throw new Error('runId is required');
-    if (!options.projectId) throw new Error('projectId is required');
-    if (!Number.isFinite(ttlMs) || ttlMs <= 0) throw new Error('ttlMs must be positive');
+    if (!options.runId) throw new Error("runId is required");
+    if (!options.projectId) throw new Error("projectId is required");
+    if (!Number.isFinite(ttlMs) || ttlMs <= 0) throw new Error("ttlMs must be positive");
 
     const token = createOpaqueToolToken();
     const hash = tokenHash(token);
     const expiresAtMs = nowMs + ttlMs;
     const timer = setTimeout(() => {
-      this.revokeToken(token, 'ttl_expired');
+      this.revokeToken(token, "ttl_expired");
     }, ttlMs);
     timer.unref?.();
 
@@ -151,7 +159,7 @@ export class ToolTokenRegistry {
       ...(options.pluginTrust ? { pluginTrust: options.pluginTrust } : {}),
       ...(options.pluginCapabilitiesGranted
         ? { pluginCapabilitiesGranted: [...options.pluginCapabilitiesGranted] }
-        : {}),
+        : {})
     };
 
     this.#byTokenHash.set(hash, stored);
@@ -164,34 +172,34 @@ export class ToolTokenRegistry {
 
   validate(
     token: string | null | undefined,
-    options: { endpoint?: string; operation?: string; nowMs?: number } = {},
+    options: { endpoint?: string; operation?: string; nowMs?: number } = {}
   ): ToolTokenValidationResult {
     if (!token) {
-      return { ok: false, code: 'TOOL_TOKEN_MISSING', message: 'tool token is required' };
+      return { ok: false, code: "TOOL_TOKEN_MISSING", message: "tool token is required" };
     }
 
     const stored = this.#byTokenHash.get(tokenHash(token));
     if (!stored) {
-      return { ok: false, code: 'TOOL_TOKEN_INVALID', message: 'tool token is invalid or revoked' };
+      return { ok: false, code: "TOOL_TOKEN_INVALID", message: "tool token is invalid or revoked" };
     }
 
     if ((options.nowMs ?? Date.now()) >= stored.expiresAtMs) {
-      this.revokeToken(token, 'ttl_expired');
-      return { ok: false, code: 'TOOL_TOKEN_EXPIRED', message: 'tool token expired' };
+      this.revokeToken(token, "ttl_expired");
+      return { ok: false, code: "TOOL_TOKEN_EXPIRED", message: "tool token expired" };
     }
 
     if (options.endpoint && !stored.allowedEndpoints.includes(options.endpoint)) {
-      return { ok: false, code: 'TOOL_ENDPOINT_DENIED', message: 'tool endpoint is not allowed for this run' };
+      return { ok: false, code: "TOOL_ENDPOINT_DENIED", message: "tool endpoint is not allowed for this run" };
     }
 
     if (options.operation && !stored.allowedOperations.includes(options.operation)) {
-      return { ok: false, code: 'TOOL_OPERATION_DENIED', message: 'tool operation is not allowed for this run' };
+      return { ok: false, code: "TOOL_OPERATION_DENIED", message: "tool operation is not allowed for this run" };
     }
 
     return { ok: true, grant: asPublicGrant(stored) };
   }
 
-  revokeToken(token: string | null | undefined, _reason: ToolTokenRevocationReason = 'manual'): boolean {
+  revokeToken(token: string | null | undefined, _reason: ToolTokenRevocationReason = "manual"): boolean {
     if (!token) return false;
     const hash = tokenHash(token);
     const stored = this.#byTokenHash.get(hash);
@@ -207,7 +215,7 @@ export class ToolTokenRegistry {
     return true;
   }
 
-  revokeRun(runId: string, reason: ToolTokenRevocationReason = 'manual'): number {
+  revokeRun(runId: string, reason: ToolTokenRevocationReason = "manual"): number {
     const runTokens = this.#tokenHashesByRunId.get(runId);
     if (!runTokens) return 0;
     const hashes = [...runTokens];

@@ -7,7 +7,12 @@ import { validateBoundedJsonObject } from '../live-artifacts/schema.js';
 import { executeConnectorTool, listConnectorTools } from '../tools/connectors.js';
 import { readComposioConfig, readPublicComposioConfig, writeComposioConfig } from './composio-config.js';
 import type { ConnectorToolUseCase } from './catalog.js';
-import { connectorService, ConnectorService, ConnectorServiceError, deleteConnectorCredentialsByProvider } from './service.js';
+import {
+  connectorService,
+  ConnectorService,
+  ConnectorServiceError,
+  deleteConnectorCredentialsByProvider,
+} from './service.js';
 
 type ConnectorApiErrorCode =
   | 'BAD_REQUEST'
@@ -63,7 +68,13 @@ export interface RegisterConnectorRoutesOptions {
 
 function sendConnectorRouteError(res: Response, err: unknown, sendApiError: ConnectorApiErrorSender): Response {
   if (err instanceof ConnectorServiceError) {
-    return sendApiError(res, err.status, err.code, err.message, err.details === undefined ? {} : { details: err.details });
+    return sendApiError(
+      res,
+      err.status,
+      err.code,
+      err.message,
+      err.details === undefined ? {} : { details: err.details },
+    );
   }
   return sendApiError(res, 500, 'CONNECTOR_EXECUTION_FAILED', err instanceof Error ? err.message : String(err));
 }
@@ -73,7 +84,10 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function isLoopbackHostname(hostname: string): boolean {
-  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  const normalized = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
   if (normalized === 'localhost') return true;
   if (normalized === '::1' || normalized === '0:0:0:0:0:0:0:1') return true;
   if (normalized.startsWith('::ffff:')) return isLoopbackHostname(normalized.slice('::ffff:'.length));
@@ -150,7 +164,10 @@ async function readComposioLogoBody(response: globalThis.Response): Promise<Buff
     if (totalBytes > COMPOSIO_LOGO_MAX_BYTES) return null;
     chunks.push(value);
   }
-  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), totalBytes);
+  return Buffer.concat(
+    chunks.map((chunk) => Buffer.from(chunk)),
+    totalBytes,
+  );
 }
 
 function pruneExpiredComposioLogos(nowMs: number): void {
@@ -244,10 +261,17 @@ function connectorCallbackUrl(req: Request): string {
   try {
     hostname = new URL(`http://${host}`).hostname;
   } catch {
-    throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', 'connector OAuth callback host is invalid', 400, { host });
+    throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', 'connector OAuth callback host is invalid', 400, {
+      host,
+    });
   }
   if (!isLoopbackHostname(hostname)) {
-    throw new ConnectorServiceError('CONNECTOR_EXECUTION_FAILED', 'connector OAuth callback host must be loopback', 400, { host });
+    throw new ConnectorServiceError(
+      'CONNECTOR_EXECUTION_FAILED',
+      'connector OAuth callback host must be loopback',
+      400,
+      { host },
+    );
   }
   return `${req.protocol}://${host}/api/connectors/oauth/callback`;
 }
@@ -274,15 +298,18 @@ function escapeHtml(value: string): string {
 function renderConnectorConnectedHtml(connectorId: string): string {
   const knownConnectorLabels: Record<string, string> = {
     github: 'GitHub',
-    google_drive: 'Google Drive',
-    notion: 'Notion',
+    youtube: 'YouTube',
+    tiktok: 'TikTok',
+    douyin: 'Douyin',
+    bilibili: 'Bilibili',
   };
   const connectorLabel = connectorId
-    ? knownConnectorLabels[connectorId] ?? connectorId
-      .split(/[-_\s]+/g)
-      .filter(Boolean)
-      .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-      .join(' ')
+    ? (knownConnectorLabels[connectorId] ??
+      connectorId
+        .split(/[-_\s]+/g)
+        .filter(Boolean)
+        .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+        .join(' '))
     : 'Connector';
   const connectorLabelHtml = escapeHtml(connectorLabel);
   const connectorIdJson = JSON.stringify(connectorId);
@@ -547,12 +574,12 @@ export function registerConnectorRoutes(app: Express, options: RegisterConnector
 
   app.get('/api/connectors/discovery', async (req: Request, res: Response) => {
     try {
-      const refresh = typeof req.query.refresh === 'string'
-        ? ['1', 'true', 'yes'].includes(req.query.refresh.toLowerCase())
-        : false;
-      const hydrateTools = typeof req.query.hydrateTools === 'string'
-        ? ['1', 'true', 'yes'].includes(req.query.hydrateTools.toLowerCase())
-        : false;
+      const refresh =
+        typeof req.query.refresh === 'string' ? ['1', 'true', 'yes'].includes(req.query.refresh.toLowerCase()) : false;
+      const hydrateTools =
+        typeof req.query.hydrateTools === 'string'
+          ? ['1', 'true', 'yes'].includes(req.query.hydrateTools.toLowerCase())
+          : false;
       res.json(await service.listConnectorDiscovery({ refresh, hydrateTools }));
     } catch (err) {
       sendConnectorRouteError(res, err, options.sendApiError);
@@ -594,14 +621,23 @@ export function registerConnectorRoutes(app: Express, options: RegisterConnector
     try {
       const connectorId = req.params.connectorId;
       if (!connectorId) return options.sendApiError(res, 400, 'CONNECTOR_NOT_FOUND', 'connectorId is required');
-      const hydrateTools = typeof req.query.hydrateTools === 'string'
-        ? ['1', 'true', 'yes'].includes(req.query.hydrateTools.toLowerCase())
-        : false;
+      const hydrateTools =
+        typeof req.query.hydrateTools === 'string'
+          ? ['1', 'true', 'yes'].includes(req.query.hydrateTools.toLowerCase())
+          : false;
       if (hydrateTools) {
         const parsedLimit = typeof req.query.toolsLimit === 'string' ? Number.parseInt(req.query.toolsLimit, 10) : 50;
         const toolsLimit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 1000) : 50;
-        const toolsCursor = typeof req.query.toolsCursor === 'string' && req.query.toolsCursor.trim().length > 0 ? req.query.toolsCursor : undefined;
-        res.json({ connector: await service.getPreviewConnector(connectorId, { toolsLimit, ...(toolsCursor === undefined ? {} : { toolsCursor }) }) });
+        const toolsCursor =
+          typeof req.query.toolsCursor === 'string' && req.query.toolsCursor.trim().length > 0
+            ? req.query.toolsCursor
+            : undefined;
+        res.json({
+          connector: await service.getPreviewConnector(connectorId, {
+            toolsLimit,
+            ...(toolsCursor === undefined ? {} : { toolsCursor }),
+          }),
+        });
         return;
       }
       res.json({ connector: await service.getConnector(connectorId) });
@@ -626,74 +662,114 @@ export function registerConnectorRoutes(app: Express, options: RegisterConnector
     }
   });
 
-  app.post('/api/connectors/:connectorId/connect', requireLocalDaemonRequest, async (req: Request<{ connectorId: string }>, res: Response) => {
-    try {
-      const connectorId = req.params.connectorId;
-      if (!connectorId) return options.sendApiError(res, 400, 'CONNECTOR_NOT_FOUND', 'connectorId is required');
-      const body = isPlainObject(req.body) ? req.body : {};
-      const accountLabel = typeof body.accountLabel === 'string' ? body.accountLabel : undefined;
-      const credentials = body.credentials === undefined ? undefined : body.credentials;
-      if (credentials !== undefined && !isPlainObject(credentials)) {
-        options.sendApiError(res, 400, 'VALIDATION_FAILED', 'credentials must be an object');
-        return;
+  app.post(
+    '/api/connectors/:connectorId/connect',
+    requireLocalDaemonRequest,
+    async (req: Request<{ connectorId: string }>, res: Response) => {
+      try {
+        const connectorId = req.params.connectorId;
+        if (!connectorId) return options.sendApiError(res, 400, 'CONNECTOR_NOT_FOUND', 'connectorId is required');
+        const body = isPlainObject(req.body) ? req.body : {};
+        const accountLabel = typeof body.accountLabel === 'string' ? body.accountLabel : undefined;
+        const credentials = body.credentials === undefined ? undefined : body.credentials;
+        if (credentials !== undefined && !isPlainObject(credentials)) {
+          options.sendApiError(res, 400, 'VALIDATION_FAILED', 'credentials must be an object');
+          return;
+        }
+        const definition = service.getFastDefinition(connectorId) ?? (await service.getDefinition(connectorId));
+        if (definition?.authentication === 'composio' && credentials !== undefined) {
+          options.sendApiError(
+            res,
+            400,
+            'VALIDATION_FAILED',
+            'Composio connector credentials can only be stored through OAuth callback completion',
+          );
+          return;
+        }
+        res.json({
+          ...(await service.connect(connectorId, {
+            ...(accountLabel === undefined ? {} : { accountLabel }),
+            ...(credentials === undefined ? {} : { credentials }),
+            callbackUrl: `${connectorCallbackUrl(req)}/${encodeURIComponent(connectorId)}`,
+          })),
+        });
+      } catch (err) {
+        sendConnectorRouteError(res, err, options.sendApiError);
       }
-      const definition = service.getFastDefinition(connectorId) ?? await service.getDefinition(connectorId);
-      if (definition?.authentication === 'composio' && credentials !== undefined) {
-        options.sendApiError(res, 400, 'VALIDATION_FAILED', 'Composio connector credentials can only be stored through OAuth callback completion');
-        return;
+    },
+  );
+
+  app.get(
+    '/api/connectors/oauth/callback/:connectorId',
+    async (req: Request<{ connectorId: string }>, res: Response) => {
+      try {
+        const connectorId = req.params.connectorId;
+        if (!connectorId) return options.sendApiError(res, 400, 'CONNECTOR_NOT_FOUND', 'connectorId is required');
+        const state = typeof req.query.state === 'string' ? req.query.state : undefined;
+        if (!state) return options.sendApiError(res, 400, 'BAD_REQUEST', 'state is required');
+        const providerConnectionId =
+          typeof req.query.connected_account_id === 'string'
+            ? req.query.connected_account_id
+            : typeof req.query.connection_id === 'string'
+              ? req.query.connection_id
+              : typeof req.query.account_id === 'string'
+                ? req.query.account_id
+                : undefined;
+        const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+        await service.completeComposioConnection({
+          connectorId,
+          state,
+          ...(providerConnectionId === undefined ? {} : { providerConnectionId }),
+          ...(status === undefined ? {} : { status }),
+        });
+        res.type('html').send(renderConnectorConnectedHtml(connectorId));
+      } catch (err) {
+        sendConnectorRouteError(res, err, options.sendApiError);
       }
-      res.json({
-        ...(await service.connect(connectorId, {
-          ...(accountLabel === undefined ? {} : { accountLabel }),
-          ...(credentials === undefined ? {} : { credentials }),
-          callbackUrl: `${connectorCallbackUrl(req)}/${encodeURIComponent(connectorId)}`,
-        })),
-      });
-    } catch (err) {
-      sendConnectorRouteError(res, err, options.sendApiError);
-    }
-  });
+    },
+  );
 
-  app.get('/api/connectors/oauth/callback/:connectorId', async (req: Request<{ connectorId: string }>, res: Response) => {
-    try {
-      const connectorId = req.params.connectorId;
-      if (!connectorId) return options.sendApiError(res, 400, 'CONNECTOR_NOT_FOUND', 'connectorId is required');
-      const state = typeof req.query.state === 'string' ? req.query.state : undefined;
-      if (!state) return options.sendApiError(res, 400, 'BAD_REQUEST', 'state is required');
-      const providerConnectionId = typeof req.query.connected_account_id === 'string'
-        ? req.query.connected_account_id
-        : typeof req.query.connection_id === 'string'
-          ? req.query.connection_id
-          : typeof req.query.account_id === 'string'
-            ? req.query.account_id
-            : undefined;
-      const status = typeof req.query.status === 'string' ? req.query.status : undefined;
-      await service.completeComposioConnection({ connectorId, state, ...(providerConnectionId === undefined ? {} : { providerConnectionId }), ...(status === undefined ? {} : { status }) });
-      res.type('html').send(renderConnectorConnectedHtml(connectorId));
-    } catch (err) {
-      sendConnectorRouteError(res, err, options.sendApiError);
-    }
-  });
+  app.post(
+    '/api/connectors/:connectorId/authorization/cancel',
+    requireLocalDaemonRequest,
+    async (req: Request<{ connectorId: string }>, res: Response) => {
+      try {
+        const connectorId = req.params.connectorId;
+        if (!connectorId) return options.sendApiError(res, 400, 'CONNECTOR_NOT_FOUND', 'connectorId is required');
+        res.json({ connector: await service.cancelPendingAuthorization(connectorId) });
+      } catch (err) {
+        sendConnectorRouteError(res, err, options.sendApiError);
+      }
+    },
+  );
 
-  app.post('/api/connectors/:connectorId/authorization/cancel', requireLocalDaemonRequest, async (req: Request<{ connectorId: string }>, res: Response) => {
-    try {
-      const connectorId = req.params.connectorId;
-      if (!connectorId) return options.sendApiError(res, 400, 'CONNECTOR_NOT_FOUND', 'connectorId is required');
-      res.json({ connector: await service.cancelPendingAuthorization(connectorId) });
-    } catch (err) {
-      sendConnectorRouteError(res, err, options.sendApiError);
-    }
-  });
+  app.post(
+    '/api/connectors/:connectorId/authorization/capture',
+    requireLocalDaemonRequest,
+    async (req: Request<{ connectorId: string }>, res: Response) => {
+      try {
+        const connectorId = req.params.connectorId;
+        if (!connectorId) return options.sendApiError(res, 400, 'CONNECTOR_NOT_FOUND', 'connectorId is required');
+        res.json({ connector: await service.capturePendingAuthorization(connectorId) });
+      } catch (err) {
+        sendConnectorRouteError(res, err, options.sendApiError);
+      }
+    },
+  );
 
-  app.delete('/api/connectors/:connectorId/connection', requireLocalDaemonRequest, async (req: Request<{ connectorId: string }>, res: Response) => {
-    try {
-      const connectorId = req.params.connectorId;
-      if (!connectorId) return options.sendApiError(res, 400, 'CONNECTOR_NOT_FOUND', 'connectorId is required');
-      res.json({ connector: await service.disconnect(connectorId) });
-    } catch (err) {
-      sendConnectorRouteError(res, err, options.sendApiError);
-    }
-  });
+  app.delete(
+    '/api/connectors/:connectorId/connection',
+    requireLocalDaemonRequest,
+    async (req: Request<{ connectorId: string }>, res: Response) => {
+      try {
+        const connectorId = req.params.connectorId;
+        if (!connectorId) return options.sendApiError(res, 400, 'CONNECTOR_NOT_FOUND', 'connectorId is required');
+        res.json({ connector: await service.disconnect(connectorId) });
+      } catch (err) {
+        sendConnectorRouteError(res, err, options.sendApiError);
+      }
+    },
+  );
 
   app.get('/api/tools/connectors/list', async (req: Request, res: Response) => {
     try {
@@ -720,7 +796,14 @@ export function registerConnectorRoutes(app: Express, options: RegisterConnector
         options.sendApiError(res, 400, 'BAD_REQUEST', 'useCase must be personal_daily_digest');
         return;
       }
-      res.json({ connectors: await listConnectorTools({ grant, projectsRoot: options.projectsRoot, service, ...(useCase === undefined ? {} : { useCase }) }) });
+      res.json({
+        connectors: await listConnectorTools({
+          grant,
+          projectsRoot: options.projectsRoot,
+          service,
+          ...(useCase === undefined ? {} : { useCase }),
+        }),
+      });
     } catch (err) {
       sendConnectorRouteError(res, err, options.sendApiError);
     }

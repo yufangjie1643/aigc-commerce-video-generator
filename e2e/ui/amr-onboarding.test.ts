@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 import { dismissPrivacyDialog, STORAGE_KEY, waitForLoadingToClear } from '@/playwright/amr';
 import { fulfillAgentsRoute } from '@/playwright/mock-factory';
@@ -17,19 +17,9 @@ type OnboardingConfig = {
   agentModels: Record<string, { model: string; reasoning: string }>;
 };
 
-declare global {
-  interface Window {
-    __amrOnboardingCancelCalls?: number;
-    __amrOnboardingDelayNextSignedOutStatus?: boolean;
-    __amrOnboardingLoginCalls?: number;
-    __amrOnboardingSlowStatusResolved?: boolean;
-    __amrOnboardingStatusCalls?: number;
-  }
-}
-
 test.describe.configure({ timeout: 30_000 });
 
-test('[P0] @critical onboarding lets AMR Cloud sign in and complete setup after the login poll succeeds', async ({ page }) => {
+test('[P0] onboarding lets AMR Cloud sign in and complete setup after the login poll succeeds', async ({ page }) => {
   const config = await wireOnboardingMocks(page, {
     amrAvailable: true,
     initialLoggedIn: false,
@@ -43,15 +33,9 @@ test('[P0] @critical onboarding lets AMR Cloud sign in and complete setup after 
   await expect(continueButton).toBeVisible();
   await continueButton.click();
 
-  await expect.poll(() => page.evaluate(() => window.__amrOnboardingLoginCalls ?? 0)).toBe(1);
-  await expect
-    .poll(() => page.evaluate(() => window.__amrOnboardingStatusCalls ?? 0))
-    .toBeGreaterThanOrEqual(2);
-  // Login success lands on the About-you step; advance past it to the
-  // newsletter step, which is now the final step that hosts Finish setup.
-  await expect(page.getByRole('button', { name: /^Continue$/i })).toBeVisible({ timeout: 10_000 });
-  await page.getByRole('button', { name: /^Continue$/i }).click();
-  await expect(page.getByRole('button', { name: /Finish setup/i })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('button', { name: /Continue/i })).toBeVisible({ timeout: 10_000 });
+  await page.getByRole('button', { name: /Continue/i }).click();
+
   await expectOnboardingFinished(page);
   await pollStoredConfig(page).toMatchObject({
     agentId: 'amr',
@@ -59,7 +43,7 @@ test('[P0] @critical onboarding lets AMR Cloud sign in and complete setup after 
   });
 });
 
-test('[P0] @critical onboarding Local CLI card lets the user pick an agent model before continuing', async ({ page }) => {
+test('[P0] onboarding Local CLI card lets the user pick an agent model before continuing', async ({ page }) => {
   const config = await wireOnboardingMocks(page, {
     amrAvailable: false,
     initialLoggedIn: false,
@@ -119,73 +103,7 @@ test('[P0] onboarding recovers from a transient AMR status failure and still con
 
   await page.getByRole('button', { name: /sign in to continue/i }).click();
 
-  // Recovery lands on About you; step through to the newsletter step where
-  // Finish setup now lives.
-  await expect(page.getByRole('button', { name: /^Continue$/i })).toBeVisible({ timeout: 12_000 });
-  await page.getByRole('button', { name: /^Continue$/i }).click();
-  await expect(page.getByRole('button', { name: /Finish setup/i })).toBeVisible({ timeout: 12_000 });
-});
-
-test('[P0] onboarding lets the user cancel an incomplete AMR sign-in and retry', async ({ page }) => {
-  const config = await wireOnboardingMocks(page, {
-    amrAvailable: true,
-    initialLoggedIn: false,
-    keepAmrLoginIncomplete: true,
-  });
-
-  await seedOnboardingConfig(page, config);
-  await gotoOnboarding(page);
-
-  await page.getByRole('button', { name: /sign in to continue/i }).click();
-
-  await expect(page.getByRole('button', { name: /Signing in/i })).toBeVisible();
-  const cancelSignIn = page.getByRole('button', { name: /Cancel sign-in/i });
-  await expect(cancelSignIn).toBeVisible();
-  await cancelSignIn.click();
-
-  await expect(page.getByRole('button', { name: /sign in to continue/i })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Signing in/i })).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => window.__amrOnboardingCancelCalls ?? 0)).toBe(1);
-  await expect.poll(() => page.evaluate(() => window.__amrOnboardingLoginCalls ?? 0)).toBe(1);
-
-  await page.getByRole('button', { name: /sign in to continue/i }).click();
-
-  await expect.poll(() => page.evaluate(() => window.__amrOnboardingLoginCalls ?? 0)).toBe(2);
-  await expect(page.getByRole('button', { name: /Cancel sign-in/i })).toBeVisible();
-});
-
-test('[P0] onboarding cancel during a slow AMR status check does not start login', async ({ page }) => {
-  const config = await wireOnboardingMocks(page, {
-    amrAvailable: true,
-    initialLoggedIn: false,
-    keepAmrLoginIncomplete: true,
-    delaySignedOutStatusMs: 350,
-  });
-
-  await seedOnboardingConfig(page, config);
-  await gotoOnboarding(page);
-  await expect
-    .poll(() => page.evaluate(() => window.__amrOnboardingStatusCalls ?? 0))
-    .toBeGreaterThanOrEqual(1);
-
-  await page.evaluate(() => {
-    window.__amrOnboardingDelayNextSignedOutStatus = true;
-    window.__amrOnboardingSlowStatusResolved = false;
-  });
-  await page.getByRole('button', { name: /sign in to continue/i }).click();
-
-  const cancelSignIn = page.getByRole('button', { name: /Cancel sign-in/i });
-  await expect(cancelSignIn).toBeVisible();
-  await cancelSignIn.click();
-
-  await expect(page.getByRole('button', { name: /sign in to continue/i })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.__amrOnboardingCancelCalls ?? 0)).toBe(1);
-  await expect
-    .poll(() => page.evaluate(() => window.__amrOnboardingSlowStatusResolved ?? false))
-    .toBe(true);
-  await page.waitForTimeout(250);
-  await expect(page.getByRole('button', { name: /Signing in/i })).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => window.__amrOnboardingLoginCalls ?? 0)).toBe(0);
+  await expect(page.getByRole('button', { name: /Continue/i })).toBeVisible({ timeout: 12_000 });
 });
 
 test('[P0] onboarding AMR card lets the user pick a live runtime model before continuing', async ({ page }) => {
@@ -205,9 +123,31 @@ test('[P0] onboarding AMR card lets the user pick a live runtime model before co
 
   const amrCard = page.locator('.onboarding-view__amr-cloud-card');
   await expect(amrCard.getByRole('button', { name: /Open Design AMR/i })).toBeVisible();
-  const selectedModel = 'glm-5.1';
-  await selectOnboardingOption(amrCard, 'Model', 'GLM 5.1');
-  await expect(expectOnboardingTrigger(amrCard, 'Model')).toContainText('GLM 5.1');
+  let selectedModel = 'deepseek-v4-flash';
+  const modelSelect = page.locator('.onboarding-view__model-picker select');
+  if ((await modelSelect.count()) > 0) {
+    const optionValues = await modelSelect.locator('option').evaluateAll((options) =>
+      options.map((option) => (option as HTMLOptionElement).value).filter(Boolean),
+    );
+    expect(optionValues.length).toBeGreaterThan(0);
+    selectedModel = optionValues.includes(selectedModel)
+      ? selectedModel
+      : optionValues[0]!;
+    await modelSelect.selectOption(selectedModel);
+    await expect(modelSelect).toHaveValue(selectedModel);
+  } else {
+    selectedModel = 'glm-5.1';
+    const modelPicker = amrCard.getByRole('combobox', { name: /Model.*AMR CLI/i });
+    await modelPicker.click();
+    const popover = page.getByTestId('onboarding-amr-model-popover');
+    await expect(popover).toBeVisible();
+    const search = page.getByTestId('onboarding-amr-model-search');
+    if ((await search.count()) > 0) {
+      await expect(search).toBeVisible();
+      await search.fill('glm');
+    }
+    await popover.getByRole('option', { name: 'GLM 5.1' }).click();
+  }
   await expect
     .poll(() => page.evaluate((key) => JSON.parse(window.localStorage.getItem(key) || '{}'), STORAGE_KEY))
     .toMatchObject({
@@ -231,47 +171,10 @@ test('[P0] onboarding AMR card lets the user pick a live runtime model before co
     });
 });
 
-test('[P0] @critical onboarding signed-in AMR path finishes setup with the selected runtime model', async ({ page }) => {
-  const config = await wireOnboardingMocks(page, {
-    amrAvailable: true,
-    initialLoggedIn: true,
-    amrModels: [
-      { id: 'claude-opus-4.8', label: 'Claude Opus 4.8' },
-      { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
-    ],
-  });
-
-  await seedOnboardingConfig(page, config);
-  await gotoOnboarding(page);
-
-  const amrCard = page.locator('.onboarding-view__amr-cloud-card');
-  await expect(amrCard.getByRole('button', { name: /Open Design AMR/i })).toBeVisible();
-  await expect(amrCard).toContainText('Officially recommended');
-  await expect(amrCard).toContainText('No deploy needed');
-  await selectOnboardingOption(amrCard, 'Model', 'DeepSeek V4 Flash');
-  await expect(expectOnboardingTrigger(amrCard, 'Model')).toContainText('DeepSeek V4 Flash');
-
-  await page.getByRole('button', { name: /^Continue$/i }).click();
-  await expect(page.getByText(/Optional details for better defaults/i)).toBeVisible();
-  await page.getByRole('button', { name: /^Continue$/i }).click();
-  await page.getByRole('button', { name: /Finish setup/i }).click();
-
-  await expect(page).not.toHaveURL(/\/onboarding$/);
-  await pollStoredConfig(page).toMatchObject({
-    agentId: 'amr',
-    onboardingCompleted: true,
-    agentModels: {
-      amr: {
-        model: 'deepseek-v4-flash',
-      },
-    },
-  });
-});
-
 test('[P0] onboarding skip exits to home and marks onboarding completed', async ({ page }) => {
   const config = await wireOnboardingMocks(page, {
     amrAvailable: true,
-    initialLoggedIn: true,
+    initialLoggedIn: false,
   });
 
   await seedOnboardingConfig(page, config);
@@ -310,10 +213,7 @@ test('[P0] onboarding about-you step accepts profile selections and completes se
   await expect(expectOnboardingTrigger(page, 'Use case')).toContainText('Prototype / app UI');
   await expect(expectOnboardingTrigger(page, 'Where did you hear about us?')).toContainText('Search');
 
-  // About you is no longer the final step; advance to the newsletter step
-  // before finishing.
   await page.getByRole('button', { name: /^Continue$/i }).click();
-  await page.getByRole('button', { name: /Finish setup/i }).click();
 
   await expectOnboardingFinished(page);
   await pollStoredConfig(page).toMatchObject({
@@ -321,7 +221,7 @@ test('[P0] onboarding about-you step accepts profile selections and completes se
   });
 });
 
-test('[P0] @critical onboarding BYOK path can fetch models, test the provider, and complete setup', async ({ page }) => {
+test('[P0] onboarding BYOK path can fetch models, test the provider, and complete setup', async ({ page }) => {
   const config = await wireOnboardingMocks(page, {
     amrAvailable: true,
     initialLoggedIn: true,
@@ -357,22 +257,18 @@ test('[P0] @critical onboarding BYOK path can fetch models, test the provider, a
 
   await page.getByRole('button', { name: /Bring your own key/i }).click();
   await expect(page.getByText('BYOK')).toBeVisible();
-  const byokPanel = page.locator('.onboarding-view__setup-panel').filter({ hasText: /BYOK/ });
 
   await fillInlineField(page, 'API key', 'test-api-key');
   await fillInlineField(page, 'Base URL', 'https://api.anthropic.com');
   await page.getByRole('button', { name: /Fetch models/i }).click();
   await expect(page.getByRole('status')).toContainText('Fetched 2 models.');
-  await selectOnboardingOption(byokPanel, 'Model', 'claude-opus-4-8');
+  await selectOnboardingOption(page, 'Model', 'claude-opus-4-8');
 
   await page.getByRole('button', { name: /^Test$/i }).click();
   await expect(page.getByText('Connected. Replied in 27 ms')).toBeVisible();
 
   await page.getByRole('button', { name: /^Continue$/i }).click();
-  await expect(page.getByText(/Optional details for better defaults/i)).toBeVisible();
-  // Advance from About you to the newsletter step, then finish.
   await page.getByRole('button', { name: /^Continue$/i }).click();
-  await page.getByRole('button', { name: /Finish setup/i }).click();
 
   await expectOnboardingFinished(page);
   await pollStoredConfig(page).toMatchObject({
@@ -390,8 +286,6 @@ async function wireOnboardingMocks(
     amrAvailable: boolean;
     initialLoggedIn: boolean;
     failFirstStatusPollAfterLogin?: boolean;
-    keepAmrLoginIncomplete?: boolean;
-    delaySignedOutStatusMs?: number;
     amrModels?: Array<{ id: string; label: string }>;
     codexModels?: Array<{ id: string; label: string }>;
   },
@@ -412,11 +306,7 @@ async function wireOnboardingMocks(
   };
 
   let loggedIn = options.initialLoggedIn;
-  let loginInFlight = false;
-  let statusCalls = 0;
   let statusCallsAfterLogin = 0;
-  let loginCalls = 0;
-  let cancelCalls = 0;
 
   await page.route('**/api/health', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
@@ -469,24 +359,6 @@ async function wireOnboardingMocks(
   });
 
   await page.route('**/api/integrations/vela/status', async (route) => {
-    statusCalls += 1;
-    await page.evaluate((calls) => {
-      window.__amrOnboardingStatusCalls = calls;
-    }, statusCalls);
-    const shouldDelaySignedOutStatus =
-      !loggedIn
-      && typeof options.delaySignedOutStatusMs === 'number'
-      && options.delaySignedOutStatusMs > 0
-      && await page.evaluate(() => {
-        if (!window.__amrOnboardingDelayNextSignedOutStatus) return false;
-        window.__amrOnboardingDelayNextSignedOutStatus = false;
-        return true;
-      });
-    if (shouldDelaySignedOutStatus) {
-      await new Promise((resolve) =>
-        setTimeout(resolve, options.delaySignedOutStatusMs),
-      );
-    }
     if (loggedIn) {
       statusCallsAfterLogin += 1;
       if (options.failFirstStatusPollAfterLogin && statusCallsAfterLogin === 1) {
@@ -502,49 +374,25 @@ async function wireOnboardingMocks(
       json: loggedIn
         ? {
             loggedIn: true,
-            loginInFlight: false,
             profile: 'local',
             configPath: '/tmp/.amr/config.json',
             user: { id: 'user-1', email: 'onboarding@example.com', plan: 'free' },
           }
         : {
             loggedIn: false,
-            loginInFlight,
             profile: 'local',
             configPath: '/tmp/.amr/config.json',
             user: null,
           },
     });
-    if (shouldDelaySignedOutStatus) {
-      await page.evaluate(() => {
-        window.__amrOnboardingSlowStatusResolved = true;
-      });
-    }
   });
 
   await page.route('**/api/integrations/vela/login', async (route) => {
-    loginCalls += 1;
-    loginInFlight = true;
-    if (!options.keepAmrLoginIncomplete) {
-      loggedIn = true;
-      loginInFlight = false;
-    }
-    await page.evaluate((calls) => {
-      window.__amrOnboardingLoginCalls = calls;
-    }, loginCalls);
+    loggedIn = true;
     await route.fulfill({
       status: 202,
       json: { pid: 4242, startedAt: new Date().toISOString(), profile: 'local' },
     });
-  });
-
-  await page.route('**/api/integrations/vela/login/cancel', async (route) => {
-    cancelCalls += 1;
-    loginInFlight = false;
-    await page.evaluate((calls) => {
-      window.__amrOnboardingCancelCalls = calls;
-    }, cancelCalls);
-    await route.fulfill({ json: { canceled: true, pids: [4242] } });
   });
 
   return config;
@@ -580,20 +428,18 @@ function pollStoredConfig(page: Page) {
   );
 }
 
-type OnboardingLocatorRoot = Page | Locator;
-
-function onboardingField(root: OnboardingLocatorRoot, label: string) {
-  return root.locator('.onboarding-view__select-field, .onboarding-view__inline-field').filter({
+function onboardingField(page: Page, label: string) {
+  return page.locator('.onboarding-view__select-field, .onboarding-view__inline-field').filter({
     hasText: new RegExp(label, 'i'),
   }).first();
 }
 
-function expectOnboardingTrigger(root: OnboardingLocatorRoot, label: string) {
-  return onboardingField(root, label).getByRole('button');
+function expectOnboardingTrigger(page: Page, label: string) {
+  return onboardingField(page, label).getByRole('button');
 }
 
-async function selectOnboardingOption(root: OnboardingLocatorRoot, label: string, option: string) {
-  const field = onboardingField(root, label);
+async function selectOnboardingOption(page: Page, label: string, option: string) {
+  const field = onboardingField(page, label);
   const listbox = field.getByRole('listbox', { name: new RegExp(label, 'i') });
   if (!(await listbox.isVisible().catch(() => false))) {
     await field.getByRole('button').click();

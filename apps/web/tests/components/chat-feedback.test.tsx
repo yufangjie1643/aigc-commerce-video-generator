@@ -273,10 +273,8 @@ describe('chat assistant feedback', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Helpful' }));
     expect(screen.getByText('Tell us why')).toBeTruthy();
     expect(screen.getByText('😊')).toBeTruthy();
-    expect(
-      screen.getByTestId('assistant-feedback-discord-positive').getAttribute('href'),
-    ).toBe('https://discord.gg/mHAjSMV6gz');
-    expect(screen.getByText(/Share what you made with the/i)).toBeTruthy();
+    expect(screen.queryByTestId('assistant-feedback-discord-positive')).toBeNull();
+    expect(screen.getByText(/which video-generation step worked/i)).toBeTruthy();
 
     fireEvent.click(screen.getByLabelText('Understood my request'));
     fireEvent.click(screen.getByLabelText('Other'));
@@ -363,12 +361,8 @@ describe('chat assistant feedback', () => {
 
     expect(screen.getByText('Tell us why')).toBeTruthy();
     expect(screen.getByText('😔')).toBeTruthy();
-    expect(
-      screen.getByTestId('assistant-feedback-discord-negative').getAttribute('href'),
-    ).toBe('https://discord.gg/mHAjSMV6gz');
-    expect(
-      screen.getByText(/so the team can understand what went wrong/i),
-    ).toBeTruthy();
+    expect(screen.queryByTestId('assistant-feedback-discord-negative')).toBeNull();
+    expect(screen.getByText(/where the next iteration should improve/i)).toBeTruthy();
   });
 
   it('scrolls the feedback reasons panel into view after selecting a rating', () => {
@@ -404,49 +398,6 @@ describe('chat assistant feedback', () => {
               mime: 'text/html',
             },
           ],
-        },
-      ],
-    });
-
-    expect(screen.queryByRole('group', { name: 'Feedback' })).toBeNull();
-  });
-
-  it('collects feedback on a failed assistant turn', () => {
-    renderChatPane({
-      messages: [
-        completedAssistant({
-          content: '',
-          runStatus: 'failed',
-          events: [{ kind: 'status', label: 'error', detail: 'boom-401' }],
-        }),
-      ],
-    });
-
-    expect(screen.getByRole('group', { name: 'Feedback' })).toBeTruthy();
-  });
-
-  it('collects feedback on a canceled assistant turn', () => {
-    renderChatPane({
-      messages: [
-        completedAssistant({
-          content: 'Partial answer',
-          runStatus: 'canceled',
-        }),
-      ],
-    });
-
-    expect(screen.getByRole('group', { name: 'Feedback' })).toBeTruthy();
-  });
-
-  it('does not ask for feedback on a queued turn that has not started', () => {
-    renderChatPane({
-      messages: [
-        {
-          id: 'assistant-1',
-          role: 'assistant',
-          content: '',
-          createdAt: 1_700_000_000_000,
-          runStatus: 'queued',
         },
       ],
     });

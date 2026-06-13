@@ -257,7 +257,6 @@ export function useConversationChat(
           textBuffer.flush();
           const endedAt = Date.now();
           const code = (err as Error & { code?: string }).code;
-          const resumable = (err as Error & { resumable?: boolean }).resumable === true;
           setError(err.message);
           setMessages((curr) => {
             const next = curr.map((m) => {
@@ -267,7 +266,6 @@ export function useConversationChat(
                 ...withError,
                 endedAt,
                 runStatus: 'failed' as const,
-                resumable,
               };
             });
             const finalized = next.find((m) => m.id === assistantId);

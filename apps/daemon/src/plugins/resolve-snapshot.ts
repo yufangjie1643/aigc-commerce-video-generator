@@ -42,7 +42,6 @@ import {
   linkSnapshotToProject,
   linkSnapshotToRun,
 } from './snapshots.js';
-import { getManifestContextCraft } from './context-craft.js';
 import {
   type ConnectorProbe,
 } from './connector-gate.js';
@@ -275,7 +274,6 @@ export function resolvePluginSnapshot(input: ResolveSnapshotInput): ResolveSnaps
     taskKind: result.appliedPlugin.taskKind,
     inputs: result.appliedPlugin.inputs,
     resolvedContext: result.appliedPlugin.resolvedContext,
-    craftRequires: result.appliedPlugin.craftRequires ?? getManifestContextCraft(plugin.manifest),
     pipeline: result.appliedPlugin.pipeline,
     genuiSurfaces: result.appliedPlugin.genuiSurfaces ?? [],
     capabilitiesGranted: merged,

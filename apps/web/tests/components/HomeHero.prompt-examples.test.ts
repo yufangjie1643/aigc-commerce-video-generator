@@ -6,11 +6,11 @@ import {
 import { LOCALES } from '../../src/i18n/types';
 
 describe('home hero prompt examples localization', () => {
-  it('resolves four example prompts for every chip in every supported locale', () => {
+  it('resolves two workbench example prompts for every chip in every supported locale', () => {
     for (const locale of LOCALES) {
       for (const chipId of HOME_PROMPT_EXAMPLE_CHIP_IDS) {
         const examples = homeHeroChipPromptExamplesForLocale(chipId, locale);
-        expect(examples, `${locale}/${chipId}`).toHaveLength(4);
+        expect(examples, `${locale}/${chipId}`).toHaveLength(2);
         for (const example of examples) {
           expect(example.trim().length, `${locale}/${chipId} non-empty`).toBeGreaterThan(0);
         }
@@ -18,16 +18,16 @@ describe('home hero prompt examples localization', () => {
     }
   });
 
-  it('does not fall back to the English example strings for any non-English locale', () => {
+  it('uses Chinese source prompts for zh-CN and English copies for the other locales', () => {
     for (const locale of LOCALES) {
-      if (locale === 'en') continue;
       for (const chipId of HOME_PROMPT_EXAMPLE_CHIP_IDS) {
         const localized = homeHeroChipPromptExamplesForLocale(chipId, locale);
         const english = homeHeroChipPromptExamplesForLocale(chipId, 'en');
-        expect(
-          localized,
-          `${locale}/${chipId} must be localized, not the English fallback`,
-        ).not.toEqual(english);
+        if (locale === 'zh-CN') {
+          expect(localized, `${locale}/${chipId} should use Chinese source copy`).not.toEqual(english);
+        } else {
+          expect(localized, `${locale}/${chipId} should copy the English baseline`).toEqual(english);
+        }
       }
     }
   });

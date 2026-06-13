@@ -12,6 +12,7 @@ export const MODAL_WINDOW_DRAG_BACKDROP_SELECTOR = [
   '.ds-modal-backdrop',
   '.prompt-template-modal-backdrop',
   '.prompt-template-lightbox-backdrop',
+  '.project-instructions-modal-backdrop',
   '.home-hero-confirm__backdrop',
   '.project-ds-picker-fullscreen',
   '.staged-preview-modal',

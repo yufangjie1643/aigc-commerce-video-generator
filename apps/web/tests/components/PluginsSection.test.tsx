@@ -97,7 +97,7 @@ describe('PluginsSection', () => {
     expect(screen.queryByTestId('plugin-inputs-form')).toBeNull();
   });
 
-  it('hydrates a brief and a single plugin chip on apply (no inputs form)', async () => {
+  it('hydrates a brief, single plugin chip, and inputs form on apply', async () => {
     const onApplied = vi.fn();
     render(<PluginsSection onApplied={onApplied} />);
     fireEvent.click(await waitFor(() => screen.getByTitle('A fixture')));
@@ -107,14 +107,26 @@ describe('PluginsSection', () => {
     expect(within(strip).getByText('Sample Plugin')).toBeTruthy();
     expect(within(strip).queryByText('Sample Skill')).toBeNull();
     expect(strip.querySelectorAll('.context-chip-strip__chip')).toHaveLength(1);
-    // The per-plugin inputs form (MODEL / ASPECT RATIO selects) is no longer
-    // rendered: inputs fall back to schema defaults instead of being edited inline.
-    expect(screen.queryByTestId('plugin-inputs-form')).toBeNull();
+    expect(screen.getByTestId('plugin-inputs-form')).toBeTruthy();
     expect(onApplied).toHaveBeenCalled();
     const [brief, applied] = onApplied.mock.calls[0]!;
-    // `topic` has no schema default, so it stays un-substituted in the brief.
+    // The template still has {{topic}} because the user hasn't typed
+    // anything yet — fields with no default stay un-substituted.
     expect(brief).toContain('{{topic}}');
     expect(applied.appliedPlugin.snapshotId).toBe('snap-1');
+  });
+
+  it('re-emits onApplied when an input field changes', async () => {
+    const onApplied = vi.fn();
+    render(<PluginsSection onApplied={onApplied} />);
+    fireEvent.click(await waitFor(() => screen.getByTitle('A fixture')));
+    await waitFor(() => screen.getByTestId('plugin-inputs-form'));
+    onApplied.mockClear();
+    const topicInput = screen.getByLabelText(/Topic/);
+    fireEvent.change(topicInput, { target: { value: 'agentic design' } });
+    await waitFor(() => expect(onApplied).toHaveBeenCalled());
+    const lastCall = onApplied.mock.calls[onApplied.mock.calls.length - 1]!;
+    expect(lastCall[0]).toBe('Make a agentic design brief.');
   });
 
   it('removes the chip strip + inputs form when the user clears the chip', async () => {

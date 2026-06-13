@@ -10,7 +10,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { routeAgents } from '@/playwright/mock-factory';
 
 const STORAGE_KEY = 'open-design:config';
 
@@ -64,16 +63,22 @@ test.beforeEach(async ({ page }) => {
     });
   });
 
-  await routeAgents(page, [
-    {
-      id: 'mock',
-      name: 'Mock Agent',
-      bin: 'mock-agent',
-      available: true,
-      version: 'test',
-      models: [{ id: 'default', label: 'Default' }],
-    },
-  ]);
+  await page.route('**/api/agents', async (route) => {
+    await route.fulfill({
+      json: {
+        agents: [
+          {
+            id: 'mock',
+            name: 'Mock Agent',
+            bin: 'mock-agent',
+            available: true,
+            version: 'test',
+            models: [{ id: 'default', label: 'Default' }],
+          },
+        ],
+      },
+    });
+  });
 
   await page.route('**/api/design-systems', async (route) => {
     await route.fulfill({ json: { designSystems: DESIGN_SYSTEMS } });

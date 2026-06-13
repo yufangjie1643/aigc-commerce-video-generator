@@ -24,7 +24,7 @@ import { skillCwdAliasSegment, SKILLS_CWD_ALIAS } from "./cwd-aliases.js";
 export const SKILL_ID_ALIASES = Object.freeze({
   "editorial-collage": "open-design-landing",
   "editorial-collage-deck": "open-design-landing-deck",
-  "taste-skill": "design-taste-frontend",
+  "taste-skill": "design-taste-frontend"
 });
 
 type SkillMode = "image" | "video" | "audio" | "deck" | "design-system" | "template" | "prototype";
@@ -46,6 +46,7 @@ interface SkillFrontmatter extends JsonRecord {
     craft?: JsonRecord;
     preview?: JsonRecord;
     design_system?: JsonRecord;
+    provenance?: unknown;
     critique?: JsonRecord;
     category?: unknown;
   };
@@ -56,6 +57,16 @@ interface SkillFrontmatter extends JsonRecord {
 // UI uses this to render an origin pill and to gate destructive actions:
 // only `user` skills can be deleted via /api/skills/:id.
 export type SkillSource = "user" | "built-in";
+export type SkillProvenanceKind = "human-generated" | "agent-generated" | "upstream" | "unknown";
+
+export interface SkillProvenance {
+  kind: SkillProvenanceKind;
+  generatedBy?: "human" | "agent" | "system" | "upstream";
+  source?: string;
+  sourceSkillId?: string;
+  createdAt?: string;
+  notes?: string;
+}
 
 export interface SkillInfo {
   id: string;
@@ -67,6 +78,7 @@ export interface SkillInfo {
   mode: SkillMode;
   surface: SkillSurface;
   source: SkillSource;
+  provenance?: SkillProvenance;
   craftRequires: string[];
   platform: SkillPlatform;
   scenario: string;
@@ -142,9 +154,7 @@ export function findSkillById(skills: unknown, id: unknown): SkillInfo | undefin
 // erasing the bundled copy. Each surfaced summary carries a `source`
 // (`"user"` for the first root, `"built-in"` for any later root) so the
 // UI can render an origin pill and gate the delete control.
-export async function listSkills(
-  skillsRoots: string | readonly string[],
-): Promise<SkillInfo[]> {
+export async function listSkills(skillsRoots: string | readonly string[]): Promise<SkillInfo[]> {
   const roots = Array.isArray(skillsRoots) ? skillsRoots : [skillsRoots];
   const out: SkillInfo[] = [];
   const seenIds = new Set<string>();
@@ -166,13 +176,13 @@ export async function listSkills(
         const stats = await stat(skillPath);
         if (!stats.isFile()) continue;
         const raw = await readFile(skillPath, "utf8");
-        const { data: parsedData, body } = parseFrontmatter(raw) as {
+        const { data: parsedData, body: parsedBody } = parseFrontmatter(raw) as {
           data: unknown;
           body: string;
         };
+        const body = parsedBody.replace(/\r\n/g, "\n");
         const data = asSkillFrontmatter(parsedData);
-        const parentId =
-          typeof data.name === "string" && data.name ? data.name : entry.name;
+        const parentId = typeof data.name === "string" && data.name ? data.name : entry.name;
         // Skip when an earlier root already surfaced this id — the first
         // root wins so user shadows built-in. Done before we read the
         // rest of the frontmatter to keep the shadowed-skill path cheap.
@@ -181,39 +191,19 @@ export async function listSkills(
         const hasAttachments = await dirHasAttachments(dir);
         const mode = normalizeMode(data.od?.mode, body, data.description);
         const surface = normalizeSurface(data.od?.surface, mode);
-        const platform = normalizePlatform(
-          data.od?.platform,
-          mode,
-          body,
-          data.description,
-        );
-        const scenario = normalizeScenario(
-          data.od?.scenario,
-          body,
-          data.description,
-        );
+        const platform = normalizePlatform(data.od?.platform, mode, body, data.description);
+        const scenario = normalizeScenario(data.od?.scenario, body, data.description);
         const category = normalizeCategory(data.od?.category);
+        const provenance = normalizeSkillProvenance(data.od?.provenance);
         const designSystemRequired =
-          typeof data.od?.design_system?.requires === "boolean"
-            ? data.od.design_system.requires
-            : true;
-        const upstream =
-          typeof data.od?.upstream === "string" ? data.od.upstream : null;
-        const previewType =
-          typeof data.od?.preview?.type === "string"
-            ? data.od.preview.type
-            : "html";
-        const description =
-          typeof data.description === "string" ? data.description : "";
+          typeof data.od?.design_system?.requires === "boolean" ? data.od.design_system.requires : true;
+        const upstream = typeof data.od?.upstream === "string" ? data.od.upstream : null;
+        const previewType = typeof data.od?.preview?.type === "string" ? data.od.preview.type : "html";
+        const description = typeof data.description === "string" ? data.description : "";
         const displayName = localizedMapFromFields(data.en_name, data.zh_name);
-        const descriptionI18n = localizedMapFromFields(
-          data.en_description,
-          data.zh_description,
-        );
+        const descriptionI18n = localizedMapFromFields(data.en_description, data.zh_description);
         const examplePromptI18n = localizedMapFromRecord(data.od?.example_prompt_i18n);
-        const parentBody = hasAttachments
-          ? withSkillRootPreamble(body, dir)
-          : body;
+        const parentBody = hasAttachments ? withSkillRootPreamble(body, dir) : body;
         // Pre-compute derived examples so the parent entry can advertise
         // `aggregatesExamples` in the same push. The frontend uses that
         // flag to hide the parent card from the gallery (its preview would
@@ -232,6 +222,7 @@ export async function listSkills(
           mode,
           surface,
           source,
+          ...(provenance ? { provenance } : {}),
           craftRequires: normalizeCraftRequires(data.od?.craft?.requires),
           platform,
           scenario,
@@ -253,7 +244,7 @@ export async function listSkills(
           aggregatesExamples,
           critiquePolicy: normalizeCritiquePolicy(data.od?.critique?.policy),
           body: parentBody,
-          dir,
+          dir
         });
 
         // Surface every example sitting next to a SKILL.md as its own card
@@ -278,6 +269,7 @@ export async function listSkills(
             mode,
             surface,
             source,
+            ...(provenance ? { provenance } : {}),
             craftRequires: [],
             platform,
             scenario,
@@ -302,7 +294,7 @@ export async function listSkills(
             // the parent describes. Without this, picking a derived card
             // would compose an empty system prompt.
             body: parentBody,
-            dir,
+            dir
           });
         }
       } catch {
@@ -365,11 +357,7 @@ function humanizeExampleName(key: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .split(" ")
-    .map((word) =>
-      word.length === 0
-        ? word
-        : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-    )
+    .map((word) => (word.length === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()))
     .join(" ");
 }
 
@@ -421,11 +409,15 @@ function withSkillRootPreamble(body: string, dir: string): string {
   const skillRootRel = `${SKILLS_CWD_ALIAS}/${folder}`;
   const exampleFile = referencedFiles[0];
   const relativeGuidance = exampleFile
-    ? "> below references side files such as `" + exampleFile + "`, prefer the\n" +
+    ? "> below references side files such as `" +
+      exampleFile +
+      "`, prefer the\n" +
       "> relative form rooted at the first path above — e.g. open `" +
-      skillRootRel + "/" + exampleFile + "`."
-    : "> below references side files, prefer the relative form rooted at the\n" +
-      "> first path above.";
+      skillRootRel +
+      "/" +
+      exampleFile +
+      "`."
+    : "> below references side files, prefer the relative form rooted at the\n" + "> first path above.";
   const absoluteGuidance = exampleFile
     ? "> back to the absolute path: `" + path.join(dir, exampleFile) + "`."
     : "> back to the absolute skill root above.";
@@ -440,15 +432,10 @@ function withSkillRootPreamble(body: string, dir: string): string {
     "> Either form resolves to the same file; the relative form keeps you",
     "> inside the project working directory, which is preferred.",
     ...(referencedFiles.length > 0
-      ? [
-          ">",
-          "> Known side files in this skill: " +
-            referencedFiles.map((file) => "`" + file + "`").join(", ") +
-            ".",
-        ]
+      ? [">", "> Known side files in this skill: " + referencedFiles.map((file) => "`" + file + "`").join(", ") + "."]
       : []),
     "",
-    "",
+    ""
   ].join("\n");
   return preamble + body;
 }
@@ -465,9 +452,7 @@ async function dirHasAttachments(dir: string): Promise<boolean> {
   try {
     const entries = await readdir(dir, { withFileTypes: true });
     return entries.some(
-      (e) =>
-        e.name !== "SKILL.md" &&
-        (e.isDirectory() || /\.(md|html|css|js|json|txt)$/i.test(e.name))
+      (e) => e.name !== "SKILL.md" && (e.isDirectory() || /\.(md|html|css|js|json|txt)$/i.test(e.name))
     );
   } catch {
     return false;
@@ -522,10 +507,7 @@ function normalizeBoolHint(value: unknown): boolean | null {
   return null;
 }
 
-function localizedMapFromFields(
-  enValue: unknown,
-  zhValue: unknown,
-): Record<string, string> | undefined {
+function localizedMapFromFields(enValue: unknown, zhValue: unknown): Record<string, string> | undefined {
   const out: Record<string, string> = {};
   if (typeof enValue === "string" && enValue.trim()) out.en = enValue.trim();
   if (typeof zhValue === "string" && zhValue.trim()) out["zh-CN"] = zhValue.trim();
@@ -584,8 +566,7 @@ function normalizeFeatured(value: unknown): number | null {
 function derivePrompt(data: SkillFrontmatter): string {
   const explicit = data.od?.example_prompt;
   if (typeof explicit === "string" && explicit.trim()) return explicit.trim();
-  const desc =
-    typeof data.description === "string" ? data.description.trim() : "";
+  const desc = typeof data.description === "string" ? data.description.trim() : "";
   if (!desc) return "";
   const collapsed = desc.replace(/\s+/g, " ").trim();
   const firstSentence = collapsed.match(/^.+?[.!?。！？](?:\s|$)/)?.[0]?.trim();
@@ -598,17 +579,22 @@ function inferMode(body: unknown, description: unknown): SkillMode {
   if (/\bvideo|motion|shortform|animation|视频|动效|短片/.test(hay)) return "video";
   if (/\baudio|music|jingle|tts|sound|音频|音乐|配音|音效/.test(hay)) return "audio";
   if (/\bppt|deck|slide|presentation|幻灯|投影/.test(hay)) return "deck";
-  if (/\bdesign[- ]system|\bdesign\.md|\bdesign tokens/.test(hay))
-    return "design-system";
+  if (/\bdesign[- ]system|\bdesign\.md|\bdesign tokens/.test(hay)) return "design-system";
   if (/\btemplate\b/.test(hay)) return "template";
   return "prototype";
 }
 
 function normalizeMode(value: unknown, body: unknown, description: unknown): SkillMode {
   if (
-    value === "image" || value === "video" || value === "audio" || value === "deck" ||
-    value === "design-system" || value === "template" || value === "prototype"
-  ) return value;
+    value === "image" ||
+    value === "video" ||
+    value === "audio" ||
+    value === "deck" ||
+    value === "design-system" ||
+    value === "template" ||
+    value === "prototype"
+  )
+    return value;
   return inferMode(body, description);
 }
 
@@ -649,7 +635,7 @@ const KNOWN_SCENARIOS = new Set([
   "support",
   "legal",
   "education",
-  "personal",
+  "personal"
 ]);
 // Normalise a free-form category tag. Limits the set of accepted characters
 // to lowercase letters, digits, and dashes so the value can flow straight
@@ -666,6 +652,60 @@ function normalizeCategory(value: unknown): string | null {
   return slug.slice(0, 64);
 }
 
+function normalizeSkillProvenance(value: unknown, fallback?: SkillProvenance | null): SkillProvenance | null {
+  const record = isRecord(value) ? value : {};
+  const generatedBy =
+    normalizeSkillGeneratedBy(firstString(record.generatedBy, record.generated_by, record["generated-by"])) ??
+    fallback?.generatedBy;
+  const rawKind = firstString(record.kind, record.origin, record.type);
+  let kind = normalizeSkillProvenanceKind(rawKind) ?? fallback?.kind;
+  if (!kind && generatedBy === "human") kind = "human-generated";
+  if (!kind && generatedBy === "agent") kind = "agent-generated";
+  if (!kind && generatedBy === "upstream") kind = "upstream";
+  if (!kind) return null;
+  const source = firstString(record.source, record.sourceKind) ?? fallback?.source;
+  const sourceSkillId = firstString(record.sourceSkillId, record.source_skill_id) ?? fallback?.sourceSkillId;
+  const createdAt = firstString(record.createdAt, record.created_at) ?? fallback?.createdAt;
+  const notes = firstString(record.notes) ?? fallback?.notes;
+  return {
+    kind,
+    ...(generatedBy ? { generatedBy } : {}),
+    ...(source ? { source } : {}),
+    ...(sourceSkillId ? { sourceSkillId } : {}),
+    ...(createdAt ? { createdAt } : {}),
+    ...(notes ? { notes } : {})
+  };
+}
+
+function normalizeSkillProvenanceKind(value: unknown): SkillProvenanceKind | null {
+  if (typeof value !== "string") return null;
+  const kind = value.trim().toLowerCase().replace(/_/g, "-");
+  if (kind === "human-generated" || kind === "agent-generated" || kind === "upstream" || kind === "unknown") {
+    return kind;
+  }
+  if (kind === "human" || kind === "manual" || kind === "manually-generated") return "human-generated";
+  if (kind === "agent" || kind === "ai" || kind === "ai-generated") return "agent-generated";
+  return null;
+}
+
+function normalizeSkillGeneratedBy(value: unknown): SkillProvenance["generatedBy"] | null {
+  if (typeof value !== "string") return null;
+  const generatedBy = value.trim().toLowerCase().replace(/_/g, "-");
+  if (generatedBy === "human" || generatedBy === "agent" || generatedBy === "system" || generatedBy === "upstream") {
+    return generatedBy;
+  }
+  if (generatedBy === "manual" || generatedBy === "manually-generated") return "human";
+  if (generatedBy === "ai" || generatedBy === "ai-generated") return "agent";
+  return null;
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
 function normalizeScenario(value: unknown, body: unknown, description: unknown): string {
   if (typeof value === "string") {
     const v = value.trim().toLowerCase();
@@ -675,10 +715,8 @@ function normalizeScenario(value: unknown, body: unknown, description: unknown):
   if (/finance|invoice|expense|budget|p&l|revenue/.test(hay)) return "finance";
   if (/\bhr\b|onboarding|payroll|employee|人事/.test(hay)) return "hr";
   if (/marketing|campaign|brand|landing/.test(hay)) return "marketing";
-  if (/runbook|incident|deploy|engineering|sre|api/.test(hay))
-    return "engineering";
-  if (/spec|prd|roadmap|product manager|product team/.test(hay))
-    return "product";
+  if (/runbook|incident|deploy|engineering|sre|api/.test(hay)) return "engineering";
+  if (/spec|prd|roadmap|product manager|product team/.test(hay)) return "product";
   if (/design system|moodboard|mockup|ui kit/.test(hay)) return "design";
   if (/sales|quote|proposal|lead/.test(hay)) return "sales";
   if (/operations|ops|logistics|inventory/.test(hay)) return "operations";
@@ -699,11 +737,7 @@ void KNOWN_SCENARIOS;
 // built-in skill folder shares the same id, to avoid colliding with a
 // repo-shipped folder.
 
-export type SkillImportErrorCode =
-  | "BAD_REQUEST"
-  | "CONFLICT"
-  | "NOT_FOUND"
-  | "INTERNAL_ERROR";
+export type SkillImportErrorCode = "BAD_REQUEST" | "CONFLICT" | "NOT_FOUND" | "INTERNAL_ERROR";
 
 export class SkillImportError extends Error {
   readonly code: SkillImportErrorCode;
@@ -715,6 +749,11 @@ export class SkillImportError extends Error {
 }
 
 const RESERVED_SLUGS = new Set(["", ".", ".."]);
+const DEFAULT_USER_SKILL_PROVENANCE: SkillProvenance = {
+  kind: "human-generated",
+  generatedBy: "human",
+  source: "open-design-skill-library"
+};
 
 export function slugifySkillName(name: unknown): string {
   if (typeof name !== "string") return "";
@@ -733,16 +772,39 @@ function escapeYamlString(value: unknown): string {
 
 interface BuildSkillMarkdownInput {
   name: string;
+  displayName?: Record<string, string>;
   description: string;
+  descriptionI18n?: Record<string, string>;
   body: string;
   triggers: string[];
+  provenance?: SkillProvenance | null;
+}
+
+function localizedValue(values: Record<string, string> | undefined, ...keys: string[]): string | undefined {
+  if (!values) return undefined;
+  for (const key of keys) {
+    const value = values[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
+function pushYamlBlock(lines: string[], key: string, value: string): void {
+  if (!value.trim()) return;
+  lines.push(`${key}: |`);
+  for (const ln of value.trim().split(/\r?\n/)) {
+    lines.push(`  ${ln}`);
+  }
 }
 
 function buildSkillMarkdown({
   name,
+  displayName,
   description,
+  descriptionI18n,
   body,
   triggers,
+  provenance
 }: BuildSkillMarkdownInput): string {
   // Always emit `name` as a quoted scalar so YAML never coerces it to a
   // number / boolean / null. Without the quotes, parseYamlSubset() would
@@ -750,11 +812,24 @@ function buildSkillMarkdown({
   // and importUserSkill()'s round-trip ("imported skill could not be
   // re-read") would fail for those ids. See PR #955 review feedback.
   const lines: string[] = ["---", `name: "${escapeYamlString(name)}"`];
+  const enName = localizedValue(displayName, "en", "en-US");
+  const zhName = localizedValue(displayName, "zh-CN", "zh", "zh-Hans", "zh-TW");
+  if (enName) {
+    lines.push(`en_name: "${escapeYamlString(enName)}"`);
+  }
+  if (zhName) {
+    lines.push(`zh_name: "${escapeYamlString(zhName)}"`);
+  }
   if (description && description.trim().length > 0) {
-    lines.push("description: |");
-    for (const ln of description.trim().split(/\r?\n/)) {
-      lines.push(`  ${ln}`);
-    }
+    pushYamlBlock(lines, "description", description);
+  }
+  const enDescription = localizedValue(descriptionI18n, "en", "en-US");
+  const zhDescription = localizedValue(descriptionI18n, "zh-CN", "zh", "zh-Hans", "zh-TW");
+  if (enDescription) {
+    pushYamlBlock(lines, "en_description", enDescription);
+  }
+  if (zhDescription) {
+    pushYamlBlock(lines, "zh_description", zhDescription);
   }
   if (triggers.length > 0) {
     lines.push("triggers:");
@@ -764,15 +839,40 @@ function buildSkillMarkdown({
       lines.push(`  - "${escapeYamlString(trimmed)}"`);
     }
   }
+  if (provenance) {
+    lines.push("od:", "  provenance:");
+    lines.push(`    kind: "${escapeYamlString(provenance.kind)}"`);
+    if (provenance.generatedBy) {
+      lines.push(`    generatedBy: "${escapeYamlString(provenance.generatedBy)}"`);
+    }
+    if (provenance.source) {
+      lines.push(`    source: "${escapeYamlString(provenance.source)}"`);
+    }
+    if (provenance.sourceSkillId) {
+      lines.push(`    sourceSkillId: "${escapeYamlString(provenance.sourceSkillId)}"`);
+    }
+    if (provenance.createdAt) {
+      lines.push(`    createdAt: "${escapeYamlString(provenance.createdAt)}"`);
+    }
+    if (provenance.notes) {
+      lines.push("    notes: |");
+      for (const ln of provenance.notes.trim().split(/\r?\n/)) {
+        lines.push(`      ${ln}`);
+      }
+    }
+  }
   lines.push("---", "", body.trim(), "");
   return lines.join("\n");
 }
 
 export interface SkillImportInput {
   name?: unknown;
+  displayName?: unknown;
   description?: unknown;
+  descriptionI18n?: unknown;
   body?: unknown;
   triggers?: unknown;
+  provenance?: unknown;
 }
 
 export interface SkillImportResult {
@@ -785,13 +885,9 @@ function isErrnoException(err: unknown): err is NodeJS.ErrnoException {
   return Boolean(err) && typeof err === "object" && "code" in (err as object);
 }
 
-export async function importUserSkill(
-  userSkillsRoot: string,
-  input: SkillImportInput,
-): Promise<SkillImportResult> {
+export async function importUserSkill(userSkillsRoot: string, input: SkillImportInput): Promise<SkillImportResult> {
   const name = typeof input?.name === "string" ? input.name.trim() : "";
-  const description =
-    typeof input?.description === "string" ? input.description : "";
+  const description = typeof input?.description === "string" ? input.description : "";
   const body = typeof input?.body === "string" ? input.body : "";
   if (!name) {
     throw new SkillImportError("BAD_REQUEST", "skill name required");
@@ -801,15 +897,13 @@ export async function importUserSkill(
   }
   const slug = slugifySkillName(name);
   if (!slug) {
-    throw new SkillImportError(
-      "BAD_REQUEST",
-      "skill name must produce a valid slug (a-z, 0-9, dash)",
-    );
+    throw new SkillImportError("BAD_REQUEST", "skill name must produce a valid slug (a-z, 0-9, dash)");
   }
   const triggersRaw = Array.isArray(input?.triggers) ? input.triggers : [];
-  const triggers = triggersRaw
-    .map((t) => (typeof t === "string" ? t.trim() : ""))
-    .filter(Boolean);
+  const triggers = triggersRaw.map((t) => (typeof t === "string" ? t.trim() : "")).filter(Boolean);
+  const displayName = localizedMapFromRecord(input.displayName);
+  const descriptionI18n = localizedMapFromRecord(input.descriptionI18n);
+  const provenance = normalizeSkillProvenance(input.provenance, DEFAULT_USER_SKILL_PROVENANCE);
 
   await mkdir(userSkillsRoot, { recursive: true });
   const dir = path.join(userSkillsRoot, slug);
@@ -818,31 +912,36 @@ export async function importUserSkill(
   try {
     const existing = await stat(dir);
     if (existing) {
-      throw new SkillImportError(
-        "CONFLICT",
-        `a user skill with slug "${slug}" already exists`,
-      );
+      throw new SkillImportError("CONFLICT", `a user skill with slug "${slug}" already exists`);
     }
   } catch (err) {
     if (err instanceof SkillImportError) throw err;
     if (isErrnoException(err) && err.code !== "ENOENT") {
-      throw new SkillImportError(
-        "INTERNAL_ERROR",
-        `could not check skill dir: ${err.message ?? err}`,
-      );
+      throw new SkillImportError("INTERNAL_ERROR", `could not check skill dir: ${err.message ?? err}`);
     }
   }
   await mkdir(dir, { recursive: true });
-  const md = buildSkillMarkdown({ name, description, body, triggers });
+  const md = buildSkillMarkdown({
+    name,
+    description,
+    body,
+    triggers,
+    provenance,
+    ...(displayName ? { displayName } : {}),
+    ...(descriptionI18n ? { descriptionI18n } : {})
+  });
   await writeFile(path.join(dir, "SKILL.md"), md, "utf8");
   return { id: name, slug, dir };
 }
 
 export interface SkillUpdateInput {
   name: string;
+  displayName?: unknown;
   description?: unknown;
+  descriptionI18n?: unknown;
   body?: unknown;
   triggers?: unknown;
+  provenance?: unknown;
   // Original on-disk dir for the skill being edited. When the caller is
   // shadowing a built-in for the first time (i.e. `sourceDir` differs
   // from the user shadow target and the shadow folder does not exist
@@ -868,31 +967,25 @@ export interface SkillUpdateInput {
 // files`, `/example`, `/assets/*`, the system-prompt preamble, and the
 // per-turn cwd staging — keep finding the bundled tree even though the
 // user's `SKILL.md` is what we serve.
-export async function updateUserSkill(
-  userSkillsRoot: string,
-  input: SkillUpdateInput,
-): Promise<SkillImportResult> {
+export async function updateUserSkill(userSkillsRoot: string, input: SkillUpdateInput): Promise<SkillImportResult> {
   const name = typeof input?.name === "string" ? input.name.trim() : "";
   if (!name) {
     throw new SkillImportError("BAD_REQUEST", "skill name required");
   }
-  const description =
-    typeof input?.description === "string" ? input.description : "";
+  const description = typeof input?.description === "string" ? input.description : "";
   const body = typeof input?.body === "string" ? input.body : "";
   if (!body || body.trim().length === 0) {
     throw new SkillImportError("BAD_REQUEST", "skill body required");
   }
   const slug = slugifySkillName(name);
   if (!slug) {
-    throw new SkillImportError(
-      "BAD_REQUEST",
-      "skill name must produce a valid slug (a-z, 0-9, dash)",
-    );
+    throw new SkillImportError("BAD_REQUEST", "skill name must produce a valid slug (a-z, 0-9, dash)");
   }
   const triggersRaw = Array.isArray(input?.triggers) ? input.triggers : [];
-  const triggers = triggersRaw
-    .map((t) => (typeof t === "string" ? t.trim() : ""))
-    .filter(Boolean);
+  const triggers = triggersRaw.map((t) => (typeof t === "string" ? t.trim() : "")).filter(Boolean);
+  const displayName = localizedMapFromRecord(input.displayName);
+  const descriptionI18n = localizedMapFromRecord(input.descriptionI18n);
+  const provenance = normalizeSkillProvenance(input.provenance, DEFAULT_USER_SKILL_PROVENANCE);
   await mkdir(userSkillsRoot, { recursive: true });
   const dir = path.join(userSkillsRoot, slug);
   const dirExisted = await stat(dir)
@@ -920,7 +1013,15 @@ export async function updateUserSkill(
   } else {
     await mkdir(dir, { recursive: true });
   }
-  const md = buildSkillMarkdown({ name, description, body, triggers });
+  const md = buildSkillMarkdown({
+    name,
+    description,
+    body,
+    triggers,
+    provenance,
+    ...(displayName ? { displayName } : {}),
+    ...(descriptionI18n ? { descriptionI18n } : {})
+  });
   await writeFile(path.join(dir, "SKILL.md"), md, "utf8");
   return { id: name, slug, dir };
 }
@@ -930,10 +1031,7 @@ export async function updateUserSkill(
 // folder over a built-in skill on first edit. We dereference symlinks
 // for the same reason `stageActiveSkill` does — the shadow lives under
 // runtime data and must not link back into a read-only resource tree.
-async function cloneSkillSideFiles(
-  sourceDir: string,
-  destDir: string,
-): Promise<void> {
+async function cloneSkillSideFiles(sourceDir: string, destDir: string): Promise<void> {
   await mkdir(destDir, { recursive: true });
   let entries: Dirent[] = [];
   try {
@@ -949,7 +1047,7 @@ async function cloneSkillSideFiles(
     await cp(src, dst, {
       recursive: true,
       dereference: true,
-      preserveTimestamps: true,
+      preserveTimestamps: true
     });
   }
 }
@@ -1014,10 +1112,7 @@ export async function listSkillFiles(skillDir: string): Promise<SkillFileEntry[]
   return out;
 }
 
-export async function deleteUserSkill(
-  userSkillsRoot: string,
-  id: string,
-): Promise<void> {
+export async function deleteUserSkill(userSkillsRoot: string, id: string): Promise<void> {
   const slug = slugifySkillName(id);
   if (!slug) {
     throw new SkillImportError("BAD_REQUEST", "invalid skill id");

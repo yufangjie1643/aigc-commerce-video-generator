@@ -13,9 +13,27 @@ const composerMocks = vi.hoisted(() => ({
   setDraft: vi.fn(),
 }));
 
+const starterCopies: Record<string, string> = {
+  'chat.example1Title': '上传商品素材',
+  'chat.example1Tag': '素材准备',
+  'chat.example1Prompt':
+    '下一步：请基于我提供的商品图片/视频，先识别商品品类、核心卖点、适合人群和可用素材质量，并输出一份 15 秒带货视频生成方案。',
+  'chat.example2Title': '生成带货脚本',
+  'chat.example2Tag': '卖点脚本',
+  'chat.example2Prompt':
+    '下一步：为这款商品生成 3 条适合短视频平台的带货脚本，每条 15-30 秒，并给出画面提示词、口播文案和字幕节奏。',
+  'chat.example3Title': '批量产出视频',
+  'chat.example3Tag': '成片入库',
+  'chat.example3Prompt':
+    '下一步：根据已有商品素材批量生成 AIGC 带货视频任务清单，包含切片策略、封面标题、入库标签和缺失信息。',
+};
+
 const translate = (key: string, vars?: Record<string, string | number>) => {
   if (key === 'chat.designArtifactsShowMore') {
     return `Show ${vars?.count ?? ''} more design files`;
+  }
+  if (starterCopies[key]) {
+    return starterCopies[key];
   }
   return key;
 };
@@ -77,6 +95,22 @@ function file(name: string, kind: ProjectFile['kind'], mtime: number): ProjectFi
   };
 }
 
+describe('ChatPane empty state', () => {
+  it('shows ecommerce video starter prompts that fill the next-step draft', () => {
+    const { container } = renderPane({});
+
+    expect(screen.getByText('chat.startTitle')).toBeTruthy();
+    expect(container.querySelector('.chat-examples')).toBeTruthy();
+    expect(container.querySelectorAll('.chat-example')).toHaveLength(3);
+    expect(screen.getByText('上传商品素材')).toBeTruthy();
+    expect(screen.getByText('生成带货脚本')).toBeTruthy();
+    expect(screen.getByText('批量产出视频')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('生成带货脚本').closest('.chat-example')!);
+    expect(composerMocks.setDraft).toHaveBeenCalledWith(starterCopies['chat.example2Prompt']);
+  });
+});
+
 describe('ChatPane imported folder artifacts', () => {
   it('replaces empty starter prompts with design artifact previews', () => {
     const onRequestOpenFile = vi.fn();
@@ -98,7 +132,7 @@ describe('ChatPane imported folder artifacts', () => {
     });
 
     expect(screen.queryByText('chat.startTitle')).toBeNull();
-    expect(screen.queryByText('chat.example1Title')).toBeNull();
+    expect(screen.queryByText(starterCopies['chat.example1Title']!)).toBeNull();
 
     const artifactGrid = screen.getByTestId('chat-design-artifacts');
     expect(within(artifactGrid).getByText('site/index.html')).toBeTruthy();

@@ -75,7 +75,7 @@ export interface ConnectorDetail {
 }
 
 export interface ConnectorAuthDetail {
-  provider: 'local' | 'none' | 'oauth' | 'composio';
+  provider: 'local' | 'none' | 'oauth' | 'composio' | 'cookie';
   configured: boolean;
 }
 
@@ -94,7 +94,7 @@ export interface ConnectorStatusResponse {
 }
 
 export interface ConnectorDiscoveryMeta {
-  provider: 'composio';
+  provider: 'composio' | 'mixed';
   refreshRequested?: boolean;
 }
 

@@ -71,16 +71,8 @@ export async function routeAppConfig(page: Page): Promise<void> {
 
 /** Intercept GET /api/agents with a single standard mock agent. */
 export async function routeMockAgents(page: Page): Promise<void> {
-  await routeAgents(page, [STANDARD_MOCK_AGENT]);
-}
-
-/** Intercept /api/agents for both JSON and streaming callers. */
-export async function routeAgents(
-  page: Page,
-  agents: readonly unknown[],
-): Promise<void> {
   await page.route('**/api/agents**', async (route) => {
-    await fulfillAgentsRoute(route, agents);
+    await fulfillAgentsRoute(route, [STANDARD_MOCK_AGENT]);
   });
 }
 
@@ -94,11 +86,6 @@ export async function fulfillAgentsRoute(
   }
 
   const url = new URL(route.request().url());
-  if (url.pathname !== '/api/agents') {
-    await route.fallback();
-    return;
-  }
-
   if (url.searchParams.get('stream') !== '1') {
     await route.fulfill({ json: { agents } });
     return;

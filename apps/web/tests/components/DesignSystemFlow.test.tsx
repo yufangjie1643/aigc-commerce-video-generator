@@ -448,7 +448,7 @@ describe('DesignSystemCreationFlow', () => {
     expect(mocks.patchProject).toHaveBeenCalledWith(
       project.id,
       expect.objectContaining({
-        pendingPrompt: expect.stringContaining('Do not emit `<question-form>`, "Quick brief — 30 seconds"'),
+        pendingPrompt: expect.stringContaining('Do not emit `<question-form>`, "Quick brief — 30 seconds", `AskUserQuestion`'),
       }),
     );
     expect(mocks.patchProject).toHaveBeenCalledWith(

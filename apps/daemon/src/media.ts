@@ -21,8 +21,10 @@
 //                              with auto-detection for Azure OpenAI
 //                              deployments based on the configured base URL
 //   * provider 'volcengine' → Volcengine Ark async tasks API for
-//                              Doubao Seedance 2.0 (video) and Seedream
-//                              (image)
+//                              Doubao Seedance 2.0 / legacy 1.5 Pro (video)
+//                              and Seedream (image)
+//   * provider 'volcengine-ark' → generic Ark chat/embedding API for
+//                              allowlisted understanding/vectorization models
 //   * provider 'grok'       → xAI Imagine API: synchronous
 //                              /v1/images/generations for grok-imagine-image
 //                              and async /v1/videos/generations + GET poll
@@ -37,6 +39,8 @@
 //   * provider 'custom-image'→ user-supplied OpenAI-compatible
 //                              /v1/images/generations + /v1/images/edits
 //                              endpoints
+//   * provider 'minimax'    → MiniMax /v1/image_generation,
+//                              /v1/video_generation for i2v, and /v1/t2a_v2
 //
 // The fallback stub handlers are gated behind OD_MEDIA_ALLOW_STUBS=1; in
 // release builds they throw StubProviderDisabledError (mapped to HTTP
@@ -46,12 +50,11 @@
 // so the CLI can exit non-zero and the agent can't silently narrate the
 // placeholder as the final result.
 
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { execFile as execFileCb, spawn } from 'node:child_process';
-import os from 'node:os';
-import path from 'node:path';
-import { promisify } from 'node:util';
-import { Agent as UndiciAgent } from 'undici';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import os from "node:os";
+import path from "node:path";
+import { Agent as UndiciAgent } from "undici";
 import {
   AUDIO_DURATIONS_SEC,
   type AudioKind,
@@ -61,30 +64,31 @@ import {
   VIDEO_LENGTHS_SEC,
   findMediaModel,
   findProvider,
-  modelsForSurface,
-} from './media-models.js';
-import { assertAndFetchExternalAsset } from './connectionTest.js';
-import { resolveModelAlias, resolveProviderConfig } from './media-config.js';
-import {
-  ensureProject,
-  kindFor,
-  mimeFor,
-  sanitizeName,
-} from './projects.js';
+  modelsForSurface
+} from "./media-models.js";
+import { assertAndFetchExternalAsset } from "./connectionTest.js";
+import { resolveModelAlias, resolveProviderConfig } from "./media-config.js";
+import { ensureProject, kindFor, mimeFor, sanitizeName } from "./projects.js";
 import {
   AIHUBMIX_DEFAULT_BASE_URL,
   aihubmixHeaders,
   aihubmixWireModel,
   aihubmixVideoSeconds,
   aihubmixGeminiImageBytes,
-  classifyAIHubMixModel,
-} from './aihubmix.js';
+  classifyAIHubMixModel
+} from "./aihubmix.js";
 
-const execFile = promisify(execFileCb);
-type ProviderConfig = { apiKey?: string; baseUrl?: string; model?: string };
+type ProviderConfig = {
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  imageUnderstandingModel?: string;
+  audioUnderstandingModel?: string;
+  videoUnderstandingModel?: string;
+};
 type ProgressFn = (message: string) => void;
 type ImageRef = { path: string; abs: string; mime: string; size: number; dataUrl: string };
-type MediaRequestInit = Pick<RequestInit, 'dispatcher'>;
+type MediaRequestInit = Pick<RequestInit, "dispatcher">;
 type MediaContext = {
   surface: MediaSurface;
   /**
@@ -123,6 +127,9 @@ type MediaContext = {
   promptInfluence: number | undefined;
   compositionDir: string | null;
   imageRef: ImageRef | null;
+  referenceImageUrls: string[];
+  referenceVideoUrl: string | undefined;
+  referenceAudioUrl: string | undefined;
   requestInit: MediaRequestInit;
   /** Additional reference images for multi-image i2v / style reference flows. */
   imageRefs: ImageRef[];
@@ -131,7 +138,7 @@ type RenderResult = { bytes: Buffer; providerNote: string; suggestedExt?: string
 type JsonRecord = Record<string, unknown>;
 
 function isRecord(value: unknown): value is JsonRecord {
-  return value !== null && typeof value === 'object';
+  return value !== null && typeof value === "object";
 }
 
 function errorMessage(err: unknown): string {
@@ -139,24 +146,35 @@ function errorMessage(err: unknown): string {
 }
 
 function errorStringProp(err: unknown, key: string): string {
-  return isRecord(err) && typeof err[key] === 'string' ? err[key] : '';
+  return isRecord(err) && typeof err[key] === "string" ? err[key] : "";
 }
-const NANOBANANA_DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
+const NANOBANANA_DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
 // Verify the current Nano Banana / Gemini image model name against:
 // https://ai.google.dev/gemini-api/docs/models
-const NANOBANANA_DEFAULT_MODEL = 'gemini-3.1-flash-image-preview';
-const NANOBANANA_DEFAULT_IMAGE_SIZE = '1K';
-const IMAGEROUTER_DEFAULT_BASE_URL = 'https://api.imagerouter.io/v1/openai';
-const CUSTOM_IMAGE_MODEL_ID = 'custom-image';
+const NANOBANANA_DEFAULT_MODEL = "gemini-3.1-flash-image-preview";
+const NANOBANANA_DEFAULT_IMAGE_SIZE = "1K";
+const IMAGEROUTER_DEFAULT_BASE_URL = "https://api.imagerouter.io/v1/openai";
+const CUSTOM_IMAGE_MODEL_ID = "custom-image";
 
 const DEFAULT_OUTPUT_BY_SURFACE = {
-  image: 'image.png',
-  video: 'video.mp4',
-  audio: 'audio.mp3',
+  image: "image.png",
+  video: "video.mp4",
+  audio: "audio.mp3"
 };
 
-const SURFACES = new Set(['image', 'video', 'audio']);
-const AUDIO_KINDS = new Set(['music', 'speech', 'sfx']);
+const SURFACES = new Set(["image", "video", "audio"]);
+const AUDIO_KINDS = new Set(["music", "speech", "sfx"]);
+
+const LEGACY_MEDIA_MODEL_ALIASES: Record<string, string> = {
+  "doubao-seedance-1-0-pro-250528": "doubao-seedance-1.5-pro",
+  "doubao-seedance-1-0-lite-i2v-250428": "doubao-seedance-1.5-pro",
+  "doubao-seedance-1-0-lite-t2v-250428": "doubao-seedance-1.5-pro",
+  "minimax-tts": "speech-2.8-turbo"
+};
+
+function normalizeLegacyMediaModelId(model: string): string {
+  return LEGACY_MEDIA_MODEL_ALIASES[model] || model;
+}
 
 // Stubs ship a 1×1 PNG / ~24-byte mp4 / silent WAV / single-frame mp3 so
 // the dispatch path is exercisable before real provider integrations
@@ -165,19 +183,19 @@ const AUDIO_KINDS = new Set(['music', 'speech', 'sfx']);
 // behind OD_MEDIA_ALLOW_STUBS=1 and otherwise return a 503 (mapped from
 // the StubProviderDisabledError thrown below) with a clear message.
 class StubProviderDisabledError extends Error {
-  code = 'STUB_PROVIDER_DISABLED';
+  code = "STUB_PROVIDER_DISABLED";
   status = 503;
   constructor(model: string) {
     super(
-      `provider not configured: ${model}. Add your API key in Settings -> Media Providers to enable real generation.`,
+      `provider not configured: ${model}. Add your API key in Settings -> Media Providers to enable real generation.`
     );
-    this.name = 'StubProviderDisabledError';
+    this.name = "StubProviderDisabledError";
   }
 }
 
 function stubsAllowed() {
   const v = process.env.OD_MEDIA_ALLOW_STUBS;
-  return v === '1' || v === 'true';
+  return v === "1" || v === "true";
 }
 
 /**
@@ -190,16 +208,11 @@ function stubsAllowed() {
  * daemon to upload `/etc/passwd` to a paid model.
  */
 async function resolveProjectImage(rel: unknown, projectDir: string): Promise<ImageRef | null> {
-  if (typeof rel !== 'string' || !rel.trim()) return null;
+  if (typeof rel !== "string" || !rel.trim()) return null;
   const projectRootResolved = path.resolve(projectDir);
   const abs = path.resolve(projectRootResolved, rel.trim());
-  if (
-    abs !== projectRootResolved &&
-    !abs.startsWith(projectRootResolved + path.sep)
-  ) {
-    throw new Error(
-      `--image path "${rel}" resolves outside the project directory.`,
-    );
+  if (abs !== projectRootResolved && !abs.startsWith(projectRootResolved + path.sep)) {
+    throw new Error(`--image path "${rel}" resolves outside the project directory.`);
   }
   let info;
   try {
@@ -216,40 +229,63 @@ async function resolveProjectImage(rel: unknown, projectDir: string): Promise<Im
   // via the dedicated upload endpoint, not the dispatcher.
   const MAX_IMAGE_BYTES = 16 * 1024 * 1024;
   if (info.size > MAX_IMAGE_BYTES) {
-    throw new Error(
-      `--image too large (${info.size} bytes; max ${MAX_IMAGE_BYTES}).`,
-    );
+    throw new Error(`--image too large (${info.size} bytes; max ${MAX_IMAGE_BYTES}).`);
   }
   const bytes = await readFile(abs);
   const ext = path.extname(abs).toLowerCase();
   // Tight allowlist: only what i2v / image-edit endpoints actually
   // consume. Avoids smuggling arbitrary content through as data URLs.
-  const mime = ({
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.webp': 'image/webp',
-    '.gif': 'image/gif',
-  })[ext];
+  const mime = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif"
+  }[ext];
   if (!mime) {
-    throw new Error(
-      `--image has unsupported extension "${ext}". Use png, jpg, jpeg, webp, or gif.`,
-    );
+    throw new Error(`--image has unsupported extension "${ext}". Use png, jpg, jpeg, webp, or gif.`);
   }
   return {
     path: rel.trim(),
     abs,
     mime,
     size: bytes.length,
-    dataUrl: `data:${mime};base64,${bytes.toString('base64')}`,
+    dataUrl: `data:${mime};base64,${bytes.toString("base64")}`
   };
+}
+
+function normalizeRemoteReferenceUrl(value: unknown, label: string): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const url = value.trim();
+  if (!/^https?:\/\//i.test(url)) {
+    throw new Error(`${label} must be an http(s) URL; upload local media first and pass its reachable URL.`);
+  }
+  return url;
+}
+
+function normalizeRemoteReferenceUrls(values: unknown[], label: string): string[] {
+  const urls: string[] = [];
+  const push = (value: unknown) => {
+    if (Array.isArray(value)) {
+      for (const item of value) push(item);
+      return;
+    }
+    if (typeof value !== "string" || !value.trim()) return;
+    for (const part of value.split(",")) {
+      const normalized = normalizeRemoteReferenceUrl(part, label);
+      if (normalized && !urls.includes(normalized)) urls.push(normalized);
+    }
+  };
+  for (const value of values) push(value);
+  return urls;
 }
 
 function clampNumber(value: unknown, allowed: number[]): number | undefined {
   // Accept exact registry values; otherwise snap to the nearest allowed
   // bucket so a hallucinated `Number.MAX_SAFE_INTEGER` can't bill an
   // entire month of credits when real providers plug in.
-  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
   if (allowed.length === 0) return undefined;
   if (allowed.includes(value)) return value;
   let best = allowed[0]!;
@@ -264,17 +300,16 @@ function clampNumber(value: unknown, allowed: number[]): number | undefined {
   return best;
 }
 
-function clampWithWarning(value: unknown, allowed: number[], flagName: string): { value: number | undefined; warning: string | null } {
+function clampWithWarning(
+  value: unknown,
+  allowed: number[],
+  flagName: string
+): { value: number | undefined; warning: string | null } {
   const clamped = clampNumber(value, allowed);
-  if (
-    typeof value === 'number'
-    && Number.isFinite(value)
-    && typeof clamped === 'number'
-    && clamped !== value
-  ) {
+  if (typeof value === "number" && Number.isFinite(value) && typeof clamped === "number" && clamped !== value) {
     return {
       value: clamped,
-      warning: `--${flagName} ${value} clamped to ${clamped} (allowed: ${allowed.join(', ')})`,
+      warning: `--${flagName} ${value} clamped to ${clamped} (allowed: ${allowed.join(", ")})`
     };
   }
   return { value: clamped, warning: null };
@@ -300,17 +335,37 @@ function clampWithWarning(value: unknown, allowed: number[], flagName: string): 
  * @returns {Promise<{ name: string, size: number, mtime: number, kind: string, mime: string, model: string, surface: string, providerNote: string, providerId: string }>}
  */
 export async function generateMedia(args: {
-  projectRoot: string; projectsRoot: string; projectId: string; surface: MediaSurface; model: string;
-  prompt?: string; output?: string; aspect?: string; length?: number; duration?: number; voice?: string;
-  audioKind?: AudioKind; language?: string; loop?: boolean; promptInfluence?: number;
-  compositionDir?: string; image?: string; images?: string[]; onProgress?: ProgressFn; requestInit?: MediaRequestInit;
+  projectRoot: string;
+  projectsRoot: string;
+  projectId: string;
+  surface: MediaSurface;
+  model: string;
+  prompt?: string;
+  output?: string;
+  aspect?: string;
+  length?: number;
+  duration?: number;
+  voice?: string;
+  audioKind?: AudioKind;
+  language?: string;
+  loop?: boolean;
+  promptInfluence?: number;
+  compositionDir?: string;
+  image?: string;
+  images?: string[];
+  referenceImageUrl?: string;
+  referenceImageUrls?: string[];
+  referenceVideoUrl?: string;
+  referenceAudioUrl?: string;
+  onProgress?: ProgressFn;
+  requestInit?: MediaRequestInit;
 }) {
   const {
     projectRoot,
     projectsRoot,
     projectId,
     surface,
-    model,
+    model: requestedModel,
     prompt,
     output,
     aspect,
@@ -323,24 +378,26 @@ export async function generateMedia(args: {
     promptInfluence,
     compositionDir,
     image,
-    requestInit,
+    referenceImageUrl,
+    referenceVideoUrl,
+    referenceAudioUrl,
+    requestInit
   } = args;
 
-  if (!projectRoot) throw new Error('projectRoot required');
-  if (!projectsRoot) throw new Error('projectsRoot required');
-  if (typeof projectId !== 'string' || !projectId) {
-    throw new Error('projectId required');
+  if (!projectRoot) throw new Error("projectRoot required");
+  if (!projectsRoot) throw new Error("projectsRoot required");
+  if (typeof projectId !== "string" || !projectId) {
+    throw new Error("projectId required");
   }
   if (!SURFACES.has(surface)) {
     throw new Error(`unsupported surface: ${surface}`);
   }
-  if (typeof model !== 'string' || !model) {
-    throw new Error('model required');
+  if (typeof requestedModel !== "string" || !requestedModel) {
+    throw new Error("model required");
   }
-  if (surface === 'audio' && audioKind && !AUDIO_KINDS.has(audioKind)) {
-    throw new Error(
-      `unsupported audioKind: ${audioKind}. Allowed: music | speech | sfx.`,
-    );
+  const model = normalizeLegacyMediaModelId(requestedModel);
+  if (surface === "audio" && audioKind && !AUDIO_KINDS.has(audioKind)) {
+    throw new Error(`unsupported audioKind: ${audioKind}. Allowed: music | speech | sfx.`);
   }
   // Arbitrary fal.ai model paths (e.g. "fal-ai/flux/dev") bypass the
   // catalog so users can reach any model on fal without waiting for a
@@ -355,9 +412,9 @@ export async function generateMedia(args: {
       def = {
         id: model,
         label: model,
-        hint: 'Fal.ai',
-        provider: 'fal',
-        caps: surface === 'image' ? ['t2i'] : surface === 'video' ? ['t2v'] : [],
+        hint: "Fal.ai",
+        provider: "fal",
+        caps: surface === "image" ? ["t2i"] : surface === "video" ? ["t2v"] : []
       };
     } else if (/^aihubmix-/.test(model)) {
       // AIHubMix image/audio models are discovered live from its catalogue
@@ -369,36 +426,32 @@ export async function generateMedia(args: {
       def = {
         id: model,
         label: model,
-        hint: 'AIHubMix',
-        provider: 'aihubmix',
+        hint: "AIHubMix",
+        provider: "aihubmix",
         caps:
-          surface === 'image'
-            ? ['t2i', 'i2i']
-            : surface === 'video'
-              ? ['t2v', 'i2v']
-              : surface === 'audio'
-                ? ['tts']
-                : [],
+          surface === "image"
+            ? ["t2i", "i2i"]
+            : surface === "video"
+              ? ["t2v", "i2v"]
+              : surface === "audio"
+                ? ["tts"]
+                : []
       };
     } else {
       throw new Error(
         `unknown model: ${model}. Pass --model from the registered list (see /api/media/models), ` +
-        `or pass a full fal-ai/* path (e.g. fal-ai/flux/dev) for any Fal model.`,
+          `or pass a full fal-ai/* path (e.g. fal-ai/flux/dev) for any Fal model.`
       );
     }
   }
   // Reject cross-surface combinations for catalogued models.
-  const resolvedAudioKind =
-    surface === 'audio' ? audioKind || 'music' : undefined;
+  const resolvedAudioKind = surface === "audio" ? audioKind || "music" : undefined;
   if (!isFalCustomPath && !isCatalogBypass) {
     const allowed = modelsForSurface(surface, resolvedAudioKind);
     if (!allowed.some((m) => m.id === model)) {
-      const ids = allowed.map((m) => m.id).join(', ');
-      const where =
-        surface === 'audio' ? `audio · ${resolvedAudioKind}` : surface;
-      throw new Error(
-        `model "${model}" is not registered for surface "${where}". Allowed: ${ids}.`,
-      );
+      const ids = allowed.map((m) => m.id).join(", ");
+      const where = surface === "audio" ? `audio · ${resolvedAudioKind}` : surface;
+      throw new Error(`model "${model}" is not registered for surface "${where}". Allowed: ${ids}.`);
     }
   }
 
@@ -406,27 +459,19 @@ export async function generateMedia(args: {
   // hallucinated --length 9999999 doesn't reach a real provider as-is
   // when stubs are swapped for paid integrations.
   const lengthClamp =
-    surface === 'video'
-      ? clampWithWarning(length, VIDEO_LENGTHS_SEC, 'length')
-      : { value: undefined, warning: null };
+    surface === "video" ? clampWithWarning(length, VIDEO_LENGTHS_SEC, "length") : { value: undefined, warning: null };
   const usesProviderSpecificAudioDuration =
-    def.provider === 'elevenlabs'
-    && surface === 'audio'
-    && resolvedAudioKind === 'sfx';
+    def.provider === "elevenlabs" && surface === "audio" && resolvedAudioKind === "sfx";
   const durationClamp =
-    surface === 'audio' && !usesProviderSpecificAudioDuration
-      ? clampWithWarning(duration, AUDIO_DURATIONS_SEC, 'duration')
+    surface === "audio" && !usesProviderSpecificAudioDuration
+      ? clampWithWarning(duration, AUDIO_DURATIONS_SEC, "duration")
       : { value: undefined, warning: null };
   const clampedLength = lengthClamp.value;
-  const clampedDuration = usesProviderSpecificAudioDuration
-    ? duration
-    : durationClamp.value;
+  const clampedDuration = usesProviderSpecificAudioDuration ? duration : durationClamp.value;
   const warnings = [lengthClamp.warning, durationClamp.warning].filter(Boolean);
 
   const dir = await ensureProject(projectsRoot, projectId);
-  const safeOut = sanitizeName(
-    output || autoOutputName(surface, model, resolvedAudioKind),
-  );
+  const safeOut = sanitizeName(output || autoOutputName(surface, model, resolvedAudioKind));
   const target = path.join(dir, safeOut);
   await mkdir(path.dirname(target), { recursive: true });
 
@@ -449,6 +494,12 @@ export async function generateMedia(args: {
       imageRefs.push(ref);
     }
   }
+  const normalizedReferenceImageUrls = normalizeRemoteReferenceUrls(
+    [referenceImageUrl, args.referenceImageUrls],
+    "--reference-image-url"
+  );
+  const normalizedReferenceVideoUrl = normalizeRemoteReferenceUrl(referenceVideoUrl, "--reference-video-url");
+  const normalizedReferenceAudioUrl = normalizeRemoteReferenceUrl(referenceAudioUrl, "--reference-audio-url");
 
   // Resolve any user-configured model alias BEFORE we hand the id to a
   // dispatcher (issue #1277). Catalog lookup + surface validation above
@@ -465,33 +516,33 @@ export async function generateMedia(args: {
     wireModel,
     modelDef: def,
     provider: findProvider(def.provider),
-    prompt: prompt || '',
+    prompt: prompt || "",
     aspect: aspect || defaultAspectFor(surface),
     length: clampedLength,
     duration: clampedDuration,
-    voice: voice || '',
+    voice: voice || "",
     audioKind: resolvedAudioKind,
-    language: language || '',
+    language: language || "",
     loop: loop === true,
-    promptInfluence: typeof promptInfluence === 'number' && Number.isFinite(promptInfluence)
-      ? promptInfluence
-      : undefined,
+    promptInfluence:
+      typeof promptInfluence === "number" && Number.isFinite(promptInfluence) ? promptInfluence : undefined,
     // Project-relative path to the directory the agent scaffolded with
     // hyperframes.json / meta.json / index.html. Only consumed by the
     // hyperframes renderer; null/empty for every other provider.
-    compositionDir: typeof compositionDir === 'string' ? compositionDir : null,
+    compositionDir: typeof compositionDir === "string" ? compositionDir : null,
     // Resolved reference image for i2v / image-edit flows. `null` when
     // the agent didn't pass --image. See resolveProjectImage below.
     imageRef,
+    referenceImageUrls: normalizedReferenceImageUrls,
+    referenceVideoUrl: normalizedReferenceVideoUrl,
+    referenceAudioUrl: normalizedReferenceAudioUrl,
     requestInit: requestInit || {},
-    imageRefs,
+    imageRefs
   };
 
   const credentials = await resolveProviderConfig(projectRoot, def.provider);
   const customImageCredentials =
-    surface === 'image' && def.provider === 'openai'
-      ? await resolveProviderConfig(projectRoot, 'custom-image')
-      : null;
+    surface === "image" && def.provider === "openai" ? await resolveProviderConfig(projectRoot, "custom-image") : null;
 
   let bytes: Buffer;
   let providerNote: string;
@@ -510,131 +561,121 @@ export async function generateMedia(args: {
   let intentionalStub = false;
   try {
     if (
-      def.provider === 'openai'
-      && surface === 'image'
-      && customImageOverridesOpenAIModel(ctx, customImageCredentials)
+      def.provider === "openai" &&
+      surface === "image" &&
+      customImageOverridesOpenAIModel(ctx, customImageCredentials)
     ) {
-      providerId = 'custom-image';
+      providerId = "custom-image";
       const result = await renderCustomOpenAIImage(ctx, customImageCredentials!);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'openai' && surface === 'image') {
+    } else if (def.provider === "openai" && surface === "image") {
       const result = await renderOpenAIImage(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (
-      def.provider === 'openai'
-      && surface === 'audio'
-      && ctx.audioKind === 'speech'
-    ) {
+    } else if (def.provider === "openai" && surface === "audio" && ctx.audioKind === "speech") {
       const result = await renderOpenAISpeech(ctx, credentials, safeOut);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'aihubmix' && surface === 'image') {
+    } else if (def.provider === "aihubmix" && surface === "image") {
       const result = await renderAIHubMixImage(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (
-      def.provider === 'aihubmix'
-      && surface === 'audio'
-      && ctx.audioKind === 'speech'
-    ) {
+    } else if (def.provider === "aihubmix" && surface === "audio" && ctx.audioKind === "speech") {
       const result = await renderAIHubMixTTS(ctx, credentials, safeOut);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'aihubmix' && surface === 'video') {
+    } else if (def.provider === "aihubmix" && surface === "video") {
       const result = await renderAIHubMixVideo(ctx, credentials, args.onProgress);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'volcengine' && surface === 'video') {
+    } else if (def.provider === "volcengine" && surface === "video") {
       const result = await renderVolcengineVideo(ctx, credentials, args.onProgress);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'volcengine' && surface === 'image') {
+    } else if (def.provider === "volcengine" && surface === "image") {
       const result = await renderVolcengineImage(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'grok' && surface === 'image') {
+    } else if (def.provider === "grok" && surface === "image") {
       const result = await renderGrokImage(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'grok' && surface === 'video') {
+    } else if (def.provider === "grok" && surface === "video") {
       const result = await renderGrokVideo(ctx, credentials, args.onProgress);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (
-      def.provider === 'grok'
-      && surface === 'audio'
-      && ctx.audioKind === 'speech'
-    ) {
+    } else if (def.provider === "grok" && surface === "audio" && ctx.audioKind === "speech") {
       const result = await renderXAITTS(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'nanobanana' && surface === 'image') {
+    } else if (def.provider === "nanobanana" && surface === "image") {
       const result = await renderNanoBananaImage(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'imagerouter' && surface === 'image') {
+    } else if (def.provider === "imagerouter" && surface === "image") {
       const result = await renderImageRouterImage(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'imagerouter' && surface === 'video') {
+    } else if (def.provider === "imagerouter" && surface === "video") {
       const result = await renderImageRouterVideo(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'custom-image' && surface === 'image') {
+    } else if (def.provider === "custom-image" && surface === "image") {
       const result = await renderCustomOpenAIImage(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'openrouter' && surface === 'image') {
+    } else if (def.provider === "openrouter" && surface === "image") {
       const result = await renderOpenRouterImage(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'openrouter' && surface === 'video') {
+    } else if (def.provider === "openrouter" && surface === "video") {
       const result = await renderOpenRouterVideo(ctx, credentials, args.onProgress);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'leonardo' && surface === 'image') {
+    } else if (def.provider === "minimax" && surface === "image") {
+      const result = await renderMinimaxImage(ctx, credentials);
+      bytes = result.bytes;
+      providerNote = result.providerNote;
+      suggestedExt = result.suggestedExt;
+    } else if (def.provider === "minimax" && surface === "video") {
+      const result = await renderMinimaxVideo(ctx, credentials, args.onProgress);
+      bytes = result.bytes;
+      providerNote = result.providerNote;
+      suggestedExt = result.suggestedExt;
+    } else if (def.provider === "leonardo" && surface === "image") {
       const result = await renderLeonardoImage(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (
-      def.provider === 'elevenlabs'
-      && surface === 'audio'
-      && ctx.audioKind === 'speech'
-    ) {
+    } else if (def.provider === "elevenlabs" && surface === "audio" && ctx.audioKind === "speech") {
       const result = await renderElevenLabsTTS(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (
-      def.provider === 'elevenlabs'
-      && surface === 'audio'
-      && ctx.audioKind === 'sfx'
-    ) {
+    } else if (def.provider === "elevenlabs" && surface === "audio" && ctx.audioKind === "sfx") {
       const result = await renderElevenLabsSfx(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'hyperframes' && surface === 'video') {
+    } else if (def.provider === "hyperframes" && surface === "video") {
       // HyperFrames is templated by the agent (it reads the vendored
       // skill at skills/hyperframes/SKILL.md and writes a composition
       // HTML based on the user's prompt). But the actual `npx
@@ -650,32 +691,32 @@ export async function generateMedia(args: {
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'minimax' && surface === 'audio') {
+    } else if (def.provider === "minimax" && surface === "audio") {
       const result = await renderMinimaxTTS(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'senseaudio' && surface === 'audio') {
+    } else if (def.provider === "senseaudio" && surface === "audio") {
       const result = await renderSenseAudioTTS(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'senseaudio' && surface === 'image') {
+    } else if (def.provider === "senseaudio" && surface === "image") {
       const result = await renderSenseAudioImage(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'fishaudio' && surface === 'audio') {
+    } else if (def.provider === "fishaudio" && surface === "audio") {
       const result = await renderFishAudioTTS(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'fal' && surface === 'image') {
+    } else if (def.provider === "fal" && surface === "image") {
       const result = await renderFalImage(ctx, credentials);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
-    } else if (def.provider === 'fal' && surface === 'video') {
+    } else if (def.provider === "fal" && surface === "video") {
       const result = await renderFalVideo(ctx, credentials, args.onProgress);
       bytes = result.bytes;
       providerNote = result.providerNote;
@@ -699,12 +740,6 @@ export async function generateMedia(args: {
     if (err instanceof StubProviderDisabledError) {
       throw err;
     }
-    // HyperFrames is a local render, not a remote provider. Falling back
-    // to a stub here hides actionable composition/preflight failures and
-    // can make the agent retry or narrate a fake MP4 as success.
-    if (def.provider === 'hyperframes') {
-      throw err;
-    }
     // A real provider failed (network blip, 4xx, missing key, …). We
     // still want to fall back to a stub so the agent's chat loop
     // doesn't dead-end — but only when stubs are allowed for this
@@ -722,9 +757,7 @@ export async function generateMedia(args: {
     // Also log to daemon stderr so the failure is visible in the daemon
     // terminal — easiest place for the developer/operator to spot it.
     try {
-      console.error(
-        `[media] ${providerId}/${surface}/${model} failed: ${msg}`,
-      );
+      console.error(`[media] ${providerId}/${surface}/${model} failed: ${msg}`);
     } catch {
       // best-effort logging only
     }
@@ -744,7 +777,7 @@ export async function generateMedia(args: {
   // (.png vs .jpg vs .webp) before it knows what the model emits.
   let finalOut = safeOut;
   if (suggestedExt) {
-    const dot = safeOut.lastIndexOf('.');
+    const dot = safeOut.lastIndexOf(".");
     const stem = dot > 0 ? safeOut.slice(0, dot) : safeOut;
     finalOut = `${stem}${suggestedExt}`;
   }
@@ -764,25 +797,28 @@ export async function generateMedia(args: {
     providerError,
     usedStubFallback,
     intentionalStub,
-    warnings,
+    warnings
   };
 }
 
 function autoOutputName(surface: MediaSurface, model: string, audioKind?: AudioKind): string {
-  const base = DEFAULT_OUTPUT_BY_SURFACE[surface] || 'artifact.bin';
+  const base = DEFAULT_OUTPUT_BY_SURFACE[surface] || "artifact.bin";
   const stamp = Date.now().toString(36);
   // Slug the model id so the filename stays short and shell-safe.
-  const slug = String(model).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32);
-  const tag = surface === 'audio' && audioKind ? `${audioKind}-${slug}` : slug;
-  const dot = base.lastIndexOf('.');
+  const slug = String(model)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 32);
+  const tag = surface === "audio" && audioKind ? `${audioKind}-${slug}` : slug;
+  const dot = base.lastIndexOf(".");
   const stem = dot > 0 ? base.slice(0, dot) : base;
-  const ext = dot > 0 ? base.slice(dot) : '';
+  const ext = dot > 0 ? base.slice(dot) : "";
   return `${stem}-${tag}-${stamp}${ext}`;
 }
 
 function defaultAspectFor(surface: MediaSurface): string | undefined {
-  if (surface === 'image') return '1:1';
-  if (surface === 'video') return '16:9';
+  if (surface === "image") return "1:1";
+  if (surface === "video") return "16:9";
   return undefined;
 }
 
@@ -801,36 +837,436 @@ function defaultAspectFor(surface: MediaSurface): string | undefined {
 //     path already names the model.
 // ---------------------------------------------------------------------------
 
-const AZURE_DEFAULT_API_VERSION = '2024-02-01';
+const AZURE_DEFAULT_API_VERSION = "2024-02-01";
 const OPENAI_IMAGE_HEADERS_TIMEOUT_MS = 10 * 60 * 1000;
 const OPENAI_IMAGE_BODY_TIMEOUT_MS = 10 * 60 * 1000;
 const openAIImageDispatcher = new UndiciAgent({
   headersTimeout: OPENAI_IMAGE_HEADERS_TIMEOUT_MS,
-  bodyTimeout: OPENAI_IMAGE_BODY_TIMEOUT_MS,
+  bodyTimeout: OPENAI_IMAGE_BODY_TIMEOUT_MS
 });
 
-function withMediaRequestInit(
-  ctx: Pick<MediaContext, 'requestInit'>,
-  init: RequestInit = {},
-): RequestInit {
+function withMediaRequestInit(ctx: Pick<MediaContext, "requestInit">, init: RequestInit = {}): RequestInit {
   return {
     ...ctx.requestInit,
-    ...init,
+    ...init
   };
+}
+
+const DEFAULT_MIMO_UNDERSTANDING_MODEL = "mimo-v2.5";
+const DEFAULT_MIMO_BASE_URL = "https://api.xiaomimimo.com/v1";
+const DEFAULT_VOLCENGINE_ARK_VIDEO_UNDERSTANDING_MODEL = "doubao-seed-2-0-lite-260215";
+const VOLCENGINE_ARK_ALLOWED_VIDEO_UNDERSTANDING_MODELS = new Set([DEFAULT_VOLCENGINE_ARK_VIDEO_UNDERSTANDING_MODEL]);
+
+export type UnderstandingKind = "image" | "audio" | "video";
+
+export interface UnderstandMediaInput {
+  projectRoot: string;
+  kind: UnderstandingKind;
+  mediaUrl: string;
+  providerId?: string;
+  prompt?: string;
+  model?: string;
+  fps?: number;
+  mediaResolution?: "default" | "max";
+  requestInit?: MediaRequestInit;
+}
+
+export interface UnderstandVideoInput {
+  projectRoot: string;
+  videoUrl: string;
+  providerId?: string;
+  prompt?: string;
+  model?: string;
+  fps?: number;
+  mediaResolution?: "default" | "max";
+  requestInit?: MediaRequestInit;
+}
+
+export interface UnderstandMediaResult {
+  ok: true;
+  providerId: string;
+  kind: UnderstandingKind;
+  model: string;
+  content: string;
+  finishReason?: string;
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+}
+
+export type UnderstandVideoResult = UnderstandMediaResult & { kind: "video" };
+
+function mediaUrlField(kind: UnderstandingKind): string {
+  if (kind === "image") return "imageUrl";
+  if (kind === "audio") return "audioUrl";
+  return "videoUrl";
+}
+
+function assertSupportedMediaUrl(kind: UnderstandingKind, mediaUrl: string): string {
+  const trimmed = mediaUrl.trim();
+  if (!trimmed) {
+    throw Object.assign(new Error(`${mediaUrlField(kind)} is required`), { status: 400, code: "BAD_REQUEST" });
+  }
+  if (new RegExp(`^data:${kind}/[a-z0-9.+-]+;base64,`, "i").test(trimmed)) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.toString();
+  } catch {
+    // Fall through to the explicit error below.
+  }
+  throw Object.assign(new Error(`${mediaUrlField(kind)} must be an http(s) URL or a data:${kind}/*;base64 URI`), {
+    status: 400,
+    code: "BAD_REQUEST"
+  });
+}
+
+function clampVideoUnderstandingFps(value: unknown, max = 10): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 2;
+  return Math.min(max, Math.max(0.1, n));
+}
+
+function normalizeMediaResolution(value: unknown): "default" | "max" {
+  return value === "max" ? "max" : "default";
+}
+
+function defaultUnderstandingPrompt(kind: UnderstandingKind): string {
+  if (kind === "image") {
+    return [
+      "请原生理解这张图片，并用中文输出：",
+      "1. 一句话概述图片内容。",
+      "2. 画面、场景、人物、商品、动作、文字或可见细节。",
+      "3. 如果这是服饰鞋包类图片，判断主推品类、穿搭风格、可用商品标签、卖点。",
+      "4. 标出不确定或无法确认的地方。",
+      "要求：只说图片中能确认的信息，不要编造看不见的内容。"
+    ].join("\n");
+  }
+  if (kind === "audio") {
+    return [
+      "请原生理解这段音频，并用中文输出：",
+      "1. 一句话概述音频内容。",
+      "2. 可听到的人声、语言、口播/歌词/对话要点、背景声、音乐氛围或情绪。",
+      "3. 如果这是商品短视频音频，提取可用卖点、口播文案、商品标签。",
+      "4. 标出听不清或无法确认的地方。",
+      "要求：只说音频中能确认的信息，不要编造听不清的内容。"
+    ].join("\n");
+  }
+  return [
+    "请原生理解这个短视频，并用中文输出：",
+    "1. 一句话概述视频内容。",
+    "2. 画面、场景、人物、商品、动作、字幕或口播的关键点。",
+    "3. 如果这是服饰鞋包类短视频，判断主推品类、穿搭风格、可用商品标签、卖点。",
+    "4. 标出不确定或模型无法确认的地方。",
+    "要求：只说视频中能确认的信息，不要编造看不见或听不清的内容。"
+  ].join("\n");
+}
+
+function understandingModelForKind(
+  kind: UnderstandingKind,
+  credentials: ProviderConfig,
+  override: string | undefined,
+  fallback: string
+): string {
+  if (override?.trim()) return override.trim();
+  if (kind === "image" && credentials.imageUnderstandingModel?.trim()) {
+    return credentials.imageUnderstandingModel.trim();
+  }
+  if (kind === "audio" && credentials.audioUnderstandingModel?.trim()) {
+    return credentials.audioUnderstandingModel.trim();
+  }
+  if (kind === "video" && credentials.videoUnderstandingModel?.trim()) {
+    return credentials.videoUnderstandingModel.trim();
+  }
+  return credentials.model?.trim() || fallback;
+}
+
+async function defaultUnderstandingProvider(projectRoot: string, kind: UnderstandingKind): Promise<string> {
+  if (kind === "video") {
+    const mimoCredentials = await resolveProviderConfig(projectRoot, "mimo");
+    return mimoCredentials.apiKey ? "mimo" : "volcengine-ark";
+  }
+  return "mimo";
+}
+
+function assertAllowedVolcengineArkUnderstandingModel(model: string): string {
+  if (VOLCENGINE_ARK_ALLOWED_VIDEO_UNDERSTANDING_MODELS.has(model)) return model;
+  throw Object.assign(
+    new Error(
+      `Volcengine Ark understanding only allows ${DEFAULT_VOLCENGINE_ARK_VIDEO_UNDERSTANDING_MODEL}; ` +
+        "use the Volcengine generation provider for ep-* generation/text endpoints."
+    ),
+    { status: 400, code: "MODEL_NOT_ALLOWED" }
+  );
+}
+
+function messageContentToText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => {
+      if (part && typeof part === "object" && typeof (part as any).text === "string") {
+        return (part as any).text;
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function chatCompletionChoiceText(choice: any): string {
+  const content = messageContentToText(choice?.message?.content).trim();
+  if (content) return content;
+  return typeof choice?.message?.reasoning_content === "string" ? choice.message.reasoning_content.trim() : "";
+}
+
+function usageFromChatCompletion(data: any): UnderstandMediaResult["usage"] {
+  const usage =
+    data?.usage && typeof data.usage === "object"
+      ? {
+          ...(typeof data.usage.prompt_tokens === "number" ? { promptTokens: data.usage.prompt_tokens } : {}),
+          ...(typeof data.usage.completion_tokens === "number"
+            ? { completionTokens: data.usage.completion_tokens }
+            : {}),
+          ...(typeof data.usage.total_tokens === "number" ? { totalTokens: data.usage.total_tokens } : {})
+        }
+      : undefined;
+  return usage && Object.keys(usage).length > 0 ? usage : undefined;
+}
+
+async function parseUnderstandingResponse(
+  resp: Response,
+  providerId: string,
+  kind: UnderstandingKind
+): Promise<{
+  content: string;
+  finishReason?: string;
+  usage?: UnderstandMediaResult["usage"];
+}> {
+  const text = await resp.text();
+  if (!resp.ok) {
+    throw Object.assign(new Error(`${providerId} ${kind} understanding ${resp.status}: ${truncate(text, 240)}`), {
+      status: resp.status,
+      code: "UPSTREAM_ERROR"
+    });
+  }
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw Object.assign(new Error(`${providerId} ${kind} understanding non-JSON: ${truncate(text, 200)}`), {
+      status: 502,
+      code: "UPSTREAM_NON_JSON"
+    });
+  }
+
+  const choice = Array.isArray(data?.choices) ? data.choices[0] : null;
+  const content = chatCompletionChoiceText(choice);
+  if (!content) {
+    throw Object.assign(
+      new Error(`${providerId} ${kind} understanding response missing message content: ${truncate(text, 200)}`),
+      { status: 502, code: "UPSTREAM_MISSING_CONTENT" }
+    );
+  }
+
+  return {
+    content,
+    ...(typeof choice?.finish_reason === "string" ? { finishReason: choice.finish_reason } : {}),
+    ...(usageFromChatCompletion(data) ? { usage: usageFromChatCompletion(data) } : {})
+  };
+}
+
+function mimoUnderstandingMediaPart(input: UnderstandMediaInput, mediaUrl: string): Record<string, unknown> {
+  if (input.kind === "image") {
+    return {
+      type: "image_url",
+      image_url: { url: mediaUrl }
+    };
+  }
+  if (input.kind === "audio") {
+    return {
+      type: "input_audio",
+      input_audio: { data: mediaUrl }
+    };
+  }
+  return {
+    type: "video_url",
+    video_url: { url: mediaUrl },
+    fps: clampVideoUnderstandingFps(input.fps, 10),
+    media_resolution: normalizeMediaResolution(input.mediaResolution)
+  };
+}
+
+async function understandWithMimo(
+  input: UnderstandMediaInput,
+  credentials: ProviderConfig
+): Promise<UnderstandMediaResult> {
+  if (!credentials.apiKey) {
+    throw Object.assign(new Error("no Xiaomi MiMo API key — configure it in Settings or set MIMO_API_KEY"), {
+      status: 400,
+      code: "MISSING_API_KEY"
+    });
+  }
+  const mediaUrl = assertSupportedMediaUrl(input.kind, input.mediaUrl);
+  const baseUrl = (credentials.baseUrl || DEFAULT_MIMO_BASE_URL).replace(/\/$/, "");
+  const model = understandingModelForKind(input.kind, credentials, input.model, DEFAULT_MIMO_UNDERSTANDING_MODEL);
+  const prompt = input.prompt?.trim() || defaultUnderstandingPrompt(input.kind);
+  const body = {
+    model,
+    messages: [
+      {
+        role: "user",
+        content: [mimoUnderstandingMediaPart(input, mediaUrl), { type: "text", text: prompt }]
+      }
+    ],
+    temperature: 0.1,
+    max_completion_tokens: 1800
+  };
+
+  const resp = await fetch(
+    `${baseUrl}/chat/completions`,
+    withMediaRequestInit(
+      { requestInit: input.requestInit ?? {} },
+      {
+        method: "POST",
+        headers: {
+          "api-key": credentials.apiKey,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(body)
+      }
+    )
+  );
+  const parsed = await parseUnderstandingResponse(resp, "mimo", input.kind);
+  return {
+    ok: true,
+    providerId: "mimo",
+    kind: input.kind,
+    model,
+    content: parsed.content,
+    ...(parsed.finishReason ? { finishReason: parsed.finishReason } : {}),
+    ...(parsed.usage ? { usage: parsed.usage } : {})
+  };
+}
+
+async function understandVideoWithVolcengineArk(
+  input: UnderstandMediaInput,
+  credentials: ProviderConfig
+): Promise<UnderstandVideoResult> {
+  if (!credentials.apiKey) {
+    throw Object.assign(
+      new Error("no Volcengine Ark API key — configure it in Settings or set OD_VOLCENGINE_ARK_API_KEY/ARK_API_KEY"),
+      {
+        status: 400,
+        code: "MISSING_API_KEY"
+      }
+    );
+  }
+
+  if (input.kind !== "video") {
+    throw Object.assign(new Error("Volcengine Ark understanding currently supports video only in Open Design"), {
+      status: 400,
+      code: "UNSUPPORTED_PROVIDER"
+    });
+  }
+
+  const videoUrl = assertSupportedMediaUrl("video", input.mediaUrl);
+  const baseUrl = (credentials.baseUrl || "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "");
+  const model = assertAllowedVolcengineArkUnderstandingModel(
+    understandingModelForKind("video", credentials, input.model, DEFAULT_VOLCENGINE_ARK_VIDEO_UNDERSTANDING_MODEL)
+  );
+  const fps = clampVideoUnderstandingFps(input.fps, 8);
+  const prompt = input.prompt?.trim() || defaultUnderstandingPrompt("video");
+
+  const body = {
+    model,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          {
+            type: "video_url",
+            video_url: { url: videoUrl, fps }
+          }
+        ]
+      }
+    ],
+    temperature: 0.1,
+    max_tokens: 1800
+  };
+
+  const resp = await fetch(
+    `${baseUrl}/chat/completions`,
+    withMediaRequestInit(
+      { requestInit: input.requestInit ?? {} },
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${credentials.apiKey}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(body)
+      }
+    )
+  );
+  const parsed = await parseUnderstandingResponse(resp, "volcengine-ark", "video");
+
+  return {
+    ok: true,
+    providerId: "volcengine-ark",
+    kind: "video",
+    model,
+    content: parsed.content,
+    ...(parsed.finishReason ? { finishReason: parsed.finishReason } : {}),
+    ...(parsed.usage ? { usage: parsed.usage } : {})
+  };
+}
+
+export async function understandMedia(input: UnderstandMediaInput): Promise<UnderstandMediaResult> {
+  const providerId = input.providerId?.trim() || (await defaultUnderstandingProvider(input.projectRoot, input.kind));
+  if (providerId === "mimo") {
+    const credentials = await resolveProviderConfig(input.projectRoot, "mimo");
+    return understandWithMimo(input, credentials);
+  }
+  if (providerId === "volcengine-ark" || providerId === "volcengine") {
+    const credentials = await resolveProviderConfig(input.projectRoot, "volcengine-ark");
+    return understandVideoWithVolcengineArk(input, credentials);
+  }
+  throw Object.assign(new Error(`unsupported understanding provider: ${providerId}`), {
+    status: 400,
+    code: "UNSUPPORTED_PROVIDER"
+  });
+}
+
+export async function understandVideo(input: UnderstandVideoInput): Promise<UnderstandVideoResult> {
+  const result = await understandMedia({
+    projectRoot: input.projectRoot,
+    kind: "video",
+    mediaUrl: input.videoUrl,
+    ...(input.providerId ? { providerId: input.providerId } : {}),
+    ...(input.prompt ? { prompt: input.prompt } : {}),
+    ...(input.model ? { model: input.model } : {}),
+    ...(input.fps !== undefined ? { fps: input.fps } : {}),
+    ...(input.mediaResolution ? { mediaResolution: input.mediaResolution } : {}),
+    ...(input.requestInit ? { requestInit: input.requestInit } : {})
+  });
+  return { ...result, kind: "video" };
 }
 
 async function renderOpenAIImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error('no OpenAI credential — configure an API key in Settings or set OPENAI_API_KEY');
+    throw new Error("no OpenAI credential — configure an API key in Settings or set OPENAI_API_KEY");
   }
-  const rawBase = credentials.baseUrl || 'https://api.openai.com/v1';
+  const rawBase = credentials.baseUrl || "https://api.openai.com/v1";
   const azure = detectAzureEndpoint(rawBase);
   const url = buildOpenAIImageUrl(rawBase, azure);
 
   const body: Record<string, unknown> = {
-    prompt: ctx.prompt || 'A high-quality reference image.',
+    prompt: ctx.prompt || "A high-quality reference image.",
     n: 1,
-    size: openaiSizeFor(ctx.model, ctx.aspect),
+    size: openaiSizeFor(ctx.model, ctx.aspect)
   };
   // For non-Azure calls, include `model` in the body. Azure infers it
   // from the deployment in the path so omitting it keeps payloads
@@ -843,37 +1279,40 @@ async function renderOpenAIImage(ctx: MediaContext, credentials: ProviderConfig)
   // user who aliased `dall-e-3` to a custom Azure / proxy deployment
   // still gets the DALL-E-specific quality + response_format flags
   // (lefarcen + codex P2 on PR #1309).
-  if (ctx.model.startsWith('dall-e-')) {
-    body.response_format = 'b64_json';
-    body.quality = ctx.model === 'dall-e-3' ? 'hd' : 'standard';
+  if (ctx.model.startsWith("dall-e-")) {
+    body.response_format = "b64_json";
+    body.quality = ctx.model === "dall-e-3" ? "hd" : "standard";
   } else {
     // gpt-image-* accepts quality 'high' | 'medium' | 'low'.
-    body.quality = 'high';
+    body.quality = "high";
   }
 
   const headers: Record<string, string> = {
-    'authorization': `Bearer ${credentials.apiKey}`,
-    'content-type': 'application/json',
+    authorization: `Bearer ${credentials.apiKey}`,
+    "content-type": "application/json"
   };
   if (azure) {
     // Azure's canonical auth header. Some deployments accept Bearer
     // (the curl example we tested against does) but api-key is what
     // their docs document, so send both. OpenAI ignores unknown
     // headers, so this is harmless on the standard endpoint too.
-    headers['api-key'] = credentials.apiKey;
+    headers["api-key"] = credentials.apiKey;
   }
 
-  const resp = await fetch(url, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-    dispatcher: ctx.requestInit.dispatcher
-      ?? openAIImageDispatcher as unknown as NonNullable<RequestInit['dispatcher']>,
-    signal: AbortSignal.timeout(Math.max(OPENAI_IMAGE_HEADERS_TIMEOUT_MS, OPENAI_IMAGE_BODY_TIMEOUT_MS)),
-  }));
+  const resp = await fetch(
+    url,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      dispatcher:
+        ctx.requestInit.dispatcher ?? (openAIImageDispatcher as unknown as NonNullable<RequestInit["dispatcher"]>),
+      signal: AbortSignal.timeout(Math.max(OPENAI_IMAGE_HEADERS_TIMEOUT_MS, OPENAI_IMAGE_BODY_TIMEOUT_MS))
+    })
+  );
   const text = await resp.text();
   if (!resp.ok) {
-    const tag = azure ? 'azure-openai' : 'openai';
+    const tag = azure ? "azure-openai" : "openai";
     throw new Error(`${tag} ${resp.status}: ${truncate(text, 240)}`);
   }
   let data: any;
@@ -883,150 +1322,150 @@ async function renderOpenAIImage(ctx: MediaContext, credentials: ProviderConfig)
     throw new Error(`openai non-JSON response: ${truncate(text, 200)}`);
   }
   const entry = data && Array.isArray(data.data) ? data.data[0] : null;
-  if (!entry) throw new Error('openai response had no data[0]');
+  if (!entry) throw new Error("openai response had no data[0]");
   let bytes;
   if (entry.b64_json) {
-    bytes = Buffer.from(entry.b64_json, 'base64');
+    bytes = Buffer.from(entry.b64_json, "base64");
   } else if (entry.url) {
     const imgResp = await fetch(entry.url, withMediaRequestInit(ctx));
     if (!imgResp.ok) throw new Error(`openai image fetch ${imgResp.status}`);
     const arr = await imgResp.arrayBuffer();
     bytes = Buffer.from(arr);
   } else {
-    throw new Error('openai response had neither b64_json nor url');
+    throw new Error("openai response had neither b64_json nor url");
   }
 
-  const tag = azure ? 'azure-openai' : 'openai';
+  const tag = azure ? "azure-openai" : "openai";
   return {
     bytes,
     providerNote: `${tag}/${ctx.wireModel} · ${ctx.aspect} · ${bytes.length} bytes`,
-    suggestedExt: '.png',
+    suggestedExt: ".png"
   };
 }
 
 async function renderImageRouterImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error(
-      'no ImageRouter API key — configure it in Settings or set OD_IMAGEROUTER_API_KEY',
-    );
+    throw new Error("no ImageRouter API key — configure it in Settings or set OD_IMAGEROUTER_API_KEY");
   }
   const baseUrl = (credentials.baseUrl || IMAGEROUTER_DEFAULT_BASE_URL).trim();
   const wireModel = (credentials.model || ctx.wireModel).trim();
   const url = buildOpenAIImageUrl(baseUrl, false);
   const body: Record<string, unknown> = {
-    prompt: ctx.prompt || 'A high-quality reference image.',
+    prompt: ctx.prompt || "A high-quality reference image.",
     model: wireModel,
-    quality: 'auto',
-    size: imageRouterSizeFor(ctx.aspect, 'image'),
-    response_format: 'b64_json',
-    output_format: 'png',
+    quality: "auto",
+    size: imageRouterSizeFor(ctx.aspect, "image"),
+    response_format: "b64_json",
+    output_format: "png"
   };
 
-  const resp = await fetch(url, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: {
-      'authorization': `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }));
-  const data = await parseOpenAICompatibleJson(resp, 'imagerouter image');
-  const bytes = await bytesFromOpenAICompatibleData(data, 'imagerouter image', ctx.requestInit);
+  const resp = await fetch(
+    url,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
+  const data = await parseOpenAICompatibleJson(resp, "imagerouter image");
+  const bytes = await bytesFromOpenAICompatibleData(data, "imagerouter image", ctx.requestInit);
   return {
     bytes,
-    providerNote: `imagerouter/${wireModel} · ${imageRouterSizeFor(ctx.aspect, 'image')} · ${bytes.length} bytes`,
-    suggestedExt: sniffImageExt(bytes),
+    providerNote: `imagerouter/${wireModel} · ${imageRouterSizeFor(ctx.aspect, "image")} · ${bytes.length} bytes`,
+    suggestedExt: sniffImageExt(bytes)
   };
 }
 
 async function renderImageRouterVideo(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error(
-      'no ImageRouter API key — configure it in Settings or set OD_IMAGEROUTER_API_KEY',
-    );
+    throw new Error("no ImageRouter API key — configure it in Settings or set OD_IMAGEROUTER_API_KEY");
   }
   const baseUrl = (credentials.baseUrl || IMAGEROUTER_DEFAULT_BASE_URL).trim();
   const wireModel = (credentials.model || ctx.wireModel).trim();
   const url = buildOpenAIVideoUrl(baseUrl);
-  const seconds = typeof ctx.length === 'number' ? ctx.length : 'auto';
+  const seconds = typeof ctx.length === "number" ? ctx.length : "auto";
   const body: Record<string, unknown> = {
-    prompt: ctx.prompt || 'A short cinematic clip.',
+    prompt: ctx.prompt || "A short cinematic clip.",
     model: wireModel,
-    size: imageRouterSizeFor(ctx.aspect, 'video'),
+    size: imageRouterSizeFor(ctx.aspect, "video"),
     seconds,
-    response_format: 'b64_json',
+    response_format: "b64_json"
   };
 
-  const resp = await fetch(url, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: {
-      'authorization': `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }));
-  const data = await parseOpenAICompatibleJson(resp, 'imagerouter video');
-  const bytes = await bytesFromOpenAICompatibleData(data, 'imagerouter video', ctx.requestInit);
+  const resp = await fetch(
+    url,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
+  const data = await parseOpenAICompatibleJson(resp, "imagerouter video");
+  const bytes = await bytesFromOpenAICompatibleData(data, "imagerouter video", ctx.requestInit);
   return {
     bytes,
-    providerNote: `imagerouter/${wireModel} · ${imageRouterSizeFor(ctx.aspect, 'video')} · ${seconds === 'auto' ? 'auto' : `${seconds}s`} · ${bytes.length} bytes`,
-    suggestedExt: '.mp4',
+    providerNote: `imagerouter/${wireModel} · ${imageRouterSizeFor(ctx.aspect, "video")} · ${seconds === "auto" ? "auto" : `${seconds}s`} · ${bytes.length} bytes`,
+    suggestedExt: ".mp4"
   };
 }
 
 async function renderCustomOpenAIImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
-  const baseUrl = (credentials.baseUrl || '').trim();
+  const baseUrl = (credentials.baseUrl || "").trim();
   if (!baseUrl) {
     throw new Error(
-      'Custom Image API base URL required — configure an OpenAI-compatible /v1/images/generations or /v1/images/edits endpoint in Settings',
+      "Custom Image API base URL required — configure an OpenAI-compatible /v1/images/generations or /v1/images/edits endpoint in Settings"
     );
   }
-  const wireModel = (
-    credentials.model
-    || (ctx.wireModel !== CUSTOM_IMAGE_MODEL_ID ? ctx.wireModel : '')
-  ).trim();
+  const wireModel = (credentials.model || (ctx.wireModel !== CUSTOM_IMAGE_MODEL_ID ? ctx.wireModel : "")).trim();
   if (!wireModel) {
-    throw new Error(
-      'Custom Image API model required — configure the provider model in Settings',
-    );
+    throw new Error("Custom Image API model required — configure the provider model in Settings");
   }
 
   const headers: Record<string, string> = {
-    'content-type': 'application/json',
+    "content-type": "application/json"
   };
   if (credentials.apiKey) {
     headers.authorization = `Bearer ${credentials.apiKey}`;
   }
   const body: Record<string, unknown> = {
-    prompt: ctx.prompt || 'A high-quality reference image.',
+    prompt: ctx.prompt || "A high-quality reference image.",
     model: wireModel,
     n: 1,
-    size: openaiSizeFor('gpt-image-1', ctx.aspect),
+    size: openaiSizeFor("gpt-image-1", ctx.aspect)
   };
   let url = buildOpenAIImageUrl(baseUrl, false);
   if (ctx.imageRef?.dataUrl) {
-    body.response_format = 'b64_json';
+    body.response_format = "b64_json";
     body.images = [{ image_url: ctx.imageRef.dataUrl }];
     url = buildOpenAIImageEditUrl(baseUrl);
   }
 
-  const resp = await fetch(url, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  }));
-  const data = await parseOpenAICompatibleJson(resp, 'custom image');
-  const bytes = await bytesFromOpenAICompatibleData(data, 'custom image', ctx.requestInit);
+  const resp = await fetch(
+    url,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body)
+    })
+  );
+  const data = await parseOpenAICompatibleJson(resp, "custom image");
+  const bytes = await bytesFromOpenAICompatibleData(data, "custom image", ctx.requestInit);
   return {
     bytes,
     providerNote: `custom-image/${wireModel} · ${body.size} · ${bytes.length} bytes`,
-    suggestedExt: sniffImageExt(bytes),
+    suggestedExt: sniffImageExt(bytes)
   };
 }
 
 function customImageOverridesOpenAIModel(
   ctx: MediaContext,
-  credentials: ProviderConfig | null,
+  credentials: ProviderConfig | null
 ): credentials is ProviderConfig {
   const baseUrl = credentials?.baseUrl?.trim();
   const model = credentials?.model?.trim();
@@ -1046,16 +1485,18 @@ async function parseOpenAICompatibleJson(resp: Response, providerTag: string): P
   }
 }
 
-async function bytesFromOpenAICompatibleData(data: any, providerTag: string, requestInit: MediaRequestInit = {}): Promise<Buffer> {
+async function bytesFromOpenAICompatibleData(
+  data: any,
+  providerTag: string,
+  requestInit: MediaRequestInit = {}
+): Promise<Buffer> {
   const entry = data && Array.isArray(data.data) ? data.data[0] : null;
   if (!entry) throw new Error(`${providerTag} response had no data[0]`);
-  if (typeof entry.b64_json === 'string' && entry.b64_json) {
-    const raw = entry.b64_json.includes(',')
-      ? entry.b64_json.slice(entry.b64_json.indexOf(',') + 1)
-      : entry.b64_json;
-    return Buffer.from(raw, 'base64');
+  if (typeof entry.b64_json === "string" && entry.b64_json) {
+    const raw = entry.b64_json.includes(",") ? entry.b64_json.slice(entry.b64_json.indexOf(",") + 1) : entry.b64_json;
+    return Buffer.from(raw, "base64");
   }
-  if (typeof entry.url === 'string' && entry.url) {
+  if (typeof entry.url === "string" && entry.url) {
     const mediaResp = await fetch(entry.url, requestInit);
     if (!mediaResp.ok) {
       throw new Error(`${providerTag} media fetch ${mediaResp.status}`);
@@ -1066,19 +1507,19 @@ async function bytesFromOpenAICompatibleData(data: any, providerTag: string, req
   throw new Error(`${providerTag} response had neither b64_json nor url`);
 }
 
-function imageRouterSizeFor(aspect: string | undefined, surface: 'image' | 'video'): string {
-  if (surface === 'video') {
-    if (aspect === '1:1') return '1024x1024';
-    if (aspect === '9:16') return '576x1024';
-    if (aspect === '4:3') return '1024x768';
-    if (aspect === '3:4') return '768x1024';
-    return '1024x576';
+function imageRouterSizeFor(aspect: string | undefined, surface: "image" | "video"): string {
+  if (surface === "video") {
+    if (aspect === "1:1") return "1024x1024";
+    if (aspect === "9:16") return "576x1024";
+    if (aspect === "4:3") return "1024x768";
+    if (aspect === "3:4") return "768x1024";
+    return "1024x576";
   }
-  if (aspect === '16:9') return '1024x576';
-  if (aspect === '9:16') return '576x1024';
-  if (aspect === '4:3') return '1024x768';
-  if (aspect === '3:4') return '768x1024';
-  return '1024x1024';
+  if (aspect === "16:9") return "1024x576";
+  if (aspect === "9:16") return "576x1024";
+  if (aspect === "4:3") return "1024x768";
+  if (aspect === "3:4") return "768x1024";
+  return "1024x1024";
 }
 
 /**
@@ -1094,7 +1535,7 @@ function imageRouterSizeFor(aspect: string | undefined, surface: 'image' | 'vide
  *     http://localhost:8080/v1
  */
 function detectAzureEndpoint(baseUrl: string): boolean {
-  if (typeof baseUrl !== 'string' || !baseUrl) return false;
+  if (typeof baseUrl !== "string" || !baseUrl) return false;
   if (/\.azure\.com\b/i.test(baseUrl)) return true;
   if (/\/openai\/deployments\//i.test(baseUrl)) return true;
   return false;
@@ -1106,48 +1547,48 @@ function detectAzureEndpoint(baseUrl: string): boolean {
  * appending the default api-version for Azure when the user didn't
  * specify one. Returns a string ready for `fetch`.
  */
-function normalizeOpenAICompatiblePath(pathname: string, endpoint: 'images' | 'videos', mode: 'generations' | 'edits'): string {
-  const strippedPath = pathname.replace(/\/+$/, '');
+function normalizeOpenAICompatiblePath(
+  pathname: string,
+  endpoint: "images" | "videos",
+  mode: "generations" | "edits"
+): string {
+  const strippedPath = pathname.replace(/\/+$/, "");
   const generationsSuffix = `/${endpoint}/generations`;
-  const editsSuffix = endpoint === 'images' ? '/images/edits' : null;
+  const editsSuffix = endpoint === "images" ? "/images/edits" : null;
   if (strippedPath.endsWith(generationsSuffix)) {
-    if (mode === 'generations') return strippedPath;
-    return endpoint === 'images'
-      ? `${strippedPath.slice(0, -generationsSuffix.length)}${editsSuffix}`
-      : strippedPath;
+    if (mode === "generations") return strippedPath;
+    return endpoint === "images" ? `${strippedPath.slice(0, -generationsSuffix.length)}${editsSuffix}` : strippedPath;
   }
   if (editsSuffix && strippedPath.endsWith(editsSuffix)) {
-    if (mode === 'edits') return strippedPath;
+    if (mode === "edits") return strippedPath;
     return `${strippedPath.slice(0, -editsSuffix.length)}${generationsSuffix}`;
   }
-  return mode === 'edits' && editsSuffix
-    ? `${strippedPath}${editsSuffix}`
-    : `${strippedPath}${generationsSuffix}`;
+  return mode === "edits" && editsSuffix ? `${strippedPath}${editsSuffix}` : `${strippedPath}${generationsSuffix}`;
 }
 
-function buildOpenAICompatibleGenerationUrl(baseUrl: string, endpoint: 'images' | 'videos'): string {
+function buildOpenAICompatibleGenerationUrl(baseUrl: string, endpoint: "images" | "videos"): string {
   let parsed;
   try {
     parsed = new URL(baseUrl);
   } catch {
-    const stripped = baseUrl.replace(/\/$/, '');
-    return normalizeOpenAICompatiblePath(stripped, endpoint, 'generations');
+    const stripped = baseUrl.replace(/\/$/, "");
+    return normalizeOpenAICompatiblePath(stripped, endpoint, "generations");
   }
-  parsed.pathname = normalizeOpenAICompatiblePath(parsed.pathname, endpoint, 'generations');
+  parsed.pathname = normalizeOpenAICompatiblePath(parsed.pathname, endpoint, "generations");
   return parsed.toString();
 }
 
 function buildOpenAIImageUrl(baseUrl: string, isAzure: boolean): string {
   let parsed;
   try {
-    parsed = new URL(buildOpenAICompatibleGenerationUrl(baseUrl, 'images'));
+    parsed = new URL(buildOpenAICompatibleGenerationUrl(baseUrl, "images"));
   } catch {
     // Bad URL — fall back to naive concat so the upstream error is
     // surfaced through the normal HTTP path rather than a parse crash.
-    return buildOpenAICompatibleGenerationUrl(baseUrl, 'images');
+    return buildOpenAICompatibleGenerationUrl(baseUrl, "images");
   }
-  if (isAzure && !parsed.searchParams.has('api-version')) {
-    parsed.searchParams.set('api-version', AZURE_DEFAULT_API_VERSION);
+  if (isAzure && !parsed.searchParams.has("api-version")) {
+    parsed.searchParams.set("api-version", AZURE_DEFAULT_API_VERSION);
   }
   return parsed.toString();
 }
@@ -1157,49 +1598,49 @@ function buildOpenAIImageEditUrl(baseUrl: string): string {
   try {
     parsed = new URL(baseUrl);
   } catch {
-    const stripped = baseUrl.replace(/\/$/, '');
-    return normalizeOpenAICompatiblePath(stripped, 'images', 'edits');
+    const stripped = baseUrl.replace(/\/$/, "");
+    return normalizeOpenAICompatiblePath(stripped, "images", "edits");
   }
-  parsed.pathname = normalizeOpenAICompatiblePath(parsed.pathname, 'images', 'edits');
+  parsed.pathname = normalizeOpenAICompatiblePath(parsed.pathname, "images", "edits");
   return parsed.toString();
 }
 
 function buildOpenAIVideoUrl(baseUrl: string): string {
-  return buildOpenAICompatibleGenerationUrl(baseUrl, 'videos');
+  return buildOpenAICompatibleGenerationUrl(baseUrl, "videos");
 }
 
 function openaiSizeFor(model: string, aspect?: string): string {
   // gpt-image-1.5 / gpt-image-2 accept arbitrary sizes up to 4096; we
   // pick concrete ones tuned to common aspects so the API never
   // negotiates them down silently.
-  if (model.startsWith('gpt-image-')) {
-    if (aspect === '16:9') return '1792x1024';
-    if (aspect === '9:16') return '1024x1792';
-    if (aspect === '4:3') return '1408x1056';
-    if (aspect === '3:4') return '1056x1408';
-    return '1024x1024';
+  if (model.startsWith("gpt-image-")) {
+    if (aspect === "16:9") return "1792x1024";
+    if (aspect === "9:16") return "1024x1792";
+    if (aspect === "4:3") return "1408x1056";
+    if (aspect === "3:4") return "1056x1408";
+    return "1024x1024";
   }
-  if (model === 'dall-e-3') {
-    if (aspect === '16:9') return '1792x1024';
-    if (aspect === '9:16') return '1024x1792';
-    return '1024x1024';
+  if (model === "dall-e-3") {
+    if (aspect === "16:9") return "1792x1024";
+    if (aspect === "9:16") return "1024x1792";
+    return "1024x1024";
   }
   // dall-e-2 only supports 256/512/1024 squares.
-  return '1024x1024';
+  return "1024x1024";
 }
 
 const OPENAI_TTS_VOICES = new Set([
-  'alloy',
-  'ash',
-  'ballad',
-  'coral',
-  'echo',
-  'fable',
-  'onyx',
-  'nova',
-  'sage',
-  'shimmer',
-  'verse',
+  "alloy",
+  "ash",
+  "ballad",
+  "coral",
+  "echo",
+  "fable",
+  "onyx",
+  "nova",
+  "sage",
+  "shimmer",
+  "verse"
 ]);
 
 function buildOpenAISpeechUrl(baseUrl: string, isAzure: boolean): string {
@@ -1207,38 +1648,42 @@ function buildOpenAISpeechUrl(baseUrl: string, isAzure: boolean): string {
   try {
     parsed = new URL(baseUrl);
   } catch {
-    const stripped = baseUrl.replace(/\/$/, '');
+    const stripped = baseUrl.replace(/\/$/, "");
     return `${stripped}/audio/speech`;
   }
-  parsed.pathname = parsed.pathname.replace(/\/+$/, '') + '/audio/speech';
-  if (isAzure && !parsed.searchParams.has('api-version')) {
-    parsed.searchParams.set('api-version', AZURE_DEFAULT_API_VERSION);
+  parsed.pathname = parsed.pathname.replace(/\/+$/, "") + "/audio/speech";
+  if (isAzure && !parsed.searchParams.has("api-version")) {
+    parsed.searchParams.set("api-version", AZURE_DEFAULT_API_VERSION);
   }
   return parsed.toString();
 }
 
 function openaiSpeechFormatFor(fileName: string): string {
   const ext = path.extname(fileName).toLowerCase();
-  if (ext === '.wav') return 'wav';
-  if (ext === '.flac') return 'flac';
-  if (ext === '.aac') return 'aac';
-  if (ext === '.opus' || ext === '.ogg' || ext === '.oga') return 'opus';
-  return 'mp3';
+  if (ext === ".wav") return "wav";
+  if (ext === ".flac") return "flac";
+  if (ext === ".aac") return "aac";
+  if (ext === ".opus" || ext === ".ogg" || ext === ".oga") return "opus";
+  return "mp3";
 }
 
-async function renderOpenAISpeech(ctx: MediaContext, credentials: ProviderConfig, fileName: string): Promise<RenderResult> {
+async function renderOpenAISpeech(
+  ctx: MediaContext,
+  credentials: ProviderConfig,
+  fileName: string
+): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error('no OpenAI credential — configure an API key in Settings or set OPENAI_API_KEY');
+    throw new Error("no OpenAI credential — configure an API key in Settings or set OPENAI_API_KEY");
   }
-  const rawBase = credentials.baseUrl || 'https://api.openai.com/v1';
+  const rawBase = credentials.baseUrl || "https://api.openai.com/v1";
   const azure = detectAzureEndpoint(rawBase);
   const url = buildOpenAISpeechUrl(rawBase, azure);
   const format = openaiSpeechFormatFor(fileName);
-  const text = (ctx.prompt && ctx.prompt.trim()) || 'This is a test.';
+  const text = (ctx.prompt && ctx.prompt.trim()) || "This is a test.";
 
-  let voiceId = 'alloy';
-  let instructions = '';
-  const requestedVoice = (ctx.voice && ctx.voice.trim()) || '';
+  let voiceId = "alloy";
+  let instructions = "";
+  const requestedVoice = (ctx.voice && ctx.voice.trim()) || "";
   if (requestedVoice) {
     if (OPENAI_TTS_VOICES.has(requestedVoice)) {
       voiceId = requestedVoice;
@@ -1253,50 +1698,53 @@ async function renderOpenAISpeech(ctx: MediaContext, credentials: ProviderConfig
   const body: Record<string, unknown> = {
     input: text,
     voice: voiceId,
-    response_format: format,
+    response_format: format
   };
   if (!azure) {
     body.model = ctx.wireModel;
   }
-  if (instructions && ctx.model === 'gpt-4o-mini-tts') {
+  if (instructions && ctx.model === "gpt-4o-mini-tts") {
     body.instructions = instructions;
   }
 
   const headers: Record<string, string> = {
     authorization: `Bearer ${credentials.apiKey}`,
-    'content-type': 'application/json',
+    "content-type": "application/json"
   };
   if (azure) {
-    headers['api-key'] = credentials.apiKey;
+    headers["api-key"] = credentials.apiKey;
   }
 
-  const resp = await fetch(url, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  }));
+  const resp = await fetch(
+    url,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body)
+    })
+  );
   if (!resp.ok) {
     const text = await resp.text();
-    const tag = azure ? 'azure-openai' : 'openai';
+    const tag = azure ? "azure-openai" : "openai";
     throw new Error(`${tag} speech ${resp.status}: ${truncate(text, 240)}`);
   }
   const arr = await resp.arrayBuffer();
   const bytes = Buffer.from(arr);
   if (bytes.length === 0) {
-    throw new Error('openai speech returned zero bytes');
+    throw new Error("openai speech returned zero bytes");
   }
-  const tag = azure ? 'azure-openai' : 'openai';
+  const tag = azure ? "azure-openai" : "openai";
   const noteBits = [`${tag}/${ctx.wireModel}`, voiceId, `${format}`, `${bytes.length} bytes`];
-  if (instructions) noteBits.splice(2, 0, 'styled');
+  if (instructions) noteBits.splice(2, 0, "styled");
   return {
     bytes,
-    providerNote: noteBits.join(' · '),
-    suggestedExt: format === 'opus' ? '.ogg' : `.${format}`,
+    providerNote: noteBits.join(" · "),
+    suggestedExt: format === "opus" ? ".ogg" : `.${format}`
   };
 }
 
 // ---------------------------------------------------------------------------
-// Provider: Volcengine Ark — Doubao Seedance 2.0 video.
+// Provider: Volcengine Ark — Doubao Seedance video.
 //
 // Docs:
 //   POST /api/v3/contents/generations/tasks   → { id }
@@ -1307,55 +1755,85 @@ async function renderOpenAISpeech(ctx: MediaContext, credentials: ProviderConfig
 // project folder is required to keep them addressable.
 // ---------------------------------------------------------------------------
 
-async function renderVolcengineVideo(ctx: MediaContext, credentials: ProviderConfig, onProgress?: ProgressFn): Promise<RenderResult> {
+async function renderVolcengineVideo(
+  ctx: MediaContext,
+  credentials: ProviderConfig,
+  onProgress?: ProgressFn
+): Promise<RenderResult> {
   if (!credentials.apiKey) {
+    throw new Error("no Volcengine generation API key — configure it in Settings or set OD_VOLCENGINE_API_KEY");
+  }
+  const baseUrl = (credentials.baseUrl || "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "");
+  const wireModel = volcengineVideoWireModel(ctx);
+  const seedance2 = isVolcengineSeedance2Model(ctx, wireModel);
+
+  const ratio = volcengineRatioFor(ctx.aspect);
+  const durationSec = seedance2 ? volcengineSeedance2DurationFor(ctx.length) : ctx.length || 5;
+  const promptText = (ctx.prompt && ctx.prompt.trim()) || "A short cinematic clip.";
+  if (!seedance2 && (ctx.referenceImageUrls.length > 0 || ctx.referenceVideoUrl || ctx.referenceAudioUrl)) {
     throw new Error(
-      'no Volcengine Ark API key — configure it in Settings or set ARK_API_KEY',
+      `${ctx.model} does not support remote reference image/video/audio inputs; use doubao-seedance-2-0-260128.`
     );
   }
-  const baseUrl = (credentials.baseUrl || 'https://ark.cn-beijing.volces.com/api/v3').replace(/\/$/, '');
 
-  // Seedance accepts inline `--resolution`, `--duration`, `--ratio` and
-  // `--camerafixed` flags inside the prompt text. We append a flags
-  // suffix so user prompts that already contain them still win.
-  const ratio = volcengineRatioFor(ctx.aspect);
-  const durationSec = ctx.length || 5;
-  const resolution = '720p';
-  const promptText = (ctx.prompt && ctx.prompt.trim()) || 'A short cinematic clip.';
-  const suffixFlags: string[] = [];
-  if (!/--resolution\b/.test(promptText)) suffixFlags.push(`--resolution ${resolution}`);
-  if (!/--duration\b/.test(promptText)) suffixFlags.push(`--duration ${durationSec}`);
-  if (!/--ratio\b/.test(promptText)) suffixFlags.push(`--ratio ${ratio}`);
-  const fullText = suffixFlags.length
-    ? `${promptText} ${suffixFlags.join(' ')}`
-    : promptText;
-
-  // Seedance i2v (and seedance-2.0/-fast which support both modes)
-  // accept an additional `image_url` content entry — Volcengine treats
-  // it as the first frame and animates from there. We pass the data
-  // URL directly; the API does not require a public URL. When no
-  // image is provided, this is a regular t2v call.
-  const content: Array<Record<string, unknown>> = [{ type: 'text', text: fullText }];
-  if (ctx.imageRef && ctx.imageRef.dataUrl) {
+  // Seedance 1.5's tested endpoint expects render controls as prompt suffix
+  // flags. Seedance 2.0 exposes those controls as first-class task fields.
+  const fullText = seedance2 ? promptText : volcengineLegacySeedancePrompt(promptText, ratio, durationSec);
+  const content: Array<Record<string, unknown>> = [{ type: "text", text: fullText }];
+  const referenceImages = ctx.modelDef.caps.includes("i2v") ? ctx.imageRefs : [];
+  for (const imageRef of referenceImages) {
     content.push({
-      type: 'image_url',
-      image_url: { url: ctx.imageRef.dataUrl },
+      type: "image_url",
+      image_url: { url: imageRef.dataUrl },
+      ...(seedance2 ? { role: "reference_image" } : {})
+    });
+  }
+  if (seedance2) {
+    for (const url of ctx.referenceImageUrls) {
+      content.push({
+        type: "image_url",
+        image_url: { url },
+        role: "reference_image"
+      });
+    }
+  }
+  if (seedance2 && ctx.referenceVideoUrl) {
+    content.push({
+      type: "video_url",
+      video_url: { url: ctx.referenceVideoUrl },
+      role: "reference_video"
+    });
+  }
+  if (seedance2 && ctx.referenceAudioUrl) {
+    content.push({
+      type: "audio_url",
+      audio_url: { url: ctx.referenceAudioUrl },
+      role: "reference_audio"
     });
   }
 
-  const taskBody = {
-    model: ctx.wireModel,
-    content,
+  const taskBody: Record<string, unknown> = {
+    model: wireModel,
+    content
   };
+  if (seedance2) {
+    taskBody.generate_audio = ctx.modelDef.caps.includes("audio");
+    taskBody.ratio = ratio;
+    taskBody.duration = durationSec;
+    taskBody.watermark = false;
+  }
 
-  const taskResp = await fetch(`${baseUrl}/contents/generations/tasks`, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: {
-      'authorization': `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(taskBody),
-  }));
+  const taskResp = await fetch(
+    `${baseUrl}/contents/generations/tasks`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(taskBody)
+    })
+  );
   const taskText = await taskResp.text();
   if (!taskResp.ok) {
     throw new Error(`volcengine task create ${taskResp.status}: ${truncate(taskText, 240)}`);
@@ -1367,34 +1845,34 @@ async function renderVolcengineVideo(ctx: MediaContext, credentials: ProviderCon
     throw new Error(`volcengine non-JSON: ${truncate(taskText, 200)}`);
   }
   const taskId = taskData && taskData.id;
-  if (!taskId) throw new Error('volcengine task response missing id');
+  if (!taskId) throw new Error("volcengine task response missing id");
 
   // Poll until succeeded/failed. Keep a hard cap, but make it long
   // enough for real Seedance queues: fast t2v often returns in 30-120s,
   // while i2v and busy-region t2v can exceed the old 6-minute ceiling.
   const startedAt = Date.now();
   const configuredMaxMs = Number(process.env.OD_VOLCENGINE_VIDEO_MAX_POLL_MS);
-  const maxMs =
-    Number.isFinite(configuredMaxMs) && configuredMaxMs >= 60_000
-      ? configuredMaxMs
-      : 12 * 60 * 1000;
+  const maxMs = Number.isFinite(configuredMaxMs) && configuredMaxMs >= 60_000 ? configuredMaxMs : 12 * 60 * 1000;
   let videoUrl: string | null = null;
-  let lastStatus = '';
+  let lastStatus = "";
   // Emit a "task accepted" line right away so the agent's chat shows
   // something within the first second instead of going silent for the
   // full poll loop. cc's Bash tool considers a long-quiet pipe stuck
   // and times out at ~2 minutes — Volcengine i2v routinely takes
   // 3-5 minutes, so without this stream, every i2v dispatch dies
   // mid-flight.
-  if (typeof onProgress === 'function') {
-    const mode = ctx.imageRef ? 'i2v' : 't2v';
+  if (typeof onProgress === "function") {
+    const mode = referenceImages.length > 0 || ctx.referenceImageUrls.length > 0 ? "i2v" : "t2v";
     onProgress(`volcengine ${mode} task ${taskId} accepted; polling status…`);
   }
   while (Date.now() - startedAt < maxMs) {
     await sleep(4000);
-    const pollResp = await fetch(`${baseUrl}/contents/generations/tasks/${encodeURIComponent(taskId)}`, withMediaRequestInit(ctx, {
-      headers: { 'authorization': `Bearer ${credentials.apiKey}` },
-    }));
+    const pollResp = await fetch(
+      `${baseUrl}/contents/generations/tasks/${encodeURIComponent(taskId)}`,
+      withMediaRequestInit(ctx, {
+        headers: { authorization: `Bearer ${credentials.apiKey}` }
+      })
+    );
     const pollText = await pollResp.text();
     if (!pollResp.ok) {
       throw new Error(`volcengine poll ${pollResp.status}: ${truncate(pollText, 240)}`);
@@ -1405,26 +1883,28 @@ async function renderVolcengineVideo(ctx: MediaContext, credentials: ProviderCon
     } catch {
       throw new Error(`volcengine poll non-JSON: ${truncate(pollText, 200)}`);
     }
-    lastStatus = pollData.status || '';
+    lastStatus = pollData.status || "";
     // Forward each poll tick. Heartbeat doubles as a "command is alive"
     // signal for the agent's bash tool — the daemon's SSE stream emits
     // an event for every line, which cc renders into the chat as live
     // output so its watchdog never marks the call as hung.
-    if (typeof onProgress === 'function') {
+    if (typeof onProgress === "function") {
       const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
-      onProgress(`volcengine task ${taskId} status=${lastStatus || 'pending'} (elapsed ${elapsedSec}s)`);
+      onProgress(`volcengine task ${taskId} status=${lastStatus || "pending"} (elapsed ${elapsedSec}s)`);
     }
-    if (lastStatus === 'succeeded') {
-      videoUrl = pollData?.content?.video_url || null;
+    if (lastStatus === "succeeded") {
+      const rawVideoUrl =
+        pollData?.content?.video_url || pollData?.content?.videoUrl || pollData?.video_url || pollData?.url || null;
+      videoUrl = typeof rawVideoUrl === "string" && rawVideoUrl.length > 0 ? rawVideoUrl : null;
       break;
     }
-    if (lastStatus === 'failed' || lastStatus === 'cancelled') {
+    if (lastStatus === "failed" || lastStatus === "cancelled") {
       const reason = pollData?.error?.message || lastStatus;
       throw new Error(`volcengine task ${lastStatus}: ${reason}`);
     }
   }
   if (!videoUrl) {
-    throw new Error(`volcengine task did not finish in time (last status: ${lastStatus || 'unknown'})`);
+    throw new Error(`volcengine task did not finish in time (last status: ${lastStatus || "unknown"})`);
   }
 
   const dlResp = await fetch(videoUrl, withMediaRequestInit(ctx));
@@ -1434,46 +1914,77 @@ async function renderVolcengineVideo(ctx: MediaContext, credentials: ProviderCon
 
   return {
     bytes,
-    providerNote: `volcengine/${ctx.wireModel} · ${ratio} · ${durationSec}s · ${bytes.length} bytes`,
-    suggestedExt: '.mp4',
+    providerNote: `volcengine/${wireModel} · ${ratio} · ${durationSec}s · ${bytes.length} bytes`,
+    suggestedExt: ".mp4"
   };
+}
+
+const VOLCENGINE_VIDEO_MODEL_MAP: Record<string, string> = {
+  // Source project currently calls the tested Ark endpoint id directly.
+  "doubao-seedance-1.5-pro": "ep-20260514120705-pqv86"
+};
+
+function volcengineVideoWireModel(ctx: MediaContext): string {
+  if (ctx.wireModel !== ctx.model) return ctx.wireModel;
+  return VOLCENGINE_VIDEO_MODEL_MAP[ctx.model] || ctx.model;
+}
+
+function isVolcengineSeedance2Model(ctx: MediaContext, wireModel: string): boolean {
+  return ctx.model.startsWith("doubao-seedance-2-0") || wireModel.startsWith("doubao-seedance-2-0");
+}
+
+function volcengineLegacySeedancePrompt(promptText: string, ratio: string, durationSec: number): string {
+  const resolution = "720p";
+  const suffixFlags: string[] = [];
+  if (!/--resolution\b/.test(promptText)) suffixFlags.push(`--resolution ${resolution}`);
+  if (!/--duration\b/.test(promptText)) suffixFlags.push(`--duration ${durationSec}`);
+  if (!/--ratio\b/.test(promptText)) suffixFlags.push(`--ratio ${ratio}`);
+  return suffixFlags.length ? `${promptText} ${suffixFlags.join(" ")}` : promptText;
+}
+
+function volcengineSeedance2DurationFor(length?: number): number {
+  const requested = typeof length === "number" && Number.isFinite(length) ? Math.round(length) : 5;
+  return Math.min(Math.max(requested, 5), 15);
 }
 
 function volcengineRatioFor(aspect?: string): string {
   // Seedance accepts a fixed list of ratios; map the OD vocabulary to
   // its canonical strings.
-  if (!aspect) return '16:9';
-  if (aspect === '1:1' || aspect === '16:9' || aspect === '9:16' || aspect === '4:3' || aspect === '3:4') {
+  if (!aspect) return "16:9";
+  if (aspect === "1:1" || aspect === "16:9" || aspect === "9:16" || aspect === "4:3" || aspect === "3:4") {
     return aspect;
   }
-  return '16:9';
+  return "16:9";
 }
 
 // Volcengine Seedream / Seededit images. Same auth, different endpoint:
 // POST /api/v3/images/generations (OpenAI-compatible payload).
 async function renderVolcengineImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error('no Volcengine Ark API key — configure it in Settings or set ARK_API_KEY');
+    throw new Error("no Volcengine generation API key — configure it in Settings or set OD_VOLCENGINE_API_KEY");
   }
-  const baseUrl = (credentials.baseUrl || 'https://ark.cn-beijing.volces.com/api/v3').replace(/\/$/, '');
+  const baseUrl = (credentials.baseUrl || "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "");
 
   const body = {
     model: ctx.wireModel,
-    prompt: ctx.prompt || 'A high-quality reference image.',
-    response_format: 'b64_json',
+    prompt: ctx.prompt || "A high-quality reference image.",
+    response_format: "b64_json",
     // openaiSizeFor branches on the catalog id (gpt-image-* vs dall-e-*
     // accept different size enums), so it must NOT see the post-alias
     // wire name. lefarcen + codex P2 on PR #1309.
-    size: openaiSizeFor(ctx.model, ctx.aspect),
+    size: openaiSizeFor(ctx.model, ctx.aspect)
   };
-  const resp = await fetch(`${baseUrl}/images/generations`, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: {
-      'authorization': `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }));
+  const resp = await fetch(
+    `${baseUrl}/images/generations`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
   const text = await resp.text();
   if (!resp.ok) {
     throw new Error(`volcengine image ${resp.status}: ${truncate(text, 240)}`);
@@ -1485,21 +1996,21 @@ async function renderVolcengineImage(ctx: MediaContext, credentials: ProviderCon
     throw new Error(`volcengine image non-JSON: ${truncate(text, 200)}`);
   }
   const entry = data && Array.isArray(data.data) ? data.data[0] : null;
-  if (!entry) throw new Error('volcengine image response had no data[0]');
+  if (!entry) throw new Error("volcengine image response had no data[0]");
   let bytes;
   if (entry.b64_json) {
-    bytes = Buffer.from(entry.b64_json, 'base64');
+    bytes = Buffer.from(entry.b64_json, "base64");
   } else if (entry.url) {
     const imgResp = await fetch(entry.url, withMediaRequestInit(ctx));
     if (!imgResp.ok) throw new Error(`volcengine image fetch ${imgResp.status}`);
     bytes = Buffer.from(await imgResp.arrayBuffer());
   } else {
-    throw new Error('volcengine image response missing b64_json/url');
+    throw new Error("volcengine image response missing b64_json/url");
   }
   return {
     bytes,
     providerNote: `volcengine/${ctx.wireModel} · ${ctx.aspect} · ${bytes.length} bytes`,
-    suggestedExt: '.png',
+    suggestedExt: ".png"
   };
 }
 
@@ -1524,27 +2035,30 @@ async function renderVolcengineImage(ctx: MediaContext, credentials: ProviderCon
 async function renderGrokImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
     throw new Error(
-      'no xAI credentials — sign in with your SuperGrok subscription (in OD or via `hermes auth add xai-oauth`), set XAI_API_KEY, or configure a key in Settings',
+      "no xAI credentials — sign in with your SuperGrok subscription (in OD or via `hermes auth add xai-oauth`), set XAI_API_KEY, or configure a key in Settings"
     );
   }
-  const baseUrl = (credentials.baseUrl || 'https://api.x.ai/v1').replace(/\/$/, '');
+  const baseUrl = (credentials.baseUrl || "https://api.x.ai/v1").replace(/\/$/, "");
 
   const aspectRatio = grokAspectFor(ctx.aspect);
   const body = {
     model: ctx.wireModel,
-    prompt: ctx.prompt || 'A high-quality reference image.',
+    prompt: ctx.prompt || "A high-quality reference image.",
     n: 1,
     aspect_ratio: aspectRatio,
-    response_format: 'b64_json',
+    response_format: "b64_json"
   };
-  const resp = await fetch(`${baseUrl}/images/generations`, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: {
-      'authorization': `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }));
+  const resp = await fetch(
+    `${baseUrl}/images/generations`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
   const text = await resp.text();
   if (!resp.ok) {
     throw new Error(`grok image ${resp.status}: ${truncate(text, 240)}`);
@@ -1556,16 +2070,16 @@ async function renderGrokImage(ctx: MediaContext, credentials: ProviderConfig): 
     throw new Error(`grok image non-JSON: ${truncate(text, 200)}`);
   }
   const entry = data && Array.isArray(data.data) ? data.data[0] : null;
-  if (!entry) throw new Error('grok image response had no data[0]');
+  if (!entry) throw new Error("grok image response had no data[0]");
   let bytes;
   if (entry.b64_json) {
-    bytes = Buffer.from(entry.b64_json, 'base64');
+    bytes = Buffer.from(entry.b64_json, "base64");
   } else if (entry.url) {
     const imgResp = await fetch(entry.url, withMediaRequestInit(ctx));
     if (!imgResp.ok) throw new Error(`grok image fetch ${imgResp.status}`);
     bytes = Buffer.from(await imgResp.arrayBuffer());
   } else {
-    throw new Error('grok image response missing b64_json/url');
+    throw new Error("grok image response missing b64_json/url");
   }
   // xAI's Imagine returns JPEG by default (no format option in the API
   // surface), but PNG/WebP are technically possible. Sniff the magic
@@ -1575,39 +2089,44 @@ async function renderGrokImage(ctx: MediaContext, credentials: ProviderConfig): 
   return {
     bytes,
     providerNote: `grok/${ctx.wireModel} · ${aspectRatio} · ${bytes.length} bytes`,
-    suggestedExt: sniffImageExt(bytes),
+    suggestedExt: sniffImageExt(bytes)
   };
 }
 
 async function renderNanoBananaImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error(
-      'no Nano Banana API key — configure it in Settings or set OD_NANOBANANA_API_KEY',
-    );
+    throw new Error("no Nano Banana API key — configure it in Settings or set OD_NANOBANANA_API_KEY");
   }
 
-  const baseUrl = (credentials.baseUrl || NANOBANANA_DEFAULT_BASE_URL).replace(/\/$/, '');
+  const baseUrl = (credentials.baseUrl || NANOBANANA_DEFAULT_BASE_URL).replace(/\/$/, "");
   const wireModel = (credentials.model || ctx.wireModel || NANOBANANA_DEFAULT_MODEL).trim();
   const body = {
-    contents: [{
-      parts: [{
-        text: ctx.prompt || 'A high-quality reference image.',
-      }],
-    }],
+    contents: [
+      {
+        parts: [
+          {
+            text: ctx.prompt || "A high-quality reference image."
+          }
+        ]
+      }
+    ],
     generationConfig: {
-      responseModalities: ['IMAGE'],
+      responseModalities: ["IMAGE"],
       imageConfig: {
         aspectRatio: nanoBananaAspectFor(ctx.aspect),
-        imageSize: NANOBANANA_DEFAULT_IMAGE_SIZE,
-      },
-    },
+        imageSize: NANOBANANA_DEFAULT_IMAGE_SIZE
+      }
+    }
   };
 
-  const resp = await fetch(`${baseUrl}/v1beta/models/${encodeURIComponent(wireModel)}:generateContent`, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: nanoBananaHeaders(baseUrl, credentials.apiKey),
-    body: JSON.stringify(body),
-  }));
+  const resp = await fetch(
+    `${baseUrl}/v1beta/models/${encodeURIComponent(wireModel)}:generateContent`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: nanoBananaHeaders(baseUrl, credentials.apiKey),
+      body: JSON.stringify(body)
+    })
+  );
   const text = await resp.text();
   if (!resp.ok) {
     throw new Error(`nano-banana image ${resp.status}: ${truncate(text, 240)}`);
@@ -1622,16 +2141,16 @@ async function renderNanoBananaImage(ctx: MediaContext, credentials: ProviderCon
   return {
     bytes,
     providerNote: `nano-banana/${wireModel} · ${nanoBananaAspectFor(ctx.aspect)} · ${NANOBANANA_DEFAULT_IMAGE_SIZE} · ${bytes.length} bytes`,
-    suggestedExt: sniffImageExt(bytes),
+    suggestedExt: sniffImageExt(bytes)
   };
 }
 
 function nanoBananaHeaders(baseUrl: string, apiKey: string): Record<string, string> {
   const headers: Record<string, string> = {
-    'content-type': 'application/json',
+    "content-type": "application/json"
   };
   if (usesOfficialGoogleApiKeyHeader(baseUrl)) {
-    headers['x-goog-api-key'] = apiKey;
+    headers["x-goog-api-key"] = apiKey;
     return headers;
   }
   headers.authorization = `Bearer ${apiKey}`;
@@ -1641,23 +2160,17 @@ function nanoBananaHeaders(baseUrl: string, apiKey: string): Record<string, stri
 function usesOfficialGoogleApiKeyHeader(baseUrl: string): boolean {
   try {
     const url = new URL(baseUrl);
-    return url.hostname === 'generativelanguage.googleapis.com';
+    return url.hostname === "generativelanguage.googleapis.com";
   } catch {
     return false;
   }
 }
 
 function nanoBananaAspectFor(aspect?: string): string {
-  if (
-    aspect === '1:1'
-    || aspect === '16:9'
-    || aspect === '9:16'
-    || aspect === '4:3'
-    || aspect === '3:4'
-  ) {
+  if (aspect === "1:1" || aspect === "16:9" || aspect === "9:16" || aspect === "4:3" || aspect === "3:4") {
     return aspect;
   }
-  return '1:1';
+  return "1:1";
 }
 
 function inlineImageBytesFromGenerateContent(data: any): Buffer {
@@ -1666,34 +2179,36 @@ function inlineImageBytesFromGenerateContent(data: any): Buffer {
     const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
     for (const part of parts) {
       const inline = part?.inlineData;
-      if (typeof inline?.data === 'string' && inline.data) {
-        return Buffer.from(inline.data, 'base64');
+      if (typeof inline?.data === "string" && inline.data) {
+        return Buffer.from(inline.data, "base64");
       }
     }
   }
-  throw new Error('nano-banana image response missing candidates[].content.parts[].inlineData.data');
+  throw new Error("nano-banana image response missing candidates[].content.parts[].inlineData.data");
 }
 
 function sniffImageExt(bytes: Buffer): string {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
-    return '.jpg';
+    return ".jpg";
+  }
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    return ".png";
   }
   if (
-    bytes.length >= 8
-    && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
   ) {
-    return '.png';
+    return ".webp";
   }
-  if (
-    bytes.length >= 12
-    && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
-    && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
-  ) {
-    return '.webp';
-  }
-  return '.png';
+  return ".png";
 }
-
 
 // ---------------------------------------------------------------------------
 // Provider: OpenRouter — Unified video generation gateway (asynchronous).
@@ -1712,62 +2227,53 @@ function sniffImageExt(bytes: Buffer): string {
 // Model IDs follow the same `openrouter/`-prefix convention as video.
 // ---------------------------------------------------------------------------
 
-async function renderOpenRouterImage(
-  ctx: MediaContext,
-  credentials: ProviderConfig,
-): Promise<RenderResult> {
+async function renderOpenRouterImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error(
-      'no OpenRouter API key — configure it in Settings or set OPENROUTER_API_KEY',
-    );
+    throw new Error("no OpenRouter API key — configure it in Settings or set OPENROUTER_API_KEY");
   }
-  const baseUrl = (credentials.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/$/, '');
+  const baseUrl = (credentials.baseUrl || "https://openrouter.ai/api/v1").replace(/\/$/, "");
 
   // Respect model-alias contract: credentials.model (from stored config)
   // overrides ctx.wireModel (from OD_MEDIA_MODEL_ALIASES / resolveModelAlias).
   // Then strip the `openrouter/` catalogue prefix so the wire model name
   // matches OpenRouter's canonical slug.
   const resolved = (credentials.model || ctx.wireModel).trim();
-  const wireModel = resolved.startsWith('openrouter/')
-    ? resolved.slice('openrouter/'.length)
-    : resolved;
+  const wireModel = resolved.startsWith("openrouter/") ? resolved.slice("openrouter/".length) : resolved;
 
   // Multi-modal models (Gemini variants) accept both image and text
   // output; image-only models (Flux, Recraft, Sourceful) only accept
   // ["image"]. We use a simple heuristic on the slug.
-  const modalities: string[] = wireModel.includes('gemini')
-    ? ['image', 'text']
-    : ['image'];
+  const modalities: string[] = wireModel.includes("gemini") ? ["image", "text"] : ["image"];
 
   const body: Record<string, unknown> = {
     model: wireModel,
     messages: [
       {
-        role: 'user',
-        content: ctx.prompt || 'A high-quality reference image.',
-      },
+        role: "user",
+        content: ctx.prompt || "A high-quality reference image."
+      }
     ],
     modalities,
-    stream: false,
+    stream: false
   };
 
   // Pass aspect ratio + image size through image_config when specified.
   const aspectRatio = openRouterAspectFor(ctx.aspect);
   const imageConfig: Record<string, unknown> = {
     aspect_ratio: aspectRatio,
-    image_size: '1K',
+    image_size: "1K"
   };
   body.image_config = imageConfig;
 
   const resp = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'authorization': `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-      'HTTP-Referer': 'https://opendesign.dev',
-      'X-Title': 'Open Design',
+      authorization: `Bearer ${credentials.apiKey}`,
+      "content-type": "application/json",
+      "HTTP-Referer": "https://opendesign.dev",
+      "X-Title": "Open Design"
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(body)
   });
   const text = await resp.text();
   if (!resp.ok) {
@@ -1782,20 +2288,14 @@ async function renderOpenRouterImage(
   }
 
   // Extract the first generated image from the response.
-  const images: any[] | undefined =
-    data?.choices?.[0]?.message?.images;
+  const images: any[] | undefined = data?.choices?.[0]?.message?.images;
   if (!images || images.length === 0) {
-    throw new Error(
-      `openrouter image response contained no images for model ${wireModel}: `
-      + truncate(text, 200),
-    );
+    throw new Error(`openrouter image response contained no images for model ${wireModel}: ` + truncate(text, 200));
   }
 
   const dataUrl: string | undefined = images[0]?.image_url?.url;
   if (!dataUrl) {
-    throw new Error(
-      `openrouter image response missing image_url.url: ${truncate(text, 200)}`,
-    );
+    throw new Error(`openrouter image response missing image_url.url: ${truncate(text, 200)}`);
   }
 
   // Strip the data URL prefix (e.g. "data:image/png;base64,") and
@@ -1803,21 +2303,21 @@ async function renderOpenRouterImage(
   const b64Match = dataUrl.match(/^data:image\/[^;]+;base64,(.+)$/s);
   let bytes: Buffer;
   if (b64Match) {
-    bytes = Buffer.from(b64Match[1]!, 'base64');
-  } else if (dataUrl.startsWith('http')) {
+    bytes = Buffer.from(b64Match[1]!, "base64");
+  } else if (dataUrl.startsWith("http")) {
     // Some models may return a plain URL instead of inline base64.
     const imgResp = await fetch(dataUrl);
     if (!imgResp.ok) throw new Error(`openrouter image download ${imgResp.status}`);
     bytes = Buffer.from(await imgResp.arrayBuffer());
   } else {
     // Assume raw base64 without prefix.
-    bytes = Buffer.from(dataUrl, 'base64');
+    bytes = Buffer.from(dataUrl, "base64");
   }
 
   return {
     bytes,
     providerNote: `openrouter/${wireModel} · ${aspectRatio} · ${bytes.length} bytes`,
-    suggestedExt: sniffImageExt(bytes),
+    suggestedExt: sniffImageExt(bytes)
   };
 }
 
@@ -1844,33 +2344,27 @@ async function renderOpenRouterImage(
 async function renderOpenRouterVideo(
   ctx: MediaContext,
   credentials: ProviderConfig,
-  onProgress?: ProgressFn,
+  onProgress?: ProgressFn
 ): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error(
-      'no OpenRouter API key — configure it in Settings or set OPENROUTER_API_KEY',
-    );
+    throw new Error("no OpenRouter API key — configure it in Settings or set OPENROUTER_API_KEY");
   }
-  const baseUrl = (credentials.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/$/, '');
+  const baseUrl = (credentials.baseUrl || "https://openrouter.ai/api/v1").replace(/\/$/, "");
 
   // Respect model-alias contract: credentials.model (from stored config)
   // overrides ctx.wireModel (from OD_MEDIA_MODEL_ALIASES / resolveModelAlias).
   // Then strip the `openrouter/` catalogue prefix so the wire model name
   // matches OpenRouter's canonical slug (e.g. `bytedance/seedance-2.0`).
   const resolved = (credentials.model || ctx.wireModel).trim();
-  const afterPrefix = resolved.startsWith('openrouter/')
-    ? resolved.slice('openrouter/'.length)
-    : resolved;
+  const afterPrefix = resolved.startsWith("openrouter/") ? resolved.slice("openrouter/".length) : resolved;
 
   // Parse optional resolution suffix encoded in the model ID
   // (e.g. `bytedance/seedance-2.0:1080p` → model `bytedance/seedance-2.0`,
   // resolution `1080p`). When no suffix is present, default to 720p.
   const RESOLUTION_SUFFIX_RE = /:(\d+p)$/;
   const resSuffixMatch = afterPrefix.match(RESOLUTION_SUFFIX_RE);
-  const wireModel = resSuffixMatch
-    ? afterPrefix.slice(0, -resSuffixMatch[0].length)
-    : afterPrefix;
-  const resolution = resSuffixMatch?.[1] ?? '720p';
+  const wireModel = resSuffixMatch ? afterPrefix.slice(0, -resSuffixMatch[0].length) : afterPrefix;
+  const resolution = resSuffixMatch?.[1] ?? "720p";
 
   const aspectRatio = openRouterAspectFor(ctx.aspect);
 
@@ -1878,10 +2372,10 @@ async function renderOpenRouterVideo(
   const durationSec = ctx.length || 5;
   const body: Record<string, unknown> = {
     model: wireModel,
-    prompt: ctx.prompt || 'A short cinematic clip.',
+    prompt: ctx.prompt || "A short cinematic clip.",
     aspect_ratio: aspectRatio,
     resolution,
-    duration: durationSec,
+    duration: durationSec
   };
 
   // Image-to-video: pass reference images via OpenRouter's
@@ -1893,46 +2387,44 @@ async function renderOpenRouterVideo(
     const [primary, ...extras] = ctx.imageRefs;
     body.frame_images = [
       {
-        type: 'image_url',
+        type: "image_url",
         image_url: { url: primary!.dataUrl },
-        frame_type: 'first_frame',
-      },
+        frame_type: "first_frame"
+      }
     ];
     if (extras.length > 0) {
       body.input_references = extras.map((ref) => ({
-        type: 'image_url',
-        image_url: { url: ref.dataUrl },
+        type: "image_url",
+        image_url: { url: ref.dataUrl }
       }));
     }
   } else if (ctx.imageRef && ctx.imageRef.dataUrl) {
     // Backward compat: single --image param without --images.
     body.frame_images = [
       {
-        type: 'image_url',
+        type: "image_url",
         image_url: { url: ctx.imageRef.dataUrl },
-        frame_type: 'first_frame',
-      },
+        frame_type: "first_frame"
+      }
     ];
   }
 
   // ── Step 1: Submit the generation request ──────────────────────────
   const submitResp = await fetch(`${baseUrl}/videos`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'authorization': `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
+      authorization: `Bearer ${credentials.apiKey}`,
+      "content-type": "application/json",
       // OpenRouter attribution headers per
       // https://openrouter.ai/docs/app-attribution
-      'HTTP-Referer': 'https://opendesign.dev',
-      'X-Title': 'Open Design',
+      "HTTP-Referer": "https://opendesign.dev",
+      "X-Title": "Open Design"
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(body)
   });
   const submitText = await submitResp.text();
   if (!submitResp.ok) {
-    throw new Error(
-      `openrouter video submit ${submitResp.status}: ${truncate(submitText, 240)}`,
-    );
+    throw new Error(`openrouter video submit ${submitResp.status}: ${truncate(submitText, 240)}`);
   }
   let submitData: any;
   try {
@@ -1944,43 +2436,34 @@ async function renderOpenRouterVideo(
   const jobId = submitData?.id;
   const pollingUrl = submitData?.polling_url;
   if (!jobId || !pollingUrl) {
-    throw new Error(
-      `openrouter video submit returned no job id or polling_url: ${truncate(submitText, 200)}`,
-    );
+    throw new Error(`openrouter video submit returned no job id or polling_url: ${truncate(submitText, 200)}`);
   }
 
   // ── Step 2: Poll until completion ──────────────────────────────────
   const startedAt = Date.now();
   const configuredMaxMs = Number(process.env.OD_OPENROUTER_VIDEO_MAX_POLL_MS);
-  const maxMs =
-    Number.isFinite(configuredMaxMs) && configuredMaxMs >= 60_000
-      ? configuredMaxMs
-      : 30 * 60 * 1000; // 30 minutes default
+  const maxMs = Number.isFinite(configuredMaxMs) && configuredMaxMs >= 60_000 ? configuredMaxMs : 30 * 60 * 1000; // 30 minutes default
 
-  let lastStatus = submitData?.status || 'pending';
+  let lastStatus = submitData?.status || "pending";
   let videoUrls: string[] | null = null;
 
-  if (typeof onProgress === 'function') {
-    const mode = ctx.imageRef ? 'i2v' : 't2v';
-    onProgress(
-      `openrouter ${mode} job ${jobId} (${wireModel}) accepted; polling status…`,
-    );
+  if (typeof onProgress === "function") {
+    const mode = ctx.imageRef ? "i2v" : "t2v";
+    onProgress(`openrouter ${mode} job ${jobId} (${wireModel}) accepted; polling status…`);
   }
 
   while (Date.now() - startedAt < maxMs) {
     await sleep(8000);
     const pollResp = await fetch(pollingUrl, {
       headers: {
-        'authorization': `Bearer ${credentials.apiKey}`,
-        'HTTP-Referer': 'https://opendesign.dev',
-        'X-Title': 'Open Design',
-      },
+        authorization: `Bearer ${credentials.apiKey}`,
+        "HTTP-Referer": "https://opendesign.dev",
+        "X-Title": "Open Design"
+      }
     });
     const pollText = await pollResp.text();
     if (!pollResp.ok) {
-      throw new Error(
-        `openrouter poll ${pollResp.status}: ${truncate(pollText, 240)}`,
-      );
+      throw new Error(`openrouter poll ${pollResp.status}: ${truncate(pollText, 240)}`);
     }
     let pollData: any;
     try {
@@ -1989,27 +2472,19 @@ async function renderOpenRouterVideo(
       throw new Error(`openrouter poll non-JSON: ${truncate(pollText, 200)}`);
     }
 
-    lastStatus = pollData?.status || '';
-    if (typeof onProgress === 'function') {
+    lastStatus = pollData?.status || "";
+    if (typeof onProgress === "function") {
       const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
-      onProgress(
-        `openrouter job ${jobId} status=${lastStatus || 'pending'} (elapsed ${elapsedSec}s)`,
-      );
+      onProgress(`openrouter job ${jobId} status=${lastStatus || "pending"} (elapsed ${elapsedSec}s)`);
     }
 
-    if (lastStatus === 'completed') {
+    if (lastStatus === "completed") {
       videoUrls = pollData?.unsigned_urls || null;
       break;
     }
-    if (
-      lastStatus === 'failed'
-      || lastStatus === 'expired'
-      || lastStatus === 'cancelled'
-    ) {
-      const reasonRaw =
-        pollData?.error?.message || pollData?.error || lastStatus;
-      const reason =
-        typeof reasonRaw === 'string' ? reasonRaw : JSON.stringify(reasonRaw);
+    if (lastStatus === "failed" || lastStatus === "expired" || lastStatus === "cancelled") {
+      const reasonRaw = pollData?.error?.message || pollData?.error || lastStatus;
+      const reason = typeof reasonRaw === "string" ? reasonRaw : JSON.stringify(reasonRaw);
       throw new Error(`openrouter job ${lastStatus}: ${reason}`);
     }
   }
@@ -2018,9 +2493,9 @@ async function renderOpenRouterVideo(
     const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
     const ceilingSec = Math.round(maxMs / 1000);
     throw new Error(
-      `openrouter video timed out after ${elapsedSec}s waiting for status=completed `
-      + `(last status: ${lastStatus || 'pending'}, ceiling ${ceilingSec}s). `
-      + `If your jobs legitimately need longer, raise OD_OPENROUTER_VIDEO_MAX_POLL_MS.`,
+      `openrouter video timed out after ${elapsedSec}s waiting for status=completed ` +
+        `(last status: ${lastStatus || "pending"}, ceiling ${ceilingSec}s). ` +
+        `If your jobs legitimately need longer, raise OD_OPENROUTER_VIDEO_MAX_POLL_MS.`
     );
   }
 
@@ -2033,8 +2508,8 @@ async function renderOpenRouterVideo(
   const parsedContentUrl = new URL(contentUrl);
 
   const dlHeaders: Record<string, string> = {};
-  if (parsedContentUrl.hostname === 'openrouter.ai') {
-    dlHeaders['authorization'] = `Bearer ${credentials.apiKey}`;
+  if (parsedContentUrl.hostname === "openrouter.ai") {
+    dlHeaders["authorization"] = `Bearer ${credentials.apiKey}`;
   }
 
   const dlResp = await fetch(contentUrl, { headers: dlHeaders });
@@ -2047,7 +2522,7 @@ async function renderOpenRouterVideo(
   return {
     bytes,
     providerNote: `openrouter/${wireModel} · ${aspectRatio} · ${bytes.length} bytes`,
-    suggestedExt: '.mp4',
+    suggestedExt: ".mp4"
   };
 }
 
@@ -2055,154 +2530,153 @@ function openRouterAspectFor(aspect?: string): string {
   // OpenRouter normalises aspect ratios across providers. Our
   // MEDIA_ASPECTS vocabulary is a strict subset — pass known values
   // through, default to 16:9 for video.
-  if (
-    aspect === '1:1'
-    || aspect === '16:9'
-    || aspect === '9:16'
-    || aspect === '4:3'
-    || aspect === '3:4'
-  ) {
+  if (aspect === "1:1" || aspect === "16:9" || aspect === "9:16" || aspect === "4:3" || aspect === "3:4") {
     return aspect;
   }
-  return '16:9';
+  return "16:9";
 }
 
 async function renderLeonardoImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error(
-      'no Leonardo.ai API key — configure it in Settings or set LEONARDO_API_KEY',
-    );
+    throw new Error("no Leonardo.ai API key — configure it in Settings or set LEONARDO_API_KEY");
   }
-  const baseUrl = (credentials.baseUrl || 'https://cloud.leonardo.ai/api/rest/v1').replace(/\/$/, '');
-  
+  const baseUrl = (credentials.baseUrl || "https://cloud.leonardo.ai/api/rest/v1").replace(/\/$/, "");
+
   // Map model IDs to Leonardo.ai platform model IDs
   const modelMap: Record<string, string> = {
-    'leonardo-phoenix': '6b645e3a-d64f-4341-a6d8-7a3690fbf042',  // Phoenix
-    'leonardo-kino-xl': 'aa77f04e-3eec-4034-9c07-d0f619684628',  // Kino XL
-    'leonardo-flux-dev': 'b2614463-296c-462a-9586-aafdb8f00e36', // FLUX.1 [dev]
-    'leonardo-flux-schnell': '1dd50843-d653-4516-a8e3-f0238ee453ff', // FLUX.1 [schnell]
-    'leonardo-anime-pastel': '1e60896f-3c26-4296-8ecc-53e2afecc132', // Anime Pastel Dream
+    "leonardo-phoenix": "6b645e3a-d64f-4341-a6d8-7a3690fbf042", // Phoenix
+    "leonardo-kino-xl": "aa77f04e-3eec-4034-9c07-d0f619684628", // Kino XL
+    "leonardo-flux-dev": "b2614463-296c-462a-9586-aafdb8f00e36", // FLUX.1 [dev]
+    "leonardo-flux-schnell": "1dd50843-d653-4516-a8e3-f0238ee453ff", // FLUX.1 [schnell]
+    "leonardo-anime-pastel": "1e60896f-3c26-4296-8ecc-53e2afecc132" // Anime Pastel Dream
   };
-  
+
   const platformModelId = modelMap[ctx.model];
   if (!platformModelId) {
     throw new Error(`unsupported leonardo.ai model: ${ctx.model}`);
   }
-  
+
   // Map aspect ratios to Leonardo.ai dimensions
   const aspectMap: Record<string, { width: number; height: number }> = {
-    '1:1': { width: 1024, height: 1024 },
-    '16:9': { width: 1344, height: 768 },
-    '9:16': { width: 768, height: 1344 },
-    '4:3': { width: 1152, height: 896 },
-    '3:4': { width: 896, height: 1152 },
+    "1:1": { width: 1024, height: 1024 },
+    "16:9": { width: 1344, height: 768 },
+    "9:16": { width: 768, height: 1344 },
+    "4:3": { width: 1152, height: 896 },
+    "3:4": { width: 896, height: 1152 }
   };
-  
+
   const size = (ctx.aspect ? aspectMap[ctx.aspect] : undefined) || { width: 1024, height: 1024 };
-  
+
   // Submit generation request. Phoenix and the FLUX family require the
   // `contrast` field per Leonardo's API reference; valid values are
   // 3 (Low) / 3.5 (Medium) / 4 (High). Default to 3.5 so prompts that
   // omit a contrast hint fall in the middle of the supported range.
   const requiresContrast =
-    ctx.model === 'leonardo-phoenix'
-    || ctx.model === 'leonardo-flux-dev'
-    || ctx.model === 'leonardo-flux-schnell';
+    ctx.model === "leonardo-phoenix" || ctx.model === "leonardo-flux-dev" || ctx.model === "leonardo-flux-schnell";
   const body: Record<string, unknown> = {
-    prompt: ctx.prompt || 'A high-quality reference image.',
+    prompt: ctx.prompt || "A high-quality reference image.",
     modelId: platformModelId,
     width: size.width,
     height: size.height,
     num_images: 1,
-    ...(requiresContrast ? { contrast: 3.5 } : {}),
+    ...(requiresContrast ? { contrast: 3.5 } : {})
   };
-  
-  const submitResp = await fetch(`${baseUrl}/generations`, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: {
-      'authorization': `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }));
-  
+
+  const submitResp = await fetch(
+    `${baseUrl}/generations`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
+
   const submitText = await submitResp.text();
   if (!submitResp.ok) {
     throw new Error(`leonardo.ai submit ${submitResp.status}: ${truncate(submitText, 240)}`);
   }
-  
+
   let submitData: any;
   try {
     submitData = JSON.parse(submitText);
   } catch {
     throw new Error(`leonardo.ai non-JSON: ${truncate(submitText, 200)}`);
   }
-  
+
   const generationId = submitData?.sdGenerationJob?.generationId;
   if (!generationId) {
-    throw new Error('leonardo.ai response missing generationId');
+    throw new Error("leonardo.ai response missing generationId");
   }
-  
+
   // Poll for completion
   const maxPollMs = 120000; // 2 minutes
   const pollIntervalMs = 2000; // 2 seconds
   const startedAt = Date.now();
   let imageUrl: string | null = null;
-  
+
   while (Date.now() - startedAt < maxPollMs) {
-    await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
-    
-    const pollResp = await fetch(`${baseUrl}/generations/${generationId}`, withMediaRequestInit(ctx, {
-      headers: {
-        'authorization': `Bearer ${credentials.apiKey}`,
-      },
-    }));
-    
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+
+    const pollResp = await fetch(
+      `${baseUrl}/generations/${generationId}`,
+      withMediaRequestInit(ctx, {
+        headers: {
+          authorization: `Bearer ${credentials.apiKey}`
+        }
+      })
+    );
+
     if (!pollResp.ok) {
       throw new Error(`leonardo.ai poll ${pollResp.status}`);
     }
-    
+
     const pollData = (await pollResp.json()) as Record<string, any>;
     const generation = pollData?.generations_by_pk;
-    
-    if (generation?.status === 'COMPLETE') {
+
+    if (generation?.status === "COMPLETE") {
       const images = generation?.generated_images;
       if (Array.isArray(images) && images.length > 0) {
         imageUrl = images[0]?.url;
         break;
       }
-    } else if (generation?.status === 'FAILED') {
-      throw new Error('leonardo.ai generation failed');
+    } else if (generation?.status === "FAILED") {
+      throw new Error("leonardo.ai generation failed");
     }
   }
-  
+
   if (!imageUrl) {
-    throw new Error('leonardo.ai generation timed out after 2 minutes');
+    throw new Error("leonardo.ai generation timed out after 2 minutes");
   }
-  
+
   // Fetch the generated image
   const imgResp = await fetch(imageUrl, withMediaRequestInit(ctx));
   if (!imgResp.ok) {
     throw new Error(`leonardo.ai image fetch ${imgResp.status}`);
   }
-  
+
   const bytes = Buffer.from(await imgResp.arrayBuffer());
-  
+
   return {
     bytes,
     providerNote: `leonardo.ai/${ctx.model} · ${ctx.aspect} · ${bytes.length} bytes`,
-    suggestedExt: sniffImageExt(bytes),
+    suggestedExt: sniffImageExt(bytes)
   };
 }
 
-
-async function renderGrokVideo(ctx: MediaContext, credentials: ProviderConfig, onProgress?: ProgressFn): Promise<RenderResult> {
+async function renderGrokVideo(
+  ctx: MediaContext,
+  credentials: ProviderConfig,
+  onProgress?: ProgressFn
+): Promise<RenderResult> {
   if (!credentials.apiKey) {
     throw new Error(
-      'no xAI credentials — sign in with your SuperGrok subscription (in OD or via `hermes auth add xai-oauth`), set XAI_API_KEY, or configure a key in Settings',
+      "no xAI credentials — sign in with your SuperGrok subscription (in OD or via `hermes auth add xai-oauth`), set XAI_API_KEY, or configure a key in Settings"
     );
   }
-  const baseUrl = (credentials.baseUrl || 'https://api.x.ai/v1').replace(/\/$/, '');
+  const baseUrl = (credentials.baseUrl || "https://api.x.ai/v1").replace(/\/$/, "");
 
   // Grok caps duration at 15s. The dispatcher already clamps to
   // VIDEO_LENGTHS_SEC (which goes up to 30) — re-clamp here so a user
@@ -2213,10 +2687,10 @@ async function renderGrokVideo(ctx: MediaContext, credentials: ProviderConfig, o
 
   const body: Record<string, unknown> = {
     model: ctx.wireModel,
-    prompt: ctx.prompt || 'A short cinematic clip.',
+    prompt: ctx.prompt || "A short cinematic clip.",
     duration: durationSec,
     aspect_ratio: aspectRatio,
-    resolution: '720p',
+    resolution: "720p"
   };
   if (ctx.imageRef && ctx.imageRef.dataUrl) {
     // grok-imagine-video accepts a base64 data URI in `image` for i2v.
@@ -2225,14 +2699,17 @@ async function renderGrokVideo(ctx: MediaContext, credentials: ProviderConfig, o
     body.image = ctx.imageRef.dataUrl;
   }
 
-  const submitResp = await fetch(`${baseUrl}/videos/generations`, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: {
-      'authorization': `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }));
+  const submitResp = await fetch(
+    `${baseUrl}/videos/generations`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
   const submitText = await submitResp.text();
   if (!submitResp.ok) {
     throw new Error(`grok video submit ${submitResp.status}: ${truncate(submitText, 240)}`);
@@ -2249,25 +2726,25 @@ async function renderGrokVideo(ctx: MediaContext, credentials: ProviderConfig, o
   // {id, status:'pending'} stub and need to poll GET /videos/{id}
   // until status flips to done/failed/expired.
   let videoUrl = submitData?.video?.url || null;
-  let lastStatus = submitData?.status || '';
+  let lastStatus = submitData?.status || "";
   const requestId = submitData?.id || submitData?.request_id || null;
 
   if (!videoUrl && requestId) {
     const startedAt = Date.now();
     const configuredMaxMs = Number(process.env.OD_GROK_VIDEO_MAX_POLL_MS);
-    const maxMs =
-      Number.isFinite(configuredMaxMs) && configuredMaxMs >= 60_000
-        ? configuredMaxMs
-        : 8 * 60 * 1000;
-    if (typeof onProgress === 'function') {
-      const mode = ctx.imageRef ? 'i2v' : 't2v';
+    const maxMs = Number.isFinite(configuredMaxMs) && configuredMaxMs >= 60_000 ? configuredMaxMs : 8 * 60 * 1000;
+    if (typeof onProgress === "function") {
+      const mode = ctx.imageRef ? "i2v" : "t2v";
       onProgress(`grok ${mode} task ${requestId} accepted; polling status…`);
     }
     while (Date.now() - startedAt < maxMs) {
       await sleep(4000);
-      const pollResp = await fetch(`${baseUrl}/videos/${encodeURIComponent(requestId)}`, withMediaRequestInit(ctx, {
-        headers: { 'authorization': `Bearer ${credentials.apiKey}` },
-      }));
+      const pollResp = await fetch(
+        `${baseUrl}/videos/${encodeURIComponent(requestId)}`,
+        withMediaRequestInit(ctx, {
+          headers: { authorization: `Bearer ${credentials.apiKey}` }
+        })
+      );
       const pollText = await pollResp.text();
       if (!pollResp.ok) {
         throw new Error(`grok poll ${pollResp.status}: ${truncate(pollText, 240)}`);
@@ -2278,18 +2755,18 @@ async function renderGrokVideo(ctx: MediaContext, credentials: ProviderConfig, o
       } catch {
         throw new Error(`grok poll non-JSON: ${truncate(pollText, 200)}`);
       }
-      lastStatus = pollData.status || '';
-      if (typeof onProgress === 'function') {
+      lastStatus = pollData.status || "";
+      if (typeof onProgress === "function") {
         const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
-        onProgress(`grok task ${requestId} status=${lastStatus || 'pending'} (elapsed ${elapsedSec}s)`);
+        onProgress(`grok task ${requestId} status=${lastStatus || "pending"} (elapsed ${elapsedSec}s)`);
       }
-      if (lastStatus === 'done' || lastStatus === 'succeeded') {
+      if (lastStatus === "done" || lastStatus === "succeeded") {
         videoUrl = pollData?.video?.url || null;
         break;
       }
-      if (lastStatus === 'failed' || lastStatus === 'expired') {
+      if (lastStatus === "failed" || lastStatus === "expired") {
         const reasonRaw = pollData?.error?.message || pollData?.error || lastStatus;
-        const reason = typeof reasonRaw === 'string' ? reasonRaw : JSON.stringify(reasonRaw);
+        const reason = typeof reasonRaw === "string" ? reasonRaw : JSON.stringify(reasonRaw);
         throw new Error(`grok task ${lastStatus}: ${reason}`);
       }
     }
@@ -2301,9 +2778,9 @@ async function renderGrokVideo(ctx: MediaContext, credentials: ProviderConfig, o
       const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
       const ceilingSec = Math.round(maxMs / 1000);
       throw new Error(
-        `grok video timed out after ${elapsedSec}s waiting for status=done `
-        + `(last status: ${lastStatus || 'pending'}, ceiling ${ceilingSec}s). `
-        + `If your jobs legitimately need longer, raise OD_GROK_VIDEO_MAX_POLL_MS.`,
+        `grok video timed out after ${elapsedSec}s waiting for status=done ` +
+          `(last status: ${lastStatus || "pending"}, ceiling ${ceilingSec}s). ` +
+          `If your jobs legitimately need longer, raise OD_GROK_VIDEO_MAX_POLL_MS.`
       );
     }
   }
@@ -2314,8 +2791,7 @@ async function renderGrokVideo(ctx: MediaContext, credentials: ProviderConfig, o
     // pinpoint whether it was a transient API blip or a malformed
     // response we should add a parser branch for.
     throw new Error(
-      `grok video submit returned no inline video and no request_id to poll `
-      + `(status=${lastStatus || 'unknown'})`,
+      `grok video submit returned no inline video and no request_id to poll ` + `(status=${lastStatus || "unknown"})`
     );
   }
 
@@ -2327,7 +2803,7 @@ async function renderGrokVideo(ctx: MediaContext, credentials: ProviderConfig, o
   return {
     bytes,
     providerNote: `grok/${ctx.wireModel} · ${aspectRatio} · ${durationSec}s · ${bytes.length} bytes`,
-    suggestedExt: '.mp4',
+    suggestedExt: ".mp4"
   };
 }
 
@@ -2335,16 +2811,10 @@ function grokAspectFor(aspect?: string): string {
   // xAI accepts a wide list (1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 2:1,
   // 1:2, 19.5:9, 9:19.5, 20:9, 9:20, auto). Our MEDIA_ASPECTS subset
   // is a strict subset — pass through known values, otherwise 16:9.
-  if (
-    aspect === '1:1'
-    || aspect === '16:9'
-    || aspect === '9:16'
-    || aspect === '4:3'
-    || aspect === '3:4'
-  ) {
+  if (aspect === "1:1" || aspect === "16:9" || aspect === "9:16" || aspect === "4:3" || aspect === "3:4") {
     return aspect;
   }
-  return '16:9';
+  return "16:9";
 }
 
 // ---------------------------------------------------------------------------
@@ -2357,26 +2827,21 @@ function grokAspectFor(aspect?: string): string {
 // so a SuperGrok subscriber gets TTS for free once they have authorized.
 // ---------------------------------------------------------------------------
 
-const XAI_TTS_DEFAULT_BASE_URL = 'https://api.x.ai/v1';
-const XAI_TTS_DEFAULT_VOICE_ID = 'eve';
-const XAI_TTS_DEFAULT_LANGUAGE = 'en';
+const XAI_TTS_DEFAULT_BASE_URL = "https://api.x.ai/v1";
+const XAI_TTS_DEFAULT_VOICE_ID = "eve";
+const XAI_TTS_DEFAULT_LANGUAGE = "en";
 
 async function renderXAITTS(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
     throw new Error(
-      'no xAI credentials — sign in with your SuperGrok subscription (in OD or via `hermes auth add xai-oauth`), set XAI_API_KEY, or configure a key in Settings',
+      "no xAI credentials — sign in with your SuperGrok subscription (in OD or via `hermes auth add xai-oauth`), set XAI_API_KEY, or configure a key in Settings"
     );
   }
-  const baseUrl = (credentials.baseUrl || XAI_TTS_DEFAULT_BASE_URL).replace(
-    /\/$/,
-    '',
-  );
-  const text = (ctx.prompt && ctx.prompt.trim()) || 'This is a test.';
+  const baseUrl = (credentials.baseUrl || XAI_TTS_DEFAULT_BASE_URL).replace(/\/$/, "");
+  const text = (ctx.prompt && ctx.prompt.trim()) || "This is a test.";
   const voiceId = (ctx.voice && ctx.voice.trim()) || XAI_TTS_DEFAULT_VOICE_ID;
   const language =
-    typeof ctx.language === 'string' && ctx.language.trim()
-      ? ctx.language.trim()
-      : XAI_TTS_DEFAULT_LANGUAGE;
+    typeof ctx.language === "string" && ctx.language.trim() ? ctx.language.trim() : XAI_TTS_DEFAULT_LANGUAGE;
 
   // Stick to the documented minimal POST /v1/tts shape; the server
   // defaults output_format to mp3 / 24kHz / 128kbps which matches what
@@ -2385,30 +2850,33 @@ async function renderXAITTS(ctx: MediaContext, credentials: ProviderConfig): Pro
   const body = {
     text,
     voice_id: voiceId,
-    language,
+    language
   };
 
-  const resp = await fetch(`${baseUrl}/tts`, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }));
+  const resp = await fetch(
+    `${baseUrl}/tts`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
   if (!resp.ok) {
-    const errText = await resp.text().catch(() => '');
+    const errText = await resp.text().catch(() => "");
     throw new Error(`xai tts ${resp.status}: ${truncate(errText, 240)}`);
   }
   const arrayBuffer = await resp.arrayBuffer();
   const bytes = Buffer.from(arrayBuffer);
   if (bytes.length === 0) {
-    throw new Error('xai tts response had zero bytes');
+    throw new Error("xai tts response had zero bytes");
   }
   return {
     bytes,
     providerNote: `xai/${ctx.wireModel} · voice=${voiceId} · ${language} · ${bytes.length} bytes`,
-    suggestedExt: '.mp3',
+    suggestedExt: ".mp3"
   };
 }
 
@@ -2421,32 +2889,32 @@ async function renderXAITTS(ctx: MediaContext, credentials: ProviderConfig): Pro
 // voice id in the path.
 // ---------------------------------------------------------------------------
 
-const ELEVENLABS_DEFAULT_BASE_URL = 'https://api.elevenlabs.io';
-const ELEVENLABS_DEFAULT_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
+const ELEVENLABS_DEFAULT_BASE_URL = "https://api.elevenlabs.io";
+const ELEVENLABS_DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
 
 const ELEVENLABS_TTS_MODEL_MAP = {
-  'elevenlabs-v3': 'eleven_v3',
+  "elevenlabs-v3": "eleven_v3"
 } as Record<string, string>;
 
 const ELEVENLABS_SFX_MODEL_MAP = {
-  'elevenlabs-sfx': 'eleven_text_to_sound_v2',
+  "elevenlabs-sfx": "eleven_text_to_sound_v2"
 } as Record<string, string>;
 const ELEVENLABS_SFX_MAX_PROMPT_CHARS = 450;
 const ELEVENLABS_SFX_DEFAULT_PROMPT_INFLUENCE = 0.3;
 
 function clampElevenLabsSfxDuration(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 5;
+  if (typeof value !== "number" || !Number.isFinite(value)) return 5;
   return Math.min(30, Math.max(0.5, value));
 }
 
 function clampElevenLabsSfxPromptInfluence(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     return ELEVENLABS_SFX_DEFAULT_PROMPT_INFLUENCE;
   }
   return Math.min(1, Math.max(0, value));
 }
 
-function requireElevenLabsPrompt(text: string, kind: 'TTS' | 'SFX'): string {
+function requireElevenLabsPrompt(text: string, kind: "TTS" | "SFX"): string {
   const trimmed = text.trim();
   if (!trimmed) {
     throw new Error(`ElevenLabs ${kind} prompt must not be empty. Pass --prompt before retrying.`);
@@ -2458,24 +2926,19 @@ function assertElevenLabsSfxPromptLength(text: string) {
   const promptChars = Array.from(text).length;
   if (promptChars > ELEVENLABS_SFX_MAX_PROMPT_CHARS) {
     throw new Error(
-      `ElevenLabs SFX prompt exceeds ${ELEVENLABS_SFX_MAX_PROMPT_CHARS} characters (${promptChars}). Shorten --prompt before retrying.`,
+      `ElevenLabs SFX prompt exceeds ${ELEVENLABS_SFX_MAX_PROMPT_CHARS} characters (${promptChars}). Shorten --prompt before retrying.`
     );
   }
 }
 
 async function renderElevenLabsTTS(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error(
-      'no ElevenLabs API key - configure it in Settings or set OD_ELEVENLABS_API_KEY',
-    );
+    throw new Error("no ElevenLabs API key - configure it in Settings or set OD_ELEVENLABS_API_KEY");
   }
 
-  const baseUrl = (credentials.baseUrl || ELEVENLABS_DEFAULT_BASE_URL).replace(
-    /\/$/,
-    '',
-  );
+  const baseUrl = (credentials.baseUrl || ELEVENLABS_DEFAULT_BASE_URL).replace(/\/$/, "");
   const wireModel = ELEVENLABS_TTS_MODEL_MAP[ctx.model] || ctx.model;
-  const text = requireElevenLabsPrompt(ctx.prompt ?? '', 'TTS');
+  const text = requireElevenLabsPrompt(ctx.prompt ?? "", "TTS");
   const voiceId = (ctx.voice && ctx.voice.trim()) || ELEVENLABS_DEFAULT_VOICE_ID;
   const body = {
     text,
@@ -2485,20 +2948,20 @@ async function renderElevenLabsTTS(ctx: MediaContext, credentials: ProviderConfi
       similarity_boost: 1,
       style: 0,
       speed: 1,
-      use_speaker_boost: true,
-    },
+      use_speaker_boost: true
+    }
   };
 
   const resp = await fetch(
     `${baseUrl}/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`,
     withMediaRequestInit(ctx, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'xi-api-key': credentials.apiKey,
-        'content-type': 'application/json',
+        "xi-api-key": credentials.apiKey,
+        "content-type": "application/json"
       },
-      body: JSON.stringify(body),
-    }),
+      body: JSON.stringify(body)
+    })
   );
   if (!resp.ok) {
     const errText = await resp.text();
@@ -2507,28 +2970,23 @@ async function renderElevenLabsTTS(ctx: MediaContext, credentials: ProviderConfi
   const arr = await resp.arrayBuffer();
   const bytes = Buffer.from(arr);
   if (bytes.length === 0) {
-    throw new Error('elevenlabs tts returned zero bytes');
+    throw new Error("elevenlabs tts returned zero bytes");
   }
   return {
     bytes,
     providerNote: `elevenlabs/${wireModel} · ${voiceId} · ${bytes.length} bytes`,
-    suggestedExt: '.mp3',
+    suggestedExt: ".mp3"
   };
 }
 
 async function renderElevenLabsSfx(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error(
-      'no ElevenLabs API key - configure it in Settings or set OD_ELEVENLABS_API_KEY',
-    );
+    throw new Error("no ElevenLabs API key - configure it in Settings or set OD_ELEVENLABS_API_KEY");
   }
 
-  const baseUrl = (credentials.baseUrl || ELEVENLABS_DEFAULT_BASE_URL).replace(
-    /\/$/,
-    '',
-  );
+  const baseUrl = (credentials.baseUrl || ELEVENLABS_DEFAULT_BASE_URL).replace(/\/$/, "");
   const wireModel = ELEVENLABS_SFX_MODEL_MAP[ctx.model] || ctx.model;
-  const text = requireElevenLabsPrompt(ctx.prompt ?? '', 'SFX');
+  const text = requireElevenLabsPrompt(ctx.prompt ?? "", "SFX");
   assertElevenLabsSfxPromptLength(text);
   const durationSeconds = clampElevenLabsSfxDuration(ctx.duration);
   const promptInfluence = clampElevenLabsSfxPromptInfluence(ctx.promptInfluence);
@@ -2537,19 +2995,19 @@ async function renderElevenLabsSfx(ctx: MediaContext, credentials: ProviderConfi
     duration_seconds: durationSeconds,
     prompt_influence: promptInfluence,
     ...(ctx.loop ? { loop: true } : {}),
-    model_id: wireModel,
+    model_id: wireModel
   };
 
   const resp = await fetch(
     `${baseUrl}/v1/sound-generation?output_format=mp3_44100_128`,
     withMediaRequestInit(ctx, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'xi-api-key': credentials.apiKey,
-        'content-type': 'application/json',
+        "xi-api-key": credentials.apiKey,
+        "content-type": "application/json"
       },
-      body: JSON.stringify(body),
-    }),
+      body: JSON.stringify(body)
+    })
   );
   if (!resp.ok) {
     const errText = await resp.text();
@@ -2558,63 +3016,291 @@ async function renderElevenLabsSfx(ctx: MediaContext, credentials: ProviderConfi
   const arr = await resp.arrayBuffer();
   const bytes = Buffer.from(arr);
   if (bytes.length === 0) {
-    throw new Error('elevenlabs sfx returned zero bytes');
+    throw new Error("elevenlabs sfx returned zero bytes");
   }
   return {
     bytes,
-    providerNote: `elevenlabs/${wireModel} · ${durationSeconds}s${ctx.loop ? ' · loop' : ''} · ${bytes.length} bytes`,
-    suggestedExt: '.mp3',
+    providerNote: `elevenlabs/${wireModel} · ${durationSeconds}s${ctx.loop ? " · loop" : ""} · ${bytes.length} bytes`,
+    suggestedExt: ".mp3"
   };
 }
 
 // ---------------------------------------------------------------------------
-// Provider: MiniMax — Speech-02 family text-to-speech (synchronous).
+// Provider: MiniMax — image generation (synchronous URL response).
+//
+// Docs: https://platform.minimaxi.com — POST /image_generation under the
+// versioned API base. MiniMax returns image URLs, so the daemon downloads the
+// first URL and stores stable bytes in the project.
+// ---------------------------------------------------------------------------
+
+function minimaxAspectFor(aspect?: string): string {
+  if (!aspect) return "1:1";
+  if (aspect === "1:1" || aspect === "16:9" || aspect === "9:16" || aspect === "4:3" || aspect === "3:4") {
+    return aspect;
+  }
+  return "1:1";
+}
+
+async function renderMinimaxImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
+  if (!credentials.apiKey) {
+    throw new Error("no MiniMax API key — configure it in Settings or set OD_MINIMAX_API_KEY");
+  }
+  const baseUrl = (credentials.baseUrl || MINIMAX_DEFAULT_BASE_URL).replace(/\/$/, "");
+  const body = {
+    model: ctx.wireModel,
+    prompt: (ctx.prompt && ctx.prompt.trim()) || "A high-quality ecommerce product image.",
+    aspect_ratio: minimaxAspectFor(ctx.aspect),
+    response_format: "url",
+    n: 1,
+    prompt_optimizer: false
+  };
+
+  const resp = await fetch(
+    `${baseUrl}/image_generation`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
+  const respText = await resp.text();
+  if (!resp.ok) {
+    throw new Error(`minimax image ${resp.status}: ${truncate(respText, 240)}`);
+  }
+  let data: any;
+  try {
+    data = JSON.parse(respText);
+  } catch {
+    throw new Error(`minimax image non-JSON: ${truncate(respText, 200)}`);
+  }
+  if (data?.base_resp && data.base_resp.status_code !== 0) {
+    throw new Error(`minimax image api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || "unknown"}`);
+  }
+  const urls = Array.isArray(data?.data?.image_urls)
+    ? data.data.image_urls.filter((value: unknown): value is string => typeof value === "string" && value.length > 0)
+    : [];
+  const imageUrl = urls[0];
+  if (!imageUrl) {
+    throw new Error("minimax image response missing data.image_urls[0]");
+  }
+  const imgResp = await fetch(imageUrl, withMediaRequestInit(ctx));
+  if (!imgResp.ok) throw new Error(`minimax image fetch ${imgResp.status}`);
+  const bytes = Buffer.from(await imgResp.arrayBuffer());
+  if (bytes.length === 0) {
+    throw new Error("minimax image returned zero bytes");
+  }
+  return {
+    bytes,
+    providerNote: `minimax/${ctx.wireModel} · ${body.aspect_ratio} · ${bytes.length} bytes`,
+    suggestedExt: ".png"
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Provider: MiniMax — video generation (image-to-video only).
+//
+// Docs: https://platform.minimaxi.com — POST /video_generation,
+// GET /query/video_generation, then GET /files/retrieve. This route is
+// intentionally only registered as `minimax-video-01` with i2v caps; the
+// default t2v path stays on Volcengine Ark Seedance 1.5 Pro.
+// ---------------------------------------------------------------------------
+
+const MINIMAX_DEFAULT_BASE_URL = "https://api.minimaxi.com/v1";
+
+const MINIMAX_VIDEO_MODEL_MAP: Record<string, string> = {
+  "minimax-video-01": "MiniMax-Hailuo-2.3"
+};
+
+function minimaxVideoWireModel(ctx: MediaContext): string {
+  if (ctx.wireModel !== ctx.model) return ctx.wireModel;
+  return MINIMAX_VIDEO_MODEL_MAP[ctx.model] || ctx.model;
+}
+
+function minimaxVideoDurationFor(length?: number): 6 | 10 {
+  if (!length || length <= 6) return 6;
+  return 10;
+}
+
+function minimaxVideoResolutionFor(wireModel: string): "720P" | "768P" {
+  return wireModel.startsWith("I2V-01") ? "720P" : "768P";
+}
+
+function minimaxUrl(baseUrl: string, pathName: string, query?: Record<string, string>): string {
+  const search = query ? `?${new URLSearchParams(query).toString()}` : "";
+  return `${baseUrl}${pathName.startsWith("/") ? pathName : `/${pathName}`}${search}`;
+}
+
+function assertMinimaxBaseResp(data: any, label: string): void {
+  if (!data?.base_resp) return;
+  const statusCode = Number(data.base_resp.status_code ?? 0);
+  if (statusCode !== 0) {
+    throw new Error(`${label} api error ${statusCode}: ${data.base_resp.status_msg || "unknown"}`);
+  }
+}
+
+async function minimaxJson(resp: Response, label: string): Promise<any> {
+  const text = await resp.text();
+  if (!resp.ok) {
+    throw new Error(`${label} ${resp.status}: ${truncate(text, 240)}`);
+  }
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`${label} non-JSON: ${truncate(text, 200)}`);
+  }
+  assertMinimaxBaseResp(data, label);
+  return data;
+}
+
+async function renderMinimaxVideo(
+  ctx: MediaContext,
+  credentials: ProviderConfig,
+  onProgress?: ProgressFn
+): Promise<RenderResult> {
+  if (!credentials.apiKey) {
+    throw new Error("no MiniMax API key — configure it in Settings or set OD_MINIMAX_API_KEY");
+  }
+  if (!ctx.imageRef?.dataUrl) {
+    throw new Error(
+      `${ctx.model} is image-to-video only and requires --image <project-relative-path>. ` +
+        "For text-to-video, use doubao-seedance-2-0-260128."
+    );
+  }
+
+  const baseUrl = (credentials.baseUrl || MINIMAX_DEFAULT_BASE_URL).replace(/\/$/, "");
+  const wireModel = minimaxVideoWireModel(ctx);
+  const durationSec = minimaxVideoDurationFor(ctx.length);
+  const resolution = minimaxVideoResolutionFor(wireModel);
+  const body = {
+    model: wireModel,
+    first_frame_image: ctx.imageRef.dataUrl,
+    prompt: (ctx.prompt && ctx.prompt.trim()) || "Animate this image into a short cinematic clip.",
+    duration: durationSec,
+    resolution,
+    prompt_optimizer: false
+  };
+
+  const submitResp = await fetch(
+    minimaxUrl(baseUrl, "/video_generation"),
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
+  const submitData = await minimaxJson(submitResp, "minimax video submit");
+  const taskId = submitData?.task_id || submitData?.data?.task_id;
+  if (!taskId) {
+    throw new Error("minimax video submit response missing task_id");
+  }
+
+  const startedAt = Date.now();
+  const configuredMaxMs = Number(process.env.OD_MINIMAX_VIDEO_MAX_POLL_MS);
+  const maxMs = Number.isFinite(configuredMaxMs) && configuredMaxMs >= 60_000 ? configuredMaxMs : 12 * 60 * 1000;
+  let fileId: string | null = null;
+  let lastStatus = "";
+
+  if (typeof onProgress === "function") {
+    onProgress(`minimax i2v task ${taskId} accepted; polling status…`);
+  }
+
+  while (Date.now() - startedAt < maxMs) {
+    await sleep(4000);
+    const pollResp = await fetch(
+      minimaxUrl(baseUrl, "/query/video_generation", { task_id: String(taskId) }),
+      withMediaRequestInit(ctx, {
+        headers: { authorization: `Bearer ${credentials.apiKey}` }
+      })
+    );
+    const pollData = await minimaxJson(pollResp, "minimax video poll");
+    lastStatus = String(pollData?.status || pollData?.data?.status || "").toLowerCase();
+    if (typeof onProgress === "function") {
+      const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
+      onProgress(`minimax task ${taskId} status=${lastStatus || "pending"} (elapsed ${elapsedSec}s)`);
+    }
+    if (lastStatus === "success" || lastStatus === "succeeded" || lastStatus === "completed") {
+      const rawFileId = pollData?.file_id || pollData?.data?.file_id;
+      fileId = rawFileId ? String(rawFileId) : null;
+      break;
+    }
+    if (lastStatus === "fail" || lastStatus === "failed" || lastStatus === "error") {
+      const reasonRaw = pollData?.error?.message || pollData?.error || pollData?.message || lastStatus;
+      const reason = typeof reasonRaw === "string" ? reasonRaw : JSON.stringify(reasonRaw);
+      throw new Error(`minimax video task ${lastStatus}: ${reason}`);
+    }
+  }
+
+  if (!fileId) {
+    throw new Error(`minimax video task did not finish in time (last status: ${lastStatus || "unknown"})`);
+  }
+
+  const retrieveResp = await fetch(
+    minimaxUrl(baseUrl, "/files/retrieve", { file_id: fileId }),
+    withMediaRequestInit(ctx, {
+      headers: { authorization: `Bearer ${credentials.apiKey}` }
+    })
+  );
+  const retrieveData = await minimaxJson(retrieveResp, "minimax video retrieve");
+  const downloadUrl =
+    retrieveData?.file?.download_url || retrieveData?.data?.file?.download_url || retrieveData?.download_url;
+  if (typeof downloadUrl !== "string" || downloadUrl.length === 0) {
+    throw new Error("minimax video retrieve response missing file.download_url");
+  }
+
+  const dlResp = await fetch(downloadUrl, withMediaRequestInit(ctx));
+  if (!dlResp.ok) throw new Error(`minimax video fetch ${dlResp.status}`);
+  const bytes = Buffer.from(await dlResp.arrayBuffer());
+  if (bytes.length === 0) {
+    throw new Error("minimax video returned zero bytes");
+  }
+
+  return {
+    bytes,
+    providerNote: `minimax/${wireModel} · i2v · ${resolution} · ${durationSec}s · ${bytes.length} bytes`,
+    suggestedExt: ".mp4"
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Provider: MiniMax — Speech 2.8 family text-to-speech (synchronous).
 //
 // Docs: https://platform.minimaxi.com — POST /t2a_v2 with a JSON body
 // describing the voice + audio settings. Response is JSON with the
-// audio bytes hex-encoded under `data.audio`. The MiniMax catalogue we
-// surface as the generic id `minimax-tts` resolves to `speech-02-turbo`
-// (their fast tier). Voice id defaults to a neutral Mandarin voice but
-// the agent can override via the model registry's `voice` slot.
+// audio bytes hex-encoded under `data.audio`. Voice id defaults to a
+// neutral Mandarin voice but the agent can override via the model
+// registry's `voice` slot.
 // ---------------------------------------------------------------------------
 
-const MINIMAX_DEFAULT_BASE_URL = 'https://api.minimaxi.chat/v1';
-
-// Map our generic catalogue ids onto MiniMax's actual model ids. The
-// `minimax-tts` slot in src/media/models.ts is shorthand for "their
-// fast TTS tier"; we substitute the real model name on the wire so
-// MiniMax accepts the request without exposing the user to their
-// internal naming.
 const MINIMAX_TTS_MODEL_MAP = {
-  'minimax-tts': 'speech-02-turbo',
+  "minimax-tts": "speech-2.8-turbo"
 } as Record<string, string>;
 
 async function renderMinimaxTTS(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error(
-      'no MiniMax API key — configure it in Settings or set OD_MINIMAX_API_KEY',
-    );
+    throw new Error("no MiniMax API key — configure it in Settings or set OD_MINIMAX_API_KEY");
   }
-  const baseUrl = (credentials.baseUrl || MINIMAX_DEFAULT_BASE_URL).replace(
-    /\/$/,
-    '',
-  );
+  const baseUrl = (credentials.baseUrl || MINIMAX_DEFAULT_BASE_URL).replace(/\/$/, "");
   // Precedence: user alias from #1277 (when set) -> project's known
   // MINIMAX legacy rename map -> catalog id. The user knows their
   // deployment name better than our hardcoded table, so an explicit
   // alias trumps the legacy mapping.
-  const wireModel = ctx.wireModel !== ctx.model
-    ? ctx.wireModel
-    : (MINIMAX_TTS_MODEL_MAP[ctx.model] || ctx.model);
-  const text = (ctx.prompt && ctx.prompt.trim()) || 'This is a test.';
+  const wireModel = ctx.wireModel !== ctx.model ? ctx.wireModel : MINIMAX_TTS_MODEL_MAP[ctx.model] || ctx.model;
+  const text = (ctx.prompt && ctx.prompt.trim()) || "This is a test.";
   // Voice id picks: the agent can pass --voice to choose, otherwise we
   // default to a neutral Mandarin male voice that handles both Chinese
   // and English text reasonably. MiniMax's voice catalogue is large
   // (`male-qn-qingse`, `female-shaonv`, etc.) — listed at
   // platform.minimaxi.com under voice management.
-  const voiceId = (ctx.voice && ctx.voice.trim()) || 'male-qn-qingse';
+  const voiceId = (ctx.voice && ctx.voice.trim()) || "male-qn-qingse";
 
-  const languageBoost = typeof ctx.language === 'string' ? ctx.language.trim() : '';
+  const languageBoost = typeof ctx.language === "string" ? ctx.language.trim() : "";
 
   const body = {
     model: wireModel,
@@ -2625,22 +3311,25 @@ async function renderMinimaxTTS(ctx: MediaContext, credentials: ProviderConfig):
       voice_id: voiceId,
       speed: 1.0,
       vol: 1.0,
-      pitch: 0,
+      pitch: 0
     },
     audio_setting: {
       sample_rate: 32000,
-      format: 'mp3',
-    },
+      format: "mp3"
+    }
   };
 
-  const resp = await fetch(`${baseUrl}/t2a_v2`, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }));
+  const resp = await fetch(
+    `${baseUrl}/t2a_v2`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
   const respText = await resp.text();
   if (!resp.ok) {
     throw new Error(`minimax tts ${resp.status}: ${truncate(respText, 240)}`);
@@ -2656,27 +3345,25 @@ async function renderMinimaxTTS(ctx: MediaContext, credentials: ProviderConfig):
   // class of error so the user knows it's an auth / params issue, not
   // a network blip.
   if (data?.base_resp && data.base_resp.status_code !== 0) {
-    throw new Error(
-      `minimax tts api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || 'unknown'}`,
-    );
+    throw new Error(`minimax tts api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || "unknown"}`);
   }
   const hex = data?.data?.audio;
-  if (typeof hex !== 'string' || !hex) {
-    throw new Error('minimax tts response missing data.audio');
+  if (typeof hex !== "string" || !hex) {
+    throw new Error("minimax tts response missing data.audio");
   }
-  const bytes = Buffer.from(hex, 'hex');
+  const bytes = Buffer.from(hex, "hex");
   if (bytes.length === 0) {
-    throw new Error('minimax tts decoded zero bytes');
+    throw new Error("minimax tts decoded zero bytes");
   }
   // Pull a few useful descriptors from extra_info for the providerNote
   // so the FileViewer toolbar tells the truth about what was generated.
   const xi = data?.extra_info || {};
-  const seconds = xi.audio_length ? Math.round(xi.audio_length / 100) / 10 : '?';
+  const seconds = xi.audio_length ? Math.round(xi.audio_length / 100) / 10 : "?";
 
   return {
     bytes,
     providerNote: `minimax/${wireModel} · ${voiceId} · ${seconds}s · ${bytes.length} bytes`,
-    suggestedExt: '.mp3',
+    suggestedExt: ".mp3"
   };
 }
 
@@ -2699,25 +3386,20 @@ async function renderMinimaxTTS(ctx: MediaContext, credentials: ProviderConfig):
 // other sample rates but we don't expose them through MediaContext yet.
 // ---------------------------------------------------------------------------
 
-const SENSEAUDIO_DEFAULT_BASE_URL = 'https://api.senseaudio.cn';
-const SENSEAUDIO_DEFAULT_VOICE_ID = 'female_0033_b';
+const SENSEAUDIO_DEFAULT_BASE_URL = "https://api.senseaudio.cn";
+const SENSEAUDIO_DEFAULT_VOICE_ID = "female_0033_b";
 
 const SENSEAUDIO_TTS_MODEL_MAP = {
-  'senseaudio-tts': 'senseaudio-tts-1.5-260319',
+  "senseaudio-tts": "senseaudio-tts-1.5-260319"
 } as Record<string, string>;
 
 async function renderSenseAudioTTS(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error(
-      'no SenseAudio API key — configure it in Settings or set OD_SENSEAUDIO_API_KEY',
-    );
+    throw new Error("no SenseAudio API key — configure it in Settings or set OD_SENSEAUDIO_API_KEY");
   }
-  const baseUrl = (credentials.baseUrl || SENSEAUDIO_DEFAULT_BASE_URL).replace(
-    /\/$/,
-    '',
-  );
+  const baseUrl = (credentials.baseUrl || SENSEAUDIO_DEFAULT_BASE_URL).replace(/\/$/, "");
   const wireModel = SENSEAUDIO_TTS_MODEL_MAP[ctx.model] || ctx.model;
-  const text = (ctx.prompt && ctx.prompt.trim()) || 'This is a test.';
+  const text = (ctx.prompt && ctx.prompt.trim()) || "This is a test.";
   const voiceId = (ctx.voice && ctx.voice.trim()) || SENSEAUDIO_DEFAULT_VOICE_ID;
 
   const body = {
@@ -2728,24 +3410,27 @@ async function renderSenseAudioTTS(ctx: MediaContext, credentials: ProviderConfi
       voice_id: voiceId,
       speed: 1,
       vol: 1,
-      pitch: 0,
+      pitch: 0
     },
     audio_setting: {
-      format: 'mp3',
+      format: "mp3",
       sample_rate: 32000,
       bitrate: 128000,
-      channel: 2,
-    },
+      channel: 2
+    }
   };
 
-  const resp = await fetch(`${baseUrl}/v1/t2a_v2`, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }));
+  const resp = await fetch(
+    `${baseUrl}/v1/t2a_v2`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
   const respText = await resp.text();
   if (!resp.ok) {
     throw new Error(`senseaudio tts ${resp.status}: ${truncate(respText, 240)}`);
@@ -2762,24 +3447,24 @@ async function renderSenseAudioTTS(ctx: MediaContext, credentials: ProviderConfi
   // cause instead of a downstream "missing data.audio" red herring.
   if (data?.base_resp && data.base_resp.status_code !== 0) {
     throw new Error(
-      `senseaudio tts api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || 'unknown'}`,
+      `senseaudio tts api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || "unknown"}`
     );
   }
   const hex = data?.data?.audio;
-  if (typeof hex !== 'string' || !hex) {
-    throw new Error('senseaudio tts response missing data.audio');
+  if (typeof hex !== "string" || !hex) {
+    throw new Error("senseaudio tts response missing data.audio");
   }
-  const bytes = Buffer.from(hex, 'hex');
+  const bytes = Buffer.from(hex, "hex");
   if (bytes.length === 0) {
-    throw new Error('senseaudio tts decoded zero bytes');
+    throw new Error("senseaudio tts decoded zero bytes");
   }
   const xi = data?.extra_info || {};
-  const seconds = xi.audio_length ? Math.round(xi.audio_length / 100) / 10 : '?';
+  const seconds = xi.audio_length ? Math.round(xi.audio_length / 100) / 10 : "?";
 
   return {
     bytes,
     providerNote: `senseaudio/${wireModel} · ${voiceId} · ${seconds}s · ${bytes.length} bytes`,
-    suggestedExt: '.mp3',
+    suggestedExt: ".mp3"
   };
 }
 
@@ -2809,38 +3494,31 @@ const SENSEAUDIO_IMAGE_PROMPT_LIMIT = 2000;
 // `参数错误：size`. Keep this table in sync with byok-tools.ts's
 // ASPECT_TO_SIZE — both paths hit the same /v1/image/sync endpoint.
 function senseAudioImageSize(aspect?: string): string {
-  if (aspect === '16:9') return '1280x720';
-  if (aspect === '9:16') return '720x1280';
-  if (aspect === '4:3') return '1024x768';
-  if (aspect === '3:4') return '768x1024';
-  return '1024x1024';
+  if (aspect === "16:9") return "1280x720";
+  if (aspect === "9:16") return "720x1280";
+  if (aspect === "4:3") return "1024x768";
+  if (aspect === "3:4") return "768x1024";
+  return "1024x1024";
 }
 
 async function renderSenseAudioImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error(
-      'no SenseAudio API key — configure it in Settings or set OD_SENSEAUDIO_API_KEY',
-    );
+    throw new Error("no SenseAudio API key — configure it in Settings or set OD_SENSEAUDIO_API_KEY");
   }
-  const baseUrl = (credentials.baseUrl || SENSEAUDIO_DEFAULT_BASE_URL).replace(
-    /\/$/,
-    '',
-  );
-  const promptRaw = (ctx.prompt && ctx.prompt.trim()) || 'A high-quality reference image.';
+  const baseUrl = (credentials.baseUrl || SENSEAUDIO_DEFAULT_BASE_URL).replace(/\/$/, "");
+  const promptRaw = (ctx.prompt && ctx.prompt.trim()) || "A high-quality reference image.";
   // SenseAudio rejects >2000-char prompts with a 4xx; trim defensively so a
   // verbose agent plan doesn't dead-end the generation. The truncated tail
   // surfaces in providerNote so the user sees what was actually sent.
   const prompt =
-    promptRaw.length > SENSEAUDIO_IMAGE_PROMPT_LIMIT
-      ? promptRaw.slice(0, SENSEAUDIO_IMAGE_PROMPT_LIMIT)
-      : promptRaw;
+    promptRaw.length > SENSEAUDIO_IMAGE_PROMPT_LIMIT ? promptRaw.slice(0, SENSEAUDIO_IMAGE_PROMPT_LIMIT) : promptRaw;
   const size = senseAudioImageSize(ctx.aspect);
   const reference = ctx.imageRef?.dataUrl;
 
   const body: Record<string, unknown> = {
     model: ctx.wireModel,
     prompt,
-    size,
+    size
   };
   if (reference) {
     // When a reference image is supplied the API documents `size` as
@@ -2849,14 +3527,17 @@ async function renderSenseAudioImage(ctx: MediaContext, credentials: ProviderCon
     body.reference = reference;
   }
 
-  const resp = await fetch(`${baseUrl}/v1/image/sync`, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }));
+  const resp = await fetch(
+    `${baseUrl}/v1/image/sync`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
   const respText = await resp.text();
   if (!resp.ok) {
     throw new Error(`senseaudio image ${resp.status}: ${truncate(respText, 240)}`);
@@ -2873,15 +3554,15 @@ async function renderSenseAudioImage(ctx: MediaContext, credentials: ProviderCon
   // error_message), so surface either source verbatim.
   if (data?.base_resp && data.base_resp.status_code !== 0) {
     throw new Error(
-      `senseaudio image api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || 'unknown'}`,
+      `senseaudio image api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || "unknown"}`
     );
   }
-  if (typeof data?.error_message === 'string' && data.error_message) {
+  if (typeof data?.error_message === "string" && data.error_message) {
     throw new Error(`senseaudio image api error: ${data.error_message}`);
   }
-  const url = typeof data?.url === 'string' ? data.url : '';
+  const url = typeof data?.url === "string" ? data.url : "";
   if (!url) {
-    throw new Error('senseaudio image response missing url');
+    throw new Error("senseaudio image response missing url");
   }
   // The gateway-returned `url` is attacker-controllable inside a successful
   // response. assertAndFetchExternalAsset DNS-resolves it and refuses loopback /
@@ -2893,13 +3574,13 @@ async function renderSenseAudioImage(ctx: MediaContext, credentials: ProviderCon
   }
   const bytes = Buffer.from(await imgResp.arrayBuffer());
   if (bytes.length === 0) {
-    throw new Error('senseaudio image fetch returned zero bytes');
+    throw new Error("senseaudio image fetch returned zero bytes");
   }
 
   return {
     bytes,
-    providerNote: `senseaudio/${ctx.wireModel} · ${size}${reference ? ' · i2i' : ''} · ${bytes.length} bytes`,
-    suggestedExt: '.png',
+    providerNote: `senseaudio/${ctx.wireModel} · ${size}${reference ? " · i2i" : ""} · ${bytes.length} bytes`,
+    suggestedExt: ".png"
   };
 }
 
@@ -2915,7 +3596,7 @@ async function renderSenseAudioImage(ctx: MediaContext, credentials: ProviderCon
 
 async function renderAIHubMixImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error('no AIHubMix API key — configure it in Settings or set OD_AIHUBMIX_API_KEY');
+    throw new Error("no AIHubMix API key — configure it in Settings or set OD_AIHUBMIX_API_KEY");
   }
   const baseUrl = credentials.baseUrl || AIHUBMIX_DEFAULT_BASE_URL;
   const wireModel = aihubmixWireModel(credentials.model || ctx.wireModel);
@@ -2925,7 +3606,7 @@ async function renderAIHubMixImage(ctx: MediaContext, credentials: ProviderConfi
   // must use the Gemini-native generateContent wire instead. Mirror the chat
   // tool's per-model branch (executeAIHubMixGenerateImage) so the Home / New
   // Project / CLI media path handles the same catalogue it now exposes.
-  if (classifyAIHubMixModel(wireModel) === 'gemini') {
+  if (classifyAIHubMixModel(wireModel) === "gemini") {
     return renderAIHubMixGeminiImage(ctx, credentials, baseUrl, wireModel);
   }
 
@@ -2933,22 +3614,25 @@ async function renderAIHubMixImage(ctx: MediaContext, credentials: ProviderConfi
 
   const body: Record<string, unknown> = {
     model: wireModel,
-    prompt: ctx.prompt || 'A high-quality reference image.',
+    prompt: ctx.prompt || "A high-quality reference image.",
     n: 1,
-    size: openaiSizeFor(wireModel, ctx.aspect),
+    size: openaiSizeFor(wireModel, ctx.aspect)
   };
-  if (wireModel.startsWith('dall-e-')) {
-    body.response_format = 'b64_json';
-    body.quality = wireModel === 'dall-e-3' ? 'hd' : 'standard';
+  if (wireModel.startsWith("dall-e-")) {
+    body.response_format = "b64_json";
+    body.quality = wireModel === "dall-e-3" ? "hd" : "standard";
   } else {
-    body.quality = 'high';
+    body.quality = "high";
   }
 
-  const resp = await fetch(url, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...aihubmixHeaders(credentials.apiKey) },
-    body: JSON.stringify(body),
-  }));
+  const resp = await fetch(
+    url,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...aihubmixHeaders(credentials.apiKey) },
+      body: JSON.stringify(body)
+    })
+  );
   const text = await resp.text();
   if (!resp.ok) {
     throw new Error(`aihubmix ${resp.status}: ${truncate(text, 240)}`);
@@ -2960,21 +3644,21 @@ async function renderAIHubMixImage(ctx: MediaContext, credentials: ProviderConfi
     throw new Error(`aihubmix non-JSON response: ${truncate(text, 200)}`);
   }
   const entry = data && Array.isArray(data.data) ? data.data[0] : null;
-  if (!entry) throw new Error('aihubmix response had no data[0]');
+  if (!entry) throw new Error("aihubmix response had no data[0]");
   let bytes;
   if (entry.b64_json) {
-    bytes = Buffer.from(entry.b64_json, 'base64');
+    bytes = Buffer.from(entry.b64_json, "base64");
   } else if (entry.url) {
     const imgResp = await assertAndFetchExternalAsset(entry.url, withMediaRequestInit(ctx));
     if (!imgResp.ok) throw new Error(`aihubmix image fetch ${imgResp.status}`);
     bytes = Buffer.from(await imgResp.arrayBuffer());
   } else {
-    throw new Error('aihubmix response had neither b64_json nor url');
+    throw new Error("aihubmix response had neither b64_json nor url");
   }
   return {
     bytes,
     providerNote: `aihubmix/${wireModel} · ${ctx.aspect} · ${bytes.length} bytes`,
-    suggestedExt: '.png',
+    suggestedExt: ".png"
   };
 }
 
@@ -2986,58 +3670,65 @@ async function renderAIHubMixGeminiImage(
   ctx: MediaContext,
   credentials: ProviderConfig,
   baseUrl: string,
-  wireModel: string,
+  wireModel: string
 ): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error('no AIHubMix API key — configure it in Settings or set OD_AIHUBMIX_API_KEY');
+    throw new Error("no AIHubMix API key — configure it in Settings or set OD_AIHUBMIX_API_KEY");
   }
-  const aspect = ctx.aspect || '1:1';
+  const aspect = ctx.aspect || "1:1";
   const bytes = await aihubmixGeminiImageBytes(
     {
       baseUrl,
       apiKey: credentials.apiKey,
       wireModel,
-      prompt: ctx.prompt || 'A high-quality reference image.',
-      aspect,
+      prompt: ctx.prompt || "A high-quality reference image.",
+      aspect
     },
-    (url, init) => fetch(url, withMediaRequestInit(ctx, init)),
+    (url, init) => fetch(url, withMediaRequestInit(ctx, init))
   );
   return {
     bytes,
     providerNote: `aihubmix/${wireModel} · ${aspect} · ${bytes.length} bytes (gemini-native)`,
-    suggestedExt: '.png',
+    suggestedExt: ".png"
   };
 }
 
-async function renderAIHubMixTTS(ctx: MediaContext, credentials: ProviderConfig, fileName: string): Promise<RenderResult> {
+async function renderAIHubMixTTS(
+  ctx: MediaContext,
+  credentials: ProviderConfig,
+  fileName: string
+): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error('no AIHubMix API key — configure it in Settings or set OD_AIHUBMIX_API_KEY');
+    throw new Error("no AIHubMix API key — configure it in Settings or set OD_AIHUBMIX_API_KEY");
   }
   const baseUrl = credentials.baseUrl || AIHUBMIX_DEFAULT_BASE_URL;
   const wireModel = aihubmixWireModel(credentials.model || ctx.wireModel);
   const url = buildOpenAISpeechUrl(baseUrl, false);
   const format = openaiSpeechFormatFor(fileName);
-  const text = (ctx.prompt && ctx.prompt.trim()) || 'This is a test.';
-  const requestedVoice = (ctx.voice && ctx.voice.trim()) || '';
-  const voice = requestedVoice && OPENAI_TTS_VOICES.has(requestedVoice) ? requestedVoice : 'alloy';
+  const text = (ctx.prompt && ctx.prompt.trim()) || "This is a test.";
+  const requestedVoice = (ctx.voice && ctx.voice.trim()) || "";
+  const voice = requestedVoice && OPENAI_TTS_VOICES.has(requestedVoice) ? requestedVoice : "alloy";
 
-  const resp = await fetch(url, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...aihubmixHeaders(credentials.apiKey) },
-    body: JSON.stringify({ model: wireModel, input: text, voice, response_format: format }),
-  }));
+  const resp = await fetch(
+    url,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...aihubmixHeaders(credentials.apiKey) },
+      body: JSON.stringify({ model: wireModel, input: text, voice, response_format: format })
+    })
+  );
   if (!resp.ok) {
     const errText = await resp.text();
     throw new Error(`aihubmix speech ${resp.status}: ${truncate(errText, 240)}`);
   }
   const bytes = Buffer.from(await resp.arrayBuffer());
   if (bytes.length === 0) {
-    throw new Error('aihubmix speech returned zero bytes');
+    throw new Error("aihubmix speech returned zero bytes");
   }
   return {
     bytes,
     providerNote: `aihubmix/${wireModel} · ${voice} · ${format} · ${bytes.length} bytes`,
-    suggestedExt: format === 'opus' ? '.ogg' : `.${format}`,
+    suggestedExt: format === "opus" ? ".ogg" : `.${format}`
   };
 }
 
@@ -3047,29 +3738,29 @@ async function renderAIHubMixTTS(ctx: MediaContext, credentials: ProviderConfig,
 // to download the finished MP4. `aspect` maps to a concrete `size` string.
 function aihubmixVideoSizeFor(aspect: string | undefined): string {
   switch (aspect) {
-    case '9:16':
-      return '720x1280';
-    case '1:1':
-      return '1024x1024';
-    case '4:3':
-      return '960x720';
-    case '3:4':
-      return '720x960';
-    case '16:9':
+    case "9:16":
+      return "720x1280";
+    case "1:1":
+      return "1024x1024";
+    case "4:3":
+      return "960x720";
+    case "3:4":
+      return "720x960";
+    case "16:9":
     default:
-      return '1280x720';
+      return "1280x720";
   }
 }
 
 async function renderAIHubMixVideo(
   ctx: MediaContext,
   credentials: ProviderConfig,
-  onProgress?: ProgressFn,
+  onProgress?: ProgressFn
 ): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error('no AIHubMix API key — configure it in Settings or set OD_AIHUBMIX_API_KEY');
+    throw new Error("no AIHubMix API key — configure it in Settings or set OD_AIHUBMIX_API_KEY");
   }
-  const baseUrl = (credentials.baseUrl || AIHUBMIX_DEFAULT_BASE_URL).replace(/\/$/, '');
+  const baseUrl = (credentials.baseUrl || AIHUBMIX_DEFAULT_BASE_URL).replace(/\/$/, "");
   const wireModel = aihubmixWireModel(credentials.model || ctx.wireModel);
   const size = aihubmixVideoSizeFor(ctx.aspect);
   // Snap to the model family's allowed duration set (Veo: 4/6/8, Sora: 4/8/12,
@@ -3078,20 +3769,23 @@ async function renderAIHubMixVideo(
 
   const body: Record<string, unknown> = {
     model: wireModel,
-    prompt: ctx.prompt || 'A short cinematic clip.',
+    prompt: ctx.prompt || "A short cinematic clip.",
     size,
-    seconds,
+    seconds
   };
   // First-frame reference for i2v flows; AIHubMix accepts a data URL.
   if (ctx.imageRef?.dataUrl) {
     body.input_reference = ctx.imageRef.dataUrl;
   }
 
-  const submitResp = await fetch(`${baseUrl}/videos`, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...aihubmixHeaders(credentials.apiKey) },
-    body: JSON.stringify(body),
-  }));
+  const submitResp = await fetch(
+    `${baseUrl}/videos`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...aihubmixHeaders(credentials.apiKey) },
+      body: JSON.stringify(body)
+    })
+  );
   const submitText = await submitResp.text();
   if (!submitResp.ok) {
     throw new Error(`aihubmix video submit ${submitResp.status}: ${truncate(submitText, 240)}`);
@@ -3103,29 +3797,29 @@ async function renderAIHubMixVideo(
     throw new Error(`aihubmix video non-JSON: ${truncate(submitText, 200)}`);
   }
   const taskId = submitData?.id || submitData?.data?.id;
-  if (!taskId) throw new Error('aihubmix video response missing id');
+  if (!taskId) throw new Error("aihubmix video response missing id");
 
   // Poll until completed/failed. Sora-class generations routinely take a few
   // minutes; match the Volcengine ceiling (12 min, env-overridable). Emit a
   // heartbeat each tick so the agent's bash watchdog never marks the call hung.
   const startedAt = Date.now();
   const configuredMaxMs = Number(process.env.OD_AIHUBMIX_VIDEO_MAX_POLL_MS);
-  const maxMs =
-    Number.isFinite(configuredMaxMs) && configuredMaxMs >= 60_000
-      ? configuredMaxMs
-      : 12 * 60 * 1000;
-  if (typeof onProgress === 'function') {
-    const mode = ctx.imageRef ? 'i2v' : 't2v';
+  const maxMs = Number.isFinite(configuredMaxMs) && configuredMaxMs >= 60_000 ? configuredMaxMs : 12 * 60 * 1000;
+  if (typeof onProgress === "function") {
+    const mode = ctx.imageRef ? "i2v" : "t2v";
     onProgress(`aihubmix ${mode} video task ${taskId} accepted; polling status…`);
   }
-  let lastStatus = '';
+  let lastStatus = "";
   let directUrl: string | null = null;
   let done = false;
   while (Date.now() - startedAt < maxMs) {
     await sleep(4000);
-    const pollResp = await fetch(`${baseUrl}/videos/${encodeURIComponent(taskId)}`, withMediaRequestInit(ctx, {
-      headers: { ...aihubmixHeaders(credentials.apiKey) },
-    }));
+    const pollResp = await fetch(
+      `${baseUrl}/videos/${encodeURIComponent(taskId)}`,
+      withMediaRequestInit(ctx, {
+        headers: { ...aihubmixHeaders(credentials.apiKey) }
+      })
+    );
     const pollText = await pollResp.text();
     if (!pollResp.ok) {
       throw new Error(`aihubmix video poll ${pollResp.status}: ${truncate(pollText, 240)}`);
@@ -3136,32 +3830,32 @@ async function renderAIHubMixVideo(
     } catch {
       throw new Error(`aihubmix video poll non-JSON: ${truncate(pollText, 200)}`);
     }
-    lastStatus = pollData?.status || pollData?.data?.status || '';
-    if (typeof onProgress === 'function') {
+    lastStatus = pollData?.status || pollData?.data?.status || "";
+    if (typeof onProgress === "function") {
       const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
-      onProgress(`aihubmix video task ${taskId} status=${lastStatus || 'pending'} (elapsed ${elapsedSec}s)`);
+      onProgress(`aihubmix video task ${taskId} status=${lastStatus || "pending"} (elapsed ${elapsedSec}s)`);
     }
-    if (lastStatus === 'completed' || lastStatus === 'succeeded' || lastStatus === 'done') {
+    if (lastStatus === "completed" || lastStatus === "succeeded" || lastStatus === "done") {
       // Some gateways surface the asset URL inline; otherwise fall back to the
       // /content download endpoint below.
       directUrl =
-        pollData?.video_url
-        || pollData?.url
-        || pollData?.output_url
-        || pollData?.data?.video_url
-        || pollData?.data?.url
-        || (Array.isArray(pollData?.data) ? pollData.data[0]?.url : null)
-        || null;
+        pollData?.video_url ||
+        pollData?.url ||
+        pollData?.output_url ||
+        pollData?.data?.video_url ||
+        pollData?.data?.url ||
+        (Array.isArray(pollData?.data) ? pollData.data[0]?.url : null) ||
+        null;
       done = true;
       break;
     }
-    if (lastStatus === 'failed' || lastStatus === 'cancelled' || lastStatus === 'error') {
+    if (lastStatus === "failed" || lastStatus === "cancelled" || lastStatus === "error") {
       const reason = pollData?.error?.message || pollData?.error || lastStatus;
       throw new Error(`aihubmix video task ${lastStatus}: ${truncate(reason, 200)}`);
     }
   }
   if (!done) {
-    throw new Error(`aihubmix video did not finish in time (last status: ${lastStatus || 'unknown'})`);
+    throw new Error(`aihubmix video did not finish in time (last status: ${lastStatus || "unknown"})`);
   }
 
   let bytes: Buffer;
@@ -3180,30 +3874,30 @@ async function renderAIHubMixVideo(
     }
     const dl = await assertAndFetchExternalAsset(
       directUrl,
-      withMediaRequestInit(
-        ctx,
-        sameOriginAsBase ? { headers: { ...aihubmixHeaders(credentials.apiKey) } } : {},
-      ),
+      withMediaRequestInit(ctx, sameOriginAsBase ? { headers: { ...aihubmixHeaders(credentials.apiKey) } } : {})
     );
     if (!dl.ok) throw new Error(`aihubmix video fetch ${dl.status}`);
     bytes = Buffer.from(await dl.arrayBuffer());
   } else {
-    const contentResp = await fetch(`${baseUrl}/videos/${encodeURIComponent(taskId)}/content`, withMediaRequestInit(ctx, {
-      headers: { ...aihubmixHeaders(credentials.apiKey) },
-    }));
+    const contentResp = await fetch(
+      `${baseUrl}/videos/${encodeURIComponent(taskId)}/content`,
+      withMediaRequestInit(ctx, {
+        headers: { ...aihubmixHeaders(credentials.apiKey) }
+      })
+    );
     if (!contentResp.ok) {
       throw new Error(`aihubmix video content ${contentResp.status}`);
     }
     bytes = Buffer.from(await contentResp.arrayBuffer());
   }
   if (bytes.length === 0) {
-    throw new Error('aihubmix video returned zero bytes');
+    throw new Error("aihubmix video returned zero bytes");
   }
 
   return {
     bytes,
     providerNote: `aihubmix/${wireModel} · ${size} · ${seconds}s · ${bytes.length} bytes`,
-    suggestedExt: '.mp4',
+    suggestedExt: ".mp4"
   };
 }
 
@@ -3219,52 +3913,48 @@ async function renderAIHubMixVideo(
 // once arbitrary model ids are accepted.
 // ---------------------------------------------------------------------------
 
-const FISHAUDIO_DEFAULT_BASE_URL = 'https://api.fish.audio';
+const FISHAUDIO_DEFAULT_BASE_URL = "https://api.fish.audio";
 
 const FISHAUDIO_TTS_MODEL_MAP = {
-  'fish-speech-2': 'speech-1.6',
+  "fish-speech-2": "speech-1.6"
 } as Record<string, string>;
 
 async function renderFishAudioTTS(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error(
-      'no FishAudio API key — configure it in Settings or set OD_FISHAUDIO_API_KEY',
-    );
+    throw new Error("no FishAudio API key — configure it in Settings or set OD_FISHAUDIO_API_KEY");
   }
-  const baseUrl = (credentials.baseUrl || FISHAUDIO_DEFAULT_BASE_URL).replace(
-    /\/$/,
-    '',
-  );
+  const baseUrl = (credentials.baseUrl || FISHAUDIO_DEFAULT_BASE_URL).replace(/\/$/, "");
   // Same precedence as the MINIMAX TTS path: user alias wins, then
   // the project's hardcoded fishaudio map, then catalog id.
-  const wireModel = ctx.wireModel !== ctx.model
-    ? ctx.wireModel
-    : (FISHAUDIO_TTS_MODEL_MAP[ctx.model] || ctx.model);
-  const text = (ctx.prompt && ctx.prompt.trim()) || 'This is a test.';
+  const wireModel = ctx.wireModel !== ctx.model ? ctx.wireModel : FISHAUDIO_TTS_MODEL_MAP[ctx.model] || ctx.model;
+  const text = (ctx.prompt && ctx.prompt.trim()) || "This is a test.";
 
   // FishAudio's `reference_id` slot pins which voice the synth uses.
   // The agent passes it via --voice (carried in ctx.voice). Empty means
   // FishAudio falls back to its default voice for the chosen model.
   const body: Record<string, unknown> = {
     text,
-    format: 'mp3',
+    format: "mp3",
     mp3_bitrate: 128,
     model: wireModel,
     normalize: true,
-    latency: 'normal',
+    latency: "normal"
   };
   if (ctx.voice && ctx.voice.trim()) {
     body.reference_id = ctx.voice.trim();
   }
 
-  const resp = await fetch(`${baseUrl}/v1/tts`, withMediaRequestInit(ctx, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${credentials.apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }));
+  const resp = await fetch(
+    `${baseUrl}/v1/tts`,
+    withMediaRequestInit(ctx, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${credentials.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+  );
   if (!resp.ok) {
     const errText = await resp.text();
     throw new Error(`fishaudio tts ${resp.status}: ${truncate(errText, 240)}`);
@@ -3272,12 +3962,12 @@ async function renderFishAudioTTS(ctx: MediaContext, credentials: ProviderConfig
   const arr = await resp.arrayBuffer();
   const bytes = Buffer.from(arr);
   if (bytes.length === 0) {
-    throw new Error('fishaudio tts returned zero bytes');
+    throw new Error("fishaudio tts returned zero bytes");
   }
   return {
     bytes,
     providerNote: `fishaudio/${wireModel} · ${bytes.length} bytes`,
-    suggestedExt: '.mp3',
+    suggestedExt: ".mp3"
   };
 }
 
@@ -3298,49 +3988,40 @@ async function renderFishAudioTTS(ctx: MediaContext, credentials: ProviderConfig
 // ---------------------------------------------------------------------------
 
 const FAL_ENDPOINTS: Record<string, string> = {
-  'sd-3.5':              'fal-ai/stable-diffusion-v35-large',
-  'flux-pro-ultra':      'fal-ai/flux-pro/v1.1-ultra',
-  'flux-dev-fal':        'fal-ai/flux/dev',
-  'flux-schnell-fal':    'fal-ai/flux/schnell',
-  'ideogram-v3-fal':     'fal-ai/ideogram/v3',
-  'recraft-v3-fal':      'fal-ai/recraft-v3',
-  'sora-2':              'fal-ai/sora',
-  'sora-2-pro':          'fal-ai/sora',
-  'veo-3-fal':           'fal-ai/veo3',
-  'veo-2-fal':           'fal-ai/veo2',
-  'wan-2.1-t2v':         'fal-ai/wan-t2v',
-  'wan-2.1-i2v':         'fal-ai/wan-i2v',
-  'seedance-1-pro-fal':  'fal-ai/bytedance/seedance-1-pro',
-  'kling-2.1-t2v-fal':   'fal-ai/kling-video/v2.1/master/text-to-video',
+  "sd-3.5": "fal-ai/stable-diffusion-v35-large",
+  "flux-pro-ultra": "fal-ai/flux-pro/v1.1-ultra",
+  "flux-dev-fal": "fal-ai/flux/dev",
+  "flux-schnell-fal": "fal-ai/flux/schnell",
+  "ideogram-v3-fal": "fal-ai/ideogram/v3",
+  "recraft-v3-fal": "fal-ai/recraft-v3",
+  "sora-2": "fal-ai/sora",
+  "sora-2-pro": "fal-ai/sora",
+  "veo-3-fal": "fal-ai/veo3",
+  "veo-2-fal": "fal-ai/veo2",
+  "wan-2.1-t2v": "fal-ai/wan-t2v",
+  "wan-2.1-i2v": "fal-ai/wan-i2v",
+  "seedance-1-pro-fal": "fal-ai/bytedance/seedance-1-pro",
+  "kling-2.1-t2v-fal": "fal-ai/kling-video/v2.1/master/text-to-video"
 };
 
 // Image models that expect `aspect_ratio` (e.g. "16:9") instead of the
 // named `image_size` enum ("landscape_16_9") used by FLUX Dev/Schnell/SD.
-const FAL_IMAGE_USES_ASPECT_RATIO = new Set([
-  'fal-ai/flux-pro/v1.1-ultra',
-  'fal-ai/flux-pro/v1.1',
-]);
+const FAL_IMAGE_USES_ASPECT_RATIO = new Set(["fal-ai/flux-pro/v1.1-ultra", "fal-ai/flux-pro/v1.1"]);
 
 const FAL_IMAGE_SIZES: Record<string, string> = {
-  '1:1':  'square_hd',
-  '16:9': 'landscape_16_9',
-  '9:16': 'portrait_16_9',
-  '4:3':  'landscape_4_3',
-  '3:4':  'portrait_4_3',
+  "1:1": "square_hd",
+  "16:9": "landscape_16_9",
+  "9:16": "portrait_16_9",
+  "4:3": "landscape_4_3",
+  "3:4": "portrait_4_3"
 };
 
 // Video models that do not accept a duration field at all.
-const FAL_VIDEO_NO_DURATION = new Set([
-  'fal-ai/wan-t2v',
-  'fal-ai/wan-i2v',
-]);
+const FAL_VIDEO_NO_DURATION = new Set(["fal-ai/wan-t2v", "fal-ai/wan-i2v"]);
 
 // Video models that expect duration as a suffixed string ("4s"/"6s"/"8s") and
 // only accept those specific buckets.
-const FAL_VIDEO_STRING_DURATION = new Set([
-  'fal-ai/veo3',
-  'fal-ai/veo2',
-]);
+const FAL_VIDEO_STRING_DURATION = new Set(["fal-ai/veo3", "fal-ai/veo2"]);
 
 // Valid Veo duration buckets (seconds). Nearest-bucket clamp applied below.
 const FAL_VEO_DURATION_BUCKETS = [4, 6, 8];
@@ -3352,21 +4033,23 @@ async function falQueueRun(
   input: Record<string, unknown>,
   maxMs: number,
   onProgress?: ProgressFn,
-  modelLabel?: string,
+  modelLabel?: string
 ): Promise<any> {
-  const authHeader = { 'authorization': `Key ${apiKey}` };
+  const authHeader = { authorization: `Key ${apiKey}` };
 
   const submitResp = await fetch(`${queueBase}/${endpoint}`, {
-    method: 'POST',
-    headers: { ...authHeader, 'content-type': 'application/json' },
-    body: JSON.stringify(input),
+    method: "POST",
+    headers: { ...authHeader, "content-type": "application/json" },
+    body: JSON.stringify(input)
   });
   const submitText = await submitResp.text();
   if (!submitResp.ok) {
     throw new Error(`fal submit ${submitResp.status}: ${truncate(submitText, 240)}`);
   }
   let submitData: any;
-  try { submitData = JSON.parse(submitText); } catch {
+  try {
+    submitData = JSON.parse(submitText);
+  } catch {
     throw new Error(`fal submit non-JSON: ${truncate(submitText, 200)}`);
   }
   const requestId: string = submitData?.request_id;
@@ -3376,12 +4059,10 @@ async function falQueueRun(
 
   // Prefer the URLs returned by the submit response; fall back to the
   // well-known model-agnostic queue paths as a safety net.
-  const statusUrl = submitData.status_url
-    ?? `${queueBase}/requests/${encodeURIComponent(requestId)}/status?logs=0`;
-  const resultUrl = submitData.response_url
-    ?? `${queueBase}/requests/${encodeURIComponent(requestId)}`;
+  const statusUrl = submitData.status_url ?? `${queueBase}/requests/${encodeURIComponent(requestId)}/status?logs=0`;
+  const resultUrl = submitData.response_url ?? `${queueBase}/requests/${encodeURIComponent(requestId)}`;
   const startedAt = Date.now();
-  let lastStatus = '';
+  let lastStatus = "";
 
   if (onProgress) {
     onProgress(`fal ${modelLabel || endpoint} task ${requestId.slice(0, 8)} accepted; polling…`);
@@ -3397,28 +4078,33 @@ async function falQueueRun(
       throw new Error(`fal poll ${statusResp.status}: ${truncate(statusText, 240)}`);
     }
     let statusData: any;
-    try { statusData = JSON.parse(statusText); } catch {
+    try {
+      statusData = JSON.parse(statusText);
+    } catch {
       throw new Error(`fal poll non-JSON: ${truncate(statusText, 200)}`);
     }
-    lastStatus = statusData?.status || '';
+    lastStatus = statusData?.status || "";
     if (onProgress) {
       const elapsed = Math.round((Date.now() - startedAt) / 1000);
       onProgress(`fal task ${requestId.slice(0, 8)} status=${lastStatus} (${elapsed}s)`);
     }
-    if (lastStatus === 'COMPLETED') {
+    if (lastStatus === "COMPLETED") {
       const resultResp = await fetch(resultUrl, { headers: authHeader });
       const resultText = await resultResp.text();
       if (!resultResp.ok) {
         throw new Error(`fal result ${resultResp.status}: ${truncate(resultText, 240)}`);
       }
-      try { return JSON.parse(resultText); } catch {
+      try {
+        return JSON.parse(resultText);
+      } catch {
         throw new Error(`fal result non-JSON: ${truncate(resultText, 200)}`);
       }
     }
-    if (lastStatus === 'FAILED') {
-      const errRaw = statusData?.error?.message
-        ?? (typeof statusData?.error === 'string' ? statusData.error : null)
-        ?? 'unknown error';
+    if (lastStatus === "FAILED") {
+      const errRaw =
+        statusData?.error?.message ??
+        (typeof statusData?.error === "string" ? statusData.error : null) ??
+        "unknown error";
       throw new Error(`fal task failed: ${errRaw}`);
     }
   }
@@ -3426,8 +4112,8 @@ async function falQueueRun(
   const ceil = Math.round(maxMs / 1000);
   throw new Error(
     `fal timed out after ${elapsed}s waiting for COMPLETED ` +
-    `(last status: ${lastStatus || 'unknown'}, ceiling ${ceil}s). ` +
-    `Raise OD_FAL_MAX_POLL_MS to extend the ceiling.`,
+      `(last status: ${lastStatus || "unknown"}, ceiling ${ceil}s). ` +
+      `Raise OD_FAL_MAX_POLL_MS to extend the ceiling.`
   );
 }
 
@@ -3437,30 +4123,30 @@ function falMaxPollMs(defaultMs: number): number {
 }
 
 function falQueueBase(baseUrl: string): string {
-  if (baseUrl.includes('queue.fal.run')) return baseUrl;
+  if (baseUrl.includes("queue.fal.run")) return baseUrl;
   // Replace only the exact host to avoid mangling custom base URLs that
   // happen to contain "fal.run" as a substring.
-  return baseUrl.replace(/^https:\/\/fal\.run/, 'https://queue.fal.run');
+  return baseUrl.replace(/^https:\/\/fal\.run/, "https://queue.fal.run");
 }
 
 async function renderFalImage(ctx: MediaContext, credentials: ProviderConfig): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error('no Fal API key — configure it in Settings or set FAL_KEY');
+    throw new Error("no Fal API key — configure it in Settings or set FAL_KEY");
   }
-  const queueBase = falQueueBase((credentials.baseUrl || 'https://fal.run').replace(/\/$/, ''));
+  const queueBase = falQueueBase((credentials.baseUrl || "https://fal.run").replace(/\/$/, ""));
   const endpoint = FAL_ENDPOINTS[ctx.model] ?? ctx.model;
-  const aspectRatio = ctx.aspect ?? '1:1';
+  const aspectRatio = ctx.aspect ?? "1:1";
 
   const input: Record<string, unknown> = {
-    prompt: ctx.prompt || 'A high-quality image.',
-    num_images: 1,
+    prompt: ctx.prompt || "A high-quality image.",
+    num_images: 1
   };
   // flux-pro-ultra and similar pro variants expect `aspect_ratio` as a
   // ratio string; most other fal image models use a named `image_size`.
   if (FAL_IMAGE_USES_ASPECT_RATIO.has(endpoint)) {
     input.aspect_ratio = aspectRatio;
   } else {
-    input.image_size = FAL_IMAGE_SIZES[aspectRatio] ?? 'square_hd';
+    input.image_size = FAL_IMAGE_SIZES[aspectRatio] ?? "square_hd";
   }
   if (ctx.imageRef?.dataUrl) {
     input.image_url = ctx.imageRef.dataUrl;
@@ -3475,37 +4161,43 @@ async function renderFalImage(ctx: MediaContext, credentials: ProviderConfig): P
   const dlResp = await fetch(imageEntry.url);
   if (!dlResp.ok) throw new Error(`fal image download ${dlResp.status}`);
   const bytes = Buffer.from(await dlResp.arrayBuffer());
-  const sizeLabel = FAL_IMAGE_USES_ASPECT_RATIO.has(endpoint) ? aspectRatio : (FAL_IMAGE_SIZES[aspectRatio] ?? 'square_hd');
+  const sizeLabel = FAL_IMAGE_USES_ASPECT_RATIO.has(endpoint)
+    ? aspectRatio
+    : (FAL_IMAGE_SIZES[aspectRatio] ?? "square_hd");
 
   return {
     bytes,
     providerNote: `fal/${endpoint} · ${sizeLabel} · ${bytes.length} bytes`,
-    suggestedExt: sniffImageExt(bytes),
+    suggestedExt: sniffImageExt(bytes)
   };
 }
 
-async function renderFalVideo(ctx: MediaContext, credentials: ProviderConfig, onProgress?: ProgressFn): Promise<RenderResult> {
+async function renderFalVideo(
+  ctx: MediaContext,
+  credentials: ProviderConfig,
+  onProgress?: ProgressFn
+): Promise<RenderResult> {
   if (!credentials.apiKey) {
-    throw new Error('no Fal API key — configure it in Settings or set FAL_KEY');
+    throw new Error("no Fal API key — configure it in Settings or set FAL_KEY");
   }
-  const queueBase = falQueueBase((credentials.baseUrl || 'https://fal.run').replace(/\/$/, ''));
+  const queueBase = falQueueBase((credentials.baseUrl || "https://fal.run").replace(/\/$/, ""));
   const endpoint = FAL_ENDPOINTS[ctx.model] ?? ctx.model;
-  const aspectRatio = ctx.aspect ?? '16:9';
+  const aspectRatio = ctx.aspect ?? "16:9";
   const durationSec = ctx.length ?? 5;
 
   const input: Record<string, unknown> = {
-    prompt: ctx.prompt || 'A short cinematic clip.',
-    aspect_ratio: aspectRatio,
+    prompt: ctx.prompt || "A short cinematic clip.",
+    aspect_ratio: aspectRatio
   };
   // Track the effective duration label (what we actually send upstream).
   let effectiveDurationLabel: string | undefined;
-  let durationSnappedNote = '';
+  let durationSnappedNote = "";
   // Some models (Wan) have no duration parameter; others (Veo) require a
   // suffixed string from a fixed bucket set ("4s"/"6s"/"8s").
   if (!FAL_VIDEO_NO_DURATION.has(endpoint)) {
     if (FAL_VIDEO_STRING_DURATION.has(endpoint)) {
       const closest = FAL_VEO_DURATION_BUCKETS.reduce((a, b) =>
-        Math.abs(b - durationSec) < Math.abs(a - durationSec) ? b : a,
+        Math.abs(b - durationSec) < Math.abs(a - durationSec) ? b : a
       );
       input.duration = `${closest}s`;
       effectiveDurationLabel = `${closest}s`;
@@ -3522,26 +4214,29 @@ async function renderFalVideo(ctx: MediaContext, credentials: ProviderConfig, on
   }
 
   const result = await falQueueRun(
-    endpoint, queueBase, credentials.apiKey, input,
-    falMaxPollMs(10 * 60 * 1000), onProgress, ctx.model,
+    endpoint,
+    queueBase,
+    credentials.apiKey,
+    input,
+    falMaxPollMs(10 * 60 * 1000),
+    onProgress,
+    ctx.model
   );
 
   const videoUrl: string | null =
-    result?.video?.url
-    ?? (Array.isArray(result?.videos) ? result.videos[0]?.url : null)
-    ?? null;
+    result?.video?.url ?? (Array.isArray(result?.videos) ? result.videos[0]?.url : null) ?? null;
   if (!videoUrl) {
     throw new Error(`fal video missing video.url: ${truncate(JSON.stringify(result), 200)}`);
   }
   const dlResp = await fetch(videoUrl);
   if (!dlResp.ok) throw new Error(`fal video download ${dlResp.status}`);
   const bytes = Buffer.from(await dlResp.arrayBuffer());
-  const durationPart = effectiveDurationLabel ? ` · ${effectiveDurationLabel}${durationSnappedNote}` : '';
+  const durationPart = effectiveDurationLabel ? ` · ${effectiveDurationLabel}${durationSnappedNote}` : "";
 
   return {
     bytes,
     providerNote: `fal/${endpoint} · ${aspectRatio}${durationPart} · ${bytes.length} bytes`,
-    suggestedExt: '.mp4',
+    suggestedExt: ".mp4"
   };
 }
 
@@ -3568,14 +4263,18 @@ async function renderFalVideo(ctx: MediaContext, credentials: ProviderConfig, on
 
 const HYPERFRAMES_RENDER_TIMEOUT_MS = 5 * 60 * 1000;
 
-async function renderHyperFramesViaCli(ctx: MediaContext, projectDir: string, onProgress?: ProgressFn): Promise<RenderResult> {
+async function renderHyperFramesViaCli(
+  ctx: MediaContext,
+  projectDir: string,
+  onProgress?: ProgressFn
+): Promise<RenderResult> {
   const compRel = ctx.compositionDir;
-  if (typeof compRel !== 'string' || !compRel.trim()) {
+  if (typeof compRel !== "string" || !compRel.trim()) {
     throw new Error(
-      'hyperframes-html requires --composition-dir <project-relative-path> ' +
-        'pointing at the directory the agent scaffolded with hyperframes.json / ' +
-        'meta.json / index.html. The agent should write the composition into ' +
-        '$OD_PROJECT_DIR/.hyperframes-cache/<id>/ and pass that path here.',
+      "hyperframes-html requires --composition-dir <project-relative-path> " +
+        "pointing at the directory the agent scaffolded with hyperframes.json / " +
+        "meta.json / index.html. The agent should write the composition into " +
+        "$OD_PROJECT_DIR/.hyperframes-cache/<id>/ and pass that path here."
     );
   }
   // Resolve compositionDir against projectDir and refuse anything that
@@ -3584,13 +4283,10 @@ async function renderHyperFramesViaCli(ctx: MediaContext, projectDir: string, on
   // directory on the host.
   const projectRootResolved = path.resolve(projectDir);
   const compAbs = path.resolve(projectRootResolved, compRel);
-  if (
-    compAbs !== projectRootResolved &&
-    !compAbs.startsWith(projectRootResolved + path.sep)
-  ) {
+  if (compAbs !== projectRootResolved && !compAbs.startsWith(projectRootResolved + path.sep)) {
     throw new Error(
       `compositionDir "${compRel}" resolves outside the project directory. ` +
-        'Pass a path relative to the project (e.g. ".hyperframes-cache/abc").',
+        'Pass a path relative to the project (e.g. ".hyperframes-cache/abc").'
     );
   }
   // Existence check — render against a missing directory hangs HF for
@@ -3599,34 +4295,21 @@ async function renderHyperFramesViaCli(ctx: MediaContext, projectDir: string, on
   try {
     compStat = await stat(compAbs);
   } catch {
-    throw new Error(
-      `compositionDir not found: ${compRel} (resolved to ${compAbs})`,
-    );
+    throw new Error(`compositionDir not found: ${compRel} (resolved to ${compAbs})`);
   }
   if (!compStat.isDirectory()) {
     throw new Error(`compositionDir is not a directory: ${compRel}`);
   }
-  await assertHyperFramesCompositionFile(
-    compAbs,
-    compRel,
-    'hyperframes.json',
-    'Run `npx hyperframes init "$OD_PROJECT_DIR/$COMP_REL" --example blank --skip-skills --non-interactive` before editing the composition.',
-  );
-  await assertHyperFramesCompositionFile(
-    compAbs,
-    compRel,
-    'meta.json',
-    'Run `npx hyperframes init` so the renderer has duration/scene metadata before dispatch.',
-  );
-  await assertHyperFramesCompositionFile(
-    compAbs,
-    compRel,
-    'index.html',
-    'The agent must write index.html (with window.__timelines registration) before dispatch.',
-  );
+  const indexStat = await stat(path.join(compAbs, "index.html")).catch(() => null);
+  if (!indexStat || !indexStat.isFile()) {
+    throw new Error(
+      `compositionDir is missing index.html: ${compRel}. The agent must ` +
+        "write index.html (with window.__timelines registration) before dispatch."
+    );
+  }
 
-  const tmpRoot = await mkdtemp(path.join(os.tmpdir(), 'open-design-hf-'));
-  const tmpOutput = path.join(tmpRoot, 'render.mp4');
+  const tmpRoot = await mkdtemp(path.join(os.tmpdir(), "open-design-hf-"));
+  const tmpOutput = path.join(tmpRoot, "render.mp4");
   try {
     // Pin --workers 1 to keep memory bounded (each worker is a Chrome
     // process at ~256 MB). standard quality matches HF's default. We
@@ -3638,29 +4321,14 @@ async function renderHyperFramesViaCli(ctx: MediaContext, projectDir: string, on
     return {
       bytes,
       providerNote: `hyperframes/local-html · ${ctx.aspect} · ${bytes.length} bytes`,
-      suggestedExt: '.mp4',
+      suggestedExt: ".mp4"
     };
   } catch (err) {
-    const stderr =
-      errorStringProp(err, 'stderr').trim();
+    const stderr = errorStringProp(err, "stderr").trim();
     const message = stderr || errorMessage(err);
     throw new Error(`hyperframes render failed: ${truncate(message, 480)}`);
   } finally {
     await rm(tmpRoot, { recursive: true, force: true });
-  }
-}
-
-async function assertHyperFramesCompositionFile(
-  compAbs: string,
-  compRel: string,
-  fileName: string,
-  guidance: string,
-): Promise<void> {
-  const fileStat = await stat(path.join(compAbs, fileName)).catch(() => null);
-  if (!fileStat || !fileStat.isFile()) {
-    throw new Error(
-      `compositionDir is missing ${fileName}: ${compRel}. ${guidance}`,
-    );
   }
 }
 
@@ -3677,37 +4345,24 @@ async function assertHyperFramesCompositionFile(
  */
 function runHyperFramesRender(compAbs: string, tmpOutput: string, onProgress?: ProgressFn): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(
-      'npx',
-      [
-        '-y',
-        'hyperframes',
-        'render',
-        compAbs,
-        '--output',
-        tmpOutput,
-        '--workers',
-        '1',
-      ],
-      {
-        // Inherit env so npx can find the cached hyperframes install
-        // and any user-level node config. stdin closed (HF doesn't
-        // read from it), stdout/stderr piped so we can stream.
-        env: process.env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    );
+    const child = spawn("npx", ["-y", "hyperframes", "render", compAbs, "--output", tmpOutput, "--workers", "1"], {
+      // Inherit env so npx can find the cached hyperframes install
+      // and any user-level node config. stdin closed (HF doesn't
+      // read from it), stdout/stderr piped so we can stream.
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
 
     // HF uses ANSI escape sequences (cursor moves, color codes, line
     // erases) for its pretty progress bar. Strip those before
     // forwarding so the agent's chat doesn't render a wall of `[2K`.
     // The regex covers CSI sequences (most of what HF emits).
     const stripAnsi = (s: string): string =>
-      s.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/\x1b\[\?[0-9]+[hl]/g, '');
+      s.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").replace(/\x1b\[\?[0-9]+[hl]/g, "");
 
     const emit = (chunk: Buffer): void => {
-      if (typeof onProgress !== 'function') return;
-      const text = stripAnsi(chunk.toString('utf8'));
+      if (typeof onProgress !== "function") return;
+      const text = stripAnsi(chunk.toString("utf8"));
       // HF refreshes a single progress line many times per second; split
       // on \r and \n so each "Capturing frame X/Y" update reaches the
       // caller as its own line. Drop empty/duplicate lines so the
@@ -3724,39 +4379,35 @@ function runHyperFramesRender(compAbs: string, tmpOutput: string, onProgress?: P
       }
     };
 
-    let stderrTail = '';
-    child.stdout.on('data', emit);
-    child.stderr.on('data', (chunk) => {
-      stderrTail += chunk.toString('utf8');
+    let stderrTail = "";
+    child.stdout.on("data", emit);
+    child.stderr.on("data", (chunk) => {
+      stderrTail += chunk.toString("utf8");
       if (stderrTail.length > 8000) stderrTail = stderrTail.slice(-8000);
       emit(chunk);
     });
 
     const timer = setTimeout(() => {
       try {
-        child.kill('SIGKILL');
+        child.kill("SIGKILL");
       } catch {
         // ignore
       }
-      reject(
-        new Error(
-          `hyperframes render timed out after ${Math.round(HYPERFRAMES_RENDER_TIMEOUT_MS / 1000)}s`,
-        ),
-      );
+      reject(new Error(`hyperframes render timed out after ${Math.round(HYPERFRAMES_RENDER_TIMEOUT_MS / 1000)}s`));
     }, HYPERFRAMES_RENDER_TIMEOUT_MS);
 
-    child.on('error', (err) => {
+    child.on("error", (err) => {
       clearTimeout(timer);
       reject(err);
     });
-    child.on('close', (code, signal) => {
+    child.on("close", (code, signal) => {
       clearTimeout(timer);
       if (code === 0) return resolve();
       const reason = signal ? `signal ${signal}` : `exit ${code}`;
-      const tail = stderrTail.trim().split('\n').slice(-12).join('\n');
-      const err = new Error(
-        `hyperframes render exited ${reason}` + (tail ? `\n${tail}` : ''),
-      ) as Error & { stderr: string };
+      const tail = stderrTail.trim().split("\n").slice(-12).join("\n");
+      const err = new Error(`hyperframes render exited ${reason}` + (tail ? `\n${tail}` : "")) as Error & {
+        stderr: string;
+      };
       err.stderr = tail;
       reject(err);
     });
@@ -3772,74 +4423,71 @@ function runHyperFramesRender(compAbs: string, tmpOutput: string, onProgress?: P
 // ---------------------------------------------------------------------------
 
 async function renderStub(ctx: MediaContext, fileName: string): Promise<RenderResult> {
-  const note = ctx.provider && !ctx.provider.integrated
-    ? `stub-${ctx.surface} · provider '${ctx.provider.id}' integration pending`
-    : `stub-${ctx.surface} · model=${ctx.model}`;
-  if (ctx.surface === 'image') {
+  const note =
+    ctx.provider && !ctx.provider.integrated
+      ? `stub-${ctx.surface} · provider '${ctx.provider.id}' integration pending`
+      : `stub-${ctx.surface} · model=${ctx.model}`;
+  if (ctx.surface === "image") {
     const ext = path.extname(fileName).toLowerCase();
-    if (ext === '.svg') {
-      return { bytes: Buffer.from(svgPlaceholder(ctx), 'utf8'), providerNote: note };
+    if (ext === ".svg") {
+      return { bytes: Buffer.from(svgPlaceholder(ctx), "utf8"), providerNote: note };
     }
-    const png = Buffer.from(
-      [
-        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
-        0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-        0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
-        0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
-        0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
-        0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
-      ],
-    );
+    const png = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00,
+      0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0d, 0x49,
+      0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00,
+      0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+    ]);
     return {
       bytes: png,
-      providerNote: `${note} · aspect=${ctx.aspect} · prompt=${truncate(ctx.prompt, 60)}`,
+      providerNote: `${note} · aspect=${ctx.aspect} · prompt=${truncate(ctx.prompt, 60)}`
     };
   }
-  if (ctx.surface === 'video') {
+  if (ctx.surface === "video") {
     const ftyp = Buffer.from([
-      0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d,
-      0x00, 0x00, 0x02, 0x00, 0x69, 0x73, 0x6f, 0x6d, 0x69, 0x73, 0x6f, 0x32,
+      0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, 0x00, 0x00, 0x02, 0x00, 0x69, 0x73, 0x6f,
+      0x6d, 0x69, 0x73, 0x6f, 0x32
     ]);
     const mdat = Buffer.from([0x00, 0x00, 0x00, 0x08, 0x6d, 0x64, 0x61, 0x74]);
     return {
       bytes: Buffer.concat([ftyp, mdat]),
-      providerNote: `${note} · aspect=${ctx.aspect} · length=${ctx.length ?? '?'}s · prompt=${truncate(ctx.prompt, 60)}`,
+      providerNote: `${note} · aspect=${ctx.aspect} · length=${ctx.length ?? "?"}s · prompt=${truncate(ctx.prompt, 60)}`
     };
   }
   // Audio
   const ext = path.extname(fileName).toLowerCase();
-  if (ext === '.wav') {
+  if (ext === ".wav") {
     return {
       bytes: silentWav(0.5),
-      providerNote: `${note} · kind=${ctx.audioKind} · duration=${ctx.duration ?? '?'}s`,
+      providerNote: `${note} · kind=${ctx.audioKind} · duration=${ctx.duration ?? "?"}s`
     };
   }
-  const mp3 = Buffer.from([
-    0xff, 0xfb, 0x90, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  ]);
+  const mp3 = Buffer.from([0xff, 0xfb, 0x90, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
   return {
     bytes: mp3,
-    providerNote: `${note} · kind=${ctx.audioKind} · voice=${ctx.voice || '-'} · duration=${ctx.duration ?? '?'}s`,
+    providerNote: `${note} · kind=${ctx.audioKind} · voice=${ctx.voice || "-"} · duration=${ctx.duration ?? "?"}s`
   };
 }
 
 function svgPlaceholder(ctx: MediaContext): string {
   const [w, h] = aspectToBox(ctx.aspect, 800);
   const safe = (s: unknown): string =>
-    String(s || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">`,
     `<rect width="${w}" height="${h}" fill="#0f1424"/>`,
     `<text x="50%" y="50%" fill="#7da4ff" font-family="ui-sans-serif" font-size="20" text-anchor="middle">${safe(ctx.model)} — ${safe(ctx.prompt).slice(0, 60)}</text>`,
-    '</svg>',
-  ].join('');
+    "</svg>"
+  ].join("");
 }
 
 function aspectToBox(aspect: string | undefined, base: number): [number, number] {
-  const [a, b] = String(aspect || '1:1').split(':').map(Number);
+  const [a, b] = String(aspect || "1:1")
+    .split(":")
+    .map(Number);
   if (!a || !b) return [base, base];
   if (a >= b) return [base, Math.round((base * b) / a)];
   return [Math.round((base * a) / b), base];
@@ -3850,10 +4498,10 @@ function silentWav(seconds: number): Buffer {
   const numSamples = Math.max(1, Math.round(sampleRate * seconds));
   const dataSize = numSamples * 2;
   const buf = Buffer.alloc(44 + dataSize);
-  buf.write('RIFF', 0, 'ascii');
+  buf.write("RIFF", 0, "ascii");
   buf.writeUInt32LE(36 + dataSize, 4);
-  buf.write('WAVE', 8, 'ascii');
-  buf.write('fmt ', 12, 'ascii');
+  buf.write("WAVE", 8, "ascii");
+  buf.write("fmt ", 12, "ascii");
   buf.writeUInt32LE(16, 16);
   buf.writeUInt16LE(1, 20);
   buf.writeUInt16LE(1, 22);
@@ -3861,15 +4509,15 @@ function silentWav(seconds: number): Buffer {
   buf.writeUInt32LE(sampleRate * 2, 28);
   buf.writeUInt16LE(2, 32);
   buf.writeUInt16LE(16, 34);
-  buf.write('data', 36, 'ascii');
+  buf.write("data", 36, "ascii");
   buf.writeUInt32LE(dataSize, 40);
   return buf;
 }
 
 function truncate(s: unknown, n: number): string {
-  const v = String(s || '');
+  const v = String(s || "");
   if (v.length <= n) return v;
-  return v.slice(0, n - 1) + '…';
+  return v.slice(0, n - 1) + "…";
 }
 
 function sleep(ms: number): Promise<void> {

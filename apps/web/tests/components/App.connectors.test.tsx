@@ -35,11 +35,9 @@ vi.mock('../../src/components/EntryView', () => ({
   EntryView: ({
     config,
     onOpenSettings,
-    onPersistComposioKey,
   }: {
     config: AppConfig;
     onOpenSettings: (section?: 'composio') => void;
-    onPersistComposioKey: (composio: AppConfig['composio']) => void;
   }) => (
     <div>
       <button type="button" onClick={() => onOpenSettings('composio')}>
@@ -49,30 +47,6 @@ vi.mock('../../src/components/EntryView', () => ({
         Open execution settings
       </button>
       <div>Composio tail: {config.composio?.apiKeyTail ?? 'none'}</div>
-      <button
-        type="button"
-        onClick={() =>
-          onPersistComposioKey({
-            apiKey: 'cmp_secret_replacement',
-            apiKeyConfigured: true,
-            apiKeyTail: config.composio?.apiKeyTail ?? '',
-          })
-        }
-      >
-        Save connectors key
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          onPersistComposioKey({
-            apiKey: '',
-            apiKeyConfigured: false,
-            apiKeyTail: '',
-          })
-        }
-      >
-        Clear connectors key
-      </button>
     </div>
   ),
 }));
@@ -355,6 +329,7 @@ describe('App connectors settings flows', () => {
 
     render(<App />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Open connectors settings' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save connectors key' }));
 
     await waitFor(() => {
@@ -403,6 +378,7 @@ describe('App connectors settings flows', () => {
 
     render(<App />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Open connectors settings' }));
     fireEvent.click(screen.getByRole('button', { name: 'Clear connectors key' }));
 
     await waitFor(() => {

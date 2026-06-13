@@ -24,7 +24,6 @@ import path from 'node:path';
 import { promises as fsp } from 'node:fs';
 import type Database from 'better-sqlite3';
 import {
-  deleteInstalledPlugin,
   resolvePluginFolder,
   upsertInstalledPlugin,
   type RegistryRoots,
@@ -51,8 +50,6 @@ export interface RegisterBundledPluginsInput {
 
 export interface RegisterBundledPluginsResult {
   registered: InstalledPluginRecord[];
-  // Bundled rows deleted because their folder is gone from this image.
-  pruned: string[];
   warnings: string[];
 }
 
@@ -63,19 +60,13 @@ export async function registerBundledPlugins(
 ): Promise<RegisterBundledPluginsResult> {
   const out: InstalledPluginRecord[] = [];
   const warnings: string[] = [];
-  // Every bundled folder we attempted this walk — including ones that
-  // failed to parse. Pruning keys off this set so a folder that still
-  // ships but has a broken manifest is warned about, not deleted.
-  const seenFolderIds = new Set<string>();
 
   let topLevel;
   try {
     topLevel = await fsp.readdir(input.bundledRoot, { withFileTypes: true });
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      // A missing bundledRoot is a packaging problem, not a removal of
-      // every bundled plugin — never prune on this path.
-      return { registered: [], pruned: [], warnings: [] };
+      return { registered: [], warnings: [] };
     }
     throw err;
   }
@@ -93,7 +84,7 @@ export async function registerBundledPlugins(
     const tierManifest = path.join(tierAbs, 'open-design.json');
     if (await pathExists(tierManifest)) {
       // Direct: <bundledRoot>/<plugin-id>/open-design.json
-      await registerOne({ folder: tierAbs, folderId: tier.name, out, warnings, seenFolderIds, input });
+      await registerOne({ folder: tierAbs, folderId: tier.name, out, warnings, input });
       continue;
     }
     let inner;
@@ -107,35 +98,11 @@ export async function registerBundledPlugins(
       const folder = path.join(tierAbs, entry.name);
       const manifest = path.join(folder, 'open-design.json');
       if (!(await pathExists(manifest))) continue;
-      await registerOne({ folder, folderId: entry.name, out, warnings, seenFolderIds, input });
+      await registerOne({ folder, folderId: entry.name, out, warnings, input });
     }
   }
 
-  const pruned = pruneRemovedBundledPlugins(input.db, seenFolderIds);
-  return { registered: out, pruned, warnings };
-}
-
-// Bundled rows mirror the bundled tree: spec §23 promises that bundled
-// plugins "replace only on daemon upgrade", and removal is part of that
-// rotation. A folder dropped from this image must also leave the
-// `installed_plugins` table, otherwise upgraded installs keep serving a
-// record whose backing files no longer exist. Scoped to
-// source_kind='bundled' so user installs are never touched, and only runs
-// after a successful walk (the ENOENT early-return above never prunes).
-function pruneRemovedBundledPlugins(
-  db: SqliteDb,
-  present: ReadonlySet<string>,
-): string[] {
-  const rows = db
-    .prepare(`SELECT id FROM installed_plugins WHERE source_kind = 'bundled'`)
-    .all() as Array<{ id: string }>;
-  const pruned: string[] = [];
-  for (const row of rows) {
-    if (present.has(row.id)) continue;
-    deleteInstalledPlugin(db, row.id);
-    pruned.push(row.id);
-  }
-  return pruned;
+  return { registered: out, warnings };
 }
 
 async function registerOne(args: {
@@ -143,7 +110,6 @@ async function registerOne(args: {
   folderId: string;
   out: InstalledPluginRecord[];
   warnings: string[];
-  seenFolderIds: Set<string>;
   input: RegisterBundledPluginsInput;
 }): Promise<void> {
   const folderId = args.folderId.toLowerCase();
@@ -151,7 +117,6 @@ async function registerOne(args: {
     args.warnings.push(`bundled folder name ${args.folderId} is not a safe id; skipped`);
     return;
   }
-  args.seenFolderIds.add(folderId);
   const probe = await resolvePluginFolder({
     folder:     args.folder,
     folderId,
@@ -169,7 +134,6 @@ async function registerOne(args: {
   }
   const record = withMarketplaceProvenance(probe.record, args.input.marketplaceProvenance);
   upsertInstalledPlugin(args.input.db, record);
-  args.seenFolderIds.add(record.id);
   args.out.push(record);
 }
 

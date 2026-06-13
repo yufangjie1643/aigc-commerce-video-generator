@@ -18,13 +18,13 @@ describe('media execution policy parsing', () => {
 
   it('normalizes allowed surfaces and models', () => {
     expect(parseMediaExecutionPolicyInput({
-      mode: 'enabled',
+      mode: 'question',
       allowedSurfaces: ['image', 'video', 'image'],
       allowedModels: [' gpt-image-2 ', 'gpt-image-2', 'video-model'],
     })).toEqual({
       ok: true,
       policy: {
-        mode: 'enabled',
+        mode: 'question',
         allowedSurfaces: ['image', 'video'],
         allowedModels: ['gpt-image-2', 'video-model'],
       },
@@ -56,6 +56,10 @@ describe('media execution policy parsing', () => {
       surface: 'image',
       model: 'gpt-image-2',
     })).toMatchObject({ code: 'MEDIA_EXECUTION_DISABLED' });
+    expect(mediaPolicyDenial({ mode: 'question' }, {
+      surface: 'video',
+      model: 'hyperframes-html',
+    })).toMatchObject({ code: 'MEDIA_EXECUTION_QUESTION_MODE' });
     expect(mediaPolicyDenial({
       mode: 'enabled',
       allowedSurfaces: ['video'],

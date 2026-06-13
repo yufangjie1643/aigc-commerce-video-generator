@@ -23,7 +23,7 @@ const WORKSPACE_BUILD_PACKAGES = [
   { directory: "apps/daemon", name: "@open-design/daemon" },
   { directory: "apps/web", name: "@open-design/web" },
   { directory: "apps/desktop", name: "@open-design/desktop" },
-  { directory: "apps/packaged", name: "@open-design/packaged" },
+  { directory: "apps/packaged", name: "@open-design/packaged" }
 ] as const;
 
 const BUILD_COMMANDS = [
@@ -43,7 +43,7 @@ const BUILD_COMMANDS = [
   { args: ["--filter", "@open-design/web", "build"], env: ["OD_WEB_OUTPUT_MODE"] },
   { args: ["--filter", "@open-design/web", "build:sidecar"] },
   { args: ["--filter", "@open-design/desktop", "build"] },
-  { args: ["--filter", "@open-design/packaged", "build"] },
+  { args: ["--filter", "@open-design/packaged", "build"] }
 ] as const;
 
 type WorkspaceBuildMetadata = {
@@ -99,14 +99,14 @@ async function createWorkspaceBuildCacheKey(config: ToolPackConfig): Promise<str
     platform: config.platform,
     pnpmLock: await hashPath(join(config.workspaceRoot, "pnpm-lock.yaml")),
     schemaVersion: 7,
-    webOutputMode: config.webOutputMode,
+    webOutputMode: config.webOutputMode
   });
 }
 
 function workspaceBuildOutputFiles(config: ToolPackConfig): string[] {
   const webStandaloneServerCandidates = [
     "apps/web/.next/standalone/apps/web/server.js",
-    "apps/web/.next/standalone/server.js",
+    "apps/web/.next/standalone/server.js"
   ];
   return [
     "packages/components/dist/index.mjs",
@@ -138,11 +138,13 @@ function workspaceBuildOutputFiles(config: ToolPackConfig): string[] {
     "apps/daemon/dist/sidecar/index.js",
     "apps/web/dist/sidecar/index.js",
     "apps/web/dist/sidecar/index.d.ts",
-    ...(config.webOutputMode === "standalone" ? [webStandaloneServerCandidates.join("|")] : ["apps/web/.next/BUILD_ID"]),
+    ...(config.webOutputMode === "standalone"
+      ? [webStandaloneServerCandidates.join("|")]
+      : ["apps/web/.next/BUILD_ID"]),
     "apps/desktop/dist/main/index.js",
     "apps/desktop/dist/main/index.d.ts",
     "apps/packaged/dist/index.mjs",
-    "apps/packaged/dist/index.d.ts",
+    "apps/packaged/dist/index.d.ts"
   ];
 }
 
@@ -163,7 +165,7 @@ function workspaceBuildArtifacts(config: ToolPackConfig): WorkspaceBuildArtifact
     "apps/daemon/dist",
     "apps/web/dist",
     "apps/desktop/dist",
-    "apps/packaged/dist",
+    "apps/packaged/dist"
   ];
   if (config.webOutputMode === "standalone") {
     artifacts.push("apps/web/.next/standalone", "apps/web/.next/static");
@@ -173,7 +175,8 @@ function workspaceBuildArtifacts(config: ToolPackConfig): WorkspaceBuildArtifact
   const outputFiles = workspaceBuildOutputFiles(config);
   return artifacts.map((workspacePath) => {
     const requiredPathGroups = outputFiles.flatMap((output) => {
-      const candidates = output.split("|")
+      const candidates = output
+        .split("|")
         .filter((candidate) => candidate === workspacePath || candidate.startsWith(`${workspacePath}/`))
         .map((candidate) => relative(workspacePath, candidate));
       return candidates.length === 0 ? [] : [candidates];
@@ -181,7 +184,7 @@ function workspaceBuildArtifacts(config: ToolPackConfig): WorkspaceBuildArtifact
     return {
       cachePath: join("outputs", ...workspacePath.split("/")),
       requiredPathGroups,
-      workspacePath,
+      workspacePath
     };
   });
 }
@@ -223,6 +226,15 @@ const WEB_STANDALONE_APP_NODE_MODULES = "apps/web/node_modules";
 // of the standalone tree and the audit aborts the packaged build.
 const STANDALONE_HOISTED_PEER_DEPS = ["react", "react-dom", "styled-jsx"];
 
+export function resolveStandalonePeerDepLinkSpec(
+  platform: NodeJS.Platform,
+  target: string,
+  relativeTarget: string
+): { target: string; type?: "junction" } {
+  if (platform === "win32") return { target, type: "junction" };
+  return { target: relativeTarget, type: undefined };
+}
+
 async function hoistStandaloneNextPeerDeps(standaloneRoot: string): Promise<void> {
   const appNodeModules = join(standaloneRoot, WEB_STANDALONE_APP_NODE_MODULES);
   const pnpmRoot = join(standaloneRoot, "node_modules", ".pnpm");
@@ -255,7 +267,8 @@ async function hoistStandaloneNextPeerDeps(standaloneRoot: string): Promise<void
     // from a previous build with different react/react-dom versions)
     // before recreating, so repeated invocations don't EEXIST.
     if (existing) await unlink(linkPath).catch(() => undefined);
-    await symlink(relativeTarget, linkPath);
+    const linkSpec = resolveStandalonePeerDepLinkSpec(process.platform, target, relativeTarget);
+    await symlink(linkSpec.target, linkPath, linkSpec.type);
   }
 }
 
@@ -283,7 +296,7 @@ async function missingWorkspaceBuildOutput(config: ToolPackConfig): Promise<stri
       candidates.map(async (candidate) => {
         if (!(await pathExists(join(config.workspaceRoot, candidate)))) throw new Error(candidate);
         return true;
-      }),
+      })
     ).catch(() => false);
     if (!exists) return output;
   }
@@ -293,28 +306,29 @@ async function missingWorkspaceBuildOutput(config: ToolPackConfig): Promise<stri
 export async function ensureWorkspaceBuildArtifacts(
   config: ToolPackConfig,
   cache: ToolPackCache,
-  build: () => Promise<void>,
+  build: () => Promise<void>
 ): Promise<void> {
   const key = await createWorkspaceBuildCacheKey(config);
   const nodeId = `${config.platform}.workspace-build`;
   const artifacts = workspaceBuildArtifacts(config);
   const versionFamily = await resolveWorkspaceBuildVersionFamily(config);
-  const versionFamilyAlias = versionFamily == null
-    ? null
-    : hashJson({
-        node: nodeId,
-        nodeVersion: process.version,
-        platform: config.platform,
-        schemaVersion: 1,
-        scope: "version-family",
-        versionFamily,
-        webOutputMode: config.webOutputMode,
-      });
+  const versionFamilyAlias =
+    versionFamily == null
+      ? null
+      : hashJson({
+          node: nodeId,
+          nodeVersion: process.version,
+          platform: config.platform,
+          schemaVersion: 1,
+          scope: "version-family",
+          versionFamily,
+          webOutputMode: config.webOutputMode
+        });
   const materialize = artifacts.map((artifact) => ({
     from: artifact.cachePath,
     reuse: true,
     reuseRequiredPaths: artifact.requiredPathGroups,
-    to: join(config.workspaceRoot, artifact.workspacePath),
+    to: join(config.workspaceRoot, artifact.workspacePath)
   }));
   await cache.acquire<WorkspaceBuildMetadata>({
     aliases: versionFamilyAlias == null ? [] : [versionFamilyAlias],
@@ -340,16 +354,16 @@ export async function ensureWorkspaceBuildArtifacts(
               builtAt: new Date().toISOString(),
               keyHash: hashText(key),
               outputFiles,
-              webOutputMode: config.webOutputMode,
+              webOutputMode: config.webOutputMode
             },
             null,
-            2,
+            2
           )}\n`,
-          "utf8",
+          "utf8"
         );
         return { builtAt: new Date().toISOString(), outputFiles };
-      },
+      }
     },
-    seedFrom: versionFamilyAlias == null ? [] : [{ aliasKey: versionFamilyAlias, materialize }],
+    seedFrom: versionFamilyAlias == null ? [] : [{ aliasKey: versionFamilyAlias, materialize }]
   });
 }

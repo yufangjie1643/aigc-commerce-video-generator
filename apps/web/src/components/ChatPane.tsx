@@ -11,19 +11,13 @@ import {
   type CSSProperties,
   type DragEvent as ReactDragEvent,
   type MutableRefObject,
-  type ReactNode,
+  type ReactNode
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useAnalytics } from '../analytics/provider';
-import { trackChatPanelClick, trackMessageQueueClick, trackRunFailedToastSurfaceView } from '../analytics/events';
+import { trackChatPanelClick, trackRunFailedToastSurfaceView } from '../analytics/events';
 import { attributedAmrUrl, recordAmrEntry } from '../analytics/amr-attribution';
 import { useT } from '../i18n';
-import {
-  FEATURED_DESIGN_TOOLBOX_ACTION_IDS,
-  findDesignToolboxSkill,
-  getDesignToolboxAction,
-  type DesignToolboxActionId,
-} from '../runtime/design-toolbox';
 import type { Dict } from '../i18n/types';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { projectRawUrl } from '../providers/registry';
@@ -33,21 +27,30 @@ import type { TrackingProjectKind } from '@open-design/contracts/analytics';
 import {
   DESIGN_SYSTEM_WORKSPACE_DISPLAY_DESCRIPTION,
   DESIGN_SYSTEM_WORKSPACE_DISPLAY_TITLE,
-  isDesignSystemWorkspacePrompt,
+  isDesignSystemWorkspacePrompt
 } from '../design-system-auto-prompt';
-import { isTodoWriteToolName, latestTodoWriteInputForPinnedCard } from '../runtime/todos';
-import type { AppConfig, ChatAttachment, ChatCommentAttachment, ChatMessage, ChatMessageFeedbackChange, Conversation, DesignSystemSummary, PreviewComment, Project, ProjectFile, ProjectMetadata, SkillSummary } from '../types';
-import { exactDateTime, messageTime, shortTime } from '../utils/chatTime';
-import { commentTargetDisplayName, commentsToAttachments, simplePositionLabel } from '../comments';
+import { latestTodoWriteInputForPinnedCard } from '../runtime/todos';
+import { TodoCard } from './ToolCard';
+import type {
+  AppConfig,
+  ChatAttachment,
+  ChatCommentAttachment,
+  ChatMessage,
+  ChatMessageFeedbackChange,
+  Conversation,
+  DesignSystemSummary,
+  PreviewComment,
+  Project,
+  ProjectFile,
+  ProjectMetadata,
+  SkillSummary
+} from '../types';
+import { dayKey, dayLabel, exactDateTime, messageTime, relativeTimeLong, shortTime } from '../utils/chatTime';
+import { commentTargetDisplayName, commentsToAttachments } from '../comments';
 import { AssistantMessage, type QuestionFormOpenRequest } from './AssistantMessage';
 import { AmrGuidance } from './AmrGuidance';
-import { amrRechargeUrlForProfile, resolveRunFailureUi } from '../runtime/amr-guidance';
-import { RESUME_CONTINUE_PROMPT } from '../runtime/resume';
-import {
-  ChatComposer,
-  type ChatComposerHandle,
-  type ChatSendMeta,
-} from './ChatComposer';
+import { AMR_RECHARGE_URL, resolveRunFailureUi } from '../runtime/amr-guidance';
+import { ChatComposer, type ChatComposerHandle, type ChatSendMeta } from './ChatComposer';
 import { listDesignArtifactCandidates } from './design-files/designArtifacts';
 import type { PluginFolderAgentAction } from './design-files/pluginFolderActions';
 import { Icon, type IconName } from './Icon';
@@ -57,21 +60,6 @@ import type { SettingsSection } from './SettingsDialog';
 
 type TranslateFn = (key: keyof Dict, vars?: Record<string, string | number>) => string;
 
-// Featured starter prompts shown on the empty chat. Clicking one fills
-// the composer (does not auto-send) so users can tweak before sending.
-// Each prompt is intentionally dense — it should showcase ambitious
-// layout, typographic, and information-design moves rather than a
-// generic landing page.
-//
-// Starter sets are picked per project kind (and per video model) so a
-// fresh seedance video, a hyperframes html-in-canvas video, an image
-// project and an audio project each see relevant prompts instead of the
-// generic prototype trio. The default (prototype/deck/template/other/
-// live-artifact) set stays i18n-translated via existing chat.example*
-// keys so the user-facing copy keeps its localizations. The new media
-// sets are inline English literals — they are technical agent prompts
-// that work well across locales without translation, and going through
-// i18n for each of them would balloon every Dict entry by 12+ keys.
 type StarterPrompt = {
   icon: string;
   title: string;
@@ -79,175 +67,53 @@ type StarterPrompt = {
   prompt: string;
 };
 
-const DEFAULT_STARTER_KEYS: Array<{
+const STARTER_PROMPT_KEYS: Array<{
   icon: string;
   titleKey: keyof Dict;
   tagKey: keyof Dict;
   promptKey: keyof Dict;
 }> = [
   {
-    icon: '▤',
+    icon: '▧',
     titleKey: 'chat.example1Title',
     tagKey: 'chat.example1Tag',
-    promptKey: 'chat.example1Prompt',
+    promptKey: 'chat.example1Prompt'
+  },
+  {
+    icon: '◉',
+    titleKey: 'chat.example2Title',
+    tagKey: 'chat.example2Tag',
+    promptKey: 'chat.example2Prompt'
   },
   {
     icon: '▦',
-    titleKey: 'chat.example2Title',
-    tagKey: 'chat.example2Tag',
-    promptKey: 'chat.example2Prompt',
-  },
-  {
-    icon: '◈',
     titleKey: 'chat.example3Title',
     tagKey: 'chat.example3Tag',
-    promptKey: 'chat.example3Prompt',
-  },
+    promptKey: 'chat.example3Prompt'
+  }
 ];
 
 const IMPORTED_ARTIFACTS_INITIAL_VISIBLE_COUNT = 5;
 const IMPORTED_ARTIFACTS_REVEAL_COUNT = 5;
 
-const IMAGE_STARTERS: StarterPrompt[] = [
-  {
-    icon: '◯',
-    title: 'Editorial portrait',
-    tag: 'Portrait',
-    prompt:
-      'A close-up editorial portrait of a young creative director in their late 20s, soft natural light through tall studio windows, warm neutral palette (cream, taupe, soft black), shot at 85mm f/1.8 with shallow depth of field, sharp gaze straight to camera, subtle film grain, no makeup look.',
-  },
-  {
-    icon: '▭',
-    title: 'Product hero',
-    tag: 'E-commerce',
-    prompt:
-      'A premium product hero shot of a single matte ceramic coffee mug on a warm cream paper backdrop. Hard rim light from the upper-left, gentle elongated shadow stretching to the lower-right, faint steam rising from the cup. Square crop, centered composition, room above for headline copy, no props or hands in frame.',
-  },
-  {
-    icon: '◐',
-    title: 'Flat illustration',
-    tag: 'Illustration',
-    prompt:
-      'A flat vector illustration of a cozy reading nook by a rainy window — geometric shapes, restrained 5-color palette (cream, terracotta, deep teal, burnt sienna, soft black), thin 1.5px line accents, no gradients, no textures, soft drop shadows only on the foreground armchair.',
-  },
-];
-
-// Pure-video / cinematic-shot starters for seedance, sora, kling, veo,
-// grok-imagine and similar text-to-video models. Each prompt is one
-// shot, restrained motion, and a clear visual concept the model can
-// nail in 5-10 seconds.
-const VIDEO_SEEDANCE_STARTERS: StarterPrompt[] = [
-  {
-    icon: '◉',
-    title: 'Product reveal',
-    tag: 'Cinematic',
-    prompt:
-      'A 5-second product reveal: a minimal high-end skincare bottle on a clean cream stone surface, soft side light from camera-left, slow camera push-in, subtle depth-of-field shift from the cap to the label, restrained motion, no text overlays, no people in frame.',
-  },
-  {
-    icon: '▣',
-    title: 'Lantern close-up',
-    tag: 'Mood',
-    prompt:
-      'A 6-second cinematic close-up of a young woman holding a glowing paper lantern in a misty pine forest at golden hour. Shallow depth of field on her eyes, gentle dolly-in, ambient particles drifting through the warm shaft of light, no dialogue, ambient forest sound only.',
-  },
-  {
-    icon: '⌘',
-    title: 'Neon street drift',
-    tag: 'Action',
-    prompt:
-      'A 5-second street-racing tracking shot at night in a neon-lit cyberpunk Hong Kong alley. Low-angle camera following a matte-black sports car drifting around a tight corner, motion blur on the wheels, lens flares from oncoming neon signs, rain-slick asphalt reflecting the lights, no on-screen text.',
-  },
-];
-
-// HyperFrames HTML-in-canvas starters — these target the
-// hyperframes-html video model where the renderer captures live DOM
-// into a WebGL texture and runs shader effects on top. References:
-// https://www.remotion.dev/docs/html-in-canvas (concept), the seven
-// vfx-* catalog blocks shipped via `npx hyperframes add vfx-*`, and
-// skills/hyperframes/references/html-in-canvas.md.
-const VIDEO_HYPERFRAMES_STARTERS: StarterPrompt[] = [
-  {
-    icon: '◉',
-    title: 'Magnifying glass reveal',
-    tag: 'HTML-in-canvas',
-    prompt:
-      'Make a 5-second composition with a single line of bold display text on a clean canvas. Animate a round magnifying glass that travels left to right across the line, with subtle glass refraction warping the letters underneath as it passes. Use HyperFrames html-in-canvas — capture the text DOM and run the lens shader on top via a vfx-liquid-glass-style pass. Pure CSS for the text; the glass is a WebGL layer.',
-  },
-  {
-    icon: '▦',
-    title: 'CRT terminal scene',
-    tag: 'Vintage VFX',
-    prompt:
-      "Make a CRT-screen composition: dark canvas, monospace terminal text typing `npx hyperframes init my-video`, then `claude` invoked with the prompt 'Add a CRT effect using HTML-in-canvas'. Apply a subtle convex-curvature shader, scanlines, slight chromatic aberration, and a soft phosphor glow on top of the live DOM via html-in-canvas. The terminal text stays as real CSS so it's pixel-sharp before the shader pass.",
-  },
-  {
-    icon: '◈',
-    title: 'Glitch breakdown',
-    tag: 'Glitch',
-    prompt:
-      'Build a 6-second composition that displays a hero headline and a one-line subhead on a dark canvas, then breaks into a hard digital glitch — RGB channel split, horizontal displacement bands, brief frame-stutter, and a final clean reset. Capture the live DOM via html-in-canvas and run the glitch pass on top, so the type is real CSS underneath the shader.',
-  },
-];
-
-// Speech-focused audio starters — the New Project audio panel only
-// surfaces the `speech` kind today (see MediaProjectOptions), so we
-// match that. If/when the music + sfx tabs come back, broaden this set.
-const AUDIO_STARTERS: StarterPrompt[] = [
-  {
-    icon: '♪',
-    title: 'Brand voiceover',
-    tag: 'Speech',
-    prompt:
-      "A 30-second warm-toned narrative voiceover for a product launch video — confident but conversational, mid-tempo, with a beat of pause after the brand name. Script: 'Three years in the making. One simple promise. Meet [product name] — the way work was supposed to feel.' English, neutral North American accent.",
-  },
-  {
-    icon: '♫',
-    title: 'Onboarding narration',
-    tag: 'Speech',
-    prompt:
-      "A 20-second friendly onboarding narration for a mobile app's first-launch screen. Reassuring, smiling tone, slow enough to feel attentive without sounding scripted. Script: 'Welcome to Loop. Let's set up your space — three quick questions and you're in. You can change any of this later.'",
-  },
-  {
-    icon: '♬',
-    title: 'Story passage read',
-    tag: 'Speech',
-    prompt:
-      "A 45-second cinematic read of an opening passage. Low, measured delivery with breath between sentences, slightly intimate close-mic'd quality. Script: 'The city sleeps in pieces. A neon sign flickers above the ramen counter. Across the avenue, a window glows — the only one still on this side of midnight.'",
-  },
-];
-
-function pickStarters(
-  metadata: ProjectMetadata | undefined,
-  t: TranslateFn,
-): StarterPrompt[] {
-  const kind = metadata?.kind;
-  if (kind === 'image') return IMAGE_STARTERS;
-  if (kind === 'video') {
-    return metadata?.videoModel === 'hyperframes-html'
-      ? VIDEO_HYPERFRAMES_STARTERS
-      : VIDEO_SEEDANCE_STARTERS;
-  }
-  if (kind === 'audio') return AUDIO_STARTERS;
-  return DEFAULT_STARTER_KEYS.map((entry) => ({
+function starterPrompts(t: TranslateFn): StarterPrompt[] {
+  return STARTER_PROMPT_KEYS.map((entry) => ({
     icon: entry.icon,
     title: t(entry.titleKey),
     tag: t(entry.tagKey),
-    prompt: t(entry.promptKey),
+    prompt: t(entry.promptKey)
   }));
 }
 
 function sortArtifactsByModified(files: ProjectFile[]): ProjectFile[] {
-  return [...files].sort(
-    (a, b) => b.mtime - a.mtime || a.name.localeCompare(b.name),
-  );
+  return [...files].sort((a, b) => b.mtime - a.mtime || a.name.localeCompare(b.name));
 }
 
 function ImportedFolderArtifacts({
   projectId,
   files,
   onOpenFile,
-  t,
+  t
 }: {
   projectId: string | null;
   files: ProjectFile[];
@@ -310,9 +176,7 @@ function ImportedFolderArtifacts({
               <span className="chat-design-artifact-name" title={file.name}>
                 {file.name}
               </span>
-              <span className="chat-design-artifact-kind">
-                {chatArtifactKindLabel(file.kind, t)}
-              </span>
+              <span className="chat-design-artifact-kind">{chatArtifactKindLabel(file.kind, t)}</span>
             </div>
           </div>
         );
@@ -325,30 +189,20 @@ function ImportedFolderArtifacts({
           aria-label={revealLabel}
           title={revealLabel}
           onClick={() => {
-            setVisibleCount((current) =>
-              Math.min(files.length, current + IMPORTED_ARTIFACTS_REVEAL_COUNT),
-            );
+            setVisibleCount((current) => Math.min(files.length, current + IMPORTED_ARTIFACTS_REVEAL_COUNT));
           }}
         >
           <span className="chat-design-artifact-more-icon" aria-hidden>
             +
           </span>
-          <span className="chat-design-artifact-more-count">
-            {revealLabel}
-          </span>
+          <span className="chat-design-artifact-more-count">{revealLabel}</span>
         </button>
       ) : null}
     </div>
   );
 }
 
-function ChatArtifactPreview({
-  projectId,
-  file,
-}: {
-  projectId: string | null;
-  file: ProjectFile;
-}) {
+function ChatArtifactPreview({ projectId, file }: { projectId: string | null; file: ProjectFile }) {
   if (!projectId) {
     return <ChatArtifactFallback kind={file.kind} />;
   }
@@ -361,14 +215,7 @@ function ChatArtifactPreview({
     return <img src={url} alt="" loading="lazy" />;
   }
   if (file.kind === 'html') {
-    return (
-      <iframe
-        title={file.name}
-        src={url}
-        sandbox="allow-scripts allow-downloads"
-        loading="lazy"
-      />
-    );
+    return <iframe title={file.name} src={url} sandbox="allow-scripts allow-downloads" loading="lazy" />;
   }
   if (file.kind === 'video') {
     return <video src={url} muted playsInline preload="metadata" />;
@@ -444,19 +291,15 @@ interface Props {
   // set to decide whether a path can be opened as a tab.
   projectFileNames?: Set<string>;
   onEnsureProject: () => Promise<string | null>;
-  previewComments?: PreviewComment[];
   attachedComments?: PreviewComment[];
-  onAttachComment?: (comment: PreviewComment) => void;
   onDetachComment?: (commentId: string) => void;
-  onDeleteComment?: (commentId: string) => void;
   onSend: (
     prompt: string,
     attachments: ChatAttachment[],
     commentAttachments: ChatCommentAttachment[],
-    meta?: ChatSendMeta,
+    meta?: ChatSendMeta
   ) => void;
   onRetry?: (assistantMessage: ChatMessage) => void;
-  onResumeRun?: (assistantMessage: ChatMessage) => void;
   onStop: () => void;
   // Skills available for @-mention assembly. ProjectView filters out the
   // user's disabled set before passing them in here.
@@ -469,30 +312,26 @@ interface Props {
   onRequestDesignSystemDetails?: (system: DesignSystemSummary) => void;
   onRequestPluginFolderAgentAction?: (
     relativePath: string,
-    action: PluginFolderAgentAction,
+    action: PluginFolderAgentAction
   ) => Promise<{ message?: string; url?: string } | void> | { message?: string; url?: string } | void;
   activePluginActionPaths?: Set<string>;
   hiddenPluginActionPaths?: Set<string>;
-  // "Share to Open Design" button on each completed assistant message —
-  // wired by ProjectView to handleSend with the bundled
-  // `od-share-to-community` scenario's trigger prompt.
-  onShareToOpenDesign?: (assistantMessageId: string) => void;
-  shareToOpenDesignBusyMessageId?: string | null;
   forceStreamingMessageIds?: Set<string>;
   // Live-only streaming tool-input partials keyed by tool-use id. Threaded to
   // AssistantMessage so an in-flight Write/Edit can render its code in real
   // time before the full `tool_use` arrives. Never persisted.
   liveToolInput?: Record<string, { name: string; text: string; seq?: number }>;
   initialDraft?: string;
+  // Question-form submissions become a normal user message; the parent
+  // routes that text through onSend (no attachments).
+  onSubmitForm?: (text: string) => void;
   // Focus the right-hand Questions tab from the chat banner.
   onOpenQuestions?: (request?: QuestionFormOpenRequest) => void;
   onContinueRemainingTasks?: (assistantMessage: ChatMessage, todos: TodoItem[]) => void;
   onAssistantFeedback?: (assistantMessage: ChatMessage, change: ChatMessageFeedbackChange) => void;
   // "Next step" affordance handlers forwarded to the last assistant message.
-  // The featured design-toolbox rows are driven directly off the composer ref
-  // owned here, so they need no handler from ProjectView (unlike onArtifactShare).
   onArtifactShare?: (fileName: string) => void;
-  onArtifactDownload?: (fileName: string) => void;
+  onArtifactChip?: (fileName: string, prompt: string) => void;
   onForkFromMessage?: (assistantMessage: ChatMessage) => void;
   forkingMessageId?: string | null;
   // Header "+" button — kicks off ProjectView's create-conversation flow.
@@ -547,12 +386,6 @@ interface Props {
   // Bumped by the parent to push a draft into the composer (used by the
   // "Import repo" CTA). The nonce lets the same text fire more than once.
   composerDraftSignal?: { text: string; nonce: number };
-  // Optional pet wiring forwarded straight through to ChatComposer's
-  // /pet button. When omitted the composer hides the button entirely.
-  petConfig?: AppConfig['pet'];
-  onAdoptPet?: (petId: string) => void;
-  onTogglePet?: () => void;
-  onOpenPetSettings?: () => void;
   projectMetadata?: ProjectMetadata;
   onProjectMetadataChange?: (metadata: ProjectMetadata) => void;
   activeWorkspaceContext?: WorkspaceContextItem | null;
@@ -595,10 +428,7 @@ interface Props {
   backLabel?: string;
   projectHeader?: ReactNode;
   designSystemPicker?: ReactNode;
-  config?: AppConfig;
 }
-
-const AMR_PROFILE_ENV_KEY = 'OPEN_DESIGN_AMR_PROFILE';
 
 type Tab = 'chat' | 'comments';
 
@@ -608,9 +438,6 @@ const CHAT_VIRTUAL_ROW_GAP_PX = 14;
 const CHAT_VIRTUAL_MIN_ROW_HEIGHT = 36;
 const CHAT_VIRTUAL_DEFAULT_VIEWPORT_PX = 640;
 const CHAT_VIRTUAL_INITIAL_TAIL_ROWS = 16;
-const CONVERSATION_ROW_HEIGHT_PX = 34;
-const CONVERSATION_VIRTUALIZE_THRESHOLD = 36;
-const CONVERSATION_OVERSCAN_ROWS = 8;
 
 interface RunErrorDiagnosticInput {
   message: string;
@@ -649,7 +476,7 @@ export function ChatPane({
   queuedItems = [],
   error,
   projectId,
-  sessionMode = 'design',
+  sessionMode = 'comprehensive',
   onSessionModeChange,
   projectKindForTracking = null,
   projectFiles,
@@ -658,14 +485,10 @@ export function ChatPane({
   activeDesignSystem = null,
   projectFileNames,
   onEnsureProject,
-  previewComments = [],
   attachedComments = [],
-  onAttachComment,
   onDetachComment,
-  onDeleteComment,
   onSend,
   onRetry,
-  onResumeRun,
   onStop,
   onRemoveQueuedSend,
   onUpdateQueuedSend,
@@ -677,16 +500,15 @@ export function ChatPane({
   onRequestPluginFolderAgentAction,
   activePluginActionPaths,
   hiddenPluginActionPaths,
-  onShareToOpenDesign,
-  shareToOpenDesignBusyMessageId,
   forceStreamingMessageIds,
   liveToolInput,
   initialDraft,
+  onSubmitForm,
   onOpenQuestions,
   onContinueRemainingTasks,
   onAssistantFeedback,
   onArtifactShare,
-  onArtifactDownload,
+  onArtifactChip,
   onForkFromMessage,
   forkingMessageId = null,
   onNewConversation,
@@ -709,10 +531,6 @@ export function ChatPane({
   githubConnected,
   onConnectRepo,
   composerDraftSignal,
-  petConfig,
-  onAdoptPet,
-  onTogglePet,
-  onOpenPetSettings,
   projectMetadata,
   onProjectMetadataChange,
   activeWorkspaceContext,
@@ -739,18 +557,17 @@ export function ChatPane({
   onBack,
   backLabel,
   projectHeader,
-  designSystemPicker,
-  config,
+  designSystemPicker
 }: Props) {
   const t = useT();
   const analytics = useAnalytics();
-  const amrProfile = config?.agentCliEnv?.amr?.[AMR_PROFILE_ENV_KEY] ?? null;
   const logRef = useRef<HTMLDivElement | null>(null);
   const chatLogScrollIdleTimerRef = useRef<number | null>(null);
   const historyWrapRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<ChatComposerHandle | null>(null);
   const composerSlotRef = useRef<HTMLDivElement | null>(null);
   const composerLayerRef = useRef<HTMLDivElement | null>(null);
+  const pinnedTodoRef = useRef<HTMLDivElement | null>(null);
   const queuedSendStripRef = useRef<HTMLDivElement | null>(null);
   const didInitialScrollRef = useRef(false);
   const runFailedToastSurfaceKeysRef = useRef<Set<string>>(new Set());
@@ -781,41 +598,22 @@ export function ChatPane({
   // message). Route them through this ref so a memoized message still calls the
   // LATEST handler. See areAssistantMessagePropsEqual in AssistantMessage.tsx.
   const assistantCallbacksRef = useRef({
+    onSubmitForm,
     onContinueRemainingTasks,
     onAssistantFeedback,
     onArtifactShare,
-    onForkFromMessage,
-    onShareToOpenDesign,
+    onArtifactChip,
+    onForkFromMessage
   });
   assistantCallbacksRef.current = {
+    onSubmitForm,
     onContinueRemainingTasks,
     onAssistantFeedback,
     onArtifactShare,
-    onForkFromMessage,
-    onShareToOpenDesign,
+    onArtifactChip,
+    onForkFromMessage
   };
-  // Featured design-toolbox follow-up rows on the assistant "next step" card.
-  // The toolbox left the "+" menu, so these route straight into the composer
-  // we own here: seeding an action's prompt+skill, or opening the full panel.
-  // Both stay stable (composer ref + no deps) so AssistantMessage stays memoized.
-  const handleToolboxAction = useCallback((id: DesignToolboxActionId) => {
-    composerRef.current?.applyDesignToolboxAction(id);
-  }, []);
-  const handlePickSkill = useCallback((skillId: string) => {
-    composerRef.current?.applyDesignToolboxSkill(skillId);
-  }, []);
-  // The `@skill` shown in each featured row's hover detail — matched the same
-  // way the composer matches it, using the raw skill name (what gets inlined
-  // into the draft). Recomputed only when the skill list changes.
-  const featuredToolboxSkillNames = useMemo<Partial<Record<DesignToolboxActionId, string | null>>>(() => {
-    const map: Partial<Record<DesignToolboxActionId, string | null>> = {};
-    for (const id of FEATURED_DESIGN_TOOLBOX_ACTION_IDS) {
-      const action = getDesignToolboxAction(id);
-      map[id] = action ? (findDesignToolboxSkill(action, skills)?.name ?? null) : null;
-    }
-    return map;
-  }, [skills]);
-  const [tab, setTab] = useState<Tab>('chat');
+  const [tab] = useState<Tab>('chat');
   const [showConvList, setShowConvList] = useState(false);
   const [conversationSearch, setConversationSearch] = useState('');
   const deferredConversationSearch = useDeferredValue(conversationSearch);
@@ -829,6 +627,34 @@ export function ChatPane({
     bottom: number;
   } | null>(null);
   const [composerSlotHeight, setComposerSlotHeight] = useState(0);
+  // The user can dismiss the pinned task list once everything is complete.
+  // We key the dismissal on the snapshot (serialized TodoWrite input) so
+  // the next time the agent emits a different snapshot the card returns,
+  // but the same snapshot stays hidden across renders / streaming ticks.
+  // Persisted to sessionStorage so the dismissal survives tab switches and
+  // component remounts (the ChatPane key includes conversationId, so switching
+  // conversations unmounts and remounts the component). The stored value is the
+  // snapshot key, so a fresh TodoWrite snapshot still re-shows the card.
+  const dismissedStorageKey = `dismissedTodo:${activeConversationId ?? 'none'}`;
+  const [dismissedPinnedTodoKey, setDismissedPinnedTodoKey] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem(dismissedStorageKey);
+    } catch {
+      return null;
+    }
+  });
+  // Sync dismissed state when conversationId changes (e.g., tab switching).
+  // The parent key includes conversationId so unmount/remount resets this,
+  // but if conversationId changes without unmounting or the storage key
+  // changes, re-read to keep the dismissed state in sync.
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(dismissedStorageKey);
+      setDismissedPinnedTodoKey(stored);
+    } catch {
+      // sessionStorage access can fail in private browsing
+    }
+  }, [dismissedStorageKey]);
   const [editingQueuedSendId, setEditingQueuedSendId] = useState<string | null>(null);
   // Reverse scan (no array copy) + memo so this and the maps below don't
   // recompute on every non-`messages` render (scroll, hover, toggles).
@@ -838,9 +664,6 @@ export function ChatPane({
     }
     return undefined;
   }, [messages]);
-  const hasActiveRunMessage = messages.some(
-    (m) => m.role === 'assistant' && isActiveRunStatus(m.runStatus),
-  );
   const retryAssistant = retryableAssistantMessage(messages, lastAssistantId, streaming);
   // The failed run's error event lives on the (persisted) assistant message, so
   // the error card + AMR card survive a reload — unlike the ephemeral global
@@ -855,24 +678,7 @@ export function ChatPane({
   })();
   // Per-case failure UI (button + copy + whether to promote AMR). Only
   // meaningful for a failed run (retryAssistant present).
-  const runFailureUi = retryAssistant
-    ? resolveRunFailureUi(failedRunErrorEvent?.code, retryAssistant.agentId)
-    : null;
-  // Offer Continue (resume) when the failed run is resumable AND the active
-  // agent still matches the agent that produced it. The daemon stores a
-  // resumable session per (conversation, agent); after an agent switch the new
-  // agent has no id for that session, so a resume would silently start fresh —
-  // fall back to the from-scratch Retry instead. We do NOT require `onResumeRun`
-  // here: because the daemon persists the resumable session, the plain Retry
-  // path (which re-sends the original prompt) would itself silently resume that
-  // session and double the work. So every ChatPane surface must offer Continue
-  // for a resumable failure — `onResumeRun` when wired (primary chat, carries
-  // the resume_continue analytics), otherwise a plain `onSend` of the canonical
-  // continue prompt (resumes the session without re-sending the original turn).
-  const canResumeFailedRun =
-    !!retryAssistant?.resumable &&
-    !!retryAssistant?.agentId &&
-    retryAssistant.agentId === config?.agentId;
+  const runFailureUi = retryAssistant ? resolveRunFailureUi(failedRunErrorEvent?.code, retryAssistant.agentId) : null;
   // Prefer a case-specific message (AMR auth / balance) over the raw upstream
   // string; fall back to the live global error (also covers conversation-load
   // / audio errors) then the persisted run error so a reload still shows it.
@@ -887,7 +693,7 @@ export function ChatPane({
         projectId,
         conversationId: activeConversationId,
         assistantMessageId: retryAssistant?.id,
-        agentId: retryAssistant?.agentId,
+        agentId: retryAssistant?.agentId
       })
     : null;
   const [copiedErrorDiagnostic, setCopiedErrorDiagnostic] = useState(false);
@@ -905,36 +711,37 @@ export function ChatPane({
       setCopiedErrorDiagnostic(false);
     }, 1600);
   }, [errorDiagnosticText]);
-  useEffect(() => () => {
-    if (errorDiagnosticCopyTimerRef.current != null) {
-      window.clearTimeout(errorDiagnosticCopyTimerRef.current);
-      errorDiagnosticCopyTimerRef.current = null;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (errorDiagnosticCopyTimerRef.current != null) {
+        window.clearTimeout(errorDiagnosticCopyTimerRef.current);
+        errorDiagnosticCopyTimerRef.current = null;
+      }
+    },
+    []
+  );
   // The failed run whose error this top-level card represents. AssistantMessage
   // suppresses only THIS message's per-message error pill (to avoid the
   // duplicate); other failed turns — older history, or once a follow-up makes
   // this no longer the last assistant — keep their pill so the error survives.
-  const errorCardOwnerId =
-    retryAssistant && failedRunErrorEvent ? retryAssistant.id : null;
+  const errorCardOwnerId = retryAssistant && failedRunErrorEvent ? retryAssistant.id : null;
   // AMR promotion card payload (only the non-AMR model/auth/quota case).
   const amrSwitchPayload =
-    runFailureUi?.showSwitchCard
-    && failedRunErrorEvent?.code !== 'UPSTREAM_UNAVAILABLE'
-    && retryAssistant
-    && failedRunErrorEvent?.code
+    runFailureUi?.showSwitchCard &&
+    failedRunErrorEvent?.code !== 'UPSTREAM_UNAVAILABLE' &&
+    retryAssistant &&
+    failedRunErrorEvent?.code
       ? {
           errorCode: failedRunErrorEvent.code,
           projectId: projectId ?? '',
           projectKind: projectKindForTracking,
           conversationId: activeConversationId,
           assistantMessageId: retryAssistant.id,
-          runId: retryAssistant.runId ?? null,
+          runId: retryAssistant.runId ?? null
         }
       : null;
   const showByokRecoveryCta = showByokRecoveryAction && Boolean(onSwitchToLocalCli);
-  const showErrorActions =
-    showByokRecoveryCta || Boolean(retryAssistant && onRetry && runFailureUi);
+  const showErrorActions = showByokRecoveryCta || Boolean(retryAssistant && onRetry && runFailureUi);
   useEffect(() => {
     if (!displayError || !failedRunErrorEvent?.code || !retryAssistant) return;
     // The hosted-AMR nudge owns this same surface_view when it renders below
@@ -948,7 +755,7 @@ export function ChatPane({
       activeConversationId ?? '',
       retryAssistant.id,
       retryAssistant.runId ?? '',
-      failedRunErrorEvent.code,
+      failedRunErrorEvent.code
     ].join(':');
     if (runFailedToastSurfaceKeysRef.current.has(key)) return;
     runFailedToastSurfaceKeysRef.current.add(key);
@@ -962,7 +769,7 @@ export function ChatPane({
       project_kind: projectKindForTracking,
       conversation_id: activeConversationId,
       assistant_message_id: retryAssistant.id,
-      run_id: retryAssistant.runId ?? null,
+      run_id: retryAssistant.runId ?? null
     });
   }, [
     activeConversationId,
@@ -972,28 +779,22 @@ export function ChatPane({
     failedRunErrorEvent?.code,
     projectId,
     projectKindForTracking,
-    retryAssistant,
+    retryAssistant
   ]);
   const importedFolderArtifacts = useMemo(
     () =>
       projectMetadata?.importedFrom === 'folder'
-        ? sortArtifactsByModified(
-            listDesignArtifactCandidates(projectFiles, projectMetadata.entryFile),
-          )
+        ? sortArtifactsByModified(listDesignArtifactCandidates(projectFiles, projectMetadata.entryFile))
         : [],
-    [projectFiles, projectMetadata?.entryFile, projectMetadata?.importedFrom],
+    [projectFiles, projectMetadata?.entryFile, projectMetadata?.importedFrom]
   );
   const showImportedFolderArtifacts = projectMetadata?.importedFrom === 'folder';
-  const composerDraftStorageKey = projectId && activeConversationId
-    ? `od:chat-composer:draft:${projectId}:${activeConversationId}`
-    : undefined;
+  const composerDraftStorageKey =
+    projectId && activeConversationId ? `od:chat-composer:draft:${projectId}:${activeConversationId}` : undefined;
   // Only the first user message gets the active-plugin chip — the
   // plugin is project-scoped so re-stamping it on every reply would be
   // noise. Subsequent messages still run under the same snapshot.
-  const firstUserMessageId = useMemo(
-    () => messages.find((m) => m.role === 'user')?.id,
-    [messages],
-  );
+  const firstUserMessageId = useMemo(() => messages.find((m) => m.role === 'user')?.id, [messages]);
   // Map each assistant message id to the user message that follows it (if any)
   // so the chat-side Questions banner can reopen that exact answered form in
   // the right-hand panel later.
@@ -1066,7 +867,7 @@ export function ChatPane({
       text: item.prompt,
       attachments: item.attachments ?? [],
       commentAttachments: item.commentAttachments ?? [],
-      meta: item.meta,
+      meta: item.meta
     });
   };
 
@@ -1201,9 +1002,9 @@ export function ChatPane({
   // scrollTop or a "pinned to bottom" flag while Chat is visible, so
   // bottom-followers stay pinned even when new messages stream in
   // off-tab. Issue #790.
-  const savedChatScrollRef = useRef<
-    { pinnedToBottom: true } | { pinnedToBottom: false; scrollTop: number } | null
-  >(null);
+  const savedChatScrollRef = useRef<{ pinnedToBottom: true } | { pinnedToBottom: false; scrollTop: number } | null>(
+    null
+  );
   useEffect(() => {
     if (tab !== 'chat') return;
     const el = logRef.current;
@@ -1245,20 +1046,16 @@ export function ChatPane({
         // bottom and returns to find new messages stacked underneath
         // would land hundreds of pixels above the latest turn while
         // scrolledFromBottom remained false until they scrolled.
-        const distance =
-          target.scrollHeight - target.scrollTop - target.clientHeight;
+        const distance = target.scrollHeight - target.scrollTop - target.clientHeight;
         setScrolledFromBottom(distance > 120);
         pinnedToBottomRef.current = distance < 80;
       });
     }
 
     function snapshot(target: HTMLDivElement) {
-      const distance =
-        target.scrollHeight - target.scrollTop - target.clientHeight;
+      const distance = target.scrollHeight - target.scrollTop - target.clientHeight;
       savedChatScrollRef.current =
-        distance < 50
-          ? { pinnedToBottom: true }
-          : { pinnedToBottom: false, scrollTop: target.scrollTop };
+        distance < 50 ? { pinnedToBottom: true } : { pinnedToBottom: false, scrollTop: target.scrollTop };
     }
 
     function onScroll() {
@@ -1270,18 +1067,14 @@ export function ChatPane({
       // scrollable space so scrolling down feels natural instead of snapping.
       if (anchorActiveRef.current) {
         const pinnedTop = lastUserMsgTopInContent(target);
-        if (
-          pinnedTop !== null &&
-          Math.abs(target.scrollTop - (pinnedTop - ANCHOR_TOP_PADDING)) > 40
-        ) {
+        if (pinnedTop !== null && Math.abs(target.scrollTop - (pinnedTop - ANCHOR_TOP_PADDING)) > 40) {
           anchorActiveRef.current = false;
         }
       }
       syncScrollable(target);
       markScrolling();
       snapshot(target);
-      const distance =
-        target.scrollHeight - target.scrollTop - target.clientHeight;
+      const distance = target.scrollHeight - target.scrollTop - target.clientHeight;
       // Functional updater bails out when the value is unchanged so a flood
       // of scroll events (e.g. programmatic scrollTop + ResizeObserver
       // follow-up during streaming) does not schedule a re-render per tick
@@ -1366,7 +1159,24 @@ export function ChatPane({
       }
     };
 
+    // The PinnedTodoSlot renders outside the scroll container. When the todo
+    // card grows, the chat-log's clientHeight shrinks (flex layout) and the
+    // user drifts away from the bottom. Observe the pinned-todo div so
+    // followLatestIfPinned fires whenever the card changes height.
+    let observedPinnedTodo: Element | null = null;
     let observedQueuedSendStrip: Element | null = null;
+    const syncPinnedTodo = () => {
+      if (!resizeObserver) return;
+      const pinnedEl = pinnedTodoRef.current;
+      if (pinnedEl && observedPinnedTodo !== pinnedEl) {
+        if (observedPinnedTodo) resizeObserver.unobserve(observedPinnedTodo);
+        resizeObserver.observe(pinnedEl);
+        observedPinnedTodo = pinnedEl;
+      } else if (!pinnedEl && observedPinnedTodo) {
+        resizeObserver.unobserve(observedPinnedTodo);
+        observedPinnedTodo = null;
+      }
+    };
     const syncQueuedSendStrip = () => {
       if (!resizeObserver) return;
       const queuedEl = queuedSendStripRef.current;
@@ -1383,12 +1193,14 @@ export function ChatPane({
     };
 
     syncObservedChildren();
+    syncPinnedTodo();
     syncQueuedSendStrip();
 
     const mutationObserver =
       typeof MutationObserver !== 'undefined'
         ? new MutationObserver(() => {
             syncObservedChildren();
+            syncPinnedTodo();
             syncQueuedSendStrip();
             followLatestIfPinned();
           })
@@ -1399,13 +1211,13 @@ export function ChatPane({
     // re-run the full sync sweep on every streamed frame for no extra benefit.
     mutationObserver?.observe(el, {
       childList: true,
-      subtree: true,
+      subtree: true
     });
-    // QueuedSendStrip lives outside the chat-log subtree (it is a sibling of
-    // .chat-log-wrap inside .pane). The MutationObserver above only fires for
-    // changes inside el, so it cannot detect that surface mounting or
-    // unmounting. Watch the nearest common ancestor (.pane) with childList-only
-    // to keep its observer current.
+    // PinnedTodoSlot and QueuedSendStrip live outside the chat-log subtree
+    // (they are siblings of .chat-log-wrap inside .pane). The
+    // MutationObserver above only fires for changes inside el, so it cannot
+    // detect those surfaces mounting or unmounting. Watch the nearest common
+    // ancestor (.pane) with childList-only to keep their observers current.
     const paneEl = el.parentElement?.parentElement ?? null;
     if (paneEl && mutationObserver) {
       mutationObserver.observe(paneEl, { childList: true });
@@ -1442,11 +1254,10 @@ export function ChatPane({
     setConversationSearch('');
   }, [showConvList]);
 
-  const activeConversation =
-    conversations.find((c) => c.id === activeConversationId) ?? null;
+  const activeConversation = conversations.find((c) => c.id === activeConversationId) ?? null;
   const filteredConversations = useMemo(
     () => filterConversations(conversations, deferredConversationSearch, t),
-    [conversations, deferredConversationSearch, t],
+    [conversations, deferredConversationSearch, t]
   );
 
   function resetTailSpacer() {
@@ -1526,14 +1337,9 @@ export function ChatPane({
         const next = {
           left: Math.round(rect.left),
           width: Math.round(rect.width),
-          bottom: Math.max(0, Math.round(window.innerHeight - rect.bottom)),
+          bottom: Math.max(0, Math.round(window.innerHeight - rect.bottom))
         };
-        if (
-          prev
-          && prev.left === next.left
-          && prev.width === next.width
-          && prev.bottom === next.bottom
-        ) {
+        if (prev && prev.left === next.left && prev.width === next.width && prev.bottom === next.bottom) {
           return prev;
         }
         return next;
@@ -1545,10 +1351,7 @@ export function ChatPane({
     };
 
     updateRect();
-    const resizeObserver =
-      typeof ResizeObserver !== 'undefined'
-        ? new ResizeObserver(scheduleUpdate)
-        : null;
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleUpdate) : null;
     resizeObserver?.observe(slot);
     const pane = slot.closest('.pane');
     if (pane) resizeObserver?.observe(pane);
@@ -1580,10 +1383,7 @@ export function ChatPane({
     };
 
     updateHeight();
-    const resizeObserver =
-      typeof ResizeObserver !== 'undefined'
-        ? new ResizeObserver(scheduleUpdate)
-        : null;
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleUpdate) : null;
     resizeObserver?.observe(layer);
 
     return () => {
@@ -1617,7 +1417,7 @@ export function ChatPane({
           const update: QueuedSendUpdate = {
             prompt,
             attachments,
-            commentAttachments,
+            commentAttachments
           };
           const nextMeta = meta ?? original?.meta;
           if (nextMeta !== undefined) update.meta = nextMeta;
@@ -1639,10 +1439,6 @@ export function ChatPane({
       onOpenMcpSettings={onOpenMcpSettings}
       onBrowsePlugins={onBrowsePlugins}
       onOpenConnectors={onOpenConnectors}
-      petConfig={petConfig}
-      onAdoptPet={onAdoptPet}
-      onTogglePet={onTogglePet}
-      onOpenPetSettings={onOpenPetSettings}
       researchAvailable={researchAvailable}
       projectMetadata={projectMetadata}
       onProjectMetadataChange={onProjectMetadataChange}
@@ -1668,10 +1464,7 @@ export function ChatPane({
     />
   );
   const shouldPortalComposer =
-    tab === 'chat'
-    && composerPortalTarget !== null
-    && composerPortalRect !== null
-    && composerPortalRect.width > 0;
+    tab === 'chat' && composerPortalTarget !== null && composerPortalRect !== null && composerPortalRect.width > 0;
   const composerSlotStyle: CSSProperties | undefined = shouldPortalComposer
     ? { minHeight: composerSlotHeight > 0 ? composerSlotHeight : undefined }
     : undefined;
@@ -1680,23 +1473,12 @@ export function ChatPane({
     <div className="pane">
       <div className="chat-project-header">
         {onBack ? (
-          <button
-            type="button"
-            className="chat-project-back"
-            onClick={onBack}
-            title={backLabel}
-            aria-label={backLabel}
-          >
+          <button type="button" className="chat-project-back" onClick={onBack} title={backLabel} aria-label={backLabel}>
             <Icon name="arrow-left" size={16} />
           </button>
         ) : null}
-        {projectHeader ? (
-          <span className="chat-project-header-title">{projectHeader}</span>
-        ) : null}
-        <div
-          className={`chat-history-wrap chat-session-switcher${showConvList ? ' open' : ''}`}
-          ref={historyWrapRef}
-        >
+        {projectHeader ? <span className="chat-project-header-title">{projectHeader}</span> : null}
+        <div className={`chat-history-wrap chat-session-switcher${showConvList ? ' open' : ''}`} ref={historyWrapRef}>
           <button
             type="button"
             className="chat-session-trigger icon-only"
@@ -1716,7 +1498,7 @@ export function ChatPane({
                   trackChatPanelClick(analytics.track, {
                     page_name: 'chat_panel',
                     area: 'chat_panel',
-                    element: 'history',
+                    element: 'history'
                   });
                 }
                 return next;
@@ -1728,15 +1510,11 @@ export function ChatPane({
           {showConvList ? (
             <div className="chat-history-menu" role="menu" data-testid="conversation-history-menu">
               <div className="chat-history-menu-head">
-                <span className="chat-history-menu-title">
-                  {t('chat.conversationsHeading')}
-                </span>
+                <span className="chat-history-menu-title">{t('chat.conversationsHeading')}</span>
                 <span className="chat-history-menu-count">
-                  <span data-testid="conversation-history-count">
                   {filteredConversations.length === conversations.length
                     ? compactCount(conversations.length)
                     : `${compactCount(filteredConversations.length)} / ${compactCount(conversations.length)}`}
-                  </span>
                 </span>
                 {onNewConversation ? (
                   <button
@@ -1749,7 +1527,7 @@ export function ChatPane({
                       trackChatPanelClick(analytics.track, {
                         page_name: 'chat_panel',
                         area: 'chat_panel',
-                        element: 'new_chat',
+                        element: 'new_chat'
                       });
                       onNewConversation();
                       setShowConvList(false);
@@ -1782,20 +1560,21 @@ export function ChatPane({
               </label>
               <div className="chat-history-list" data-testid="conversation-list">
                 {conversations.length === 0 ? (
-                  <div className="chat-history-empty">
-                    {t('chat.emptyConversations')}
-                  </div>
+                  <div className="chat-history-empty">{t('chat.emptyConversations')}</div>
                 ) : filteredConversations.length === 0 ? (
-                  <div className="chat-history-empty">
-                    No conversations match.
-                  </div>
+                  <div className="chat-history-empty">No conversations match.</div>
                 ) : (
                   filteredConversations.map((c) => (
                     <ConversationRow
                       key={c.id}
                       conversation={c}
                       active={c.id === activeConversationId}
-                      messageCount={conversationMessageCount(c, activeConversationId, messagesConversationId, messages.length)}
+                      messageCount={conversationMessageCount(
+                        c,
+                        activeConversationId,
+                        messagesConversationId,
+                        messages.length
+                      )}
                       onSelect={() => {
                         onSelectConversation(c.id);
                         setShowConvList(false);
@@ -1818,8 +1597,10 @@ export function ChatPane({
                 'chat-log',
                 loading ? 'is-loading' : '',
                 chatLogScrollable ? 'is-scrollable' : '',
-                chatLogScrolling ? 'is-scrolling' : '',
-              ].filter(Boolean).join(' ')}
+                chatLogScrolling ? 'is-scrolling' : ''
+              ]
+                .filter(Boolean)
+                .join(' ')}
               ref={logRef}
               aria-busy={loading}
               onClickCapture={(e) => {
@@ -1829,7 +1610,7 @@ export function ChatPane({
                 // to the bottom on the height change and push the header up,
                 // so unpin the moment the user toggles one open.
                 const toggle = (e.target as HTMLElement).closest(
-                  '.thinking-toggle, .action-card-toggle, button.op-card-head, [aria-expanded]',
+                  '.thinking-toggle, .action-card-toggle, button.op-card-head, [aria-expanded]'
                 );
                 if (toggle && logRef.current?.contains(toggle)) {
                   pinnedToBottomRef.current = false;
@@ -1851,12 +1632,10 @@ export function ChatPane({
                   ) : (
                     <>
                       <div className="chat-empty">
-                        <span className="chat-empty-title">
-                          {t('chat.startTitle')}
-                        </span>
+                        <span className="chat-empty-title">{t('chat.startTitle')}</span>
                       </div>
                       <div className="chat-examples" role="list">
-                        {pickStarters(projectMetadata, t).map((ex, i) => (
+                        {starterPrompts(t).map((ex, i) => (
                           <button
                             key={`${ex.title}-${i}`}
                             type="button"
@@ -1867,7 +1646,7 @@ export function ChatPane({
                               trackChatPanelClick(analytics.track, {
                                 page_name: 'chat_panel',
                                 area: 'chat_panel',
-                                element: 'template_card',
+                                element: 'template_card'
                               });
                               composerRef.current?.setDraft(ex.prompt);
                             }}
@@ -1898,9 +1677,7 @@ export function ChatPane({
                             <span className="chat-connect-repo-title">
                               {repoConnectCopy(githubConnected).cardTitle}
                             </span>
-                            <span className="chat-connect-repo-text">
-                              {repoConnectCopy(githubConnected).cardBody}
-                            </span>
+                            <span className="chat-connect-repo-text">{repoConnectCopy(githubConnected).cardBody}</span>
                           </span>
                           <button
                             type="button"
@@ -1933,8 +1710,6 @@ export function ChatPane({
                 onRequestPluginFolderAgentAction={onRequestPluginFolderAgentAction}
                 activePluginActionPaths={activePluginActionPaths}
                 hiddenPluginActionPaths={hiddenPluginActionPaths}
-                onShareToOpenDesign={onShareToOpenDesign}
-                shareToOpenDesignBusyMessageId={shareToOpenDesignBusyMessageId}
                 forceStreamingMessageIds={forceStreamingMessageIds}
                 lastAssistantId={lastAssistantId}
                 firstUserMessageId={firstUserMessageId}
@@ -1946,15 +1721,15 @@ export function ChatPane({
                 assistantCallbacksRef={assistantCallbacksRef}
                 onContinueRemainingTasks={onContinueRemainingTasks}
                 onArtifactShare={onArtifactShare}
-                onToolboxAction={handleToolboxAction}
-                onPickSkill={handlePickSkill}
-                onArtifactDownload={onArtifactDownload}
-                nextStepSkills={skills}
-                toolboxSkillNames={featuredToolboxSkillNames}
+                onArtifactChip={onArtifactChip}
                 onForkFromMessage={onForkFromMessage}
                 onAssistantFeedback={onAssistantFeedback}
                 forkingMessageId={forkingMessageId}
                 t={t}
+                onAssistantFormSubmitStart={() => {
+                  pinnedToBottomRef.current = true;
+                  scrolledToFormRef.current = new Set();
+                }}
                 onOpenQuestions={onOpenQuestions}
                 scrollContainerRef={logRef}
               />
@@ -1964,11 +1739,7 @@ export function ChatPane({
                   {errorDiagnosticText || showErrorActions || (retryAssistant && onRetry && runFailureUi) ? (
                     <div className="chat-error-actions">
                       {showByokRecoveryCta ? (
-                        <button
-                          type="button"
-                          className="chat-error-action"
-                          onClick={onSwitchToLocalCli}
-                        >
+                        <button type="button" className="chat-error-action" onClick={onSwitchToLocalCli}>
                           {t('avatar.useLocal')}
                         </button>
                       ) : null}
@@ -2025,40 +1796,18 @@ export function ChatPane({
                               type="button"
                               className="chat-error-action"
                               onClick={() => {
-                                const attribution = recordAmrEntry(
-                                  analytics.track,
-                                  'chat_error_recharge',
-                                );
+                                const attribution = recordAmrEntry(analytics.track, 'chat_error_recharge');
                                 window.open(
-                                  attributedAmrUrl(amrRechargeUrlForProfile(amrProfile), attribution),
+                                  attributedAmrUrl(AMR_RECHARGE_URL, attribution),
                                   '_blank',
-                                  'noopener,noreferrer',
+                                  'noopener,noreferrer'
                                 );
                               }}
                             >
                               {t('chat.amrError.rechargeCta')}
                             </button>
                           ) : null}
-                          {canResumeFailedRun ? (
-                            // Resumable failure: continue the agent's existing
-                            // CLI session instead of restarting from scratch, so
-                            // partial work is kept. Replaces the from-scratch
-                            // Retry as the single primary recovery action. Use
-                            // the wired resume handler when present, otherwise a
-                            // plain send of the continue prompt — never the
-                            // re-sending Retry path, which would resume + repeat.
-                            <button
-                              type="button"
-                              className="ghost chat-error-retry"
-                              onClick={() =>
-                                onResumeRun
-                                  ? onResumeRun(retryAssistant)
-                                  : onSend(RESUME_CONTINUE_PROMPT, [], [])
-                              }
-                            >
-                              {t('chat.resumeRunCta')}
-                            </button>
-                          ) : runFailureUi.primaryAction === 'retry' || runFailureUi.secondaryRetry ? (
+                          {runFailureUi.primaryAction === 'retry' || runFailureUi.secondaryRetry ? (
                             <button
                               type="button"
                               className="ghost chat-error-retry"
@@ -2107,45 +1856,32 @@ export function ChatPane({
               <span>{t('chat.jumpToLatest')}</span>
             </button>
           </div>
+          <PinnedTodoSlot
+            messages={messages}
+            streaming={streaming}
+            dismissedKey={dismissedPinnedTodoKey}
+            onDismiss={(key) => {
+              setDismissedPinnedTodoKey(key);
+              try {
+                if (key) {
+                  sessionStorage.setItem(dismissedStorageKey, key);
+                } else {
+                  sessionStorage.removeItem(dismissedStorageKey);
+                }
+              } catch {
+                // sessionStorage access can fail in private browsing / sandboxed contexts
+              }
+            }}
+            containerRef={pinnedTodoRef}
+          />
           <QueuedSendStrip
             containerRef={queuedSendStripRef}
             items={queuedItems}
             editingId={editingQueuedSendId}
-            onEdit={(item) => {
-              trackMessageQueueClick(analytics.track, {
-                page_name: 'chat_panel',
-                area: 'message_queue',
-                element: 'edit',
-                project_id: projectId ?? '',
-                queue_length: queuedItems.length,
-              });
-              restoreQueuedSendToComposer(item);
-            }}
-            onRemove={onRemoveQueuedSend
-              ? (id) => {
-                  trackMessageQueueClick(analytics.track, {
-                    page_name: 'chat_panel',
-                    area: 'message_queue',
-                    element: 'delete',
-                    project_id: projectId ?? '',
-                    queue_length: queuedItems.length,
-                  });
-                  onRemoveQueuedSend(id);
-                }
-              : undefined}
+            onEdit={restoreQueuedSendToComposer}
+            onRemove={onRemoveQueuedSend}
             onReorder={onReorderQueuedSends}
-            onSendNow={onSendQueuedNow
-              ? (id) => {
-                  trackMessageQueueClick(analytics.track, {
-                    page_name: 'chat_panel',
-                    area: 'message_queue',
-                    element: 'send_now',
-                    project_id: projectId ?? '',
-                    queue_length: queuedItems.length,
-                  });
-                  onSendQueuedNow(id);
-                }
-              : undefined}
+            onSendNow={onSendQueuedNow}
           />
           <div
             className="chat-composer-slot"
@@ -2163,12 +1899,12 @@ export function ChatPane({
                   style={{
                     left: composerPortalRect.left,
                     bottom: composerPortalRect.bottom,
-                    width: composerPortalRect.width,
+                    width: composerPortalRect.width
                   }}
                 >
                   {composerNode}
                 </div>,
-                composerPortalTarget,
+                composerPortalTarget
               )
             : null}
         </>
@@ -2178,22 +1914,25 @@ export function ChatPane({
 }
 
 interface AssistantCallbacks {
-  onContinueRemainingTasks:
-    | ((assistantMessage: ChatMessage, todos: TodoItem[]) => void)
-    | undefined;
-  onAssistantFeedback:
-    | ((message: ChatMessage, change: ChatMessageFeedbackChange) => void)
-    | undefined;
+  onSubmitForm: ((text: string) => void) | undefined;
+  onContinueRemainingTasks: ((assistantMessage: ChatMessage, todos: TodoItem[]) => void) | undefined;
+  onAssistantFeedback: ((message: ChatMessage, change: ChatMessageFeedbackChange) => void) | undefined;
   onArtifactShare: ((fileName: string) => void) | undefined;
+  onArtifactChip: ((fileName: string, prompt: string) => void) | undefined;
   onForkFromMessage: ((message: ChatMessage) => void) | undefined;
-  onShareToOpenDesign: ((assistantMessageId: string) => void) | undefined;
 }
 
-type ChatRenderItem = {
-  kind: 'message';
-  key: string;
-  message: ChatMessage;
-};
+type ChatRenderItem =
+  | {
+      kind: 'separator';
+      key: string;
+      timestamp: number;
+    }
+  | {
+      kind: 'message';
+      key: string;
+      message: ChatMessage;
+    };
 
 function ChatConversationLoading({ t }: { t: TranslateFn }) {
   return (
@@ -2229,8 +1968,6 @@ function ChatRows({
   onRequestPluginFolderAgentAction,
   activePluginActionPaths,
   hiddenPluginActionPaths,
-  onShareToOpenDesign,
-  shareToOpenDesignBusyMessageId,
   forceStreamingMessageIds,
   lastAssistantId,
   firstUserMessageId,
@@ -2242,17 +1979,14 @@ function ChatRows({
   assistantCallbacksRef,
   onContinueRemainingTasks,
   onArtifactShare,
-  onToolboxAction,
-  onPickSkill,
-  onArtifactDownload,
-  nextStepSkills,
-  toolboxSkillNames,
+  onArtifactChip,
   onForkFromMessage,
   onAssistantFeedback,
   forkingMessageId,
   t,
+  onAssistantFormSubmitStart,
   onOpenQuestions,
-  scrollContainerRef,
+  scrollContainerRef
 }: {
   messages: ChatMessage[];
   streaming: boolean;
@@ -2269,8 +2003,6 @@ function ChatRows({
   onRequestPluginFolderAgentAction?: (relativePath: string, action: PluginFolderAgentAction) => void;
   activePluginActionPaths?: Set<string>;
   hiddenPluginActionPaths?: Set<string>;
-  onShareToOpenDesign?: (assistantMessageId: string) => void;
-  shareToOpenDesignBusyMessageId?: string | null;
   forceStreamingMessageIds?: Set<string>;
   lastAssistantId: string | undefined;
   firstUserMessageId: string | undefined;
@@ -2282,30 +2014,16 @@ function ChatRows({
   assistantCallbacksRef: MutableRefObject<AssistantCallbacks>;
   onContinueRemainingTasks?: (assistantMessage: ChatMessage, todos: TodoItem[]) => void;
   onArtifactShare?: (fileName: string) => void;
-  onToolboxAction?: (id: DesignToolboxActionId) => void;
-  onPickSkill?: (skillId: string) => void;
-  onArtifactDownload?: (fileName: string) => void;
-  nextStepSkills?: SkillSummary[];
-  toolboxSkillNames?: Partial<Record<DesignToolboxActionId, string | null>>;
+  onArtifactChip?: (fileName: string, prompt: string) => void;
   onForkFromMessage?: (message: ChatMessage) => void;
   onAssistantFeedback?: (message: ChatMessage, change: ChatMessageFeedbackChange) => void;
   forkingMessageId?: string | null;
   t: TranslateFn;
+  onAssistantFormSubmitStart: () => void;
   onOpenQuestions?: (request?: QuestionFormOpenRequest) => void;
   scrollContainerRef: MutableRefObject<HTMLDivElement | null>;
 }) {
-  const conversationTodoInput = useMemo(
-    () => latestTodoWriteInputForPinnedCard(messages),
-    [messages],
-  );
-  const conversationTodoAnchorMessageId = useMemo(
-    () => firstTodoWriteAssistantMessageId(messages),
-    [messages],
-  );
-  const items = useMemo(
-    () => buildChatRenderItems(messages),
-    [messages],
-  );
+  const items = useMemo(() => buildChatRenderItems(messages), [messages]);
   const virtualized = items.length > CHAT_MESSAGE_VIRTUALIZE_THRESHOLD;
   const virtualWindow = useMeasuredVirtualWindow(items, {
     enabled: virtualized,
@@ -2313,21 +2031,15 @@ function ChatRows({
     estimateSize: estimateChatRenderItemHeight,
     overscanPx: CHAT_MESSAGE_OVERSCAN_PX,
     resetKey: activeConversationKey,
-    initialTailRows: CHAT_VIRTUAL_INITIAL_TAIL_ROWS,
-    alwaysIncludeKey:
-      conversationTodoInput != null && conversationTodoAnchorMessageId
-        ? `message:${conversationTodoAnchorMessageId}`
-        : undefined,
+    initialTailRows: CHAT_VIRTUAL_INITIAL_TAIL_ROWS
   });
 
   const renderItem = (item: ChatRenderItem) => {
+    if (item.kind === 'separator') {
+      return <DaySeparator ts={item.timestamp} />;
+    }
     const m = item.message;
-    const messageStreaming = isAssistantMessageStreaming(
-      m,
-      streaming,
-      lastAssistantId,
-      forceStreamingMessageIds,
-    );
+    const messageStreaming = isAssistantMessageStreaming(m, streaming, lastAssistantId, forceStreamingMessageIds);
     if (m.role === 'user') {
       return (
         <UserMessage
@@ -2338,16 +2050,8 @@ function ChatRows({
           onRequestPluginDetails={onRequestPluginDetails}
           onRequestDesignSystemDetails={onRequestDesignSystemDetails}
           t={t}
-          activePluginSnapshot={
-            m.id === firstUserMessageId
-              ? activePluginSnapshot ?? null
-              : null
-          }
-          activeDesignSystem={
-            m.id === firstUserMessageId
-              ? activeDesignSystem ?? null
-              : null
-          }
+          activePluginSnapshot={m.id === firstUserMessageId ? (activePluginSnapshot ?? null) : null}
+          activeDesignSystem={m.id === firstUserMessageId ? (activeDesignSystem ?? null) : null}
         />
       );
     }
@@ -2359,8 +2063,6 @@ function ChatRows({
         // get a stable `undefined`, so adding `liveToolInput` to the memo
         // comparator re-renders just this row per `tool_input_delta`, not all N.
         liveToolInput={messageStreaming ? liveToolInput : undefined}
-        showConversationTodoCard={m.id === conversationTodoAnchorMessageId}
-        conversationTodoInput={conversationTodoInput}
         projectId={projectId}
         projectKind={projectKindForTracking}
         conversationId={activeConversationId}
@@ -2370,44 +2072,34 @@ function ChatRows({
         onRequestPluginFolderAgentAction={onRequestPluginFolderAgentAction}
         activePluginActionPaths={activePluginActionPaths}
         hiddenPluginActionPaths={hiddenPluginActionPaths}
-        onShareToOpenDesign={
-          onShareToOpenDesign
-            ? () => assistantCallbacksRef.current.onShareToOpenDesign?.(m.id)
-            : undefined
-        }
-        shareToOpenDesignBusy={shareToOpenDesignBusyMessageId === m.id}
         isLast={m.id === lastAssistantId}
         errorCardOwnerId={errorCardOwnerId}
         nextUserContent={nextUserContentByAssistantId.get(m.id)}
         suppressDirectionForms={hasActiveDesignSystem}
         hasDesignSystemContext={hasActiveDesignSystem || !!activeDesignSystem}
+        onSubmitForm={(text) => {
+          onAssistantFormSubmitStart();
+          assistantCallbacksRef.current.onSubmitForm?.(text);
+        }}
         onOpenQuestions={onOpenQuestions}
         onContinueRemainingTasks={
           m.id === lastAssistantId && onContinueRemainingTasks
             ? (todos) => assistantCallbacksRef.current.onContinueRemainingTasks?.(m, todos)
             : undefined
         }
-        onForkFromMessage={
-          onForkFromMessage
-            ? () => assistantCallbacksRef.current.onForkFromMessage?.(m)
-            : undefined
-        }
+        onForkFromMessage={onForkFromMessage ? () => assistantCallbacksRef.current.onForkFromMessage?.(m) : undefined}
         forking={forkingMessageId === m.id}
         onFeedback={
-          onAssistantFeedback
-            ? (rating) => assistantCallbacksRef.current.onAssistantFeedback?.(m, rating)
-            : undefined
+          onAssistantFeedback ? (rating) => assistantCallbacksRef.current.onAssistantFeedback?.(m, rating) : undefined
         }
         onArtifactShare={
-          onArtifactShare
-            ? (fileName) => assistantCallbacksRef.current.onArtifactShare?.(fileName)
+          onArtifactShare ? (fileName) => assistantCallbacksRef.current.onArtifactShare?.(fileName) : undefined
+        }
+        onArtifactChip={
+          onArtifactChip
+            ? (fileName, prompt) => assistantCallbacksRef.current.onArtifactChip?.(fileName, prompt)
             : undefined
         }
-        onToolboxAction={onToolboxAction}
-        onPickSkill={onPickSkill}
-        onArtifactDownload={onArtifactDownload}
-        nextStepSkills={nextStepSkills}
-        toolboxSkillNames={toolboxSkillNames}
       />
     );
   };
@@ -2431,12 +2123,7 @@ function ChatRows({
       style={{ height: virtualWindow.totalHeight }}
     >
       {virtualWindow.rows.map((row) => (
-        <VirtualChatRow
-          key={row.item.key}
-          itemKey={row.item.key}
-          top={row.top}
-          onMeasure={virtualWindow.onMeasure}
-        >
+        <VirtualChatRow key={row.item.key} itemKey={row.item.key} top={row.top} onMeasure={virtualWindow.onMeasure}>
           {renderItem(row.item)}
         </VirtualChatRow>
       ))}
@@ -2448,7 +2135,7 @@ function VirtualChatRow({
   itemKey,
   top,
   onMeasure,
-  children,
+  children
 }: {
   itemKey: string;
   top: number;
@@ -2472,11 +2159,7 @@ function VirtualChatRow({
   }, [itemKey, onMeasure]);
 
   return (
-    <div
-      ref={rowRef}
-      className="chat-virtual-row"
-      style={{ transform: `translateY(${top}px)` }}
-    >
+    <div ref={rowRef} className="chat-virtual-row" style={{ transform: `translateY(${top}px)` }}>
       {children}
     </div>
   );
@@ -2486,27 +2169,26 @@ function buildChatRenderItems(messages: ChatMessage[]): ChatRenderItem[] {
   const items: ChatRenderItem[] = [];
   for (let i = 0; i < messages.length; i += 1) {
     const message = messages[i]!;
+    if (shouldShowDaySeparator(messages[i - 1], message)) {
+      const timestamp = messageTime(message);
+      if (timestamp === undefined) continue;
+      items.push({
+        kind: 'separator',
+        key: `day:${dayKey(timestamp)}:${message.id}`,
+        timestamp
+      });
+    }
     items.push({
       kind: 'message',
       key: `message:${message.id}`,
-      message,
+      message
     });
   }
   return items;
 }
 
-function firstTodoWriteAssistantMessageId(messages: ChatMessage[]): string | null {
-  const message = messages.find(
-    (candidate) =>
-      candidate.role === 'assistant' &&
-      candidate.events?.some(
-        (event) => event.kind === 'tool_use' && isTodoWriteToolName(event.name),
-      ),
-  );
-  return message?.id ?? null;
-}
-
 function estimateChatRenderItemHeight(item: ChatRenderItem): number {
+  if (item.kind === 'separator') return 34 + CHAT_VIRTUAL_ROW_GAP_PX;
   const message = item.message;
   const contentLength = message.content?.length ?? 0;
   const attachmentCount = (message.attachments?.length ?? 0) + (message.commentAttachments?.length ?? 0);
@@ -2514,14 +2196,7 @@ function estimateChatRenderItemHeight(item: ChatRenderItem): number {
   const fileCount = message.producedFiles?.length ?? 0;
   const base = message.role === 'user' ? 82 : 118;
   const contentRows = Math.min(18, Math.ceil(contentLength / 120));
-  return (
-    base
-    + contentRows * 18
-    + attachmentCount * 34
-    + eventCount * 28
-    + fileCount * 32
-    + CHAT_VIRTUAL_ROW_GAP_PX
-  );
+  return base + contentRows * 18 + attachmentCount * 34 + eventCount * 28 + fileCount * 32 + CHAT_VIRTUAL_ROW_GAP_PX;
 }
 
 function useMeasuredVirtualWindow<T extends { key: string }>(
@@ -2532,8 +2207,7 @@ function useMeasuredVirtualWindow<T extends { key: string }>(
     estimateSize,
     overscanPx,
     resetKey,
-    initialTailRows,
-    alwaysIncludeKey,
+    initialTailRows
   }: {
     enabled: boolean;
     containerRef: MutableRefObject<HTMLDivElement | null>;
@@ -2541,8 +2215,7 @@ function useMeasuredVirtualWindow<T extends { key: string }>(
     overscanPx: number;
     resetKey: string;
     initialTailRows: number;
-    alwaysIncludeKey?: string;
-  },
+  }
 ) {
   const measuredHeightsRef = useRef<Map<string, number>>(new Map());
   const [measureVersion, setMeasureVersion] = useState(0);
@@ -2564,11 +2237,9 @@ function useMeasuredVirtualWindow<T extends { key: string }>(
       setViewport((current) => {
         const next = {
           scrollTop: el.scrollTop,
-          height: el.clientHeight || CHAT_VIRTUAL_DEFAULT_VIEWPORT_PX,
+          height: el.clientHeight || CHAT_VIRTUAL_DEFAULT_VIEWPORT_PX
         };
-        return current.scrollTop === next.scrollTop && current.height === next.height
-          ? current
-          : next;
+        return current.scrollTop === next.scrollTop && current.height === next.height ? current : next;
       });
     };
     const scheduleRead = () => {
@@ -2577,10 +2248,7 @@ function useMeasuredVirtualWindow<T extends { key: string }>(
     };
     scheduleRead();
     el.addEventListener('scroll', scheduleRead, { passive: true });
-    const observer =
-      typeof ResizeObserver !== 'undefined'
-        ? new ResizeObserver(scheduleRead)
-        : null;
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleRead) : null;
     observer?.observe(el);
     return () => {
       if (frame !== null) cancelAnimationFrame(frame);
@@ -2596,10 +2264,7 @@ function useMeasuredVirtualWindow<T extends { key: string }>(
     for (const item of items) {
       offsets.push(cursor);
       const measured = measuredHeightsRef.current.get(item.key);
-      const size = Math.max(
-        CHAT_VIRTUAL_MIN_ROW_HEIGHT,
-        measured ?? estimateSize(item),
-      );
+      const size = Math.max(CHAT_VIRTUAL_MIN_ROW_HEIGHT, measured ?? estimateSize(item));
       sizes.push(size);
       cursor += size;
     }
@@ -2611,41 +2276,26 @@ function useMeasuredVirtualWindow<T extends { key: string }>(
     const height = viewport.height || CHAT_VIRTUAL_DEFAULT_VIEWPORT_PX;
     if (viewport.scrollTop === 0 && viewport.height === 0) {
       const start = Math.max(0, items.length - initialTailRows);
-      const rows = items.slice(start).map((item, offset) => {
+      return items.slice(start).map((item, offset) => {
         const index = start + offset;
         return { item, index, top: layout.offsets[index] ?? 0 };
       });
-      return includeVirtualRowByKey(rows, items, layout.offsets, alwaysIncludeKey);
     }
     const startTarget = Math.max(0, viewport.scrollTop - overscanPx);
     const endTarget = viewport.scrollTop + height + overscanPx;
     let start = 0;
-    while (
-      start < items.length - 1
-      && (layout.offsets[start] ?? 0) + (layout.sizes[start] ?? 0) < startTarget
-    ) {
+    while (start < items.length - 1 && (layout.offsets[start] ?? 0) + (layout.sizes[start] ?? 0) < startTarget) {
       start += 1;
     }
     let end = start;
     while (end < items.length && (layout.offsets[end] ?? 0) <= endTarget) {
       end += 1;
     }
-    const rows = items.slice(start, end).map((item, offset) => {
+    return items.slice(start, end).map((item, offset) => {
       const index = start + offset;
       return { item, index, top: layout.offsets[index] ?? 0 };
     });
-    return includeVirtualRowByKey(rows, items, layout.offsets, alwaysIncludeKey);
-  }, [
-    alwaysIncludeKey,
-    enabled,
-    initialTailRows,
-    items,
-    layout.offsets,
-    layout.sizes,
-    overscanPx,
-    viewport.height,
-    viewport.scrollTop,
-  ]);
+  }, [enabled, initialTailRows, items, layout.offsets, layout.sizes, overscanPx, viewport.height, viewport.scrollTop]);
 
   const onMeasure = useCallback((key: string, height: number) => {
     if (!Number.isFinite(height) || height <= 0) return;
@@ -2659,27 +2309,59 @@ function useMeasuredVirtualWindow<T extends { key: string }>(
   return {
     rows,
     totalHeight: layout.totalHeight,
-    onMeasure,
+    onMeasure
   };
 }
 
-function includeVirtualRowByKey<T extends { key: string }>(
-  rows: Array<{ item: T; index: number; top: number }>,
-  items: T[],
-  offsets: number[],
-  key: string | undefined,
-): Array<{ item: T; index: number; top: number }> {
-  if (!key || rows.some((row) => row.item.key === key)) return rows;
-  const index = items.findIndex((item) => item.key === key);
-  if (index === -1) return rows;
-  return [
-    ...rows,
-    {
-      item: items[index]!,
-      index,
-      top: offsets[index] ?? 0,
-    },
-  ].sort((a, b) => a.index - b.index);
+// Pinned task list above the chat composer. The latest TodoWrite snapshot
+// across the entire conversation is the canonical state; AssistantMessage
+// no longer renders these inline so there is exactly one TodoCard on
+// screen. When every task is complete the user can dismiss the card; the
+// dismissal sticks to the current snapshot only, so a fresh TodoWrite
+// from the agent re-shows it.
+function PinnedTodoSlot({
+  messages,
+  streaming,
+  dismissedKey,
+  onDismiss,
+  containerRef
+}: {
+  messages: ChatMessage[];
+  streaming: boolean;
+  dismissedKey: string | null;
+  onDismiss: (key: string | null) => void;
+  containerRef?: MutableRefObject<HTMLDivElement | null>;
+}) {
+  // `exiting` lets the dismiss click play a slide-down transition before
+  // the slot tears down. Without it React would unmount immediately and
+  // the card would pop out without animation.
+  const [exiting, setExiting] = useState(false);
+  const input = latestTodoWriteInputForPinnedCard(messages);
+  if (input == null) return null;
+  let snapshotKey: string;
+  try {
+    snapshotKey = JSON.stringify(input);
+  } catch {
+    snapshotKey = String(input);
+  }
+  if (snapshotKey === dismissedKey) return null;
+  return (
+    <div className={`chat-pinned-todo${exiting ? ' chat-pinned-todo-exit' : ''}`} ref={containerRef}>
+      <TodoCard
+        input={input}
+        runStreaming={streaming}
+        runSucceeded={!streaming}
+        onDismiss={() => {
+          if (exiting) return;
+          setExiting(true);
+          // Match the slide-out duration in CSS (220ms) — once the
+          // transition completes the snapshot key is recorded as
+          // dismissed and the slot is unmounted by the early return.
+          window.setTimeout(() => onDismiss(snapshotKey), 220);
+        }}
+      />
+    </div>
+  );
 }
 
 function QueuedSendStrip({
@@ -2689,7 +2371,7 @@ function QueuedSendStrip({
   onEdit,
   onRemove,
   onReorder,
-  onSendNow,
+  onSendNow
 }: {
   containerRef?: MutableRefObject<HTMLDivElement | null>;
   editingId?: string | null;
@@ -2705,10 +2387,7 @@ function QueuedSendStrip({
   const canReorder = Boolean(onReorder && items.length > 1);
   const overflowCount = Math.max(0, items.length - QUEUED_SEND_VISIBLE_ROW_COUNT);
 
-  const handleDragStart = (
-    event: ReactDragEvent<HTMLButtonElement>,
-    item: QueuedSendItem,
-  ) => {
+  const handleDragStart = (event: ReactDragEvent<HTMLButtonElement>, item: QueuedSendItem) => {
     if (!canReorder) return;
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData(QUEUED_SEND_DRAG_MIME, item.id);
@@ -2716,10 +2395,7 @@ function QueuedSendStrip({
     setDragState({ draggingId: item.id, overId: item.id, edge: null });
   };
 
-  const handleDragOver = (
-    event: ReactDragEvent<HTMLDivElement>,
-    targetId: string,
-  ) => {
+  const handleDragOver = (event: ReactDragEvent<HTMLDivElement>, targetId: string) => {
     if (!canReorder) return;
     const draggingId = dragState?.draggingId || event.dataTransfer.getData(QUEUED_SEND_DRAG_MIME);
     if (!draggingId) return;
@@ -2732,32 +2408,23 @@ function QueuedSendStrip({
       return;
     }
     const edge = queuedDropEdgeForEvent(event);
-    if (
-      dragState?.draggingId !== draggingId
-      || dragState.overId !== targetId
-      || dragState.edge !== edge
-    ) {
+    if (dragState?.draggingId !== draggingId || dragState.overId !== targetId || dragState.edge !== edge) {
       setDragState({ draggingId, overId: targetId, edge });
     }
   };
 
-  const handleDrop = (
-    event: ReactDragEvent<HTMLDivElement>,
-    targetId: string,
-  ) => {
+  const handleDrop = (event: ReactDragEvent<HTMLDivElement>, targetId: string) => {
     if (!canReorder) return;
     event.preventDefault();
     const draggingId =
-      dragState?.draggingId
-      || event.dataTransfer.getData(QUEUED_SEND_DRAG_MIME)
-      || event.dataTransfer.getData('text/plain');
+      dragState?.draggingId ||
+      event.dataTransfer.getData(QUEUED_SEND_DRAG_MIME) ||
+      event.dataTransfer.getData('text/plain');
     if (!draggingId || draggingId === targetId) {
       setDragState(null);
       return;
     }
-    const edge = dragState?.overId === targetId && dragState.edge
-      ? dragState.edge
-      : queuedDropEdgeForEvent(event);
+    const edge = dragState?.overId === targetId && dragState.edge ? dragState.edge : queuedDropEdgeForEvent(event);
     const nextIds = reorderQueuedSendIds(items, draggingId, targetId, edge);
     if (nextIds.join('\0') !== items.map((item) => item.id).join('\0')) {
       onReorder?.(nextIds);
@@ -2788,11 +2455,10 @@ function QueuedSendStrip({
       <div className={`chat-queued-send-list${overflowCount > 0 ? ' is-scrollable' : ''}`}>
         {items.map((item, index) => {
           const isDragging = dragState?.draggingId === item.id;
-          const dropClass = dragState?.overId === item.id
-            && dragState.draggingId !== item.id
-            && dragState.edge
-            ? ` chat-queued-send-row-drop-${dragState.edge}`
-            : '';
+          const dropClass =
+            dragState?.overId === item.id && dragState.draggingId !== item.id && dragState.edge
+              ? ` chat-queued-send-row-drop-${dragState.edge}`
+              : '';
           return (
             <div
               className={`chat-queued-send-row${index === 0 ? ' chat-queued-send-row-active' : ''}${
@@ -2841,7 +2507,6 @@ function QueuedSendStrip({
                   data-tooltip={t('chat.send')}
                   data-tooltip-placement="top"
                   aria-label={t('chat.send')}
-                  data-testid="chat-queued-send-now"
                   onClick={() => onSendNow?.(item.id)}
                   disabled={!onSendNow}
                 >
@@ -2894,7 +2559,7 @@ function reorderQueuedSendIds(
   items: QueuedSendItem[],
   draggingId: string,
   targetId: string,
-  edge: QueuedSendDropEdge,
+  edge: QueuedSendDropEdge
 ): string[] {
   const ids = items.map((item) => item.id);
   const from = ids.indexOf(draggingId);
@@ -2920,7 +2585,7 @@ function QueuedSendMetaChips({ item }: { item: QueuedSendItem }) {
   const ctx = item.meta?.context;
   const files = item.attachments?.length ?? 0;
   const marks = item.commentAttachments?.length ?? 0;
-  const plugins = item.meta?.appliedPluginSnapshot ? 1 : ctx?.pluginIds?.length ?? 0;
+  const plugins = item.meta?.appliedPluginSnapshot ? 1 : (ctx?.pluginIds?.length ?? 0);
   const skills = ctx?.skillIds?.length ?? 0;
   const mcp = ctx?.mcpServerIds?.length ?? 0;
   const connectors = ctx?.connectorIds?.length ?? 0;
@@ -2946,119 +2611,6 @@ function QueuedSendMetaChips({ item }: { item: QueuedSendItem }) {
   );
 }
 
-function CommentsPanel({
-  comments,
-  attachedComments,
-  onAttach,
-  onDetach,
-  onDelete,
-  t,
-}: {
-  comments: PreviewComment[];
-  attachedComments: PreviewComment[];
-  onAttach?: (comment: PreviewComment) => void;
-  onDetach?: (commentId: string) => void;
-  onDelete?: (commentId: string) => void;
-  t: TranslateFn;
-}) {
-  const attachedIds = new Set(attachedComments.map((comment) => comment.id));
-  const saved = comments.filter((comment) => !attachedIds.has(comment.id));
-  return (
-    <div className="comments-panel" data-testid="comments-panel">
-      <CommentSection
-        title={t('chat.comments.attached')}
-        empty={t('chat.comments.emptyAttached')}
-        comments={attachedComments}
-        actionLabel={t('chat.comments.remove')}
-        onAction={(comment) => onDetach?.(comment.id)}
-        attached
-      />
-      <CommentSection
-        title={t('chat.comments.saved')}
-        empty={t('chat.comments.emptySaved')}
-        comments={saved}
-        actionLabel={t('chat.comments.add')}
-        onAction={(comment) => onAttach?.(comment)}
-        secondaryActionLabel={t('chat.comments.remove')}
-        onSecondaryAction={(comment) => onDelete?.(comment.id)}
-      />
-      {saved.length > 0 ? (
-        <div className="comments-footer">
-          <button
-            type="button"
-            className="primary"
-            onClick={() => saved.forEach((comment) => onAttach?.(comment))}
-          >
-            {t('chat.comments.addAll')}
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function CommentSection({
-  title,
-  empty,
-  comments,
-  actionLabel,
-  onAction,
-  secondaryActionLabel,
-  onSecondaryAction,
-  attached,
-}: {
-  title: string;
-  empty: string;
-  comments: PreviewComment[];
-  actionLabel: string;
-  onAction: (comment: PreviewComment) => void;
-  secondaryActionLabel?: string;
-  onSecondaryAction?: (comment: PreviewComment) => void;
-  attached?: boolean;
-}) {
-  return (
-    <section className="comments-section">
-      <h3>{title}</h3>
-      {comments.length === 0 ? (
-        <p className="comments-empty">{empty}</p>
-      ) : (
-        comments.map((comment) => (
-          <article
-            key={comment.id}
-            className={`comment-card${attached ? ' attached' : ''}`}
-            data-testid={`comment-card-${comment.elementId}`}
-          >
-            <div className="comment-card-top">
-              <strong>{commentTargetDisplayName(comment)}</strong>
-              <div className="comment-card-actions">
-                {secondaryActionLabel && onSecondaryAction ? (
-                  <button
-                    type="button"
-                    className="comment-card-action danger"
-                    onClick={() => onSecondaryAction(comment)}
-                  >
-                    {secondaryActionLabel}
-                  </button>
-                ) : null}
-                <button type="button" className="comment-card-action" onClick={() => onAction(comment)}>
-                  {actionLabel}
-                </button>
-              </div>
-            </div>
-            <p>{comment.note}</p>
-            <div className="comment-card-meta">
-              <span>{comment.id}</span>
-              <span>{comment.filePath}</span>
-              <span>{commentTargetDisplayName(comment)}</span>
-              <span>{simplePositionLabel(comment.position)}</span>
-            </div>
-          </article>
-        ))
-      )}
-    </section>
-  );
-}
-
 function isActiveRunStatus(status: ChatMessage['runStatus']): boolean {
   return status === 'queued' || status === 'running';
 }
@@ -3070,7 +2622,7 @@ function isTerminalRunStatus(status: ChatMessage['runStatus']): boolean {
 export function retryableAssistantMessage(
   messages: ChatMessage[],
   lastAssistantId: string | null | undefined,
-  paneStreaming: boolean,
+  paneStreaming: boolean
 ): ChatMessage | null {
   if (paneStreaming) return null;
   const last = messages[messages.length - 1];
@@ -3083,7 +2635,7 @@ export function isAssistantMessageStreaming(
   message: ChatMessage,
   paneStreaming: boolean,
   lastAssistantId: string | null | undefined,
-  forceStreamingMessageIds?: Set<string>,
+  forceStreamingMessageIds?: Set<string>
 ): boolean {
   if (message.role !== 'assistant') return false;
   if (forceStreamingMessageIds?.has(message.id)) return true;
@@ -3107,7 +2659,7 @@ export function buildRunErrorDiagnosticText(input: RunErrorDiagnosticInput): str
     `agent_id: ${input.agentId ?? 'n/a'}`,
     '',
     'error:',
-    input.message.trim(),
+    input.message.trim()
   ];
 
   const raw = input.rawMessage?.trim();
@@ -3118,11 +2670,7 @@ export function buildRunErrorDiagnosticText(input: RunErrorDiagnosticInput): str
   return lines.join('\n');
 }
 
-function filterConversations(
-  conversations: Conversation[],
-  query: string,
-  t: TranslateFn,
-): Conversation[] {
+function filterConversations(conversations: Conversation[], query: string, t: TranslateFn): Conversation[] {
   const normalized = query.trim().toLocaleLowerCase();
   if (!normalized) return conversations;
   return conversations.filter((conversation) => {
@@ -3136,7 +2684,7 @@ function conversationMessageCount(
   conversation: Conversation,
   activeConversationId: string | null,
   messagesConversationId: string | null,
-  activeMessageCount: number,
+  activeMessageCount: number
 ): number | null {
   // The live `messages` array is authoritative for the active conversation —
   // it stays fresh as a run streams new turns in — but ONLY once it has
@@ -3145,10 +2693,7 @@ function conversationMessageCount(
   // longer matches the active id; trusting `messages.length` there renders a
   // phantom "0 msg". Fall back to the persisted server count until the live
   // array catches up.
-  if (
-    conversation.id === activeConversationId &&
-    messagesConversationId === activeConversationId
-  ) {
+  if (conversation.id === activeConversationId && messagesConversationId === activeConversationId) {
     return activeMessageCount;
   }
   return typeof conversation.messageCount === 'number' ? conversation.messageCount : null;
@@ -3166,7 +2711,7 @@ function ConversationRow({
   messageCount,
   onSelect,
   onDelete,
-  t,
+  t
 }: {
   conversation: Conversation;
   active: boolean;
@@ -3175,14 +2720,10 @@ function ConversationRow({
   onDelete: () => void;
   t: TranslateFn;
 }) {
-  const displayTitle =
-    conversation.title || t('chat.untitledConversation');
+  const displayTitle = conversation.title || t('chat.untitledConversation');
 
   return (
-    <div
-      className={`chat-conv-item${active ? ' active' : ''}`}
-      data-testid={`conversation-item-${conversation.id}`}
-    >
+    <div className={`chat-conv-item${active ? ' active' : ''}`} data-testid={`conversation-item-${conversation.id}`}>
       <button
         type="button"
         className="chat-conv-item-name"
@@ -3192,10 +2733,7 @@ function ConversationRow({
       >
         {displayTitle}
       </button>
-      <span
-        className="chat-conv-item-meta"
-        data-testid={`conversation-meta-${conversation.id}`}
-      >
+      <span className="chat-conv-item-meta">
         {messageCount !== null ? `${compactCount(messageCount)} msg · ` : ''}
         {conversationMetaLabel(conversation, t)}
       </span>
@@ -3206,9 +2744,7 @@ function ConversationRow({
         title={t('chat.deleteConversation')}
         onClick={(e) => {
           e.stopPropagation();
-          if (
-            confirm(t('chat.deleteConversationConfirm', { title: displayTitle }))
-          ) {
+          if (confirm(t('chat.deleteConversationConfirm', { title: displayTitle }))) {
             onDelete();
           }
         }}
@@ -3232,7 +2768,7 @@ function UserMessageImpl({
   onRequestDesignSystemDetails,
   t,
   activePluginSnapshot,
-  activeDesignSystem,
+  activeDesignSystem
 }: {
   message: ChatMessage;
   projectId: string | null;
@@ -3249,10 +2785,7 @@ function UserMessageImpl({
   const workspaceItems = message.runContext?.workspaceItems ?? [];
   const messagePluginSnapshot = message.appliedPluginSnapshot ?? activePluginSnapshot ?? null;
   const hasRunContext = Boolean(
-    message.sessionMode ||
-      workspaceItems.length > 0 ||
-      messagePluginSnapshot ||
-      activeDesignSystem,
+    message.sessionMode || workspaceItems.length > 0 || messagePluginSnapshot || activeDesignSystem
   );
   const [copied, setCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -3282,31 +2815,19 @@ function UserMessageImpl({
     <div className="msg user">
       <div className="role">
         <span>{t('chat.you')}</span>
+        <MessageTimestamp message={message} t={t} />
       </div>
       {hasRunContext ? (
         <div className="msg-run-context-row" data-testid="msg-run-context-row">
-          {message.sessionMode ? (
-            <MessageSessionModeChip mode={message.sessionMode} t={t} />
-          ) : null}
+          {message.sessionMode ? <MessageSessionModeChip mode={message.sessionMode} t={t} /> : null}
           {workspaceItems.map((item) => (
-            <ActiveWorkspaceContextChip
-              key={`${item.kind}:${item.id}`}
-              item={item}
-              onOpen={onRequestOpenFile}
-            />
+            <ActiveWorkspaceContextChip key={`${item.kind}:${item.id}`} item={item} onOpen={onRequestOpenFile} />
           ))}
           {messagePluginSnapshot ? (
-            <ActivePluginChip
-              snapshot={messagePluginSnapshot}
-              t={t}
-              onOpenDetails={onRequestPluginDetails}
-            />
+            <ActivePluginChip snapshot={messagePluginSnapshot} t={t} onOpenDetails={onRequestPluginDetails} />
           ) : null}
           {activeDesignSystem ? (
-            <ActiveDesignSystemChip
-              system={activeDesignSystem}
-              onOpenDetails={onRequestDesignSystemDetails}
-            />
+            <ActiveDesignSystemChip system={activeDesignSystem} onOpenDetails={onRequestDesignSystemDetails} />
           ) : null}
         </div>
       ) : null}
@@ -3314,12 +2835,8 @@ function UserMessageImpl({
         <div className="user-attachments">
           {attachments.map((a, index) => {
             const baseName = a.path.split('/').pop() || a.path;
-            const openable =
-              !!onRequestOpenFile &&
-              (projectFileNames ? projectFileNames.has(baseName) : true);
-            const handleOpen = openable
-              ? () => onRequestOpenFile?.(baseName)
-              : undefined;
+            const openable = !!onRequestOpenFile && (projectFileNames ? projectFileNames.has(baseName) : true);
+            const handleOpen = openable ? () => onRequestOpenFile?.(baseName) : undefined;
             return (
               <button
                 type="button"
@@ -3345,14 +2862,19 @@ function UserMessageImpl({
       ) : null}
       {commentAttachments.some((attachment) => attachment.selectionKind !== 'visual') ? (
         <div className="user-attachments comment-history-attachments">
-          {commentAttachments.filter((attachment) => attachment.selectionKind !== 'visual').map((a) => (
-            <span key={a.id} className="user-attachment staged-comment">
-              <span className="staged-name" title={a.comment ? `${commentTargetDisplayName(a)}: ${a.comment}` : commentTargetDisplayName(a)}>
-                <strong>{commentTargetDisplayName(a)}</strong>
-                {a.comment ? <span>{a.comment}</span> : null}
+          {commentAttachments
+            .filter((attachment) => attachment.selectionKind !== 'visual')
+            .map((a) => (
+              <span key={a.id} className="user-attachment staged-comment">
+                <span
+                  className="staged-name"
+                  title={a.comment ? `${commentTargetDisplayName(a)}: ${a.comment}` : commentTargetDisplayName(a)}
+                >
+                  <strong>{commentTargetDisplayName(a)}</strong>
+                  {a.comment ? <span>{a.comment}</span> : null}
+                </span>
               </span>
-            </span>
-          ))}
+            ))}
         </div>
       ) : null}
       {message.content && isDesignSystemWorkspaceRequest ? (
@@ -3372,11 +2894,7 @@ function UserMessageImpl({
           <div className="user-text user-bubble">{message.content}</div>
           <div className="user-actions">
             {ts ? (
-              <time
-                className="user-actions-time"
-                dateTime={new Date(ts).toISOString()}
-                title={exactDateTime(ts)}
-              >
+              <time className="user-actions-time" dateTime={new Date(ts).toISOString()} title={exactDateTime(ts)}>
                 {shortTime(ts)}
               </time>
             ) : null}
@@ -3404,7 +2922,7 @@ function UserMessageImpl({
 function ActivePluginChip({
   snapshot,
   t: _t,
-  onOpenDetails,
+  onOpenDetails
 }: {
   snapshot: AppliedPluginSnapshot;
   t: TranslateFn;
@@ -3419,13 +2937,9 @@ function ActivePluginChip({
       <span className="msg-plugin-chip__label">
         <span className="msg-plugin-chip__kind">Plugin</span>
         <span className="msg-plugin-chip__title">{title}</span>
-        {version ? (
-          <span className="msg-plugin-chip__version">@{version}</span>
-        ) : null}
+        {version ? <span className="msg-plugin-chip__version">@{version}</span> : null}
       </span>
-      {taskKind ? (
-        <span className="msg-plugin-chip__task">{taskKind}</span>
-      ) : null}
+      {taskKind ? <span className="msg-plugin-chip__task">{taskKind}</span> : null}
     </>
   );
   // One clean chip per message — the plugin's full resolved context still
@@ -3452,23 +2966,17 @@ function ActivePluginChip({
   );
 }
 
-function MessageSessionModeChip({
-  mode,
-  t,
-}: {
-  mode: ChatSessionMode;
-  t: TranslateFn;
-}) {
-  const label = mode === 'chat'
-    ? t('chat.mode.chat.label')
-    : t('chat.mode.design.label');
+function MessageSessionModeChip({ mode, t }: { mode: ChatSessionMode; t: TranslateFn }) {
+  const label =
+    mode === 'chat'
+      ? t('chat.mode.chat.label')
+      : mode === 'comprehensive'
+        ? t('chat.mode.comprehensive.label')
+        : t('chat.mode.design.label');
+  const iconName = mode === 'chat' ? 'comment' : mode === 'comprehensive' ? 'layers-filled' : 'sparkles';
   return (
-    <div
-      className={`msg-mode-chip msg-mode-chip--${mode}`}
-      data-testid="msg-session-mode-chip"
-      title={label}
-    >
-      <Icon name={mode === 'chat' ? 'comment' : 'sparkles'} size={12} />
+    <div className={`msg-mode-chip msg-mode-chip--${mode}`} data-testid="msg-session-mode-chip" title={label}>
+      <Icon name={iconName} size={12} />
       <span>{label}</span>
     </div>
   );
@@ -3476,7 +2984,7 @@ function MessageSessionModeChip({
 
 function ActiveDesignSystemChip({
   system,
-  onOpenDetails,
+  onOpenDetails
 }: {
   system: DesignSystemSummary;
   onOpenDetails?: (system: DesignSystemSummary) => void;
@@ -3488,9 +2996,7 @@ function ActiveDesignSystemChip({
         <span className="msg-plugin-chip__kind">Design System</span>
         <span className="msg-plugin-chip__title">{system.title}</span>
       </span>
-      {system.category ? (
-        <span className="msg-plugin-chip__task">{system.category}</span>
-      ) : null}
+      {system.category ? <span className="msg-plugin-chip__task">{system.category}</span> : null}
     </>
   );
   if (!onOpenDetails) {
@@ -3513,16 +3019,37 @@ function ActiveDesignSystemChip({
   );
 }
 
+function DaySeparator({ ts }: { ts: number | undefined }) {
+  if (!ts) return null;
+  return (
+    <div className="chat-day-separator" role="separator">
+      <time dateTime={new Date(ts).toISOString()}>{dayLabel(ts)}</time>
+    </div>
+  );
+}
+
+function MessageTimestamp({ message, t }: { message: ChatMessage; t: TranslateFn }) {
+  const ts = messageTime(message);
+  if (!ts) return null;
+  return (
+    <time className="msg-time" dateTime={new Date(ts).toISOString()} title={exactDateTime(ts)}>
+      {relativeTimeLong(ts, t)}
+    </time>
+  );
+}
+
+function shouldShowDaySeparator(prev: ChatMessage | undefined, curr: ChatMessage): boolean {
+  const currTime = messageTime(curr);
+  if (!currTime) return false;
+  const prevTime = prev ? messageTime(prev) : undefined;
+  if (!prevTime) return true;
+  return dayKey(prevTime) !== dayKey(currTime);
+}
+
 const WORKSPACE_DESIGN_FILES_TAB = '__design_files__';
 const WORKSPACE_DESIGN_SYSTEM_TAB = '__design_system__';
 
-function ActiveWorkspaceContextChip({
-  item,
-  onOpen,
-}: {
-  item: WorkspaceContextItem;
-  onOpen?: (name: string) => void;
-}) {
+function ActiveWorkspaceContextChip({ item, onOpen }: { item: WorkspaceContextItem; onOpen?: (name: string) => void }) {
   const target = workspaceContextOpenTarget(item);
   const content = (
     <>
@@ -3584,8 +3111,10 @@ function workspaceContextTitle(item: WorkspaceContextItem): string {
     item.path ? `path: ${item.path}` : null,
     item.absolutePath ? `absolute: ${item.absolutePath}` : null,
     item.url ? `url: ${item.url}` : null,
-    item.title ? `title: ${item.title}` : null,
-  ].filter(Boolean).join(' | ');
+    item.title ? `title: ${item.title}` : null
+  ]
+    .filter(Boolean)
+    .join(' | ');
 }
 
 function workspaceContextKindLabel(kind: WorkspaceContextItem['kind']): string {
@@ -3614,12 +3143,10 @@ function sortChatAttachmentsForDisplay(attachments: ChatAttachment[]): ChatAttac
   return attachments
     .map((attachment, index) => ({ attachment, index }))
     .sort((a, b) => {
-      const aOrder = typeof a.attachment.order === 'number' && Number.isFinite(a.attachment.order)
-        ? a.attachment.order
-        : a.index;
-      const bOrder = typeof b.attachment.order === 'number' && Number.isFinite(b.attachment.order)
-        ? b.attachment.order
-        : b.index;
+      const aOrder =
+        typeof a.attachment.order === 'number' && Number.isFinite(a.attachment.order) ? a.attachment.order : a.index;
+      const bOrder =
+        typeof b.attachment.order === 'number' && Number.isFinite(b.attachment.order) ? b.attachment.order : b.index;
       if (aOrder !== bOrder) return aOrder - bOrder;
       return a.index - b.index;
     })
@@ -3638,16 +3165,11 @@ function relTime(ts: number, t: TranslateFn): string {
   return new Date(ts).toLocaleDateString();
 }
 
-export function conversationMetaLabel(
-  conversation: Conversation,
-  t: TranslateFn,
-): string {
+export function conversationMetaLabel(conversation: Conversation, t: TranslateFn): string {
   const latestRun = conversation.latestRun;
   if (
     latestRun &&
-    (latestRun.status === 'succeeded' ||
-      latestRun.status === 'failed' ||
-      latestRun.status === 'canceled') &&
+    (latestRun.status === 'succeeded' || latestRun.status === 'failed' || latestRun.status === 'canceled') &&
     typeof conversation.totalDurationMs === 'number' &&
     Number.isFinite(conversation.totalDurationMs)
   ) {
@@ -3655,9 +3177,7 @@ export function conversationMetaLabel(
   }
   if (
     latestRun &&
-    (latestRun.status === 'succeeded' ||
-      latestRun.status === 'failed' ||
-      latestRun.status === 'canceled') &&
+    (latestRun.status === 'succeeded' || latestRun.status === 'failed' || latestRun.status === 'canceled') &&
     typeof latestRun.durationMs === 'number' &&
     Number.isFinite(latestRun.durationMs)
   ) {

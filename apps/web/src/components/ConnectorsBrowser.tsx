@@ -14,6 +14,7 @@ import type { Dict } from '../i18n/types';
 import {
   cancelConnectorAuthorization as cancelConnectorAuthorizationRequest,
   connectConnector,
+  captureConnectorAuthorization as captureConnectorAuthorizationRequest,
   disconnectConnector,
   fetchConnectorDetail,
   fetchConnectorDiscovery,
@@ -21,14 +22,8 @@ import {
   fetchConnectorStatuses,
   openExternalUrl,
 } from '../providers/registry';
-import {
-  isTrustedConnectorCallbackOrigin,
-  sortConnectorsForSearch,
-} from './EntryView';
-import {
-  CONNECTOR_CALLBACK_MESSAGE_TYPE,
-  notifyConnectorsChanged,
-} from './connectors-events';
+import { isTrustedConnectorCallbackOrigin, sortConnectorsForSearch } from './EntryView';
+import { CONNECTOR_CALLBACK_MESSAGE_TYPE, notifyConnectorsChanged } from './connectors-events';
 import { hasConnectorStatusChanges } from './connectors-state';
 import { ConnectorLogo, useResolvedTheme } from './ConnectorLogo';
 import { Icon } from './Icon';
@@ -39,6 +34,7 @@ const CONNECTOR_AUTH_PENDING_POLL_MS = 2_000;
 const CONNECTOR_TOOL_PREVIEW_LIMIT = 50;
 const AUTHORIZATION_CANCEL_FAILED_MESSAGE = "Couldn't cancel authorization. Try again.";
 const CONNECTOR_AUTH_CONTINUE_LABEL = 'Continue in browser';
+const CONNECTOR_AUTH_CAPTURE_LABEL = 'Capture cookies';
 
 interface ConnectorAuthorizationPending {
   expiresAt?: string;
@@ -46,6 +42,7 @@ interface ConnectorAuthorizationPending {
 }
 
 type ConnectorAuthorizationPendingState = Record<string, ConnectorAuthorizationPending>;
+type ConnectorPendingAction = 'connect' | 'disconnect' | 'capture';
 
 function mergeConnectors(current: ConnectorDetail[], incoming: ConnectorDetail[]): ConnectorDetail[] {
   if (current.length === 0) return incoming;
@@ -205,7 +202,10 @@ export function hasLoadedAllAdvertisedConnectorTools(connector: ConnectorDetail)
   return connector.tools.length >= connector.toolCount;
 }
 
-function mergeConnectorTools(current: ConnectorDetail['tools'], incoming: ConnectorDetail['tools']): ConnectorDetail['tools'] {
+function mergeConnectorTools(
+  current: ConnectorDetail['tools'],
+  incoming: ConnectorDetail['tools'],
+): ConnectorDetail['tools'] {
   const seen = new Set<string>();
   const merged: ConnectorDetail['tools'] = [];
   for (const tool of [...current, ...incoming]) {
@@ -216,7 +216,11 @@ function mergeConnectorTools(current: ConnectorDetail['tools'], incoming: Connec
   return merged;
 }
 
-export function mergeConnectorToolPreview(current: ConnectorDetail, next: ConnectorDetail, append: boolean): ConnectorDetail {
+export function mergeConnectorToolPreview(
+  current: ConnectorDetail,
+  next: ConnectorDetail,
+  append: boolean,
+): ConnectorDetail {
   const merged: ConnectorDetail = {
     ...current,
     ...next,
@@ -257,13 +261,11 @@ interface ConnectorsBrowserProps {
   composioConfigured: boolean;
   catalogRefreshKey?: string | number;
   /** Optional analytics hook for the integrations surface. The parent
-   *  (IntegrationsView → ConnectorSection) wires this so provider-tab
+   *  (SettingsDialog → ConnectorSection) wires this so provider-tab
    *  / search clicks emit on `page_name: 'integrations'`; when omitted
    *  (SettingsDialog uses the settings page family instead), no event
    *  is fired. */
-  onConnectorsTabClick?: (
-    element: 'provider_chip' | 'search_connectors' | 'gate_card',
-  ) => void;
+  onConnectorsTabClick?: (element: 'provider_chip' | 'search_connectors') => void;
   /** Analytics hook for the per-connector authorization result. The
    *  daemon emits its own server-side telemetry but the click→outcome
    *  loop happens in the browser; this lets the parent emit
@@ -300,132 +302,152 @@ const PROVIDER_TABS: ReadonlyArray<{
   match: (connector: ConnectorDetail) => boolean;
 }> = [
   {
+    id: 'all',
+    label: 'All',
+    match: () => true,
+  },
+  {
+    id: 'video-crawler',
+    label: 'Video crawler',
+    match: (connector) =>
+      connectorProvider(connector) === 'cookie' || connector.provider === 'open-design-video-crawler',
+  },
+  {
     id: 'composio',
     label: 'Composio',
-    match: (connector) => {
-      const provider = connector.auth?.provider ?? connector.provider.toLowerCase();
-      return provider === 'composio';
-    },
+    match: (connector) => connectorProvider(connector) === 'composio',
   },
 ];
 
-const DEFAULT_PROVIDER_TAB_ID = 'composio';
+const DEFAULT_PROVIDER_TAB_ID = 'all';
+
+function connectorProvider(connector: ConnectorDetail): string {
+  return connector.auth?.provider ?? connector.provider.toLowerCase();
+}
+
+function connectorNeedsComposioKey(connector: ConnectorDetail, composioConfigured: boolean): boolean {
+  return connectorProvider(connector) === 'composio' && !composioConfigured;
+}
+
+function connectorUsesCookieAuth(connector: ConnectorDetail): boolean {
+  return connectorProvider(connector) === 'cookie' || connector.provider === 'open-design-video-crawler';
+}
 
 const CONNECTOR_CATEGORY_KEYS = {
-  'accounting': 'connectors.category.accounting',
-  'admin': 'connectors.category.admin',
+  accounting: 'connectors.category.accounting',
+  admin: 'connectors.category.admin',
   'ads & conversion': 'connectors.category.advertising',
-  'advertising': 'connectors.category.advertising',
+  advertising: 'connectors.category.advertising',
   'ai agents': 'connectors.category.aiAgents',
   'ai chatbots': 'connectors.category.aiAgents',
   'ai infrastructure': 'connectors.category.aiInfrastructure',
   'ai meeting assistants': 'connectors.category.meetings',
-  'analytics': 'connectors.category.analytics',
+  analytics: 'connectors.category.analytics',
   'artificial intelligence': 'connectors.category.aiAgents',
-  'automation': 'connectors.category.automation',
+  automation: 'connectors.category.automation',
   'bookmark managers': 'connectors.category.personal',
-  'calendar': 'connectors.category.calendar',
-  'cms': 'connectors.category.cms',
-  'code': 'connectors.category.developer',
-  'commerce': 'connectors.category.commerce',
-  'communication': 'connectors.category.communication',
-  'connectors': 'connectors.category.integration',
-  'contacts': 'connectors.category.contacts',
-  'crm': 'connectors.category.crm',
+  calendar: 'connectors.category.calendar',
+  cms: 'connectors.category.cms',
+  code: 'connectors.category.developer',
+  commerce: 'connectors.category.commerce',
+  communication: 'connectors.category.communication',
+  connectors: 'connectors.category.integration',
+  contacts: 'connectors.category.contacts',
+  crm: 'connectors.category.crm',
   'customer support': 'connectors.category.support',
   'data platform': 'connectors.category.dataPlatform',
-  'database': 'connectors.category.database',
-  'databases': 'connectors.category.database',
-  'design': 'connectors.category.design',
-  'developer': 'connectors.category.developer',
+  database: 'connectors.category.database',
+  databases: 'connectors.category.database',
+  design: 'connectors.category.design',
+  developer: 'connectors.category.developer',
   'developer tools': 'connectors.category.developer',
-  'documents': 'connectors.category.documentation',
-  'documentation': 'connectors.category.documentation',
-  'ecommerce': 'connectors.category.commerce',
-  'education': 'connectors.category.education',
-  'email': 'connectors.category.email',
+  documents: 'connectors.category.documentation',
+  documentation: 'connectors.category.documentation',
+  ecommerce: 'connectors.category.commerce',
+  education: 'connectors.category.education',
+  email: 'connectors.category.email',
   'email newsletters': 'connectors.category.email',
-  'erp': 'connectors.category.erp',
-  'electronics': 'connectors.category.commerce',
-  'events': 'connectors.category.events',
+  erp: 'connectors.category.erp',
+  electronics: 'connectors.category.commerce',
+  events: 'connectors.category.events',
   'event management': 'connectors.category.events',
-  'example': 'connectors.category.integration',
-  'feedback': 'connectors.category.surveys',
+  example: 'connectors.category.integration',
+  feedback: 'connectors.category.surveys',
   'field service': 'connectors.category.fieldService',
   'file management & storage': 'connectors.category.storage',
-  'finance': 'connectors.category.finance',
-  'fitness': 'connectors.category.fitness',
-  'forms': 'connectors.category.forms',
+  finance: 'connectors.category.finance',
+  fitness: 'connectors.category.fitness',
+  forms: 'connectors.category.forms',
   'forms & surveys': 'connectors.category.forms',
-  'fundraising': 'connectors.category.nonprofit',
-  'gaming': 'connectors.category.gaming',
-  'hospitality': 'connectors.category.hospitality',
-  'hr': 'connectors.category.hr',
+  fundraising: 'connectors.category.nonprofit',
+  gaming: 'connectors.category.gaming',
+  hospitality: 'connectors.category.hospitality',
+  hr: 'connectors.category.hr',
   'hr talent & recruitment': 'connectors.category.recruiting',
   'human resources': 'connectors.category.hr',
   'images & design': 'connectors.category.design',
-  'important': 'connectors.category.integration',
-  'integration': 'connectors.category.integration',
-  'itsm': 'connectors.category.itsm',
+  important: 'connectors.category.integration',
+  integration: 'connectors.category.integration',
+  itsm: 'connectors.category.itsm',
   'it operations': 'connectors.category.itsm',
-  'localization': 'connectors.category.localization',
-  'logistics': 'connectors.category.logistics',
-  'maps': 'connectors.category.maps',
-  'marketing': 'connectors.category.marketing',
+  localization: 'connectors.category.localization',
+  logistics: 'connectors.category.logistics',
+  maps: 'connectors.category.maps',
+  marketing: 'connectors.category.marketing',
   'marketing automation': 'connectors.category.marketing',
-  'media': 'connectors.category.media',
-  'meetings': 'connectors.category.meetings',
+  media: 'connectors.category.media',
+  meetings: 'connectors.category.meetings',
   'model context protocol': 'connectors.category.developer',
   'news & lifestyle': 'connectors.category.media',
-  'nonprofit': 'connectors.category.nonprofit',
-  'notes': 'connectors.category.documentation',
-  'notifications': 'connectors.category.communication',
-  'observability': 'connectors.category.observability',
+  nonprofit: 'connectors.category.nonprofit',
+  notes: 'connectors.category.documentation',
+  notifications: 'connectors.category.communication',
+  observability: 'connectors.category.observability',
   'online courses': 'connectors.category.education',
-  'payments': 'connectors.category.payments',
+  payments: 'connectors.category.payments',
   'payment processing': 'connectors.category.payments',
-  'personal': 'connectors.category.personal',
+  personal: 'connectors.category.personal',
   'phone & sms': 'connectors.category.communication',
-  'presentations': 'connectors.category.presentations',
-  'premium': 'connectors.category.integration',
-  'procurement': 'connectors.category.procurement',
-  'product': 'connectors.category.product',
+  presentations: 'connectors.category.presentations',
+  premium: 'connectors.category.integration',
+  procurement: 'connectors.category.procurement',
+  product: 'connectors.category.product',
   'product management': 'connectors.category.product',
-  'productivity': 'connectors.category.productivity',
+  productivity: 'connectors.category.productivity',
   'productivity & project management': 'connectors.category.projectManagement',
   'project management': 'connectors.category.projectManagement',
   'proposal & invoice management': 'connectors.category.accounting',
-  'recruiting': 'connectors.category.recruiting',
-  'research': 'connectors.category.research',
-  'sales': 'connectors.category.salesIntelligence',
+  recruiting: 'connectors.category.recruiting',
+  research: 'connectors.category.research',
+  sales: 'connectors.category.salesIntelligence',
   'sales intelligence': 'connectors.category.salesIntelligence',
-  'scheduling': 'connectors.category.scheduling',
+  scheduling: 'connectors.category.scheduling',
   'scheduling & booking': 'connectors.category.scheduling',
-  'search': 'connectors.category.search',
-  'security': 'connectors.category.security',
+  search: 'connectors.category.search',
+  security: 'connectors.category.security',
   'security & identity tools': 'connectors.category.security',
   'server monitoring': 'connectors.category.observability',
-  'signing': 'connectors.category.signing',
-  'signatures': 'connectors.category.signing',
-  'social': 'connectors.category.social',
+  signing: 'connectors.category.signing',
+  signatures: 'connectors.category.signing',
+  social: 'connectors.category.social',
   'social media accounts': 'connectors.category.social',
   'social media marketing': 'connectors.category.marketing',
-  'spreadsheets': 'connectors.category.spreadsheets',
-  'storage': 'connectors.category.storage',
-  'support': 'connectors.category.support',
-  'surveys': 'connectors.category.surveys',
+  spreadsheets: 'connectors.category.spreadsheets',
+  storage: 'connectors.category.storage',
+  support: 'connectors.category.support',
+  surveys: 'connectors.category.surveys',
   'task management': 'connectors.category.tasks',
-  'tasks': 'connectors.category.tasks',
+  tasks: 'connectors.category.tasks',
   'team chat': 'connectors.category.communication',
   'team collaboration': 'connectors.category.communication',
   'time tracking': 'connectors.category.timeTracking',
   'time tracking software': 'connectors.category.timeTracking',
   'url shortener': 'connectors.category.marketing',
-  'video': 'connectors.category.video',
+  video: 'connectors.category.video',
   'video & audio': 'connectors.category.video',
   'video conferencing': 'connectors.category.meetings',
   'website builders': 'connectors.category.cms',
-  'whiteboard': 'connectors.category.whiteboard',
+  whiteboard: 'connectors.category.whiteboard',
 } as const satisfies Record<string, keyof Dict>;
 
 export function ConnectorsBrowser({
@@ -441,10 +463,13 @@ export function ConnectorsBrowser({
   const [toolsLoaded, setToolsLoaded] = useState(false);
   const [pendingConnectorAction, setPendingConnectorAction] = useState<{
     connectorId: string;
-    action: 'connect' | 'disconnect';
+    action: ConnectorPendingAction;
   } | null>(null);
-  const [connectorAuthorizationPending, setConnectorAuthorizationPending] = useState<ConnectorAuthorizationPendingState>(() => loadConnectorAuthorizationPending());
-  const [connectorAuthorizationCancelFailed, setConnectorAuthorizationCancelFailed] = useState<Record<string, boolean>>({});
+  const [connectorAuthorizationPending, setConnectorAuthorizationPending] =
+    useState<ConnectorAuthorizationPendingState>(() => loadConnectorAuthorizationPending());
+  const [connectorAuthorizationCancelFailed, setConnectorAuthorizationCancelFailed] = useState<Record<string, boolean>>(
+    {},
+  );
   const [connectorAuthorizationError, setConnectorAuthorizationError] = useState<Record<string, string>>({});
   const [detailConnectorId, setDetailConnectorId] = useState<string | null>(null);
   const [toolPreviewLoadingIds, setToolPreviewLoadingIds] = useState<Record<string, boolean>>({});
@@ -468,7 +493,9 @@ export function ConnectorsBrowser({
     setConnectors((curr) => applyConnectorStatuses(curr, statuses));
     setConnectorAuthorizationPending((curr) => updateConnectorAuthorizationPendingFromStatuses(curr, statuses));
     setConnectorAuthorizationError((curr) => clearConnectorAuthorizationErrorsForConnected(curr, statuses));
-    setConnectorAuthorizationCancelFailed((curr) => clearConnectorAuthorizationCancelFailuresForConnected(curr, statuses));
+    setConnectorAuthorizationCancelFailed((curr) =>
+      clearConnectorAuthorizationCancelFailuresForConnected(curr, statuses),
+    );
     if (statusChanged) notifyConnectorsChanged();
     return statuses;
   }, []);
@@ -478,46 +505,51 @@ export function ConnectorsBrowser({
     connectorAuthorizationPendingRef.current = connectorAuthorizationPending;
   }, [connectorAuthorizationPending]);
 
-  const cancelStaleAuthorizations = useCallback(async (
-    pendingBeforeReload: ConnectorAuthorizationPendingState,
-    statuses: ConnectorStatusResponse['statuses'],
-    nowMs = Date.now(),
-  ) => {
-    const stuck = Object.keys(pendingBeforeReload).filter((connectorId) => {
-      if (statuses[connectorId]?.status === 'connected') return false;
-      const expiresAt = pendingBeforeReload[connectorId]?.expiresAt;
-      if (!expiresAt) return false;
-      const expiresAtMs = Date.parse(expiresAt);
-      return Number.isFinite(expiresAtMs) && expiresAtMs <= nowMs;
-    });
-    if (stuck.length === 0) return;
-    await Promise.allSettled(stuck.map(async (connectorId) => {
-      let connector: ConnectorDetail | null = null;
-      try {
-        connector = await cancelConnectorAuthorizationRequest(connectorId);
-      } catch {
-        connector = null;
-      }
-      if (!connector) {
-        setConnectorAuthorizationCancelFailed((curr) => ({ ...curr, [connectorId]: true }));
-        return;
-      }
-      updateConnector(connector);
-      setConnectorAuthorizationCancelFailed((curr) => {
-        if (curr[connectorId] === undefined) return curr;
-        const next = { ...curr };
-        delete next[connectorId];
-        return next;
+  const cancelStaleAuthorizations = useCallback(
+    async (
+      pendingBeforeReload: ConnectorAuthorizationPendingState,
+      statuses: ConnectorStatusResponse['statuses'],
+      nowMs = Date.now(),
+    ) => {
+      const stuck = Object.keys(pendingBeforeReload).filter((connectorId) => {
+        if (statuses[connectorId]?.status === 'connected') return false;
+        const expiresAt = pendingBeforeReload[connectorId]?.expiresAt;
+        if (!expiresAt) return false;
+        const expiresAtMs = Date.parse(expiresAt);
+        return Number.isFinite(expiresAtMs) && expiresAtMs <= nowMs;
       });
-      setConnectorAuthorizationError((curr) => {
-        if (curr[connectorId] === undefined) return curr;
-        const next = { ...curr };
-        delete next[connectorId];
-        return next;
-      });
-      setConnectorAuthorizationPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
-    }));
-  }, []);
+      if (stuck.length === 0) return;
+      await Promise.allSettled(
+        stuck.map(async (connectorId) => {
+          let connector: ConnectorDetail | null = null;
+          try {
+            connector = await cancelConnectorAuthorizationRequest(connectorId);
+          } catch {
+            connector = null;
+          }
+          if (!connector) {
+            setConnectorAuthorizationCancelFailed((curr) => ({ ...curr, [connectorId]: true }));
+            return;
+          }
+          updateConnector(connector);
+          setConnectorAuthorizationCancelFailed((curr) => {
+            if (curr[connectorId] === undefined) return curr;
+            const next = { ...curr };
+            delete next[connectorId];
+            return next;
+          });
+          setConnectorAuthorizationError((curr) => {
+            if (curr[connectorId] === undefined) return curr;
+            const next = { ...curr };
+            delete next[connectorId];
+            return next;
+          });
+          setConnectorAuthorizationPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
+        }),
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
     saveConnectorAuthorizationPending(connectorAuthorizationPending);
@@ -582,11 +614,7 @@ export function ConnectorsBrowser({
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       const data = event.data;
-      if (
-        !data ||
-        typeof data !== 'object' ||
-        (data as { type?: unknown }).type !== CONNECTOR_CALLBACK_MESSAGE_TYPE
-      )
+      if (!data || typeof data !== 'object' || (data as { type?: unknown }).type !== CONNECTOR_CALLBACK_MESSAGE_TYPE)
         return;
       if (!isTrustedConnectorCallbackOrigin(event.origin)) return;
       void reloadConnectorStatuses();
@@ -620,9 +648,10 @@ export function ConnectorsBrowser({
     };
   }, [reloadConnectorStatuses, cancelStaleAuthorizations]);
 
-  // The local Composio API-key state is authoritative for masking. Cached
-  // connector auth can be stale immediately after the user clears the key.
-  const needsComposioKey = !composioConfigured;
+  // The local Composio API-key state is authoritative only for Composio rows.
+  // Video crawler connectors use cookie sessions and remain usable without a
+  // Composio API key.
+  const showComposioGate = selectedProvider === 'composio' && !composioConfigured;
 
   // Filter and rank connectors by user-visible fields. Exact/prefix matches
   // on connector name/provider are strongest; broad description matches stay
@@ -664,9 +693,9 @@ export function ConnectorsBrowser({
 
   function updateConnector(next: ConnectorDetail | null) {
     if (!next) return;
-    setConnectors((curr) => curr.map((connector) => (
-      connector.id === next.id ? mergeConnectorActionResult(connector, next) : connector
-    )));
+    setConnectors((curr) =>
+      curr.map((connector) => (connector.id === next.id ? mergeConnectorActionResult(connector, next) : connector)),
+    );
   }
 
   async function runConnectorAction(connectorId: string, action: 'connect' | 'disconnect') {
@@ -691,10 +720,12 @@ export function ConnectorsBrowser({
           updateConnector(result.connector);
           if (result.connector && !result.error) {
             if (result.connector.status === 'connected') notifyConnectorsChanged();
-            setConnectorAuthorizationPending((curr) => updateConnectorAuthorizationPendingFromConnectResponse(curr, {
-              connector: result.connector!,
-              ...(result.auth === undefined ? {} : { auth: result.auth }),
-            }));
+            setConnectorAuthorizationPending((curr) =>
+              updateConnectorAuthorizationPendingFromConnectResponse(curr, {
+                connector: result.connector!,
+                ...(result.auth === undefined ? {} : { auth: result.auth }),
+              }),
+            );
             onConnectorAuthResult?.({
               connectorId,
               action: 'connect',
@@ -752,8 +783,52 @@ export function ConnectorsBrowser({
     }
   }
 
+  async function captureConnectorAuthorization(connectorId: string) {
+    if (pendingConnectorAction) return;
+    setPendingConnectorAction({ connectorId, action: 'capture' });
+    try {
+      setConnectorAuthorizationError((curr) => {
+        if (curr[connectorId] === undefined) return curr;
+        const next = { ...curr };
+        delete next[connectorId];
+        return next;
+      });
+      const connector = await captureConnectorAuthorizationRequest(connectorId);
+      if (!connector) {
+        throw new Error('Cookie capture did not return a connector status.');
+      }
+      updateConnector(connector);
+      if (connector.status === 'connected') {
+        setConnectorAuthorizationPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
+        setConnectorAuthorizationCancelFailed((curr) => {
+          if (curr[connectorId] === undefined) return curr;
+          const next = { ...curr };
+          delete next[connectorId];
+          return next;
+        });
+        notifyConnectorsChanged();
+        onConnectorAuthResult?.({
+          connectorId,
+          action: 'connect',
+          result: 'success',
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setConnectorAuthorizationError((curr) => ({ ...curr, [connectorId]: message }));
+      onConnectorAuthResult?.({
+        connectorId,
+        action: 'connect',
+        result: 'failed',
+        errorCode: message,
+      });
+    } finally {
+      setPendingConnectorAction(null);
+    }
+  }
+
   const detailConnector = useMemo(
-    () => (detailConnectorId ? connectors.find((c) => c.id === detailConnectorId) ?? null : null),
+    () => (detailConnectorId ? (connectors.find((c) => c.id === detailConnectorId) ?? null) : null),
     [detailConnectorId, connectors],
   );
 
@@ -768,9 +843,11 @@ export function ConnectorsBrowser({
         ...(cursor === undefined ? {} : { toolsCursor: cursor }),
       });
       if (next) {
-        setConnectors((curr) => curr.map((connector) => (
-          connector.id === next.id ? mergeConnectorToolPreview(connector, next, cursor !== undefined) : connector
-        )));
+        setConnectors((curr) =>
+          curr.map((connector) =>
+            connector.id === next.id ? mergeConnectorToolPreview(connector, next, cursor !== undefined) : connector,
+          ),
+        );
         setToolPreviewFetchedIds((curr) => ({ ...curr, [connectorId]: true }));
         setToolPreviewFailedIds((curr) => {
           if (curr[connectorId] === undefined) return curr;
@@ -796,7 +873,14 @@ export function ConnectorsBrowser({
     if (toolPreviewFailedIds[detailConnector.id] === toolPreviewRetryToken) return;
     if (toolPreviewLoadingIds[detailConnector.id]) return;
     void hydrateToolPreview(detailConnector.id);
-  }, [composioConfigured, detailConnector, toolPreviewFailedIds, toolPreviewFetchedIds, toolPreviewLoadingIds, toolPreviewRetryToken]);
+  }, [
+    composioConfigured,
+    detailConnector,
+    toolPreviewFailedIds,
+    toolPreviewFetchedIds,
+    toolPreviewLoadingIds,
+    toolPreviewRetryToken,
+  ]);
 
   function openConnectorDetails(connectorId: string) {
     setToolPreviewFailedIds((curr) => {
@@ -846,11 +930,7 @@ export function ConnectorsBrowser({
           </div>
         </div>
         <div className="toolbar-right">
-          <div
-            className="connectors-provider-tabs"
-            role="tablist"
-            aria-label="Connector provider"
-          >
+          <div className="connectors-provider-tabs" role="tablist" aria-label="Connector provider">
             {PROVIDER_TABS.map((provider) => {
               const active = provider.id === selectedProvider;
               return (
@@ -894,7 +974,7 @@ export function ConnectorsBrowser({
               }}
               placeholder={t('connectors.searchPlaceholder')}
               aria-label={t('connectors.searchAriaLabel')}
-              disabled={needsComposioKey}
+              disabled={showComposioGate}
               data-testid="connectors-search-input"
             />
             {hasQuery ? (
@@ -943,20 +1023,10 @@ export function ConnectorsBrowser({
       {loading ? (
         <CenteredLoader label={t('common.loading')} />
       ) : (
-        <div
-          className={`connector-grid-wrap${needsComposioKey ? ' is-masked' : ''}`}
-          data-testid="connector-grid-wrap"
-        >
-          {hasNoResults && !needsComposioKey ? (
-            <div
-              className="tab-empty connectors-empty"
-              role="status"
-              aria-live="polite"
-              data-testid="connectors-empty"
-            >
-              <p className="connectors-empty-title">
-                {t('connectors.emptyNoMatchTitle', { query: filter.trim() })}
-              </p>
+        <div className={`connector-grid-wrap${showComposioGate ? ' is-masked' : ''}`} data-testid="connector-grid-wrap">
+          {hasNoResults && !showComposioGate ? (
+            <div className="tab-empty connectors-empty" role="status" aria-live="polite" data-testid="connectors-empty">
+              <p className="connectors-empty-title">{t('connectors.emptyNoMatchTitle', { query: filter.trim() })}</p>
               <p className="connectors-empty-body">{t('connectors.emptyNoMatchBody')}</p>
               <button
                 type="button"
@@ -970,19 +1040,14 @@ export function ConnectorsBrowser({
               </button>
             </div>
           ) : (
-            <div
-              className="connector-grid"
-              aria-hidden={needsComposioKey || undefined}
-            >
+            <div className="connector-grid" aria-hidden={showComposioGate || undefined}>
               {filteredConnectors.map((connector) => (
                 <ConnectorCard
                   key={connector.id}
                   connector={connector}
-                  disabled={needsComposioKey}
+                  disabled={showComposioGate || connectorNeedsComposioKey(connector, composioConfigured)}
                   pendingAction={
-                    pendingConnectorAction?.connectorId === connector.id
-                      ? pendingConnectorAction.action
-                      : null
+                    pendingConnectorAction?.connectorId === connector.id ? pendingConnectorAction.action : null
                   }
                   authorizationPending={connectorAuthorizationPending[connector.id]}
                   authorizationCancelFailed={connectorAuthorizationCancelFailed[connector.id] === true}
@@ -992,35 +1057,26 @@ export function ConnectorsBrowser({
                   onConnect={(connectorId) => runConnectorAction(connectorId, 'connect')}
                   onDisconnect={(connectorId) => runConnectorAction(connectorId, 'disconnect')}
                   onCancelAuthorization={cancelConnectorAuthorization}
+                  onCaptureAuthorization={captureConnectorAuthorization}
                   onOpenDetails={openConnectorDetails}
                 />
               ))}
             </div>
           )}
-          {needsComposioKey ? (
+          {showComposioGate ? (
             <div
               className="connector-gate"
               role="region"
               aria-label={t('connectors.gateTitle')}
               data-testid="connector-gate"
             >
-              <a
-                className="connector-gate-card"
-                href="https://app.composio.dev"
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => onConnectorsTabClick?.('gate_card')}
-              >
+              <div className="connector-gate-card">
                 <div className="connector-gate-icon" aria-hidden>
                   <Icon name="settings" size={20} />
                 </div>
                 <h3 className="connector-gate-title">{t('connectors.gateTitle')}</h3>
                 <p className="connector-gate-body">{t('connectors.gateBody')}</p>
-                <span className="connector-gate-cta">
-                  {t('settings.connectorsGetApiKey')}
-                  <Icon name="external-link" size={12} />
-                </span>
-              </a>
+              </div>
             </div>
           ) : null}
         </div>
@@ -1028,11 +1084,9 @@ export function ConnectorsBrowser({
       {detailConnector ? (
         <ConnectorDetailDrawer
           connector={detailConnector}
-          disabled={needsComposioKey}
+          disabled={showComposioGate || connectorNeedsComposioKey(detailConnector, composioConfigured)}
           pendingAction={
-            pendingConnectorAction?.connectorId === detailConnector.id
-              ? pendingConnectorAction.action
-              : null
+            pendingConnectorAction?.connectorId === detailConnector.id ? pendingConnectorAction.action : null
           }
           authorizationPending={connectorAuthorizationPending[detailConnector.id]}
           authorizationCancelFailed={connectorAuthorizationCancelFailed[detailConnector.id] === true}
@@ -1040,15 +1094,16 @@ export function ConnectorsBrowser({
           toolsLoading={toolsLoading}
           toolsPreviewLoading={Boolean(toolPreviewLoadingIds[detailConnector.id])}
           toolsLoaded={
-            Boolean(toolPreviewFetchedIds[detailConnector.id])
-            || toolPreviewFailedIds[detailConnector.id] === toolPreviewRetryToken
-            || hasLoadedAllAdvertisedConnectorTools(detailConnector)
+            Boolean(toolPreviewFetchedIds[detailConnector.id]) ||
+            toolPreviewFailedIds[detailConnector.id] === toolPreviewRetryToken ||
+            hasLoadedAllAdvertisedConnectorTools(detailConnector)
           }
           logoTheme={logoTheme}
           onClose={() => setDetailConnectorId(null)}
           onConnect={(connectorId) => runConnectorAction(connectorId, 'connect')}
           onDisconnect={(connectorId) => runConnectorAction(connectorId, 'disconnect')}
           onCancelAuthorization={cancelConnectorAuthorization}
+          onCaptureAuthorization={captureConnectorAuthorization}
           onLoadMoreTools={(connectorId, cursor) => hydrateToolPreview(connectorId, cursor)}
         />
       ) : null}
@@ -1068,11 +1123,12 @@ function ConnectorCard({
   onConnect,
   onDisconnect,
   onCancelAuthorization,
+  onCaptureAuthorization,
   onOpenDetails,
 }: {
   connector: ConnectorDetail;
   disabled?: boolean;
-  pendingAction: 'connect' | 'disconnect' | null;
+  pendingAction: ConnectorPendingAction | null;
   authorizationPending?: ConnectorAuthorizationPending;
   authorizationCancelFailed: boolean;
   toolsLoading: boolean;
@@ -1081,14 +1137,18 @@ function ConnectorCard({
   onConnect: (connectorId: string) => Promise<void> | void;
   onDisconnect: (connectorId: string) => Promise<void> | void;
   onCancelAuthorization: (connectorId: string) => void;
+  onCaptureAuthorization: (connectorId: string) => Promise<void> | void;
   onOpenDetails: (connectorId: string) => void;
 }) {
   const t = useT();
   const isConnecting = pendingAction === 'connect';
   const isDisconnecting = pendingAction === 'disconnect';
+  const isCapturing = pendingAction === 'capture';
   const isConnected = connector.status === 'connected';
   const isAuthorizationPending = !isConnected && authorizationPending !== undefined;
   const isPending = pendingAction !== null || isAuthorizationPending;
+  const canCaptureAuthorization =
+    !disabled && isAuthorizationPending && pendingAction === null && connectorUsesCookieAuth(connector);
   const canConnect = !disabled && !isPending && connector.status === 'available';
   const canDisconnect = !disabled && !isPending && isConnected;
   const toolCount = getConnectorDisplayToolCount(connector);
@@ -1116,6 +1176,12 @@ function ConnectorCard({
     stop(event);
     if (!authorizationPending?.redirectUrl) return;
     void openExternalUrl(authorizationPending.redirectUrl);
+  }
+
+  function captureAuthorization(event: SyntheticEvent) {
+    stop(event);
+    if (!canCaptureAuthorization && !isCapturing) return;
+    onCaptureAuthorization(connector.id);
   }
 
   return (
@@ -1167,10 +1233,7 @@ function ConnectorCard({
               row truncates with ellipsis (one line); the badge row is
               a fixed-height anchor that the badge animates into. */}
           <div className="connector-meta">
-            <span
-              className="connector-meta-item connector-meta-category"
-              title={categoryLabel}
-            >
+            <span className="connector-meta-item connector-meta-category" title={categoryLabel}>
               {categoryLabel}
             </span>
             <span className="connector-meta-tools" aria-hidden={!showToolsBadge}>
@@ -1258,6 +1321,19 @@ function ConnectorCard({
           {CONNECTOR_AUTH_CONTINUE_LABEL}
         </button>
       ) : null}
+      {isAuthorizationPending && connectorUsesCookieAuth(connector) ? (
+        <button
+          type="button"
+          className="connector-authorization-link"
+          title={t('connectors.authorizationPendingHint')}
+          disabled={!canCaptureAuthorization}
+          aria-busy={isCapturing || undefined}
+          onClick={captureAuthorization}
+        >
+          {isCapturing ? <Icon name="spinner" size={12} /> : null}
+          <span>{CONNECTOR_AUTH_CAPTURE_LABEL}</span>
+        </button>
+      ) : null}
     </article>
   );
 }
@@ -1302,11 +1378,12 @@ function ConnectorDetailDrawer({
   onConnect,
   onDisconnect,
   onCancelAuthorization,
+  onCaptureAuthorization,
   onLoadMoreTools,
 }: {
   connector: ConnectorDetail;
   disabled: boolean;
-  pendingAction: 'connect' | 'disconnect' | null;
+  pendingAction: ConnectorPendingAction | null;
   authorizationPending?: ConnectorAuthorizationPending;
   authorizationCancelFailed: boolean;
   authorizationError: string | null;
@@ -1318,14 +1395,18 @@ function ConnectorDetailDrawer({
   onConnect: (connectorId: string) => Promise<void> | void;
   onDisconnect: (connectorId: string) => Promise<void> | void;
   onCancelAuthorization: (connectorId: string) => void;
+  onCaptureAuthorization: (connectorId: string) => Promise<void> | void;
   onLoadMoreTools: (connectorId: string, cursor: string) => Promise<void> | void;
 }) {
   const t = useT();
   const isConnected = connector.status === 'connected';
   const isConnecting = pendingAction === 'connect';
   const isDisconnecting = pendingAction === 'disconnect';
+  const isCapturing = pendingAction === 'capture';
   const isAuthorizationPending = !isConnected && authorizationPending !== undefined;
   const isPending = pendingAction !== null || isAuthorizationPending;
+  const canCaptureAuthorization =
+    !disabled && isAuthorizationPending && pendingAction === null && connectorUsesCookieAuth(connector);
   const canConnect = !disabled && !isPending && connector.status === 'available';
   const canDisconnect = !disabled && !isPending && isConnected;
   const accountLabel = getDisplayableConnectorAccountLabel(connector);
@@ -1342,6 +1423,12 @@ function ConnectorDetailDrawer({
     event.stopPropagation();
     if (!authorizationPending?.redirectUrl) return;
     void openExternalUrl(authorizationPending.redirectUrl);
+  }
+
+  function captureAuthorization(event: SyntheticEvent) {
+    event.stopPropagation();
+    if (!canCaptureAuthorization && !isCapturing) return;
+    onCaptureAuthorization(connector.id);
   }
 
   useEffect(() => {
@@ -1384,7 +1471,9 @@ function ConnectorDetailDrawer({
           <div className="connector-drawer-titles">
             <div className="connector-drawer-eyebrow">
               <span>{categoryLabel}</span>
-              <span className="connector-meta-dot" aria-hidden>·</span>
+              <span className="connector-meta-dot" aria-hidden>
+                ·
+              </span>
               <span>{connector.provider}</span>
             </div>
             <h2 id="connector-drawer-title">{connector.name}</h2>
@@ -1419,16 +1508,22 @@ function ConnectorDetailDrawer({
               <p className="connector-drawer-description">{connector.description}</p>
               {isAuthorizationPending ? (
                 <div className="connector-authorization-block" role="status">
-                  <p className="connector-authorization-hint">
-                    {t('connectors.authorizationPendingHint')}
-                  </p>
+                  <p className="connector-authorization-hint">{t('connectors.authorizationPendingHint')}</p>
                   {authorizationPending.redirectUrl ? (
+                    <button type="button" className="connector-authorization-link" onClick={continueAuthorization}>
+                      {CONNECTOR_AUTH_CONTINUE_LABEL}
+                    </button>
+                  ) : null}
+                  {connectorUsesCookieAuth(connector) ? (
                     <button
                       type="button"
                       className="connector-authorization-link"
-                      onClick={continueAuthorization}
+                      disabled={!canCaptureAuthorization}
+                      aria-busy={isCapturing || undefined}
+                      onClick={captureAuthorization}
                     >
-                      {CONNECTOR_AUTH_CONTINUE_LABEL}
+                      {isCapturing ? <Icon name="spinner" size={12} /> : null}
+                      <span>{CONNECTOR_AUTH_CAPTURE_LABEL}</span>
                     </button>
                   ) : null}
                 </div>
@@ -1495,7 +1590,9 @@ function ConnectorDetailDrawer({
               {t('connectors.toolsSection')} <span className="connector-drawer-count">{toolCount}</span>
             </h3>
             {isLoadingTools ? (
-              <p className="connector-drawer-empty"><Icon name="spinner" size={12} /> {t('connectors.toolsLoading')}</p>
+              <p className="connector-drawer-empty">
+                <Icon name="spinner" size={12} /> {t('connectors.toolsLoading')}
+              </p>
             ) : toolDetailsUnavailable ? (
               <p className="connector-drawer-empty">{t('connectors.toolDetailsUnavailable', { n: toolCount })}</p>
             ) : actualToolCount === 0 ? (
@@ -1514,9 +1611,7 @@ function ConnectorDetailDrawer({
                           {tool.safety.sideEffect}
                         </span>
                       </div>
-                      {tool.description ? (
-                        <p className="connector-drawer-tool-desc">{tool.description}</p>
-                      ) : null}
+                      {tool.description ? <p className="connector-drawer-tool-desc">{tool.description}</p> : null}
                       <code className="connector-drawer-tool-name">{tool.name}</code>
                     </li>
                   ))}
@@ -1539,16 +1634,29 @@ function ConnectorDetailDrawer({
 
         {!isConnected ? (
           <footer className="connector-drawer-foot">
-            <button
-              type="button"
-              className={`primary connector-action is-connect${isConnecting || isAuthorizationPending ? ' is-loading' : ''}`}
-              disabled={!canConnect}
-              aria-busy={isConnecting || isAuthorizationPending || undefined}
-              onClick={() => onConnect(connector.id)}
-            >
-              {isConnecting || isAuthorizationPending ? <Icon name="spinner" size={12} /> : null}
-              <span>{isAuthorizationPending ? t('connectors.authorizationPending') : t('connectors.connect')}</span>
-            </button>
+            {isAuthorizationPending && connectorUsesCookieAuth(connector) ? (
+              <button
+                type="button"
+                className={`primary connector-action is-connect${isCapturing ? ' is-loading' : ''}`}
+                disabled={!canCaptureAuthorization}
+                aria-busy={isCapturing || undefined}
+                onClick={() => onCaptureAuthorization(connector.id)}
+              >
+                {isCapturing ? <Icon name="spinner" size={12} /> : null}
+                <span>{CONNECTOR_AUTH_CAPTURE_LABEL}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={`primary connector-action is-connect${isConnecting || isAuthorizationPending ? ' is-loading' : ''}`}
+                disabled={!canConnect}
+                aria-busy={isConnecting || isAuthorizationPending || undefined}
+                onClick={() => onConnect(connector.id)}
+              >
+                {isConnecting || isAuthorizationPending ? <Icon name="spinner" size={12} /> : null}
+                <span>{isAuthorizationPending ? t('connectors.authorizationPending') : t('connectors.connect')}</span>
+              </button>
+            )}
             {isAuthorizationPending ? (
               <button
                 type="button"

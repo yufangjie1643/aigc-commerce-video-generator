@@ -6,7 +6,8 @@ import '../src/index.css';
 import '../src/styles/home/index.css';
 
 export const metadata: Metadata = {
-  title: 'Open Design',
+  title: '综合工作台',
+  description: '电商 AIGC 视频爬取、素材分析、脚本分镜、视频生成和诊断复盘工作台。',
   icons: {
     icon: '/app-icon.png',
     apple: '/app-icon.png',

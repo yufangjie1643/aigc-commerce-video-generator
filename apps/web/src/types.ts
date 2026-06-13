@@ -45,6 +45,7 @@ import type {
   LiveArtifactStatus,
   LiveArtifactSummary,
   MediaAspect,
+  MediaProviderTestResponse,
   OrbitRunSummary,
   OrbitStatusResponse,
   ProjectDeploymentsResponse,
@@ -86,8 +87,8 @@ import type {
   InstallSkillResponse,
   InstallDesignSystemResponse,
   UninstallResponse,
-  UpdateDeployConfigRequest,
-} from '@open-design/contracts';
+  UpdateDeployConfigRequest
+} from "@open-design/contracts";
 
 export type {
   CloudflarePagesDeploySelection,
@@ -100,32 +101,28 @@ export type {
   PreviewCommentMember,
   PreviewAnnotationStyle,
   PreviewCommentSelectionKind,
-  PreviewVisualMarkKind,
-} from '@open-design/contracts';
+  PreviewVisualMarkKind
+} from "@open-design/contracts";
 
-export type ExecMode = 'daemon' | 'api';
-export type ApiProtocol = 'anthropic' | 'openai' | 'azure' | 'google' | 'ollama' | 'senseaudio' | 'aihubmix';
+export type ExecMode = "daemon" | "api";
+export type ApiProtocol = "anthropic" | "openai" | "azure" | "google" | "ollama" | "senseaudio" | "aihubmix";
 
 export type LiveArtifactTabId = `live:${string}`;
 // Tab ids are arbitrary strings; the template-literal members below are
 // conventions FileWorkspace's `.ws-body` switch keys off (`live:` → live
 // artifact viewer, `chat:` → Side Chat tab). See `SideChatTabId` below.
-export type ProjectWorkspaceTabId =
-  | string
-  | LiveArtifactTabId
-  | SideChatTabId
-  | TerminalTabId;
+export type ProjectWorkspaceTabId = string | LiveArtifactTabId | SideChatTabId | TerminalTabId;
 
 export function liveArtifactTabId(artifactId: string): LiveArtifactTabId {
   return `live:${artifactId}`;
 }
 
 export function isLiveArtifactTabId(tabId: string): tabId is LiveArtifactTabId {
-  return tabId.startsWith('live:') && tabId.length > 'live:'.length;
+  return tabId.startsWith("live:") && tabId.length > "live:".length;
 }
 
 export function liveArtifactIdFromTabId(tabId: LiveArtifactTabId): string {
-  return tabId.slice('live:'.length);
+  return tabId.slice("live:".length);
 }
 
 // Side Chat tab convention. A `chat:<conversationId>` tab mounts a secondary
@@ -139,11 +136,11 @@ export function sideChatTabId(conversationId: string): SideChatTabId {
 }
 
 export function isSideChatTabId(tabId: string): tabId is SideChatTabId {
-  return tabId.startsWith('chat:') && tabId.length > 'chat:'.length;
+  return tabId.startsWith("chat:") && tabId.length > "chat:".length;
 }
 
 export function conversationIdFromSideChatTabId(tabId: SideChatTabId): string {
-  return tabId.slice('chat:'.length);
+  return tabId.slice("chat:".length);
 }
 
 // Terminal tab convention. A `terminal:<terminalId>` tab mounts an xterm.js
@@ -157,28 +154,24 @@ export function terminalTabId(terminalId: string): TerminalTabId {
 }
 
 export function isTerminalTabId(tabId: string): tabId is TerminalTabId {
-  return tabId.startsWith('terminal:') && tabId.length > 'terminal:'.length;
+  return tabId.startsWith("terminal:") && tabId.length > "terminal:".length;
 }
 
 export function terminalIdFromTabId(tabId: TerminalTabId): string {
-  return tabId.slice('terminal:'.length);
+  return tabId.slice("terminal:".length);
 }
 
-export type LiveArtifactViewerTab =
-  | 'preview'
-  | 'code'
-  | 'data'
-  | 'refresh-history';
+export type LiveArtifactViewerTab = "preview" | "code" | "data" | "refresh-history";
 
 export interface ProjectFileWorkspaceEntry {
-  kind: 'file';
+  kind: "file";
   tabId: string;
   name: string;
   file: ProjectFile;
 }
 
 export interface LiveArtifactWorkspaceEntry {
-  kind: 'live-artifact';
+  kind: "live-artifact";
   tabId: LiveArtifactTabId;
   artifactId: string;
   projectId: string;
@@ -195,11 +188,9 @@ export interface LiveArtifactWorkspaceEntry {
 
 export type ProjectWorkspaceEntry = ProjectFileWorkspaceEntry | LiveArtifactWorkspaceEntry;
 
-export function liveArtifactSummaryToWorkspaceEntry(
-  liveArtifact: LiveArtifactSummary,
-): LiveArtifactWorkspaceEntry {
+export function liveArtifactSummaryToWorkspaceEntry(liveArtifact: LiveArtifactSummary): LiveArtifactWorkspaceEntry {
   const entry: LiveArtifactWorkspaceEntry = {
-    kind: 'live-artifact',
+    kind: "live-artifact",
     tabId: liveArtifactTabId(liveArtifact.id),
     artifactId: liveArtifact.id,
     projectId: liveArtifact.projectId,
@@ -210,7 +201,7 @@ export function liveArtifactSummaryToWorkspaceEntry(
     pinned: liveArtifact.pinned,
     preview: liveArtifact.preview,
     hasDocument: liveArtifact.hasDocument,
-    updatedAt: liveArtifact.updatedAt,
+    updatedAt: liveArtifact.updatedAt
   };
   if (liveArtifact.lastRefreshedAt) entry.lastRefreshedAt = liveArtifact.lastRefreshedAt;
   return entry;
@@ -226,6 +217,9 @@ export interface MediaProviderCredentials {
   apiKey: string;
   baseUrl: string;
   model?: string;
+  imageUnderstandingModel?: string;
+  audioUnderstandingModel?: string;
+  videoUnderstandingModel?: string;
   apiKeyConfigured?: boolean;
   apiKeyTail?: string;
   source?: string;
@@ -262,7 +256,7 @@ export interface ApiProtocolConfig {
 export type AgentModelChoice = AgentModelPrefs;
 export type AgentCliEnvConfig = AgentCliEnvPrefs;
 
-export type AppTheme = 'system' | 'light' | 'dark';
+export type AppTheme = "system" | "light" | "dark";
 
 // One animation row inside a pet's sprite atlas. Mirrors the Codex
 // hatch-pet `animation-rows.md` reference — `id` lets the overlay map
@@ -429,12 +423,13 @@ export interface AppConfig {
   // Privacy preferences governing what (if anything) is shipped to the
   // PostHog / Langfuse telemetry endpoints. `metrics` and `content`
   // default ON (set by `DEFAULT_CONFIG.telemetry` in state/config.ts) so
-  // the onboarding funnel actually captures the first-run events. The
-  // post-onboarding disclosure modal explains this and Settings → Privacy is
-  // the one-click opt-out. Complete-context object manifests follow the
-  // content switch. A daemon-stored override always wins over these client
-  // defaults — once the user picks a value the modal / PrivacySection persist
-  // it through `syncConfigToDaemon`.
+  // the onboarding funnel actually captures the first-run events the
+  // user hasn't had a chance to consent to yet; the post-onboarding
+  // disclosure modal explains this and Settings → Privacy is the
+  // one-click opt-out. `artifactManifest` stays off until the user
+  // turns it on explicitly. A daemon-stored override always wins over
+  // these client defaults — once the user picks a value the modal /
+  // PrivacySection persist it through `syncConfigToDaemon`.
   telemetry?: TelemetryConfig;
   customInstructions?: string;
   projectLocations?: ProjectLocationPrefs[];
@@ -457,18 +452,13 @@ export type AgentEvent = PersistedAgentEvent;
 
 export interface LiveArtifactEventItem {
   id: number;
-  event: Extract<AgentEvent, { kind: 'live_artifact' | 'live_artifact_refresh' }>;
+  event: Extract<AgentEvent, { kind: "live_artifact" | "live_artifact_refresh" }>;
 }
 
 export type ChatMessageFeedbackChange =
   | ({
       rating: ChatMessageFeedbackRating;
-    } & Partial<
-      Pick<
-        ChatMessageFeedback,
-        'reasonCodes' | 'customReason' | 'reasonsSubmittedAt'
-      >
-    >)
+    } & Partial<Pick<ChatMessageFeedback, "reasonCodes" | "customReason" | "reasonsSubmittedAt">>)
   | null;
 
 export type {
@@ -476,12 +466,10 @@ export type {
   ChatCommentAttachment,
   ChatMessage,
   ChatMessageFeedbackRating,
-  ChatMessageFeedbackReasonCode,
+  ChatMessageFeedbackReasonCode
 };
 
-export type {
-  ProjectBrowserWorkspaceTab,
-};
+export type { ProjectBrowserWorkspaceTab };
 
 export interface Artifact {
   identifier: string;
@@ -492,7 +480,7 @@ export interface Artifact {
 }
 
 export interface ExamplePreview {
-  source: 'skill' | 'design-system';
+  source: "skill" | "design-system";
   id: string;
   title: string;
   html: string;
@@ -503,7 +491,7 @@ export interface AgentModelOption {
   label: string;
 }
 
-export type Surface = 'web' | 'image' | 'video' | 'audio';
+export type Surface = "web" | "image" | "video" | "audio";
 
 export interface PromptTemplateSource {
   repo: string;
@@ -514,7 +502,7 @@ export interface PromptTemplateSource {
 
 export interface PromptTemplateSummary {
   id: string;
-  surface: 'image' | 'video';
+  surface: "image" | "video";
   title: string;
   summary: string;
   category: string;
@@ -567,6 +555,7 @@ export type {
   LiveArtifactStatus,
   LiveArtifactSummary,
   MediaAspect,
+  MediaProviderTestResponse,
   ProjectDeploymentsResponse,
   Project,
   ProjectPlatform,
@@ -598,7 +587,7 @@ export type {
   InstallSkillResponse,
   InstallDesignSystemResponse,
   UninstallResponse,
-  UpdateDeployConfigRequest,
+  UpdateDeployConfigRequest
 };
 
 export type OpenTabsState = ProjectTabsState;

@@ -1,9 +1,8 @@
-// Faceted categorisation hook for the Plugins home section.
+// Faceted categorisation hook for the ecommerce video template section.
 //
-// Two-level starter model: the top row is the artifact kind
-// (Prototype / Slides / Image / Video / HyperFrames / Audio). Prototype,
-// Slides, Image, and Video expose scene buckets from the prompt-taxonomy
-// analysis; HyperFrames and Audio stay flat.
+// Two-level starter model: the top row follows the product-video workflow
+// (Video / Product assets / Storyboard motion / Voice and captions), and
+// child buckets narrow each stage to common ecommerce jobs.
 //
 // A small "Saved" toggle sits orthogonally to the category row —
 // when active it overrides the category selection and just shows
@@ -11,12 +10,13 @@
 // override rather than AND-compose so a saved pick is never
 // accidentally hidden behind a still-selected category pill.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { InstalledPluginRecord } from '@open-design/contracts';
 import {
   applyFacetSelection,
   buildFacetCatalog,
   filterByQuery,
+  isCommerceVideoTemplate,
   resolveDefaultSelection,
   type FacetCatalog,
   type FacetSelection,
@@ -29,6 +29,13 @@ interface UsePluginFacetsArgs {
   plugins: InstalledPluginRecord[];
   savedPluginIds?: ReadonlySet<string>;
   preferDefaultFacet?: boolean;
+  // External selection driven by the Home hero chip rail. When this
+  // value changes to a new (non-null) selection, the hook applies it,
+  // overriding both the user's manual pick and the default-facet
+  // bootstrap. We track the last-applied identity so the user can
+  // still click a different category afterwards without the effect
+  // snapping back on every re-render.
+  presetSelection?: FacetSelection | null;
   locale?: string;
 }
 
@@ -58,6 +65,7 @@ export function usePluginFacets({
   plugins,
   savedPluginIds,
   preferDefaultFacet = true,
+  presetSelection = null,
   locale,
 }: UsePluginFacetsArgs): UsePluginFacetsResult {
   const [mode, setMode] = useState<FilterMode>('all');
@@ -68,18 +76,16 @@ export function usePluginFacets({
   // initializer) handles the realistic case where `args.plugins` is
   // empty at first paint and arrives a tick later.
   const [bootstrapped, setBootstrapped] = useState(false);
+  const lastAppliedPresetKeyRef = useRef<string | null>(null);
 
   // Atoms are infrastructure pieces (`code-import`, `patch-edit`) that
-  // are not user-facing on the home grid; the original section already
-  // filtered them out and we preserve that contract. We immediately
-  // sort by visual-appeal score so the first viewport leads with the
-  // cinematic decks / image / video templates rather than alphabetical
-  // bundled noise. Featured plugins get a +1000 score boost inside the
-  // sort so curator picks stay anchored to the front of every category view.
+  // are not user-facing on the home grid. The first-step product trim also
+  // filters the visible catalog to ecommerce video templates while keeping
+  // the underlying plugin runtime intact.
   const visiblePlugins = useMemo(
     () =>
       sortByVisualAppeal(
-        plugins.filter((p) => p.manifest?.od?.kind !== 'atom'),
+        plugins.filter((p) => p.manifest?.od?.kind !== 'atom' && isCommerceVideoTemplate(p)),
       ),
     [plugins],
   );
@@ -104,6 +110,22 @@ export function usePluginFacets({
     }
     setBootstrapped(true);
   }, [bootstrapped, preferDefaultFacet, visiblePlugins.length, catalog]);
+
+  // Sync an externally-driven selection (the Home chip rail) into the
+  // facet state. We only apply a preset once per identity so the user
+  // can still click a different facet pill afterwards without the
+  // effect snapping back. Setting `bootstrapped` here also prevents
+  // the default-facet effect above from overriding the preset on the
+  // first non-empty render.
+  useEffect(() => {
+    if (!presetSelection) return;
+    const key = `${presetSelection.category ?? ''}::${presetSelection.subcategory ?? ''}`;
+    if (lastAppliedPresetKeyRef.current === key) return;
+    lastAppliedPresetKeyRef.current = key;
+    setSelection(presetSelection);
+    setMode((current) => (current === 'saved' ? 'all' : current));
+    setBootstrapped(true);
+  }, [presetSelection]);
 
   // The visual-appeal sort is applied at `visiblePlugins` derivation
   // (above), so any downstream `applyFacetSelection` slice preserves

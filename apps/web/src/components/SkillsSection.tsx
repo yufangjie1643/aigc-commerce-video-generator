@@ -1,14 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { Dispatch, SetStateAction } from 'react';
-import { Button } from '@open-design/components';
-import { useI18n, useT } from '../i18n';
-import {
-  localizeSkillDescription,
-  localizeSkillName,
-} from '../i18n/content';
-import { Icon } from './Icon';
-import type { AppConfig } from '../types';
-import type { SkillSummary } from '@open-design/contracts';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import { Button } from "@open-design/components";
+import { useI18n, useT } from "../i18n";
+import { localizeSkillDescription, localizeSkillName } from "../i18n/content";
+import { Icon } from "./Icon";
+import type { AppConfig } from "../types";
+import type { SkillSummary } from "@open-design/contracts";
 import {
   deleteSkill,
   fetchSkill,
@@ -16,8 +13,8 @@ import {
   fetchSkills,
   importSkill,
   updateSkill,
-  type SkillFileEntry,
-} from '../providers/registry';
+  type SkillFileEntry
+} from "../providers/registry";
 
 // Functional skills only — design templates render in EntryView's
 // Templates tab and are managed under their own daemon registry. See
@@ -46,7 +43,36 @@ interface Props {
   onSkillsChanged?: (affectedSkillId?: string) => void;
 }
 
-type SourceFilter = 'all' | 'user' | 'built-in';
+type SourceFilter = "all" | "user" | "built-in";
+
+const BUILT_IN_LIBRARY_CATEGORIES = new Set([
+  "video-generation",
+  "web-artifacts",
+  "animation-motion",
+  "3d-shaders",
+  "screenshots"
+]);
+
+const BUILT_IN_LIBRARY_NAME_HINTS = [
+  "web",
+  "frontend",
+  "html",
+  "landing",
+  "login",
+  "faq",
+  "paywall",
+  "browser",
+  "screenshot",
+  "gsap",
+  "threejs",
+  "shader",
+  "shadcn",
+  "ui",
+  "ux",
+  "motion",
+  "animation",
+  "artifact"
+];
 
 interface DraftState {
   name: string;
@@ -56,18 +82,18 @@ interface DraftState {
 }
 
 const EMPTY_DRAFT: DraftState = {
-  name: '',
-  description: '',
-  triggers: '',
-  body: '',
+  name: "",
+  description: "",
+  triggers: "",
+  body: ""
 };
 
 function summaryToDraft(skill: SkillSummary, body: string): DraftState {
   return {
     name: skill.name,
     description: skill.description,
-    triggers: Array.isArray(skill.triggers) ? skill.triggers.join(', ') : '',
-    body,
+    triggers: Array.isArray(skill.triggers) ? skill.triggers.join(", ") : "",
+    body
   };
 }
 
@@ -78,14 +104,25 @@ function parseTriggers(raw: string): string[] {
     .filter(Boolean);
 }
 
+function isVisibleSkillLibraryEntry(skill: SkillSummary): boolean {
+  if (skill.source === "user") return true;
+  if (skill.mode === "video" || skill.surface === "video") return true;
+
+  const category = skill.category ?? "";
+  if (BUILT_IN_LIBRARY_CATEGORIES.has(category)) return true;
+
+  const haystack = `${skill.id}\n${skill.name}\n${skill.description}`.toLowerCase();
+  return BUILT_IN_LIBRARY_NAME_HINTS.some((hint) => haystack.includes(hint));
+}
+
 export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }: Props) {
   const { locale, t } = useI18n();
 
   const [skills, setSkills] = useState<SkillSummary[]>([]);
-  const [search, setSearch] = useState('');
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
-  const [modeFilter, setModeFilter] = useState<string>('all');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [search, setSearch] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [modeFilter, setModeFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   // Body for the currently-expanded skill — fetched lazily so the
   // initial list payload stays small. `undefined` means 'not yet
@@ -121,9 +158,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
   // Editing a built-in skill writes a user-owned shadow copy and hides
   // the built-in entry from the list. Arm an inline confirmation first
   // so the listing change doesn't feel like a silent conversion (#1378).
-  const [confirmBuiltInEditId, setConfirmBuiltInEditId] = useState<
-    string | null
-  >(null);
+  const [confirmBuiltInEditId, setConfirmBuiltInEditId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const list = await fetchSkills();
@@ -135,18 +170,17 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
     void refresh();
   }, [refresh]);
 
-  const disabledSkills = useMemo(
-    () => new Set(cfg.disabledSkills ?? []),
-    [cfg.disabledSkills],
-  );
+  const librarySkills = useMemo(() => skills.filter(isVisibleSkillLibraryEntry), [skills]);
+
+  const disabledSkills = useMemo(() => new Set(cfg.disabledSkills ?? []), [cfg.disabledSkills]);
 
   const modeOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const s of skills) {
+    for (const s of librarySkills) {
       counts.set(s.mode, (counts.get(s.mode) ?? 0) + 1);
     }
     return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [skills]);
+  }, [librarySkills]);
 
   // Categories are optional per-skill metadata (`od.category` in the
   // SKILL.md frontmatter). The pill row only renders when at least one
@@ -154,28 +188,27 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
   // baseline functional skills doesn't see an empty filter row.
   const categoryOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const s of skills) {
+    for (const s of librarySkills) {
       const cat = s.category;
-      if (typeof cat !== 'string' || !cat) continue;
+      if (typeof cat !== "string" || !cat) continue;
       counts.set(cat, (counts.get(cat) ?? 0) + 1);
     }
     return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [skills]);
+  }, [librarySkills]);
 
   const filteredSkills = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return skills.filter((s) => {
-      if (modeFilter !== 'all' && s.mode !== modeFilter) return false;
-      if (sourceFilter !== 'all' && s.source !== sourceFilter) return false;
-      if (categoryFilter !== 'all' && s.category !== categoryFilter)
-        return false;
+    return librarySkills.filter((s) => {
+      if (modeFilter !== "all" && s.mode !== modeFilter) return false;
+      if (sourceFilter !== "all" && s.source !== sourceFilter) return false;
+      if (categoryFilter !== "all" && s.category !== categoryFilter) return false;
       if (!q) return true;
-      const hay = `${s.name}\n${localizeSkillName(locale, s)}\n${s.description}\n${localizeSkillDescription(locale, s)}\n${(s.triggers ?? []).join(
-        ' ',
-      )}\n${s.category ?? ''}`;
+      const hay = `${s.name}\n${localizeSkillName(locale, s)}\n${s.description}\n${localizeSkillDescription(locale, s)}\n${(
+        s.triggers ?? []
+      ).join(" ")}\n${s.category ?? ""}\n${s.provenance?.kind ?? ""}`;
       return hay.toLowerCase().includes(q);
     });
-  }, [skills, modeFilter, sourceFilter, categoryFilter, search, locale]);
+  }, [librarySkills, modeFilter, sourceFilter, categoryFilter, search, locale]);
 
   const ensureBody = useCallback(
     async (id: string) => {
@@ -183,14 +216,14 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
       setBodyLoadingId(id);
       try {
         const detail = await fetchSkill(id);
-        const body = detail?.body ?? '';
+        const body = detail?.body ?? "";
         setBodyById((cur) => ({ ...cur, [id]: body }));
         return body;
       } finally {
         setBodyLoadingId((cur) => (cur === id ? null : cur));
       }
     },
-    [bodyById],
+    [bodyById]
   );
 
   const ensureFiles = useCallback(
@@ -205,7 +238,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
         setFilesLoadingId((cur) => (cur === id ? null : cur));
       }
     },
-    [filesById],
+    [filesById]
   );
 
   const toggleExpanded = useCallback(
@@ -221,7 +254,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
       setConfirmDeleteId(null);
       setConfirmBuiltInEditId(null);
     },
-    [ensureBody, ensureFiles],
+    [ensureBody, ensureFiles]
   );
 
   const startCreate = useCallback(() => {
@@ -236,7 +269,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
   const startEdit = useCallback(
     async (skill: SkillSummary) => {
       const body = await ensureBody(skill.id);
-      setDraft(summaryToDraft(skill, body ?? ''));
+      setDraft(summaryToDraft(skill, body ?? ""));
       setDraftError(null);
       setEditingId(skill.id);
       setExpandedId(skill.id);
@@ -244,19 +277,19 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
       setConfirmDeleteId(null);
       setConfirmBuiltInEditId(null);
     },
-    [ensureBody],
+    [ensureBody]
   );
 
   const requestEdit = useCallback(
     (skill: SkillSummary) => {
-      if (skill.source === 'built-in') {
+      if (skill.source === "built-in") {
         setConfirmBuiltInEditId(skill.id);
         setConfirmDeleteId(null);
         return;
       }
       void startEdit(skill);
     },
-    [startEdit],
+    [startEdit]
   );
 
   const cancelBuiltInEdit = useCallback(() => {
@@ -275,28 +308,28 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
     const name = draft.name.trim();
     const body = draft.body.trim();
     if (!name) {
-      setDraftError(t('settings.skillsNameRequired'));
+      setDraftError(t("settings.skillsNameRequired"));
       return;
     }
     if (!body) {
-      setDraftError(t('settings.skillsBodyRequired'));
+      setDraftError(t("settings.skillsBodyRequired"));
       return;
     }
     const triggers = parseTriggers(draft.triggers);
+    const existingSkill = editingId ? skills.find((skill) => skill.id === editingId) : null;
     const payload = {
       name,
+      ...(existingSkill?.displayName ? { displayName: existingSkill.displayName } : {}),
       description: draft.description.trim() || undefined,
+      ...(existingSkill?.descriptionI18n ? { descriptionI18n: existingSkill.descriptionI18n } : {}),
       body,
-      triggers,
+      triggers
     };
     setDraftSaving(true);
     setDraftError(null);
-    const result =
-      editingId
-        ? await updateSkill(editingId, payload)
-        : await importSkill(payload);
+    const result = editingId ? await updateSkill(editingId, payload) : await importSkill(payload);
     setDraftSaving(false);
-    if ('error' in result) {
+    if ("error" in result) {
       setDraftError(result.error.message);
       return;
     }
@@ -317,7 +350,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
     setCreating(false);
     setDraft(EMPTY_DRAFT);
     onSkillsChanged?.(updated.id);
-  }, [draft, draftSaving, editingId, onSkillsChanged, onSkillsRefresh, refresh]);
+  }, [draft, draftSaving, editingId, onSkillsChanged, onSkillsRefresh, refresh, skills]);
 
   const armDelete = useCallback((id: string) => {
     setConfirmDeleteId(id);
@@ -330,7 +363,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
   const commitDelete = useCallback(
     async (id: string) => {
       const result = await deleteSkill(id);
-      if ('error' in result) {
+      if ("error" in result) {
         setDraftError(result.error.message);
         return;
       }
@@ -361,7 +394,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
       }
       onSkillsChanged?.(id);
     },
-    [editingId, expandedId, onSkillsChanged, onSkillsRefresh, refresh, setCfg],
+    [editingId, expandedId, onSkillsChanged, onSkillsRefresh, refresh, setCfg]
   );
 
   const toggleEnabled = useCallback(
@@ -373,7 +406,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
         return { ...c, disabledSkills: [...set] };
       });
     },
-    [setCfg],
+    [setCfg]
   );
 
   return (
@@ -384,18 +417,13 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
           <input
             type="search"
             className="library-search"
-            placeholder={t('settings.librarySearch')}
+            placeholder={t("settings.librarySearch")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <button
-            type="button"
-            className="primary skills-add-btn"
-            onClick={startCreate}
-            data-testid="skills-new"
-          >
+          <button type="button" className="primary skills-add-btn" onClick={startCreate} data-testid="skills-new">
             <Icon name="plus" size={13} />
-            <span>{t('settings.skillsNew')}</span>
+            <span>{t("settings.skillsNew")}</span>
           </button>
         </div>
         {/* Row 2: filter dropdowns */}
@@ -404,14 +432,14 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
             <span className="library-filter-select-label">Source</span>
             <select
               value={sourceFilter}
-              data-active={sourceFilter !== 'all' ? 'true' : undefined}
+              data-active={sourceFilter !== "all" ? "true" : undefined}
               onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
             >
               <option value="all">
-                {t('settings.libraryAll')} ({skills.length})
+                {t("settings.libraryAll")} ({librarySkills.length})
               </option>
-              {(['user', 'built-in'] as const).map((s) => {
-                const count = skills.filter((sk) => sk.source === s).length;
+              {(["user", "built-in"] as const).map((s) => {
+                const count = librarySkills.filter((sk) => sk.source === s).length;
                 return (
                   <option key={s} value={s}>
                     {s} ({count})
@@ -424,11 +452,11 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
             <span className="library-filter-select-label">Type</span>
             <select
               value={modeFilter}
-              data-active={modeFilter !== 'all' ? 'true' : undefined}
+              data-active={modeFilter !== "all" ? "true" : undefined}
               onChange={(e) => setModeFilter(e.target.value)}
             >
               <option value="all">
-                {t('settings.libraryAll')} ({skills.length})
+                {t("settings.libraryAll")} ({librarySkills.length})
               </option>
               {modeOptions.map(([mode, count]) => (
                 <option key={mode} value={mode}>
@@ -438,18 +466,15 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
             </select>
           </label>
           {categoryOptions.length > 0 ? (
-            <label
-              className="library-filter-select"
-              data-testid="skills-category-filters"
-            >
+            <label className="library-filter-select" data-testid="skills-category-filters">
               <span className="library-filter-select-label">Category</span>
               <select
                 value={categoryFilter}
-                data-active={categoryFilter !== 'all' ? 'true' : undefined}
+                data-active={categoryFilter !== "all" ? "true" : undefined}
                 onChange={(e) => setCategoryFilter(e.target.value)}
               >
                 <option value="all">
-                  {t('settings.libraryAll')} ({skills.length})
+                  {t("settings.libraryAll")} ({librarySkills.length})
                 </option>
                 {categoryOptions.map(([cat, count]) => (
                   <option key={cat} value={cat}>
@@ -464,7 +489,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
 
       {creating ? (
         <SkillDraftForm
-          heading={t('settings.skillsNew')}
+          heading={t("settings.skillsNew")}
           subheading={null}
           draft={draft}
           setDraft={setDraft}
@@ -478,7 +503,7 @@ export function SkillsSection({ cfg, setCfg, onSkillsRefresh, onSkillsChanged }:
 
       {filteredSkills.length === 0 ? (
         <div className="empty-card">
-          <strong>{t('settings.libraryNoResults')}</strong>
+          <strong>{t("settings.libraryNoResults")}</strong>
         </div>
       ) : (
         <div className="skills-rows" data-testid="skills-list">
@@ -573,18 +598,18 @@ function SkillRow({
   onCancelDelete,
   onCommitDelete,
   onCancelEdit,
-  onSubmitEdit,
+  onSubmitEdit
 }: SkillRowProps) {
   const t = useT();
   const { locale } = useI18n();
   const summaryName = localizeSkillName(locale, skill) || skill.id;
   const summaryDescription = localizeSkillDescription(locale, skill);
-  const canDelete = skill.source === 'user';
+  const canDelete = skill.source === "user";
   return (
     <div
-      className={`skills-row${enabled ? '' : ' skills-row-disabled'}${
-        expanded ? ' skills-row-expanded' : ''
-      }${editing ? ' skills-row-editing' : ''}`}
+      className={`skills-row${enabled ? "" : " skills-row-disabled"}${
+        expanded ? " skills-row-expanded" : ""
+      }${editing ? " skills-row-editing" : ""}`}
       data-testid={`skill-row-${skill.id}`}
     >
       <div className="skills-row-head">
@@ -593,7 +618,7 @@ function SkillRow({
           className="skills-row-summary-btn"
           onClick={onToggleExpanded}
           aria-expanded={expanded}
-          title={expanded ? 'Collapse' : 'Expand'}
+          title={expanded ? "Collapse" : "Expand"}
         >
           <span className="skills-row-icon" aria-hidden>
             <Icon name="grid" size={14} />
@@ -603,25 +628,22 @@ function SkillRow({
               <span className="skills-row-summary-name">{summaryName}</span>
               <span className="skills-row-summary-mode">{skill.mode}</span>
               {skill.category ? (
-                <span
-                  className="skills-row-summary-category"
-                  title={`Category: ${humanizeCategory(skill.category)}`}
-                >
+                <span className="skills-row-summary-category" title={`Category: ${humanizeCategory(skill.category)}`}>
                   {humanizeCategory(skill.category)}
                 </span>
               ) : null}
-              {skill.source === 'user' ? (
-                <span
-                  className="skills-row-summary-source"
-                  title="User-imported skill"
-                >
+              {skill.source === "user" ? (
+                <span className="skills-row-summary-source" title="User-imported skill">
                   user
                 </span>
               ) : null}
+              {skill.provenance?.kind ? (
+                <span className="skills-row-summary-provenance" title={`Provenance: ${skill.provenance.kind}`}>
+                  {humanizeCategory(skill.provenance.kind)}
+                </span>
+              ) : null}
             </span>
-            {summaryDescription ? (
-              <span className="skills-row-summary-desc">{summaryDescription}</span>
-            ) : null}
+            {summaryDescription ? <span className="skills-row-summary-desc">{summaryDescription}</span> : null}
           </span>
           <span className="skills-row-chevron" aria-hidden>
             <Icon name="chevron-down" size={14} />
@@ -630,37 +652,23 @@ function SkillRow({
         <div className="skills-row-actions">
           {canDelete && confirmDelete ? (
             <span className="skills-delete-confirm" role="group">
-              <button
-                type="button"
-                className="btn danger"
-                onClick={onCommitDelete}
-                data-testid="skills-delete-confirm"
-              >
-                {t('settings.skillsDeleteConfirm')}
+              <button type="button" className="btn danger" onClick={onCommitDelete} data-testid="skills-delete-confirm">
+                {t("settings.skillsDeleteConfirm")}
               </button>
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={onCancelDelete}
-              >
-                {t('common.cancel')}
+              <button type="button" className="btn ghost" onClick={onCancelDelete}>
+                {t("common.cancel")}
               </button>
             </span>
           ) : (
             <>
-              <Button
-                size="icon"
-                onClick={onStartEdit}
-                title={t('settings.skillsEdit')}
-                data-testid="skills-edit"
-              >
+              <Button size="icon" onClick={onStartEdit} title={t("settings.skillsEdit")} data-testid="skills-edit">
                 <Icon name="edit" size={13} />
               </Button>
               {canDelete ? (
                 <Button
                   size="icon"
                   onClick={onArmDelete}
-                  title={t('settings.skillsDelete')}
+                  title={t("settings.skillsDelete")}
                   data-testid="skills-delete"
                 >
                   <Icon name="close" size={13} />
@@ -668,15 +676,12 @@ function SkillRow({
               ) : null}
             </>
           )}
-          <label
-            className="toggle-switch toggle-switch-sm skills-row-enable"
-            title={t('settings.libraryToggleLabel')}
-          >
+          <label className="toggle-switch toggle-switch-sm skills-row-enable" title={t("settings.libraryToggleLabel")}>
             <input
               type="checkbox"
               checked={enabled}
               onChange={(e) => onToggleEnabled(e.target.checked)}
-              aria-label={t('settings.libraryToggleLabel')}
+              aria-label={t("settings.libraryToggleLabel")}
             />
             <span className="toggle-slider" />
           </label>
@@ -684,15 +689,10 @@ function SkillRow({
       </div>
 
       {confirmBuiltInEdit ? (
-        <div
-          className="skills-edit-builtin-warning"
-          role="alert"
-          data-testid="skills-edit-builtin-warning"
-        >
+        <div className="skills-edit-builtin-warning" role="alert" data-testid="skills-edit-builtin-warning">
           <p>
-            Editing this built-in skill creates a user override. The built-in
-            entry will be hidden from the list until you delete the override.
-            Continue?
+            Editing this built-in skill creates a user override. The built-in entry will be hidden from the list until
+            you delete the override. Continue?
           </p>
           <div className="skills-edit-builtin-actions">
             <button
@@ -701,7 +701,7 @@ function SkillRow({
               onClick={onCancelBuiltInEdit}
               data-testid="skills-edit-builtin-cancel"
             >
-              {t('common.cancel')}
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -709,7 +709,7 @@ function SkillRow({
               onClick={onConfirmBuiltInEdit}
               data-testid="skills-edit-builtin-confirm"
             >
-              {t('settings.skillsEdit')}
+              {t("settings.skillsEdit")}
             </button>
           </div>
         </div>
@@ -720,17 +720,17 @@ function SkillRow({
           <div className="skills-row-section">
             <h5>SKILL.md</h5>
             {bodyLoading ? (
-              <p className="library-empty">{t('settings.libraryLoading')}</p>
+              <p className="library-empty">{t("settings.libraryLoading")}</p>
             ) : (
-              <pre className="library-preview-body">{body ?? ''}</pre>
+              <pre className="library-preview-body">{body ?? ""}</pre>
             )}
           </div>
           <div className="skills-row-section">
-            <h5>{t('settings.skillsFiles')}</h5>
+            <h5>{t("settings.skillsFiles")}</h5>
             {filesLoading ? (
-              <p className="library-empty">{t('settings.libraryLoading')}</p>
+              <p className="library-empty">{t("settings.libraryLoading")}</p>
             ) : !files || files.length === 0 ? (
-              <p className="library-empty">{t('settings.skillsNoFiles')}</p>
+              <p className="library-empty">{t("settings.skillsNoFiles")}</p>
             ) : (
               <ul className="skills-file-tree">
                 {files.map((entry) => (
@@ -739,15 +739,10 @@ function SkillRow({
                     className={`skills-file-entry skills-file-entry-${entry.kind}`}
                     style={{ paddingLeft: depthIndent(entry.path) }}
                   >
-                    <Icon
-                      name={entry.kind === 'directory' ? 'folder' : 'file'}
-                      size={12}
-                    />
+                    <Icon name={entry.kind === "directory" ? "folder" : "file"} size={12} />
                     <span>{leafName(entry.path)}</span>
-                    {entry.kind === 'file' && typeof entry.size === 'number' ? (
-                      <span className="skills-file-size">
-                        {formatSize(entry.size)}
-                      </span>
+                    {entry.kind === "file" && typeof entry.size === "number" ? (
+                      <span className="skills-file-size">{formatSize(entry.size)}</span>
                     ) : null}
                   </li>
                 ))}
@@ -759,7 +754,7 @@ function SkillRow({
 
       {editing && draft ? (
         <SkillDraftForm
-          heading={t('settings.skillsEdit')}
+          heading={t("settings.skillsEdit")}
           subheading={skill.id}
           draft={draft}
           setDraft={setDraft}
@@ -795,14 +790,11 @@ function SkillDraftForm({
   saving,
   isEdit,
   onCancel,
-  onSubmit,
+  onSubmit
 }: SkillDraftFormProps) {
   const t = useT();
   return (
-    <div
-      className="skills-draft library-import-form"
-      data-testid={isEdit ? 'skills-edit-form' : 'skills-create-form'}
-    >
+    <div className="skills-draft library-import-form" data-testid={isEdit ? "skills-edit-form" : "skills-create-form"}>
       <header className="skills-draft-head">
         <div>
           <h4>{heading}</h4>
@@ -811,7 +803,7 @@ function SkillDraftForm({
       </header>
       <div className="library-import-row">
         <label>
-          <span>{t('settings.skillsName')}</span>
+          <span>{t("settings.skillsName")}</span>
           <input
             type="text"
             value={draft.name}
@@ -821,35 +813,31 @@ function SkillDraftForm({
           />
         </label>
         <label>
-          <span>{t('settings.skillsTriggers')}</span>
+          <span>{t("settings.skillsTriggers")}</span>
           <input
             type="text"
             value={draft.triggers}
-            onChange={(e) =>
-              setDraft((d) => ({ ...d, triggers: e.target.value }))
-            }
+            onChange={(e) => setDraft((d) => ({ ...d, triggers: e.target.value }))}
             placeholder="search the web, summarize"
           />
         </label>
       </div>
       <label className="library-import-block">
-        <span>{t('settings.skillsDescription')}</span>
+        <span>{t("settings.skillsDescription")}</span>
         <textarea
           rows={2}
           value={draft.description}
-          onChange={(e) =>
-            setDraft((d) => ({ ...d, description: e.target.value }))
-          }
+          onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
           placeholder="What does this skill do? When should the agent reach for it?"
         />
       </label>
       <label className="library-import-block">
-        <span>{t('settings.skillsBody')}</span>
+        <span>{t("settings.skillsBody")}</span>
         <textarea
           rows={14}
           value={draft.body}
           onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
-          placeholder={'# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.'}
+          placeholder={"# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs."}
         />
       </label>
       {error ? (
@@ -858,26 +846,11 @@ function SkillDraftForm({
         </div>
       ) : null}
       <div className="library-import-actions">
-        <button
-          type="button"
-          className="btn ghost"
-          onClick={onCancel}
-          disabled={saving}
-        >
-          {t('common.cancel')}
+        <button type="button" className="btn ghost" onClick={onCancel} disabled={saving}>
+          {t("common.cancel")}
         </button>
-        <button
-          type="button"
-          className="btn primary"
-          onClick={onSubmit}
-          disabled={saving}
-          data-testid="skills-save"
-        >
-          {saving
-            ? t('settings.skillsSaving')
-            : isEdit
-              ? t('settings.skillsSave')
-              : t('settings.skillsCreate')}
+        <button type="button" className="btn primary" onClick={onSubmit} disabled={saving} data-testid="skills-save">
+          {saving ? t("settings.skillsSaving") : isEdit ? t("settings.skillsSave") : t("settings.skillsCreate")}
         </button>
       </div>
     </div>
@@ -889,12 +862,12 @@ function SkillDraftForm({
 // so bundles with deep folder hierarchies don't push the file label
 // past the panel.
 function depthIndent(p: string): number {
-  const depth = Math.min(4, p.split('/').length - 1);
+  const depth = Math.min(4, p.split("/").length - 1);
   return depth * 12;
 }
 
 function leafName(p: string): string {
-  const idx = p.lastIndexOf('/');
+  const idx = p.lastIndexOf("/");
   return idx >= 0 ? p.slice(idx + 1) : p;
 }
 
@@ -910,11 +883,7 @@ function formatSize(bytes: number): string {
 function humanizeCategory(slug: string): string {
   if (!slug) return slug;
   return slug
-    .split('-')
-    .map((word) =>
-      word.length === 0
-        ? word
-        : word.charAt(0).toUpperCase() + word.slice(1),
-    )
-    .join(' ');
+    .split("-")
+    .map((word) => (word.length === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(" ");
 }

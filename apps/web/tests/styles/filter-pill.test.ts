@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readExpandedIndexCss } from '../helpers/read-expanded-css';
 
-const indexCss = readExpandedIndexCss();
+const indexCss = readExpandedIndexCss().replace(/\r\n/g, '\n');
 
 function cssBlock(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

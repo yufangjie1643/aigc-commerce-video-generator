@@ -1,23 +1,31 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Dispatch, FormEvent, SetStateAction } from 'react';
-import { useT } from '../i18n';
-import type { AppConfig, DesignSystemGenerationJob, DesignSystemSummary } from '../types';
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Dispatch, FormEvent, SetStateAction } from "react";
+import { commerceStyleDisplayForDesignSystemId, commerceStylePresetForDesignSystemId } from "@open-design/contracts";
+import { useI18n } from "../i18n";
+import type { AppConfig, DesignSystemGenerationJob, DesignSystemSummary } from "../types";
 import {
   fetchDesignSystems,
   importGitHubDesignSystem,
   importLocalDesignSystem,
   importShadcnDesignSystem,
-  updateDesignSystemDraft,
-} from '../providers/registry';
-import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
-import { Icon } from './Icon';
-import { orderDesignSystemGroups } from './design-system-group-order';
-import { AnimatePresence } from 'motion/react';
+  updateDesignSystemDraft
+} from "../providers/registry";
+import { DesignSystemPreviewModal } from "./DesignSystemPreviewModal";
+import { Icon } from "./Icon";
+import { orderDesignSystemGroups } from "./design-system-group-order";
+import { AnimatePresence } from "motion/react";
 
 // Sibling Settings section that hosts the design-systems registry.
 // Lifted out of the previous LibrarySection so each surface (functional
 // skills vs. design systems) gets its own dedicated nav entry instead of
 // sharing a sub-tab toggle. See specs/current/skills-and-design-templates.md.
+
+const COMMERCE_STYLE_GROUP_LABEL = {
+  zh: "带货风格",
+  en: "Commerce selling styles"
+} as const;
+
+const HIDDEN_SETTINGS_DESIGN_SYSTEM_CATEGORIES = new Set(["Themed & Unique"]);
 
 interface Props {
   cfg: AppConfig;
@@ -39,29 +47,41 @@ function toggleCraftSlug(current: string[], slug: string, enabled: boolean): str
   return Array.from(next);
 }
 
-export function DesignSystemsSection({
-  cfg,
-  setCfg,
-  onDesignSystemsChanged,
-  onDesignSystemImportRebuildJob,
-}: Props) {
-  const t = useT();
+function commerceStyleGroupLabel(locale: string): string {
+  return locale.startsWith("zh") ? COMMERCE_STYLE_GROUP_LABEL.zh : COMMERCE_STYLE_GROUP_LABEL.en;
+}
+
+function displayDesignSystemForSettings(designSystem: DesignSystemSummary, locale: string): DesignSystemSummary {
+  const display = commerceStyleDisplayForDesignSystemId(designSystem.id, locale);
+  if (!display) return designSystem;
+  const preset = commerceStylePresetForDesignSystemId(designSystem.id);
+  return {
+    ...designSystem,
+    title: display.title,
+    summary: display.summary,
+    category: commerceStyleGroupLabel(locale),
+    swatches: preset?.swatches && preset.swatches.length > 0 ? preset.swatches : designSystem.swatches
+  };
+}
+
+export function DesignSystemsSection({ cfg, setCfg, onDesignSystemsChanged, onDesignSystemImportRebuildJob }: Props) {
+  const { locale, t } = useI18n();
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
   const [designSystems, setDesignSystems] = useState<DesignSystemSummary[]>([]);
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
   const [previewSystem, setPreviewSystem] = useState<DesignSystemSummary | null>(null);
   const [renameTarget, setRenameTarget] = useState<{ id: string; original: string } | null>(null);
-  const [renameInput, setRenameInput] = useState('');
+  const [renameInput, setRenameInput] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   // Monotonic token for the active rename modal session. Bumped whenever the
   // modal opens or closes so a slow PATCH that resolves after the user has
   // moved on cannot clobber a newer session's modal state.
   const renameSessionRef = useRef(0);
-  const [importPath, setImportPath] = useState('');
-  const [importSource, setImportSource] = useState<'local' | 'github' | 'shadcn'>('local');
-  const [packageImportMode, setPackageImportMode] = useState<'normalized' | 'hybrid' | 'verbatim'>('hybrid');
+  const [importPath, setImportPath] = useState("");
+  const [importSource, setImportSource] = useState<"local" | "github" | "shadcn">("local");
+  const [packageImportMode, setPackageImportMode] = useState<"normalized" | "hybrid" | "verbatim">("hybrid");
   const [craftApplies, setCraftApplies] = useState<string[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [showOnlyHidden, setShowOnlyHidden] = useState(false);
@@ -75,34 +95,40 @@ export function DesignSystemsSection({
     fetchDesignSystems().then(setDesignSystems);
   }, []);
 
-  const disabledDS = useMemo(
-    () => new Set(cfg.disabledDesignSystems ?? []),
-    [cfg.disabledDesignSystems],
+  const displayDesignSystems = useMemo(
+    () =>
+      designSystems
+        .map((designSystem) => displayDesignSystemForSettings(designSystem, locale))
+        .filter((designSystem) => !HIDDEN_SETTINGS_DESIGN_SYSTEM_CATEGORIES.has(designSystem.category)),
+    [designSystems, locale]
   );
+
+  const disabledDS = useMemo(() => new Set(cfg.disabledDesignSystems ?? []), [cfg.disabledDesignSystems]);
   const hiddenDesignSystemCount = useMemo(
-    () => designSystems.filter((system) => disabledDS.has(system.id)).length,
-    [designSystems, disabledDS],
+    () => displayDesignSystems.filter((system) => disabledDS.has(system.id)).length,
+    [displayDesignSystems, disabledDS]
   );
 
   const categories = useMemo(() => {
-    const cats = new Set(designSystems.map((d) => d.category));
-    return ['All', ...Array.from(cats).sort()];
-  }, [designSystems]);
+    const cats = new Set(displayDesignSystems.map((d) => d.category));
+    return ["All", ...Array.from(cats).sort()];
+  }, [displayDesignSystems]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return designSystems.filter((d) => {
+    return displayDesignSystems.filter((d) => {
       if (showOnlyHidden && !disabledDS.has(d.id)) return false;
-      if (categoryFilter !== 'All' && d.category !== categoryFilter) return false;
+      if (categoryFilter !== "All" && d.category !== categoryFilter) return false;
       if (
         q &&
         !d.title.toLowerCase().includes(q) &&
-        !d.summary.toLowerCase().includes(q)
+        !d.summary.toLowerCase().includes(q) &&
+        !d.category.toLowerCase().includes(q)
       )
         return false;
       return true;
     });
-  }, [designSystems, categoryFilter, disabledDS, search, showOnlyHidden]);
+  }, [displayDesignSystems, categoryFilter, disabledDS, search, showOnlyHidden]);
 
   const grouped = useMemo(() => {
     const groups = new Map<string, DesignSystemSummary[]>();
@@ -116,26 +142,21 @@ export function DesignSystemsSection({
 
   // Pin groups that hold editable (user-created) systems to the top so a
   // user's own design systems are the first thing they see. Issue #2813.
-  const orderedGroups = useMemo(
-    () => orderDesignSystemGroups(Array.from(grouped.entries())),
-    [grouped],
-  );
+  const orderedGroups = useMemo(() => orderDesignSystemGroups(Array.from(grouped.entries())), [grouped]);
 
   useEffect(() => {
     if (!highlightedDesignSystemId) return;
     const raf = window.requestAnimationFrame(() => {
       const card = cardRefs.current.get(highlightedDesignSystemId);
-      if (typeof card?.scrollIntoView === 'function') {
+      if (typeof card?.scrollIntoView === "function") {
         card.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
+          behavior: "smooth",
+          block: "center"
         });
       }
     });
     const timeout = window.setTimeout(() => {
-      setHighlightedDesignSystemId((current) =>
-        current === highlightedDesignSystemId ? null : current,
-      );
+      setHighlightedDesignSystemId((current) => (current === highlightedDesignSystemId ? null : current));
     }, 2200);
     return () => {
       window.cancelAnimationFrame(raf);
@@ -191,7 +212,7 @@ export function DesignSystemsSection({
       setDesignSystems((current) =>
         current
           .map((d) => (d.id === targetId ? { ...d, title: updated.title } : d))
-          .sort((a, b) => a.title.localeCompare(b.title)),
+          .sort((a, b) => a.title.localeCompare(b.title))
       );
       onDesignSystemsChanged?.(targetId);
     }
@@ -204,7 +225,7 @@ export function DesignSystemsSection({
     // failure. Keep the modal open with the typed title intact so a transient
     // daemon/network error can be retried instead of silently disappearing.
     if (!updated) {
-      setRenameError(t('settings.designSystemRenameFailed'));
+      setRenameError(t("settings.designSystemRenameFailed"));
       return;
     }
     setRenameTarget(null);
@@ -227,16 +248,16 @@ export function DesignSystemsSection({
     setImportedDesignSystem(null);
     const importOptions = {
       importMode: packageImportMode,
-      craftApplies,
+      craftApplies
     };
     const result =
-      importSource === 'github'
+      importSource === "github"
         ? await importGitHubDesignSystem({ githubUrl: importTarget, ...importOptions })
-        : importSource === 'shadcn'
+        : importSource === "shadcn"
           ? await importShadcnDesignSystem({ reference: importTarget, ...importOptions })
           : await importLocalDesignSystem({ baseDir: importTarget, ...importOptions });
     setImporting(false);
-    if ('error' in result) {
+    if ("error" in result) {
       setImportError(result.error.message);
       return;
     }
@@ -245,7 +266,7 @@ export function DesignSystemsSection({
       return [...withoutDuplicate, result.designSystem].sort((a, b) => a.title.localeCompare(b.title));
     });
     setPreviewSystem(null);
-    setImportPath('');
+    setImportPath("");
     setImportedDesignSystem(result.designSystem);
     setImportMessage(result.designSystem.title);
     if (result.tokenContractRebuild?.job) {
@@ -256,7 +277,7 @@ export function DesignSystemsSection({
 
   function viewImportedDesignSystem() {
     if (!importedDesignSystem) return;
-    setSearch('');
+    setSearch("");
     setShowOnlyHidden(false);
     setCategoryFilter(importedDesignSystem.category);
     setPreviewSystem(null);
@@ -267,8 +288,8 @@ export function DesignSystemsSection({
     setShowOnlyHidden((current) => {
       const next = !current;
       if (next) {
-        setSearch('');
-        setCategoryFilter('All');
+        setSearch("");
+        setCategoryFilter("All");
       }
       return next;
     });
@@ -278,8 +299,8 @@ export function DesignSystemsSection({
     <section className="settings-section settings-design-systems">
       <div className="library-section-header">
         <h4 className="library-section-title">
-          {t('settings.designSystemsInstalled')}{' '}
-          <span className="library-section-count">{designSystems.length}</span>
+          {t("settings.designSystemsInstalled")}{" "}
+          <span className="library-section-count">{displayDesignSystems.length}</span>
         </h4>
         <button
           type="button"
@@ -287,145 +308,131 @@ export function DesignSystemsSection({
           aria-expanded={addOpen}
           onClick={() => setAddOpen((v) => !v)}
         >
-          <span aria-hidden="true" className="library-add-btn-icon">+</span>
-          <span>{t('settings.designSystemsAdd')}</span>
+          <span aria-hidden="true" className="library-add-btn-icon">
+            +
+          </span>
+          <span>{t("settings.designSystemsAdd")}</span>
         </button>
       </div>
       {hiddenDesignSystemCount > 0 ? (
         <div className="library-hidden-banner">
-          <span>
-            {t('settings.designSystemsHiddenCount', { count: hiddenDesignSystemCount })}
-          </span>
-          <button
-            type="button"
-            className="library-hidden-banner-link"
-            onClick={toggleShowOnlyHidden}
-          >
-            {showOnlyHidden
-              ? t('settings.designSystemsShowAll')
-              : t('settings.designSystemsShowHidden')}
+          <span>{t("settings.designSystemsHiddenCount", { count: hiddenDesignSystemCount })}</span>
+          <button type="button" className="library-hidden-banner-link" onClick={toggleShowOnlyHidden}>
+            {showOnlyHidden ? t("settings.designSystemsShowAll") : t("settings.designSystemsShowHidden")}
           </button>
         </div>
       ) : null}
 
-      <div className={`accordion-collapsible library-add-panel${addOpen ? ' open' : ''}`}>
+      <div className={`accordion-collapsible library-add-panel${addOpen ? " open" : ""}`}>
         <div className="accordion-collapsible-inner">
           <form className="library-install-form" onSubmit={handleLocalImport}>
             <div className="library-import-controls">
               <div className="library-import-row">
-                <span className="library-import-option-label">
-                  {t('settings.designSystemsSource')}
-                </span>
+                <span className="library-import-option-label">{t("settings.designSystemsSource")}</span>
                 <div className="seg-control library-import-source-control">
                   <button
                     type="button"
-                    className={importSource === 'local' ? 'active' : ''}
+                    className={importSource === "local" ? "active" : ""}
                     onClick={() => {
-                      setImportSource('local');
+                      setImportSource("local");
                       clearImportFeedback();
                     }}
                   >
-                    {t('settings.designSystemsSourceLocal')}
+                    {t("settings.designSystemsSourceLocal")}
                   </button>
                   <button
                     type="button"
-                    className={importSource === 'github' ? 'active' : ''}
+                    className={importSource === "github" ? "active" : ""}
                     onClick={() => {
-                      setImportSource('github');
+                      setImportSource("github");
                       clearImportFeedback();
                     }}
                   >
-                    {t('settings.designSystemsSourceGithub')}
+                    {t("settings.designSystemsSourceGithub")}
                   </button>
                   <button
                     type="button"
-                    className={importSource === 'shadcn' ? 'active' : ''}
+                    className={importSource === "shadcn" ? "active" : ""}
                     onClick={() => {
-                      setImportSource('shadcn');
+                      setImportSource("shadcn");
                       clearImportFeedback();
                     }}
                   >
-                    {t('settings.designSystemsSourceShadcn')}
+                    {t("settings.designSystemsSourceShadcn")}
                   </button>
                 </div>
               </div>
               <div className="library-import-row">
-                <span className="library-import-option-label">
-                  {t('settings.designSystemsStructure')}
-                </span>
+                <span className="library-import-option-label">{t("settings.designSystemsStructure")}</span>
                 <div className="seg-control library-import-mode-control">
                   <button
                     type="button"
-                    className={packageImportMode === 'hybrid' ? 'active' : ''}
-                    onClick={() => setPackageImportMode('hybrid')}
+                    className={packageImportMode === "hybrid" ? "active" : ""}
+                    onClick={() => setPackageImportMode("hybrid")}
                   >
-                    {t('settings.designSystemsModeHybrid')}
+                    {t("settings.designSystemsModeHybrid")}
                   </button>
                   <button
                     type="button"
-                    className={packageImportMode === 'normalized' ? 'active' : ''}
-                    onClick={() => setPackageImportMode('normalized')}
+                    className={packageImportMode === "normalized" ? "active" : ""}
+                    onClick={() => setPackageImportMode("normalized")}
                   >
-                    {t('settings.designSystemsModeNormalized')}
+                    {t("settings.designSystemsModeNormalized")}
                   </button>
                   <button
                     type="button"
-                    className={packageImportMode === 'verbatim' ? 'active' : ''}
-                    onClick={() => setPackageImportMode('verbatim')}
+                    className={packageImportMode === "verbatim" ? "active" : ""}
+                    onClick={() => setPackageImportMode("verbatim")}
                   >
-                    {t('settings.designSystemsModeVerbatim')}
+                    {t("settings.designSystemsModeVerbatim")}
                   </button>
                 </div>
               </div>
               <div className="library-import-row">
-                <span className="library-import-option-label">
-                  {t('settings.designSystemsCraft')}
-                </span>
+                <span className="library-import-option-label">{t("settings.designSystemsCraft")}</span>
                 <div className="library-import-checkboxes">
                   <label className="library-import-checkbox">
                     <input
                       type="checkbox"
-                      checked={craftApplies.includes('color')}
+                      checked={craftApplies.includes("color")}
                       onChange={(e) =>
-                        setCraftApplies((current) =>
-                          toggleCraftSlug(current, 'color', e.target.checked),
-                        )
+                        setCraftApplies((current) => toggleCraftSlug(current, "color", e.target.checked))
                       }
                     />
-                    <span>{t('settings.designSystemsCraftColor')}</span>
+                    <span>{t("settings.designSystemsCraftColor")}</span>
                   </label>
                   <label className="library-import-checkbox">
                     <input
                       type="checkbox"
-                      checked={craftApplies.includes('accessibility-baseline')}
+                      checked={craftApplies.includes("accessibility-baseline")}
                       onChange={(e) =>
                         setCraftApplies((current) =>
-                          toggleCraftSlug(current, 'accessibility-baseline', e.target.checked),
+                          toggleCraftSlug(current, "accessibility-baseline", e.target.checked)
                         )
                       }
                     />
-                    <span>{t('settings.designSystemsCraftAccessibility')}</span>
+                    <span>{t("settings.designSystemsCraftAccessibility")}</span>
                   </label>
                 </div>
               </div>
               <div className="library-import-row">
                 <span className="library-import-option-label">
-                  {importSource === 'github'
-                    ? t('settings.designSystemsGithubUrl')
-                    : importSource === 'shadcn'
-                      ? t('settings.designSystemsShadcnReference')
-                      : t('settings.designSystemsProjectPath')}
+                  {importSource === "github"
+                    ? t("settings.designSystemsGithubUrl")
+                    : importSource === "shadcn"
+                      ? t("settings.designSystemsShadcnReference")
+                      : t("settings.designSystemsProjectPath")}
                 </span>
                 <div className="library-install-row">
                   <input
                     type="text"
                     className="library-import-input"
                     placeholder={
-                      importSource === 'github'
-                        ? 'https://github.com/owner/repo'
-                        : importSource === 'shadcn'
-                          ? 'shadcn/ui/theme-zinc'
-                          : '/path/to/project'
+                      importSource === "github"
+                        ? "https://github.com/owner/repo"
+                        : importSource === "shadcn"
+                          ? "shadcn/ui/theme-zinc"
+                          : "/path/to/project"
                     }
                     value={importPath}
                     onChange={(e) => {
@@ -439,12 +446,12 @@ export function DesignSystemsSection({
                     disabled={importing || importPath.trim().length === 0}
                   >
                     {importing
-                      ? t('settings.libraryLoading')
-                      : importSource === 'github'
-                        ? t('settings.designSystemsImportGithub')
-                        : importSource === 'shadcn'
-                          ? t('settings.designSystemsImportShadcn')
-                          : t('settings.designSystemsImportProject')}
+                      ? t("settings.libraryLoading")
+                      : importSource === "github"
+                        ? t("settings.designSystemsImportGithub")
+                        : importSource === "shadcn"
+                          ? t("settings.designSystemsImportShadcn")
+                          : t("settings.designSystemsImportProject")}
                   </button>
                 </div>
               </div>
@@ -452,14 +459,10 @@ export function DesignSystemsSection({
             {importError ? <p className="library-install-error">{importError}</p> : null}
             {importMessage ? (
               <p className="library-install-status">
-                <span>{t('settings.designSystemsImportedStatus', { title: importMessage })}</span>
+                <span>{t("settings.designSystemsImportedStatus", { title: importMessage })}</span>
                 {importedDesignSystem ? (
-                  <button
-                    type="button"
-                    className="library-install-status-link"
-                    onClick={viewImportedDesignSystem}
-                  >
-                    {t('settings.designSystemsViewImported')}
+                  <button type="button" className="library-install-status-link" onClick={viewImportedDesignSystem}>
+                    {t("settings.designSystemsViewImported")}
                   </button>
                 ) : null}
               </p>
@@ -472,28 +475,25 @@ export function DesignSystemsSection({
         <input
           type="search"
           className="library-search"
-          placeholder={t('settings.librarySearch')}
+          placeholder={t("settings.librarySearch")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         <label className="library-filter-select">
           <select
-            aria-label={t('settings.designSystemsCategory')}
+            aria-label={t("settings.designSystemsCategory")}
             value={categoryFilter}
-            data-active={categoryFilter !== 'All' ? 'true' : undefined}
+            data-active={categoryFilter !== "All" ? "true" : undefined}
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
             {categories.map((cat) => {
               const count =
-                cat === 'All'
-                  ? designSystems.length
-                  : designSystems.filter((d) => d.category === cat).length;
+                cat === "All"
+                  ? displayDesignSystems.length
+                  : displayDesignSystems.filter((d) => d.category === cat).length;
               return (
-                <option
-                  key={cat}
-                  value={cat}
-                >
-                  {cat === 'All' ? t('settings.designSystemsAllCategories') : cat} ({count})
+                <option key={cat} value={cat}>
+                  {cat === "All" ? t("settings.designSystemsAllCategories") : cat} ({count})
                 </option>
               );
             })}
@@ -503,15 +503,14 @@ export function DesignSystemsSection({
 
       <div className="library-content">
         {filtered.length === 0 ? (
-          <p className="library-empty">{t('settings.libraryNoResults')}</p>
+          <p className="library-empty">{t("settings.libraryNoResults")}</p>
         ) : (
           <>
             {orderedGroups.map(([category, items]) => (
               <div key={category} className="library-group">
-                {categoryFilter === 'All' ? (
+                {categoryFilter === "All" ? (
                   <h4 className="library-group-title">
-                    {category}{' '}
-                    <span className="library-group-count">{items.length}</span>
+                    {category} <span className="library-group-count">{items.length}</span>
                   </h4>
                 ) : null}
                 <div className="ds-grid">
@@ -522,10 +521,8 @@ export function DesignSystemsSection({
                         if (node) cardRefs.current.set(ds.id, node);
                         else cardRefs.current.delete(ds.id);
                       }}
-                      className={`library-ds-card${
-                        disabledDS.has(ds.id) ? ' disabled' : ''
-                      }${
-                        highlightedDesignSystemId === ds.id ? ' highlighted' : ''
+                      className={`library-ds-card${disabledDS.has(ds.id) ? " disabled" : ""}${
+                        highlightedDesignSystemId === ds.id ? " highlighted" : ""
                       }`}
                     >
                       <div
@@ -535,30 +532,19 @@ export function DesignSystemsSection({
                         aria-haspopup="dialog"
                         onClick={() => setPreviewSystem(ds)}
                         onKeyDown={(e) => {
-                          if (e.key !== 'Enter' && e.key !== ' ') return;
+                          if (e.key !== "Enter" && e.key !== " ") return;
                           e.preventDefault();
                           setPreviewSystem(ds);
                         }}
                       >
-                        {ds.swatches && ds.swatches.length > 0 && (
-                          <div className="library-ds-swatches">
-                            {ds.swatches.slice(0, 4).map((c, i) => (
-                              <span
-                                key={i}
-                                className="library-ds-swatch"
-                                style={{ backgroundColor: c }}
-                              />
-                            ))}
-                          </div>
-                        )}
                         <div className="library-ds-title">
                           <span className="library-ds-title-text">{ds.title}</span>
-                          {ds.source === 'user' || ds.isEditable === true ? (
+                          {ds.source === "user" || ds.isEditable === true ? (
                             <button
                               type="button"
                               className="library-ds-edit"
-                              title={t('common.rename')}
-                              aria-label={`${t('common.rename')} ${ds.title}`}
+                              title={t("common.rename")}
+                              aria-label={`${t("common.rename")} ${ds.title}`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 startRename(ds);
@@ -574,15 +560,13 @@ export function DesignSystemsSection({
                       <div className="library-ds-toggle-cell">
                         <label
                           className="toggle-switch toggle-switch-sm"
-                          title={t('settings.designSystemsShowInHomeGallery')}
+                          title={t("settings.designSystemsShowInHomeGallery")}
                         >
                           <input
                             type="checkbox"
-                            aria-label={t('settings.designSystemsShowInHomeGallery')}
+                            aria-label={t("settings.designSystemsShowInHomeGallery")}
                             checked={!disabledDS.has(ds.id)}
-                            onChange={(e) =>
-                              toggleDSDisabled(ds.id, e.target.checked)
-                            }
+                            onChange={(e) => toggleDSDisabled(ds.id, e.target.checked)}
                           />
                           <span className="toggle-slider" />
                         </label>
@@ -597,10 +581,7 @@ export function DesignSystemsSection({
       </div>
       <AnimatePresence>
         {previewSystem ? (
-          <DesignSystemPreviewModal
-            system={previewSystem}
-            onClose={() => setPreviewSystem(null)}
-          />
+          <DesignSystemPreviewModal system={previewSystem} onClose={() => setPreviewSystem(null)} />
         ) : null}
       </AnimatePresence>
       {renameTarget ? (
@@ -613,16 +594,16 @@ export function DesignSystemsSection({
               void commitRename();
             }}
           >
-            <h2>{t('common.rename')}</h2>
+            <h2>{t("common.rename")}</h2>
             <label>
               <input
                 type="text"
                 value={renameInput}
                 autoFocus
-                aria-label={t('common.rename')}
+                aria-label={t("common.rename")}
                 onChange={(e) => setRenameInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
+                  if (e.key === "Escape") {
                     e.preventDefault();
                     cancelRename();
                   }
@@ -632,18 +613,14 @@ export function DesignSystemsSection({
             {renameError ? <p className="library-install-error">{renameError}</p> : null}
             <div className="row">
               <button type="button" onClick={cancelRename}>
-                {t('common.cancel')}
+                {t("common.cancel")}
               </button>
               <button
                 type="submit"
                 className="primary"
-                disabled={
-                  renaming ||
-                  !renameInput.trim() ||
-                  renameInput.trim() === renameTarget.original
-                }
+                disabled={renaming || !renameInput.trim() || renameInput.trim() === renameTarget.original}
               >
-                {t('common.save')}
+                {t("common.save")}
               </button>
             </div>
           </form>

@@ -16,31 +16,31 @@ function mockTasksViewFetch({ routines = [] }: { routines?: Routine[] } = {}) {
     if (url === '/api/routines' && (!init || init.method === undefined)) {
       return new Response(JSON.stringify({ routines }), {
         status: 200,
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json' }
       });
     }
     if (url === '/api/projects' && (!init || init.method === undefined)) {
       return new Response(JSON.stringify({ projects: [] }), {
         status: 200,
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json' }
       });
     }
     if (url === '/api/automation-templates' && (!init || init.method === undefined)) {
       return new Response(JSON.stringify({ templates: [] }), {
         status: 200,
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json' }
       });
     }
     if (url === '/api/automation-proposals?status=pending-review' && (!init || init.method === undefined)) {
       return new Response(JSON.stringify({ proposals: [] }), {
         status: 200,
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json' }
       });
     }
     if (url === '/api/automation-source-packets?limit=3' && (!init || init.method === undefined)) {
       return new Response(JSON.stringify({ packets: [] }), {
         status: 200,
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json' }
       });
     }
     return new Response(JSON.stringify({}), { status: 404 });
@@ -69,7 +69,7 @@ describe('TasksView page shell', () => {
         nextRunAt: Date.now(),
         lastRun: null,
         createdAt: Date.now(),
-        updatedAt: Date.now(),
+        updatedAt: Date.now()
       },
       {
         id: 'routine-active-2',
@@ -83,7 +83,7 @@ describe('TasksView page shell', () => {
         nextRunAt: Date.now(),
         lastRun: null,
         createdAt: Date.now(),
-        updatedAt: Date.now(),
+        updatedAt: Date.now()
       },
       {
         id: 'routine-paused-1',
@@ -97,8 +97,8 @@ describe('TasksView page shell', () => {
         nextRunAt: null,
         lastRun: null,
         createdAt: Date.now(),
-        updatedAt: Date.now(),
-      },
+        updatedAt: Date.now()
+      }
     ];
     mockTasksViewFetch({ routines });
 
@@ -107,8 +107,8 @@ describe('TasksView page shell', () => {
     expect(await screen.findByRole('heading', { name: 'Automations' })).toBeTruthy();
     expect(
       screen.getByText(
-        'Plan recurring conversations for project work, Orbit digests, and live artifacts.',
-      ),
+        'Schedule recurring sessions for ecommerce video assets, category crawling, scripts, storyboards, generation diagnostics, and performance review.'
+      )
     ).toBeTruthy();
     expect(screen.getByTestId('automations-new')).toBeTruthy();
     expect(screen.getByLabelText('Your automations')).toBeTruthy();
@@ -119,7 +119,7 @@ describe('TasksView page shell', () => {
       expect(summary.textContent ?? '').toContain('Active');
       expect(summary.textContent ?? '').toContain('1');
       expect(summary.textContent ?? '').toContain('Paused');
-      expect(summary.textContent ?? '').toContain('8');
+      expect(summary.textContent ?? '').toContain('7');
       expect(summary.textContent ?? '').toContain('Templates');
     });
   });
@@ -130,7 +130,9 @@ describe('TasksView page shell', () => {
     render(<TasksView />);
 
     const emptyState = await screen.findByRole('button', { name: /No automations yet/i });
-    expect(within(emptyState).getByText('Create one from a template or start with a blank schedule.')).toBeTruthy();
+    expect(
+      within(emptyState).getByText('Create one from a video workflow template or start with a blank schedule.')
+    ).toBeTruthy();
 
     fireEvent.click(emptyState);
 
@@ -151,23 +153,21 @@ describe('TasksView page shell', () => {
     });
   });
 
-  it('shows the template empty state when switching to an empty category', async () => {
+  it('shows only video workflow template categories', async () => {
     mockTasksViewFetch();
 
     render(<TasksView />);
 
     const tabs = await screen.findByRole('tablist', { name: 'Template filters' });
-    fireEvent.click(within(tabs).getByRole('tab', { name: /Skills/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('status').textContent ?? '').toContain('No templates in this category yet.');
-    });
-
-    fireEvent.click(within(tabs).getByRole('tab', { name: /^All/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Daily connector digest/i })).toBeTruthy();
-    });
+    expect(within(tabs).getByRole('tab', { name: /^All/i })).toBeTruthy();
+    expect(within(tabs).getByRole('tab', { name: /Assets/i })).toBeTruthy();
+    expect(within(tabs).getByRole('tab', { name: /Scripts/i })).toBeTruthy();
+    expect(within(tabs).getByRole('tab', { name: /Storyboards/i })).toBeTruthy();
+    expect(within(tabs).getByRole('tab', { name: /Generation\/diagnostics/i })).toBeTruthy();
+    expect(within(tabs).getByRole('tab', { name: /Review/i })).toBeTruthy();
+    expect(within(tabs).queryByRole('tab', { name: /Orbit/i })).toBeNull();
+    expect(within(tabs).queryByRole('tab', { name: /Skills/i })).toBeNull();
+    expect(screen.queryByText('No templates in this category yet.')).toBeNull();
   });
 
   it('runs an automation and opens its project conversation when the daemon returns one', async () => {
@@ -184,8 +184,8 @@ describe('TasksView page shell', () => {
         nextRunAt: Date.now(),
         lastRun: null,
         createdAt: Date.now(),
-        updatedAt: Date.now(),
-      },
+        updatedAt: Date.now()
+      }
     ];
     const navigateSpy = vi.spyOn(router, 'navigate').mockImplementation(() => {});
     const runCalls: string[] = [];
@@ -194,43 +194,46 @@ describe('TasksView page shell', () => {
       if (url === '/api/routines' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ routines }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/projects' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ projects: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/automation-templates' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ templates: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/automation-proposals?status=pending-review' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ proposals: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/automation-source-packets?limit=3' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ packets: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/routines/routine-run-1/run' && init?.method === 'POST') {
         runCalls.push(url);
-        return new Response(JSON.stringify({
-          projectId: 'proj-run',
-          conversationId: 'conv-run',
-          agentRunId: 'agent-run-1',
-        }), {
-          status: 202,
-          headers: { 'content-type': 'application/json' },
-        });
+        return new Response(
+          JSON.stringify({
+            projectId: 'proj-run',
+            conversationId: 'conv-run',
+            agentRunId: 'agent-run-1'
+          }),
+          {
+            status: 202,
+            headers: { 'content-type': 'application/json' }
+          }
+        );
       }
       return new Response(JSON.stringify({}), { status: 404 });
     }) as typeof fetch;
@@ -245,7 +248,7 @@ describe('TasksView page shell', () => {
         kind: 'project',
         projectId: 'proj-run',
         conversationId: 'conv-run',
-        fileName: null,
+        fileName: null
       });
     });
     expect(runCalls).toEqual(['/api/routines/routine-run-1/run']);
@@ -265,8 +268,8 @@ describe('TasksView page shell', () => {
         nextRunAt: Date.now(),
         lastRun: null,
         createdAt: Date.now(),
-        updatedAt: Date.now(),
-      },
+        updatedAt: Date.now()
+      }
     ];
     const patchBodies: unknown[] = [];
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -274,31 +277,31 @@ describe('TasksView page shell', () => {
       if (url === '/api/routines' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ routines }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/projects' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ projects: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/automation-templates' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ templates: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/automation-proposals?status=pending-review' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ proposals: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/automation-source-packets?limit=3' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ packets: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/routines/routine-pause-1' && init?.method === 'PATCH') {
@@ -307,7 +310,7 @@ describe('TasksView page shell', () => {
         routines = [{ ...routines[0]!, enabled: body.enabled, updatedAt: Date.now() }];
         return new Response(JSON.stringify({ routine: routines[0] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       return new Response(JSON.stringify({}), { status: 404 });
@@ -345,8 +348,8 @@ describe('TasksView page shell', () => {
         nextRunAt: Date.now(),
         lastRun: null,
         createdAt: Date.now(),
-        updatedAt: Date.now(),
-      },
+        updatedAt: Date.now()
+      }
     ];
     const deletedUrls: string[] = [];
     window.confirm = vi.fn(() => true);
@@ -355,31 +358,31 @@ describe('TasksView page shell', () => {
       if (url === '/api/routines' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ routines }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/projects' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ projects: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/automation-templates' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ templates: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/automation-proposals?status=pending-review' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ proposals: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/automation-source-packets?limit=3' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ packets: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/routines/routine-delete-1' && init?.method === 'DELETE') {
@@ -424,11 +427,11 @@ describe('TasksView page shell', () => {
           completedAt: startedAt + 5_000,
           projectId: 'proj-result',
           conversationId: 'conv-result',
-          agentRunId: 'agent-run-1',
+          agentRunId: 'agent-run-1'
         },
         createdAt: Date.now(),
-        updatedAt: Date.now(),
-      },
+        updatedAt: Date.now()
+      }
     ];
     mockTasksViewFetch({ routines });
 
@@ -441,7 +444,7 @@ describe('TasksView page shell', () => {
       kind: 'project',
       projectId: 'proj-result',
       conversationId: 'conv-result',
-      fileName: null,
+      fileName: null
     });
   });
 
@@ -460,63 +463,66 @@ describe('TasksView page shell', () => {
         nextRunAt: Date.now(),
         lastRun: null,
         createdAt: Date.now(),
-        updatedAt: Date.now(),
-      },
+        updatedAt: Date.now()
+      }
     ];
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       if (url === '/api/routines' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ routines }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/projects' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ projects: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/automation-templates' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ templates: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/automation-proposals?status=pending-review' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ proposals: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/automation-source-packets?limit=3' && (!init || init.method === undefined)) {
         return new Response(JSON.stringify({ packets: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' }
         });
       }
       if (url === '/api/routines/routine-history-1/runs?limit=10') {
-        return new Response(JSON.stringify({
-          runs: [
-            {
-              id: 'run-1',
-              routineId: 'routine-history-1',
-              trigger: 'manual',
-              status: 'succeeded',
-              projectId: 'proj-result',
-              conversationId: 'conv-result',
-              agentRunId: 'agent-run-1',
-              startedAt,
-              completedAt: startedAt + 45_000,
-              summary: 'Updated orbit digest',
-              error: null,
-              errorCode: null,
-            },
-          ],
-        }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
+        return new Response(
+          JSON.stringify({
+            runs: [
+              {
+                id: 'run-1',
+                routineId: 'routine-history-1',
+                trigger: 'manual',
+                status: 'succeeded',
+                projectId: 'proj-result',
+                conversationId: 'conv-result',
+                agentRunId: 'agent-run-1',
+                startedAt,
+                completedAt: startedAt + 45_000,
+                summary: 'Updated orbit digest',
+                error: null,
+                errorCode: null
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          }
+        );
       }
       return new Response(JSON.stringify({}), { status: 404 });
     }) as typeof fetch;
@@ -550,8 +556,8 @@ describe('TasksView page shell', () => {
         nextRunAt: Date.now(),
         lastRun: null,
         createdAt: Date.now(),
-        updatedAt: Date.now(),
-      },
+        updatedAt: Date.now()
+      }
     ];
     mockTasksViewFetch({ routines });
 
@@ -561,9 +567,7 @@ describe('TasksView page shell', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'Edit' }));
 
     await waitFor(() => {
-      expect((screen.getByLabelText('Automation title') as HTMLInputElement).value).toBe(
-        'Orbit digest',
-      );
+      expect((screen.getByLabelText('Automation title') as HTMLInputElement).value).toBe('Orbit digest');
     });
   });
 
@@ -574,16 +578,16 @@ describe('TasksView page shell', () => {
 
     const tabs = await screen.findByRole('tablist', { name: 'Template filters' });
     const allTab = within(tabs).getByRole('tab', { name: /^All/i });
-    const orbitTab = within(tabs).getByRole('tab', { name: /Orbit/i });
+    const generationTab = within(tabs).getByRole('tab', { name: /Generation\/diagnostics/i });
 
     expect(allTab.getAttribute('aria-selected')).toBe('true');
-    expect(orbitTab.getAttribute('aria-selected')).toBe('false');
+    expect(generationTab.getAttribute('aria-selected')).toBe('false');
 
-    fireEvent.click(orbitTab);
+    fireEvent.click(generationTab);
 
     await waitFor(() => {
       expect(allTab.getAttribute('aria-selected')).toBe('false');
-      expect(orbitTab.getAttribute('aria-selected')).toBe('true');
+      expect(generationTab.getAttribute('aria-selected')).toBe('true');
     });
   });
 });

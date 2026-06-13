@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { readExpandedIndexCss } from '../helpers/read-expanded-css';
 
 const indexCss = readFileSync(new URL('../../src/index.css', import.meta.url), 'utf8');
-const expandedIndexCss = readExpandedIndexCss();
+const expandedIndexCss = readExpandedIndexCss().replace(/\r\n/g, '\n');
 const mentionHomeCss = readFileSync(new URL('../../src/styles/workspace/mention-home.css', import.meta.url), 'utf8');
 
 function cssBlock(css: string, selector: string): string {

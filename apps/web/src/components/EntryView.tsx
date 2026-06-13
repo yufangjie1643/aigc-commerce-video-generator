@@ -26,7 +26,6 @@ import type {
 // component lets future rebases against upstream `EntryView` (props,
 // connector lifecycle, exported helpers) stay close to a no-op here.
 import { EntryShell } from './EntryShell';
-import type { IntegrationTab } from './IntegrationsView';
 import type { CreateInput, ImportClaudeDesignOutcome } from './NewProjectPanel';
 import {
   CONNECTOR_CALLBACK_MESSAGE_TYPE,
@@ -54,17 +53,12 @@ interface Props {
   promptTemplates: PromptTemplateSummary[];
   defaultDesignSystemId: string | null;
   agents: AgentInfo[];
-  // Forwarded to EntryShell → OnboardingView so the AMR cloud card can show a
-  // detecting/skeleton state while the cold-start agent stream is in flight.
-  agentsLoading?: boolean;
   // Execution / model-switching context forwarded to the EntryShell so the
   // sticky top-bar can expose the active CLI/BYOK + model and persist
   // changes through the same channels as the project view.
   config: AppConfig;
   providerModelsCache?: Record<string, ProviderModelOption[]>;
   onProviderModelsCacheChange?: Dispatch<SetStateAction<Record<string, ProviderModelOption[]>>>;
-  integrationInitialTab?: IntegrationTab;
-  composioConfigLoading?: boolean;
   daemonLive: boolean;
   onModeChange: (mode: ExecMode) => void;
   onAgentChange: (id: string) => void;
@@ -116,9 +110,10 @@ interface Props {
   onChangeDefaultDesignSystem: (id: string) => void;
   onCreateDesignSystem?: () => void;
   onOpenDesignSystem?: (id: string) => void;
+  onSkillsRefresh?: () => Promise<void> | void;
+  onSkillsChanged?: (affectedSkillId?: string) => void;
   onDesignSystemsRefresh?: () => Promise<void> | void;
-  onPersistComposioKey: (composio: AppConfig['composio']) => Promise<void> | void;
-  onOpenSettings: (section?: 'execution' | 'media' | 'composio' | 'orbit' | 'integrations' | 'mcpClient' | 'language' | 'appearance' | 'notifications' | 'pet' | 'projectLocations' | 'library' | 'about' | 'memory' | 'designSystems') => void;
+  onOpenSettings: (section?: 'execution' | 'media' | 'understanding' | 'composio' | 'orbit' | 'integrations' | 'mcpClient' | 'language' | 'appearance' | 'notifications' | 'projectLocations' | 'library' | 'about' | 'memory' | 'designSystems' | 'assetLibrary') => void;
   onCompleteOnboarding: () => void;
 }
 
@@ -225,12 +220,9 @@ export function EntryView({
   promptTemplates,
   defaultDesignSystemId,
   agents,
-  agentsLoading,
   config,
   providerModelsCache,
   onProviderModelsCacheChange,
-  integrationInitialTab,
-  composioConfigLoading = false,
   daemonLive,
   onModeChange,
   onAgentChange,
@@ -256,8 +248,9 @@ export function EntryView({
   onChangeDefaultDesignSystem,
   onCreateDesignSystem,
   onOpenDesignSystem,
+  onSkillsRefresh,
+  onSkillsChanged,
   onDesignSystemsRefresh,
-  onPersistComposioKey,
   onOpenSettings,
   onCompleteOnboarding,
 }: Props) {
@@ -338,8 +331,6 @@ export function EntryView({
       defaultDesignSystemId={defaultDesignSystemId}
       connectors={connectors}
       connectorsLoading={connectorsLoading}
-      {...(integrationInitialTab ? { integrationInitialTab } : {})}
-      composioConfigLoading={composioConfigLoading}
       skillsLoading={skillsLoading}
       designSystemsLoading={designSystemsLoading}
       projectsLoading={projectsLoading}
@@ -347,7 +338,6 @@ export function EntryView({
       providerModelsCache={providerModelsCache}
       onProviderModelsCacheChange={onProviderModelsCacheChange}
       agents={agents}
-      {...(agentsLoading !== undefined ? { agentsLoading } : {})}
       daemonLive={daemonLive}
       onModeChange={onModeChange}
       onAgentChange={onAgentChange}
@@ -369,8 +359,9 @@ export function EntryView({
       onChangeDefaultDesignSystem={onChangeDefaultDesignSystem}
       onCreateDesignSystem={onCreateDesignSystem}
       onOpenDesignSystem={onOpenDesignSystem}
+      onSkillsRefresh={onSkillsRefresh}
+      onSkillsChanged={onSkillsChanged}
       onDesignSystemsRefresh={onDesignSystemsRefresh}
-      onPersistComposioKey={onPersistComposioKey}
       onOpenSettings={onOpenSettings}
       onCompleteOnboarding={onCompleteOnboarding}
     />

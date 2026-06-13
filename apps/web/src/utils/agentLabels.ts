@@ -1,6 +1,5 @@
 const AGENT_LABELS: Record<string, string> = {
   aider: 'Aider',
-  amp: 'Amp',
   claude: 'Claude',
   codex: 'Codex',
   devin: 'Devin',
@@ -21,7 +20,6 @@ const AGENT_LABELS: Record<string, string> = {
 };
 
 const AGENT_ALIASES: Record<string, string> = {
-  'amp cli': 'amp',
   'claude code': 'claude',
   'codex cli': 'codex',
   'devin for terminal': 'devin',

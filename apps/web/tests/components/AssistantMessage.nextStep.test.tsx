@@ -2,10 +2,8 @@
 
 /**
  * Gate coverage for the "next step" affordance under the last assistant
- * message. The card anchors on a deliverable: it appears only once the turn
- * (or the project) has a previewable HTML artifact to take a next step on. A
- * pure clarifying-questions / summary turn that produced no HTML must not
- * surface the card.
+ * message. It should appear only for the last successful turn that produced a
+ * previewable HTML artifact, and only when the handlers are wired.
  */
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -60,13 +58,11 @@ function producedFile(name: string, kind: ProjectFile['kind'] = 'html'): Project
 
 const handlers = () => ({
   onArtifactShare: vi.fn(),
-  onToolboxAction: vi.fn(),
+  onArtifactChip: vi.fn(),
 });
 
-const AUTO_MATCH_TITLE = en['chat.designToolbox.action.auto-match.title'];
-
 describe('AssistantMessage next-step affordance', () => {
-  it('routes Share through the More → Share cascade with the file name', () => {
+  it('renders for the last successful turn with an HTML artifact and routes Share with the file name', () => {
     const h = handlers();
     render(
       <AssistantMessage
@@ -78,9 +74,7 @@ describe('AssistantMessage next-step affordance', () => {
       />,
     );
     expect(screen.getByTestId('next-step-actions')).toBeTruthy();
-    fireEvent.mouseEnter(screen.getByTestId('next-step-toolbox-more'));
-    fireEvent.mouseEnter(screen.getByTestId('next-step-more-share'));
-    fireEvent.click(screen.getByTestId('next-step-share-share'));
+    fireEvent.click(screen.getByText(en['nextStep.share']));
     expect(h.onArtifactShare).toHaveBeenCalledWith('landing.html');
   });
 
@@ -97,26 +91,7 @@ describe('AssistantMessage next-step affordance', () => {
     expect(screen.queryByTestId('next-step-actions')).toBeNull();
   });
 
-  it('reaches Contribute (share to Open Design) through the More → Share cascade', () => {
-    const onShareToOpenDesign = vi.fn();
-    render(
-      <AssistantMessage
-        message={baseMessage({ producedFiles: [producedFile('landing.html')] })}
-        streaming={false}
-        projectId="proj-1"
-        isLast
-        onFeedback={vi.fn()}
-        onShareToOpenDesign={onShareToOpenDesign}
-        {...handlers()}
-      />,
-    );
-    fireEvent.mouseEnter(screen.getByTestId('next-step-toolbox-more'));
-    fireEvent.mouseEnter(screen.getByTestId('next-step-more-share'));
-    fireEvent.click(screen.getByTestId('next-step-share-contribute'));
-    expect(onShareToOpenDesign).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not render the card when the turn produced no previewable HTML artifact', () => {
+  it('does not render when the turn produced no previewable HTML artifact', () => {
     render(
       <AssistantMessage
         message={baseMessage({ producedFiles: [producedFile('notes.md', 'text')] })}
@@ -127,21 +102,6 @@ describe('AssistantMessage next-step affordance', () => {
       />,
     );
     expect(screen.queryByTestId('next-step-actions')).toBeNull();
-  });
-
-  it('renders once the project has a previewable HTML artifact from an earlier turn', () => {
-    render(
-      <AssistantMessage
-        message={baseMessage({ producedFiles: [] })}
-        streaming={false}
-        projectId="proj-1"
-        isLast
-        projectFiles={[producedFile('landing.html')]}
-        {...handlers()}
-      />,
-    );
-    expect(screen.getByTestId('next-step-actions')).toBeTruthy();
-    expect(screen.getByText(AUTO_MATCH_TITLE)).toBeTruthy();
   });
 
   it('does not render when the handlers are not wired', () => {

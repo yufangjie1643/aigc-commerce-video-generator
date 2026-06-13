@@ -15,11 +15,7 @@ import {
 } from 'react';
 import { Button } from '@open-design/components';
 import { useAnalytics } from '../analytics/provider';
-import {
-  trackIntegrationsMcpTabClick,
-  trackSettingsExternalMcpClick,
-} from '../analytics/events';
-import type { TrackingExternalMcpElement } from '@open-design/contracts/analytics';
+import { trackIntegrationsMcpTabClick } from '../analytics/events';
 import {
   disconnectMcpOAuth,
   fetchMcpOAuthStatus,
@@ -45,10 +41,6 @@ interface Props {
   // Surface the dirty/save state up to the dialog footer so a single
   // "Save" button can drive both the global config and this section.
   onDirtyChange?: (dirty: boolean) => void;
-  // This section renders on two surfaces: the Integrations MCP tab and the
-  // Settings -> External MCP panel. Defaults to 'integrations' so the
-  // IntegrationsView call site stays unchanged.
-  surface?: 'integrations' | 'settings';
 }
 
 // Imperative handle: lets the dialog footer Save button trigger this
@@ -307,31 +299,9 @@ function signature(rows: DraftRow[]): string {
 }
 
 export const McpClientSection = forwardRef<McpClientSectionHandle, Props>(
-  function McpClientSection({ onServersChanged, onDirtyChange, surface = 'integrations' }, ref) {
+  function McpClientSection({ onServersChanged, onDirtyChange }, ref) {
   const t = useT();
   const analytics = useAnalytics();
-  // Single dispatch point for every click in this section: routes to the
-  // payload matching the surface the section is rendered on.
-  const trackMcpClick = (
-    element: TrackingExternalMcpElement,
-    extra?: { template_id?: string },
-  ) => {
-    if (surface === 'settings') {
-      trackSettingsExternalMcpClick(analytics.track, {
-        page_name: 'settings',
-        area: 'external_mcp',
-        element,
-        ...extra,
-      });
-    } else {
-      trackIntegrationsMcpTabClick(analytics.track, {
-        page_name: 'integrations',
-        area: 'mcp_tab',
-        element,
-        ...extra,
-      });
-    }
-  };
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [savedSig, setSavedSig] = useState<string>('[]');
   const [templates, setTemplates] = useState<McpTemplate[]>([]);
@@ -408,13 +378,11 @@ export const McpClientSection = forwardRef<McpClientSectionHandle, Props>(
   };
 
   const addFromTemplate = (tpl: McpTemplate) => {
-    trackMcpClick('pick_template', { template_id: tpl.id.replace(/-/g, '_') });
     setPickerOpen(false);
     setRows((curr) => [...curr, rowFromTemplate(tpl, new Set(curr.map((r) => r.id)))]);
   };
 
   const addBlank = () => {
-    trackMcpClick('pick_blank');
     setPickerOpen(false);
     setRows((curr) => [...curr, rowFromBlank(new Set(curr.map((r) => r.id)))]);
   };
@@ -474,7 +442,11 @@ export const McpClientSection = forwardRef<McpClientSectionHandle, Props>(
           type="button"
           className="primary mcp-add-btn"
           onClick={() => {
-            trackMcpClick('add_server');
+            trackIntegrationsMcpTabClick(analytics.track, {
+              page_name: 'integrations',
+              area: 'mcp_tab',
+              element: 'add_server',
+            });
             setPickerOpen((v) => !v);
           }}
           aria-expanded={pickerOpen}
@@ -522,15 +494,7 @@ export const McpClientSection = forwardRef<McpClientSectionHandle, Props>(
                   : undefined
               }
               onChange={(patch) => updateRow(idx, patch)}
-              onRemove={() => {
-                trackMcpClick(
-                  'remove_server',
-                  row.templateId
-                    ? { template_id: row.templateId.replace(/-/g, '_') }
-                    : undefined,
-                );
-                removeRow(idx);
-              }}
+              onRemove={() => removeRow(idx)}
               onMoveUp={idx > 0 ? () => moveRow(idx, -1) : undefined}
               onMoveDown={idx < rows.length - 1 ? () => moveRow(idx, 1) : undefined}
             />
@@ -543,7 +507,11 @@ export const McpClientSection = forwardRef<McpClientSectionHandle, Props>(
           type="button"
           className="primary"
           onClick={() => {
-            trackMcpClick('saved');
+            trackIntegrationsMcpTabClick(analytics.track, {
+              page_name: 'integrations',
+              area: 'mcp_tab',
+              element: 'saved',
+            });
             void save();
           }}
           disabled={saving || !dirty}

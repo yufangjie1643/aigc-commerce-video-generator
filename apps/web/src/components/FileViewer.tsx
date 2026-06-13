@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
-import { createPortal, flushSync } from 'react-dom';
+import { createPortal } from 'react-dom';
 import { Button, Input, Select } from '@open-design/components';
 import { APP_CHROME_FILE_ACTIONS_ID, APP_CHROME_FILE_ACTIONS_SELECTOR } from './AppChromeHeader';
 import {
@@ -20,7 +20,6 @@ import {
   trackArtifactHeaderClick,
   trackArtifactToolbarClick,
   trackCommentPopoverClick,
-  trackDrawToolbarClick,
   trackPageView,
   trackPresentPopoverClick,
   trackShareOptionPopoverClick,
@@ -63,10 +62,10 @@ import {
 import type { ProjectFilePreview } from '../providers/registry';
 import {
   downloadImageDataUrl,
+  exportAsHtml,
   exportAsJsx,
   exportAsMd,
   exportAsPdf,
-  exportProjectAsHtml,
   exportProjectAsPdf,
   exportProjectAsZip,
   copyImageDataUrlToClipboard,
@@ -104,7 +103,7 @@ import { Icon } from './Icon';
 import { RemixIcon } from './RemixIcon';
 import { SocialShareGrid } from './SocialShareGrid';
 import { Toast } from './Toast';
-import { PreviewDrawOverlay, type DrawToolbarElement } from './PreviewDrawOverlay';
+import { PreviewDrawOverlay } from './PreviewDrawOverlay';
 import {
   buildBoardCommentAttachments,
   commentSnapshotEqual,
@@ -958,9 +957,6 @@ interface Props {
   // Bumped nonce asking this viewer to open its Share/Export menu (chat-side
   // "Share" next-step action). Only HTML artifacts expose a Share menu.
   shareRequest?: { nonce: number } | null;
-  // Bumped nonce asking this viewer to open its Download/Export menu (chat-side
-  // "Download" next-step action).
-  downloadRequest?: { nonce: number } | null;
   // Bumped nonce asking a deck preview to flip to `slideIndex` (a queued chat
   // send for this file just started processing).
   slideNavRequest?: { slideIndex: number; nonce: number } | null;
@@ -986,7 +982,6 @@ export function FileViewer({
   commentPortalId,
   onCommentModeChange,
   shareRequest,
-  downloadRequest,
   slideNavRequest,
 }: Props) {
   const rendererMatch = artifactRendererRegistry.resolve({
@@ -1030,7 +1025,6 @@ export function FileViewer({
         commentPortalId={commentPortalId}
         onCommentModeChange={onCommentModeChange}
         shareRequest={shareRequest}
-        downloadRequest={downloadRequest}
         slideNavRequest={slideNavRequest}
       />
     );
@@ -4428,7 +4422,6 @@ function HtmlViewer({
   commentPortalId,
   onCommentModeChange,
   shareRequest,
-  downloadRequest,
   slideNavRequest,
 }: {
   projectId: string;
@@ -4449,7 +4442,6 @@ function HtmlViewer({
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
   shareRequest?: { nonce: number } | null;
-  downloadRequest?: { nonce: number } | null;
   slideNavRequest?: { slideIndex: number; nonce: number } | null;
 }) {
   const { locale, t } = useI18n();
@@ -4515,21 +4507,10 @@ function HtmlViewer({
       const out = fn();
       if (out && typeof (out as Promise<unknown>).then === 'function') {
         (out as Promise<unknown>).then(
-          (result) => {
-            if (result === 'cancelled') {
-              finish('cancelled');
-              return;
-            }
-            finish('success');
-            if (toastFormats.has(format)) setExportToast({ message: t('fileViewer.exportStarted'), tone: 'default' });
-          },
+          () => { finish('success'); if (toastFormats.has(format)) setExportToast({ message: t('fileViewer.exportStarted'), tone: 'default' }); },
           (err) => finish('failed', err instanceof Error ? err.name : 'UNKNOWN'),
         );
       } else {
-        if (out === 'cancelled') {
-          finish('cancelled');
-          return;
-        }
         finish('success');
         if (toastFormats.has(format)) setExportToast({ message: t('fileViewer.exportStarted'), tone: 'default' });
       }
@@ -4564,27 +4545,8 @@ function HtmlViewer({
       artifact_kind: artifactKindToTracking({ fileKind: file.kind ?? null }),
     });
   };
-  const fireDrawToolbarClick = (
-    element: DrawToolbarElement,
-    submitAction?: 'draft' | 'queue' | 'send',
-  ) => {
-    trackDrawToolbarClick(analytics.track, {
-      page_name: 'artifact',
-      area: 'draw_toolbar',
-      element,
-      ...(submitAction ? { submit_action: submitAction } : {}),
-      artifact_id: anonymizeArtifactId({ projectId, fileName: file.name }),
-      artifact_kind: artifactKindToTracking({ fileKind: file.kind ?? null }),
-    });
-  };
   const fireArtifactHeaderClick = (
-    element:
-      | 'back'
-      | 'edit'
-      | 'present_dropdown'
-      | 'download_dropdown'
-      | 'share_dropdown'
-      | 'settings',
+    element: 'back' | 'edit' | 'present_dropdown' | 'share_dropdown' | 'settings',
   ) => {
     trackArtifactHeaderClick(analytics.track, {
       page_name: 'artifact',
@@ -7219,22 +7181,6 @@ function HtmlViewer({
     setDeployMenuOpen(true);
   }, [shareRequest?.nonce, canShare, projectId, file.name]);
 
-  // Parallel to shareRequest, but opens the Download / Export menu instead — the
-  // assistant "next step" card's Download row routes here so it surfaces the same
-  // PDF / image / zip / standalone-HTML / template options the toolbar exposes.
-  const consumedDownloadNonceRef = useRef<number | null>(null);
-  useEffect(() => {
-    const nonce = downloadRequest?.nonce;
-    if (nonce == null) return;
-    if (consumedDownloadNonceRef.current === nonce) return;
-    if (!canShare) return;
-    consumedDownloadNonceRef.current = nonce;
-    setExportReadyNudge(false);
-    markExportReadyNudgeSeen(projectId, file.name);
-    setDeployMenuOpen(false);
-    setDownloadMenuOpen(true);
-  }, [downloadRequest?.nonce, canShare, projectId, file.name]);
-
   // A queued chat send for this deck just started: flip the preview to the
   // slide its marked element lives on. We write the cached slide state first so
   // a freshly-mounted iframe (the tab may have just been activated) restores to
@@ -7259,7 +7205,7 @@ function HtmlViewer({
   }, [slideNavRequest?.nonce, slideNavRequest?.slideIndex, effectiveDeck, previewStateKey, slideState?.count]);
 
   const openDownloadMenu = () => {
-    fireArtifactHeaderClick('download_dropdown');
+    fireArtifactHeaderClick('share_dropdown');
     setExportReadyNudge(false);
     markExportReadyNudgeSeen(projectId, file.name);
     setDeployMenuOpen(false);
@@ -7273,14 +7219,6 @@ function HtmlViewer({
     setDeployMenuOpen((v) => !v);
   };
   const captureExportImageSnapshot = useCallback(async () => {
-    // The host compositor grabs on-screen pixels, so any transient hover chrome
-    // over the preview leaks into the capture. The screenshot control's own
-    // tooltip is already dismissed by TooltipLayer's pointerdown/click listener,
-    // but that setState(null) has not repainted yet when capture starts. Wait
-    // two frames so the dismissal commits first — mirrors the double-rAF guard
-    // in the browser screenshot flow (DesignBrowserPanel).
-    await waitForAnimationFrame();
-    await waitForAnimationFrame();
     // Prefer the desktop compositor screenshot of the visible preview region:
     // it returns the real rendered pixels (fonts, external CSS, gradients,
     // images) and is never tainted, so it cannot produce the black/blank frames
@@ -7395,15 +7333,11 @@ function HtmlViewer({
     }
   }, [captureExportImageSnapshot, t]);
 
-  const openImageExportModal = async () => {
-    flushSync(() => {
-      setDownloadMenuOpen(false);
-    });
+  const openImageExportModal = () => {
+    setDownloadMenuOpen(false);
     setImageExportError(null);
     setImageExportPreparedBlob(null);
     imageExportSnapshotDataUrlRef.current = null;
-    await waitForAnimationFrame();
-    await waitForAnimationFrame();
     setImageExportModalOpen(true);
     void prepareImageExportBlob(imageExportFormat);
   };
@@ -8226,12 +8160,13 @@ function HtmlViewer({
                 <div className="share-menu chrome-share-menu">
                   <button
                     type="button"
-                    className="chrome-action chrome-action-secondary chrome-action-with-label chrome-action-text-only"
+                    className="chrome-action chrome-action-secondary chrome-action-with-label"
                     aria-haspopup="menu"
                     aria-expanded={deployMenuOpen}
                     aria-label={shareMenuLabel}
                     onClick={openDeployMenu}
                   >
+                    <RemixIcon name="share-forward-line" size={15} />
                     <span>{shareMenuLabel}</span>
                   </button>
                   {deployMenuOpen ? (
@@ -8369,6 +8304,7 @@ function HtmlViewer({
                     aria-expanded={downloadMenuOpen}
                     onClick={openDownloadMenu}
                   >
+                    <RemixIcon name="download-line" size={15} />
                     <span>{t('fileViewer.download')}</span>
                   </button>
                   {downloadMenuOpen ? (
@@ -8449,12 +8385,7 @@ function HtmlViewer({
                     role="menuitem"
                     onClick={() => {
                       setDownloadMenuOpen(false);
-                      fireShareExport('html', () => exportProjectAsHtml({
-                        projectId,
-                        filePath: file.name,
-                        fallbackHtml: source ?? '',
-                        fallbackTitle: exportTitle,
-                      }));
+                      fireShareExport('html', () => exportAsHtml(source ?? '', exportTitle));
                     }}
                   >
                     <span className="share-menu-icon"><RemixIcon name="file-code-line" size={15} /></span>
@@ -8538,7 +8469,6 @@ function HtmlViewer({
                     filePath={file.name}
                     sendDisabled={streaming}
                     sendDisabledReason={t('chat.annotationSendDisabledReason')}
-                    onToolbarClick={fireDrawToolbarClick}
                   >
                     <div className="artifact-preview-transport-stack">
                       {OD_PREVIEW_KEEP_ALIVE ? (

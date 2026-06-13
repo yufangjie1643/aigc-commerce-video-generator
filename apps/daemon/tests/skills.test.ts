@@ -1,34 +1,34 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest";
 
-import { rmSync } from 'node:fs';
+import { rmSync } from "node:fs";
 
-import { skillCwdAliasSegment, SKILLS_CWD_ALIAS } from '../src/cwd-aliases.js';
-import { readFileSync } from 'node:fs';
+import { skillCwdAliasSegment, SKILLS_CWD_ALIAS } from "../src/cwd-aliases.js";
+import { readFileSync } from "node:fs";
 import {
   deleteUserSkill,
   importUserSkill,
   listSkillFiles,
   listSkills,
   slugifySkillName,
-  updateUserSkill,
-} from '../src/skills.js';
+  updateUserSkill
+} from "../src/skills.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '../../..');
-const skillsRoot = path.join(repoRoot, 'skills');
+const repoRoot = path.resolve(__dirname, "../../..");
+const skillsRoot = path.join(repoRoot, "skills");
 // `live-artifact`, `dcf-valuation`, `x-research`, and `last30days` were
 // reclassified as design templates under the Phase 0 split (see
 // specs/current/skills-and-design-templates.md). The body/preamble
 // expectations below still apply, but they now read from the design
 // templates root rather than skills/.
-const designTemplatesRoot = path.join(repoRoot, 'design-templates');
-const liveArtifactRoot = path.join(designTemplatesRoot, 'live-artifact');
+const designTemplatesRoot = path.join(repoRoot, "design-templates");
+const liveArtifactRoot = path.join(designTemplatesRoot, "live-artifact");
 
 type SkillCatalogEntry = {
   id: string;
@@ -40,7 +40,7 @@ type SkillCatalogEntry = {
 };
 
 function fresh(): string {
-  return mkdtempSync(path.join(tmpdir(), 'od-skills-'));
+  return mkdtempSync(path.join(tmpdir(), "od-skills-"));
 }
 
 function writeSkill(
@@ -51,217 +51,259 @@ function writeSkill(
     description?: string;
     body?: string;
     withAttachments?: boolean;
-  } = {},
+  } = {}
 ) {
   const dir = path.join(root, folder);
   mkdirSync(dir, { recursive: true });
   const fm = [
-    '---',
+    "---",
     `name: ${options.name ?? folder}`,
-    `description: ${options.description ?? 'A test skill.'}`,
-    '---',
-    '',
-    options.body ?? '# Test skill body',
-    '',
-  ].join('\n');
-  writeFileSync(path.join(dir, 'SKILL.md'), fm);
+    `description: ${options.description ?? "A test skill."}`,
+    "---",
+    "",
+    options.body ?? "# Test skill body",
+    ""
+  ].join("\n");
+  writeFileSync(path.join(dir, "SKILL.md"), fm);
   if (options.withAttachments) {
-    mkdirSync(path.join(dir, 'assets'), { recursive: true });
-    writeFileSync(
-      path.join(dir, 'assets', 'template.html'),
-      '<html><body>seed</body></html>',
-    );
+    mkdirSync(path.join(dir, "assets"), { recursive: true });
+    writeFileSync(path.join(dir, "assets", "template.html"), "<html><body>seed</body></html>");
   }
 }
 
-describe('listSkills', () => {
-  it('surfaces optional localized display metadata from SKILL.md frontmatter', async () => {
+describe("listSkills", () => {
+  it("surfaces optional localized display metadata from SKILL.md frontmatter", async () => {
     const root = fresh();
     try {
-      const dir = path.join(root, 'localized');
+      const dir = path.join(root, "localized");
       mkdirSync(dir, { recursive: true });
       writeFileSync(
-        path.join(dir, 'SKILL.md'),
+        path.join(dir, "SKILL.md"),
         [
-          '---',
-          'name: localized',
+          "---",
+          "name: localized",
           'zh_name: "本地化技能"',
           'en_name: "Localized Skill"',
           'description: "English fallback description."',
           'zh_description: "中文描述。"',
           'en_description: "English localized description."',
-          'od:',
+          "od:",
           '  example_prompt: "English fallback prompt."',
-          '  example_prompt_i18n:',
+          "  example_prompt_i18n:",
           '    zh-CN: "中文 prompt。"',
-          '---',
-          '',
-          '# Localized skill body',
-          '',
-        ].join('\n'),
+          "---",
+          "",
+          "# Localized skill body",
+          ""
+        ].join("\n")
       );
 
       const skills = await listSkills(root);
       expect(skills[0]).toMatchObject({
-        id: 'localized',
+        id: "localized",
         displayName: {
-          en: 'Localized Skill',
-          'zh-CN': '本地化技能',
+          en: "Localized Skill",
+          "zh-CN": "本地化技能"
         },
         descriptionI18n: {
-          en: 'English localized description.',
-          'zh-CN': '中文描述。',
+          en: "English localized description.",
+          "zh-CN": "中文描述。"
         },
-        examplePrompt: 'English fallback prompt.',
+        examplePrompt: "English fallback prompt.",
         examplePromptI18n: {
-          'zh-CN': '中文 prompt。',
-        },
+          "zh-CN": "中文 prompt。"
+        }
       });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it('includes the built-in live-artifact skill catalog entry', async () => {
-    const skills = await listSkills(designTemplatesRoot);
-    const skill = skills.find((entry: { id: string }) => entry.id === 'live-artifact');
+  it("surfaces skill provenance metadata from SKILL.md frontmatter", async () => {
+    const root = fresh();
+    try {
+      const dir = path.join(root, "methodology");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        path.join(dir, "SKILL.md"),
+        [
+          "---",
+          "name: methodology",
+          'description: "Extracts reusable methodology."',
+          "od:",
+          "  provenance:",
+          '    kind: "human-generated"',
+          '    generatedBy: "human"',
+          '    sourceSkillId: "commerce-video-methodology-extractor"',
+          "---",
+          "",
+          "# Methodology skill body",
+          ""
+        ].join("\n")
+      );
 
-    if (!skill) throw new Error('live-artifact skill not found');
+      const skills = await listSkills(root);
+      expect(skills[0]).toMatchObject({
+        id: "methodology",
+        provenance: {
+          kind: "human-generated",
+          generatedBy: "human",
+          sourceSkillId: "commerce-video-methodology-extractor"
+        }
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("includes the built-in live-artifact skill catalog entry", async () => {
+    const skills = await listSkills(designTemplatesRoot);
+    const skill = skills.find((entry: { id: string }) => entry.id === "live-artifact");
+
+    if (!skill) throw new Error("live-artifact skill not found");
     expect(skill).toMatchObject({
-      id: 'live-artifact',
-      name: 'live-artifact',
-      mode: 'prototype',
-      previewType: 'html',
+      id: "live-artifact",
+      name: "live-artifact",
+      mode: "prototype",
+      previewType: "html"
     });
     expect(skill.triggers.length).toBeGreaterThan(0);
     const liveArtifactAlias = `${SKILLS_CWD_ALIAS}/${skillCwdAliasSegment(liveArtifactRoot)}`;
     expect(skill.body).toContain(`> **Skill root (absolute fallback):** \`${liveArtifactRoot}\``);
     expect(skill.body).toContain(`${liveArtifactAlias}/`);
-    expect(skill.body).toContain('references/artifact-schema.md');
-    expect(skill.body).toContain('references/connector-policy.md');
-    expect(skill.body).toContain('references/refresh-contract.md');
+    expect(skill.body).toContain("references/artifact-schema.md");
+    expect(skill.body).toContain("references/connector-policy.md");
+    expect(skill.body).toContain("references/refresh-contract.md");
     expect(skill.body).toContain(`${liveArtifactAlias}/references/artifact-schema.md`);
     expect(skill.body).not.toContain(`${liveArtifactAlias}/assets/template.html`);
     expect(skill.body).not.toContain(`${liveArtifactAlias}/references/layouts.md`);
     expect(skill.body).toContain('"$OD_NODE_BIN" "$OD_BIN" tools live-artifacts create --input artifact.json');
-    expect(skill.body).toContain('do not ask “where should the data come from?” before checking daemon connector tools');
-    expect(skill.body).toContain('notion.notion_search');
-    expect(skill.body).toContain('`OD_DAEMON_URL`');
-    expect(skill.body).toContain('`OD_TOOL_TOKEN`');
-  });
-
-  it('includes the agent-browser skill as an external CLI integration', async () => {
-    const skills = await listSkills(skillsRoot);
-    const skill = skills.find((entry: { id: string }) => entry.id === 'agent-browser');
-
-    if (!skill) throw new Error('agent-browser skill not found');
-    expect(skill).toMatchObject({
-      id: 'agent-browser',
-      name: 'agent-browser',
-      mode: 'prototype',
-      previewType: 'markdown',
-      designSystemRequired: false,
-      upstream: 'https://github.com/vercel-labs/agent-browser/blob/main/skills/agent-browser/SKILL.md',
-    });
-    expect(skill.triggers).toContain('test this web app');
-    expect(skill.body).toContain('agent-browser skills get core');
-    expect(skill.body).toContain('Never print full upstream guides into chat or tool output');
-    expect(skill.body).toContain('`agent-browser` must attach to an existing CDP endpoint');
-    expect(skill.body).toContain('curl -fsS http://127.0.0.1:9223/json/version');
-    expect(skill.body).toContain('open -na "Google Chrome" --args');
-    expect(skill.body).toContain('for i in {1..20}');
-    expect(skill.body).toContain('agent-browser connect http://127.0.0.1:9223');
-    expect(skill.body).toContain('Never run\n`agent-browser open` before `agent-browser connect`');
-    expect(skill.body).toContain('--remote-debugging-port=9223');
-    expect(skill.body).toContain('Chrome crashed before CDP became available');
-    expect(skill.body).toContain('command -v agent-browser');
-    expect(skill.body).toContain('Open Design Smoke Path');
-    expect(skill.body).toContain('`daemon-cli.mjs browser snapshot`');
-    expect(skill.body).toContain('misinterpreted as daemon startup');
-    expect(skill.body).toContain('trap cleanup_agent_browser EXIT INT TERM');
-    expect(skill.body).toContain('pkill -f -- "--user-data-dir=${CHROME_USER_DATA_DIR}"');
-  });
-
-  it('includes the DCF valuation, X research, and Last30Days research skills', async () => {
-    const skills = await listSkills(designTemplatesRoot);
-    const byId = new Map(
-      (skills as SkillCatalogEntry[]).map((skill) => [skill.id, skill]),
+    expect(skill.body).toContain(
+      "do not ask “where should the data come from?” before checking daemon connector tools"
     );
-    expect(byId.has('dexter-financial-research')).toBe(false);
-    expect(byId.has('last30days-research')).toBe(false);
+    expect(skill.body).toContain("notion.notion_search");
+    expect(skill.body).toContain("`OD_DAEMON_URL`");
+    expect(skill.body).toContain("`OD_TOOL_TOKEN`");
+  });
 
-    const dcf = byId.get('dcf-valuation');
-    if (!dcf) throw new Error('dcf-valuation skill not found');
+  it("includes the agent-browser skill as an external CLI integration", async () => {
+    const skills = await listSkills(skillsRoot);
+    const skill = skills.find((entry: { id: string }) => entry.id === "agent-browser");
+
+    if (!skill) throw new Error("agent-browser skill not found");
+    expect(skill).toMatchObject({
+      id: "agent-browser",
+      name: "agent-browser",
+      mode: "prototype",
+      previewType: "markdown",
+      designSystemRequired: false,
+      upstream: "https://github.com/vercel-labs/agent-browser/blob/main/skills/agent-browser/SKILL.md"
+    });
+    expect(skill.triggers).toContain("test this web app");
+    expect(skill.body).toContain("agent-browser skills get core");
+    expect(skill.body).toContain("Never print full upstream guides into chat or tool output");
+    expect(skill.body).toContain("`agent-browser` must attach to an existing CDP endpoint");
+    expect(skill.body).toContain("curl -fsS http://127.0.0.1:9223/json/version");
+    expect(skill.body).toContain('open -na "Google Chrome" --args');
+    expect(skill.body).toContain("for i in {1..20}");
+    expect(skill.body).toContain("agent-browser connect http://127.0.0.1:9223");
+    expect(skill.body).toContain("Never run\n`agent-browser open` before `agent-browser connect`");
+    expect(skill.body).toContain("--remote-debugging-port=9223");
+    expect(skill.body).toContain("Chrome crashed before CDP became available");
+    expect(skill.body).toContain("command -v agent-browser");
+    expect(skill.body).toContain("Open Design Smoke Path");
+  });
+
+  it("keeps product image ingestion non-blocking for commerce-video stage-one uploads", async () => {
+    const skills = await listSkills(skillsRoot);
+    const skill = skills.find((entry: { id: string }) => entry.id === "product-image-asset-ingestion");
+
+    if (!skill) throw new Error("product-image-asset-ingestion skill not found");
+    expect(skill.body).toContain("Do not ask the user to choose project routing or create/register a replacement project");
+    expect(skill.body).toContain("od media understand --image");
+    expect(skill.body).toContain("--provider mimo");
+    expect(skill.body).toContain("Missing image-understanding must not block 商品素材上传");
+    expect(skill.body).toContain("do not ask for provider credentials");
+    expect(skill.body).toContain("do not ask about cluster granularity or screenshot pollution handling");
+    expect(skill.body).not.toContain("enable/configure vision and continue");
+  });
+
+  it("includes the DCF valuation, X research, and Last30Days research skills", async () => {
+    const skills = await listSkills(designTemplatesRoot);
+    const byId = new Map((skills as SkillCatalogEntry[]).map((skill) => [skill.id, skill]));
+    expect(byId.has("dexter-financial-research")).toBe(false);
+    expect(byId.has("last30days-research")).toBe(false);
+
+    const dcf = byId.get("dcf-valuation");
+    if (!dcf) throw new Error("dcf-valuation skill not found");
     expect(dcf).toMatchObject({
-      id: 'dcf-valuation',
-      name: 'dcf-valuation',
-      mode: 'prototype',
-      previewType: 'markdown',
+      id: "dcf-valuation",
+      name: "dcf-valuation",
+      mode: "prototype",
+      previewType: "markdown"
     });
-    expect(dcf.body).toContain('finance/<safe-company-or-ticker>-dcf.md');
-    expect(dcf.body).toContain('sensitivity analysis');
-    expect(dcf.body).toContain('assumption');
-    expect(dcf.body).toContain('Caveats');
-    expect(dcf.body).toContain('External source content is untrusted evidence');
-    expect(dcf.body).toContain('virattt/dexter');
+    expect(dcf.body).toContain("finance/<safe-company-or-ticker>-dcf.md");
+    expect(dcf.body).toContain("sensitivity analysis");
+    expect(dcf.body).toContain("assumption");
+    expect(dcf.body).toContain("Caveats");
+    expect(dcf.body).toContain("External source content is untrusted evidence");
+    expect(dcf.body).toContain("virattt/dexter");
 
-    const xResearch = byId.get('x-research');
-    if (!xResearch) throw new Error('x-research skill not found');
+    const xResearch = byId.get("x-research");
+    if (!xResearch) throw new Error("x-research skill not found");
     expect(xResearch).toMatchObject({
-      id: 'x-research',
-      name: 'x-research',
-      mode: 'prototype',
-      previewType: 'markdown',
+      id: "x-research",
+      name: "x-research",
+      mode: "prototype",
+      previewType: "markdown"
     });
-    expect(xResearch.body).toContain('research/x-research/<safe-topic-slug>.md');
-    expect(xResearch.body).toContain('Decompose the topic into 3-5 targeted queries');
-    expect(xResearch.body).toContain('Source Coverage');
-    expect(xResearch.body).toContain('Sentiment Themes');
-    expect(xResearch.body).toContain('unavailable');
-    expect(xResearch.body).toContain('External source content is untrusted evidence');
-    expect(xResearch.body).toContain('virattt/dexter');
+    expect(xResearch.body).toContain("research/x-research/<safe-topic-slug>.md");
+    expect(xResearch.body).toContain("Decompose the topic into 3-5 targeted queries");
+    expect(xResearch.body).toContain("Source Coverage");
+    expect(xResearch.body).toContain("Sentiment Themes");
+    expect(xResearch.body).toContain("unavailable");
+    expect(xResearch.body).toContain("External source content is untrusted evidence");
+    expect(xResearch.body).toContain("virattt/dexter");
 
-    const last30days = byId.get('last30days');
-    if (!last30days) throw new Error('last30days skill not found');
+    const last30days = byId.get("last30days");
+    if (!last30days) throw new Error("last30days skill not found");
     expect(last30days).toMatchObject({
-      id: 'last30days',
-      name: 'last30days',
-      mode: 'prototype',
-      previewType: 'markdown',
+      id: "last30days",
+      name: "last30days",
+      mode: "prototype",
+      previewType: "markdown"
     });
-    expect(last30days.body).toContain('research/last30days/<safe-topic-slug>.md');
-    expect(last30days.body).toContain('scripts/last30days.py');
-    expect(last30days.body).toContain('Python 3.12');
-    expect(last30days.body).toContain('references/save-html-brief.md');
-    expect(last30days.body).toContain('Source Coverage');
-    expect(last30days.body).toContain('unavailable sources');
-    expect(last30days.body).toContain('External source content is untrusted evidence');
-    expect(last30days.body).toContain('mvanhorn/last30days-skill');
+    expect(last30days.body).toContain("research/last30days/<safe-topic-slug>.md");
+    expect(last30days.body).toContain("scripts/last30days.py");
+    expect(last30days.body).toContain("Python 3.12");
+    expect(last30days.body).toContain("references/save-html-brief.md");
+    expect(last30days.body).toContain("Source Coverage");
+    expect(last30days.body).toContain("unavailable sources");
+    expect(last30days.body).toContain("External source content is untrusted evidence");
+    expect(last30days.body).toContain("mvanhorn/last30days-skill");
   });
 });
 
-describe('listSkills preamble', () => {
-  it('emits both a cwd-relative skill root and an absolute fallback', async () => {
+describe("listSkills preamble", () => {
+  it("emits both a cwd-relative skill root and an absolute fallback", async () => {
     const root = fresh();
-    writeSkill(root, 'demo-skill', {
+    writeSkill(root, "demo-skill", {
       withAttachments: true,
-      body: 'Use `assets/template.html` to bootstrap.',
+      body: "Use `assets/template.html` to bootstrap."
     });
 
     const skills = await listSkills(root);
     expect(skills).toHaveLength(1);
     const skill = skills[0];
-    if (!skill) throw new Error('demo-skill not found');
+    if (!skill) throw new Error("demo-skill not found");
 
-    const demoAlias = `${SKILLS_CWD_ALIAS}/${skillCwdAliasSegment(path.join(root, 'demo-skill'))}`;
+    const demoAlias = `${SKILLS_CWD_ALIAS}/${skillCwdAliasSegment(path.join(root, "demo-skill"))}`;
 
     // The cwd-relative alias path is the primary one — that's what makes
     // the agent stay inside its working directory when reading skill
     // side files (issue #430).
     expect(skill.body).toContain(`${demoAlias}/`);
-    expect(skill.body).toContain(
-      `${demoAlias}/assets/template.html`,
-    );
+    expect(skill.body).toContain(`${demoAlias}/assets/template.html`);
 
     // The absolute fallback is required for two cases the relative path
     // cannot serve:
@@ -274,175 +316,221 @@ describe('listSkills preamble', () => {
     expect(skill.body).toMatch(/Skill root \(relative to project\)/);
   });
 
-  it('mentions root-level example.html side files in the preamble', async () => {
+  it("mentions root-level example.html side files in the preamble", async () => {
     const root = fresh();
-    writeSkill(root, 'orbit-style', {
+    writeSkill(root, "orbit-style", {
       withAttachments: false,
-      body: 'Open and mirror the shipped `example.html` before writing output.',
+      body: "Open and mirror the shipped `example.html` before writing output."
     });
-    writeFileSync(path.join(root, 'orbit-style', 'example.html'), '<main>example</main>');
+    writeFileSync(path.join(root, "orbit-style", "example.html"), "<main>example</main>");
 
     const skills = await listSkills(root);
     expect(skills).toHaveLength(1);
     const skill = skills[0];
-    if (!skill) throw new Error('orbit-style skill not found');
+    if (!skill) throw new Error("orbit-style skill not found");
 
-    const orbitAlias = `${SKILLS_CWD_ALIAS}/${skillCwdAliasSegment(path.join(root, 'orbit-style'))}`;
+    const orbitAlias = `${SKILLS_CWD_ALIAS}/${skillCwdAliasSegment(path.join(root, "orbit-style"))}`;
 
     expect(skill.body).toContain(`${orbitAlias}/`);
     expect(skill.body).toContain(`${orbitAlias}/example.html`);
-    expect(skill.body).toContain('Known side files in this skill: `example.html`.');
+    expect(skill.body).toContain("Known side files in this skill: `example.html`.");
   });
 
-  it('uses the on-disk folder name in the alias path even when `name` differs', async () => {
+  it("uses the on-disk folder name in the alias path even when `name` differs", async () => {
     const root = fresh();
-    writeSkill(root, 'guizang-ppt', {
-      name: 'magazine-web-ppt',
-      withAttachments: true,
+    writeSkill(root, "guizang-ppt", {
+      name: "magazine-web-ppt",
+      withAttachments: true
     });
 
     const skills = await listSkills(root);
     expect(skills).toHaveLength(1);
     const skill = skills[0];
-    if (!skill) throw new Error('magazine-web-ppt skill not found');
+    if (!skill) throw new Error("magazine-web-ppt skill not found");
 
-    const folderAlias = `${SKILLS_CWD_ALIAS}/${skillCwdAliasSegment(path.join(root, 'guizang-ppt'))}`;
-    const frontmatterAlias = `${SKILLS_CWD_ALIAS}/${skillCwdAliasSegment(path.join(root, 'magazine-web-ppt'))}`;
+    const folderAlias = `${SKILLS_CWD_ALIAS}/${skillCwdAliasSegment(path.join(root, "guizang-ppt"))}`;
+    const frontmatterAlias = `${SKILLS_CWD_ALIAS}/${skillCwdAliasSegment(path.join(root, "magazine-web-ppt"))}`;
 
     // `id`/`name` reflect the frontmatter value (used elsewhere as a stable
     // public id), but the on-disk alias path must use the actual folder
     // name — that is what the daemon-staged junction maps to.
-    expect(skill.id).toBe('magazine-web-ppt');
+    expect(skill.id).toBe("magazine-web-ppt");
     expect(skill.body).toContain(`${folderAlias}/`);
     expect(skill.body).not.toContain(`${frontmatterAlias}/`);
   });
 
-  it('does not emit a preamble for skills without side files', async () => {
+  it("does not emit a preamble for skills without side files", async () => {
     const root = fresh();
-    writeSkill(root, 'lone-skill', {
+    writeSkill(root, "lone-skill", {
       withAttachments: false,
-      body: 'Body without external files.',
+      body: "Body without external files."
     });
 
     const skills = await listSkills(root);
     expect(skills).toHaveLength(1);
     const skill = skills[0];
-    if (!skill) throw new Error('lone-skill not found');
+    if (!skill) throw new Error("lone-skill not found");
 
     expect(skill.body).not.toContain(SKILLS_CWD_ALIAS);
-    expect(skill.body).not.toContain('Skill root');
-    expect(skill.body).toContain('Body without external files.');
+    expect(skill.body).not.toContain("Skill root");
+    expect(skill.body).toContain("Body without external files.");
   });
 });
 
-describe('listSkills multi-root + source tagging', () => {
+describe("listSkills multi-root + source tagging", () => {
   it('tags entries from the first root as "user" and the second as "built-in"', async () => {
     const userRoot = fresh();
     const builtInRoot = fresh();
-    writeSkill(userRoot, 'web-search', {
-      description: 'User-imported web search.',
+    writeSkill(userRoot, "web-search", {
+      description: "User-imported web search."
     });
-    writeSkill(builtInRoot, 'audio-jingle', {
-      description: 'Built-in jingle skill.',
+    writeSkill(builtInRoot, "audio-jingle", {
+      description: "Built-in jingle skill."
     });
 
     const skills = await listSkills([userRoot, builtInRoot]);
     expect(skills).toHaveLength(2);
     const byId = new Map<string, { id: string; source: string }>(
-      skills.map((s: { id: string; source: string }) => [s.id, s]),
+      skills.map((s: { id: string; source: string }) => [s.id, s])
     );
-    expect(byId.get('web-search')?.source).toBe('user');
-    expect(byId.get('audio-jingle')?.source).toBe('built-in');
+    expect(byId.get("web-search")?.source).toBe("user");
+    expect(byId.get("audio-jingle")?.source).toBe("built-in");
 
     rmSync(userRoot, { recursive: true, force: true });
     rmSync(builtInRoot, { recursive: true, force: true });
   });
 
-  it('lets a user skill shadow a built-in skill of the same id', async () => {
+  it("lets a user skill shadow a built-in skill of the same id", async () => {
     const userRoot = fresh();
     const builtInRoot = fresh();
-    writeSkill(userRoot, 'shared-id', {
-      description: 'User override.',
-      body: '# Override body',
+    writeSkill(userRoot, "shared-id", {
+      description: "User override.",
+      body: "# Override body"
     });
-    writeSkill(builtInRoot, 'shared-id', {
-      description: 'Original built-in.',
-      body: '# Built-in body',
+    writeSkill(builtInRoot, "shared-id", {
+      description: "Original built-in.",
+      body: "# Built-in body"
     });
 
     const skills = await listSkills([userRoot, builtInRoot]);
     expect(skills).toHaveLength(1);
     const shadowed = skills[0]!;
-    expect(shadowed.source).toBe('user');
-    expect(shadowed.body).toContain('Override body');
+    expect(shadowed.source).toBe("user");
+    expect(shadowed.body).toContain("Override body");
 
     rmSync(userRoot, { recursive: true, force: true });
     rmSync(builtInRoot, { recursive: true, force: true });
   });
 });
 
-describe('slugifySkillName', () => {
-  it('lowercases, normalises spaces, and strips reserved slugs', () => {
-    expect(slugifySkillName('Web Search')).toBe('web-search');
-    expect(slugifySkillName('  Multi   Word  Skill ')).toBe('multi-word-skill');
-    expect(slugifySkillName('   ')).toBe('');
-    expect(slugifySkillName('..')).toBe('');
-    expect(slugifySkillName('a/../b')).toBe('a-b');
+describe("slugifySkillName", () => {
+  it("lowercases, normalises spaces, and strips reserved slugs", () => {
+    expect(slugifySkillName("Web Search")).toBe("web-search");
+    expect(slugifySkillName("  Multi   Word  Skill ")).toBe("multi-word-skill");
+    expect(slugifySkillName("   ")).toBe("");
+    expect(slugifySkillName("..")).toBe("");
+    expect(slugifySkillName("a/../b")).toBe("a-b");
   });
 });
 
-describe('importUserSkill / deleteUserSkill', () => {
-  it('writes a SKILL.md and round-trips through listSkills', async () => {
+describe("importUserSkill / deleteUserSkill", () => {
+  it("writes a SKILL.md and round-trips through listSkills", async () => {
     const root = fresh();
     try {
       const result = await importUserSkill(root, {
-        name: 'Code Review',
-        description: 'Review the latest diff.',
-        body: '# Review\n\n1. Read.\n2. Comment.',
-        triggers: ['code review', 'review my diff'],
+        name: "Code Review",
+        description: "Review the latest diff.",
+        body: "# Review\n\n1. Read.\n2. Comment.",
+        triggers: ["code review", "review my diff"]
       });
-      expect(result.id).toBe('Code Review');
-      expect(result.slug).toBe('code-review');
-      expect(result.dir).toBe(path.join(root, 'code-review'));
+      expect(result.id).toBe("Code Review");
+      expect(result.slug).toBe("code-review");
+      expect(result.dir).toBe(path.join(root, "code-review"));
 
       const skills = await listSkills(root);
       expect(skills).toHaveLength(1);
       const imported = skills[0]!;
-      expect(imported.id).toBe('Code Review');
-      expect(imported.triggers).toEqual(['code review', 'review my diff']);
+      expect(imported.id).toBe("Code Review");
+      expect(imported.triggers).toEqual(["code review", "review my diff"]);
       // First (and only) root is treated as the user root.
-      expect(imported.source).toBe('user');
+      expect(imported.source).toBe("user");
+      expect(imported.provenance).toMatchObject({
+        kind: "human-generated",
+        generatedBy: "human"
+      });
+
+      const written = readFileSync(path.join(result.dir, "SKILL.md"), "utf8");
+      expect(written).toContain("provenance:");
+      expect(written).toContain('kind: "human-generated"');
 
       // Importing the same name again surfaces a CONFLICT error.
       await expect(
         importUserSkill(root, {
-          name: 'Code Review',
-          body: '# Different body',
-        }),
-      ).rejects.toMatchObject({ code: 'CONFLICT' });
+          name: "Code Review",
+          body: "# Different body"
+        })
+      ).rejects.toMatchObject({ code: "CONFLICT" });
 
-      await deleteUserSkill(root, 'Code Review');
+      await deleteUserSkill(root, "Code Review");
       const after = await listSkills(root);
       expect(after).toHaveLength(0);
 
       // Deleting an already-deleted skill returns NOT_FOUND.
-      await expect(deleteUserSkill(root, 'Code Review')).rejects.toMatchObject({
-        code: 'NOT_FOUND',
+      await expect(deleteUserSkill(root, "Code Review")).rejects.toMatchObject({
+        code: "NOT_FOUND"
       });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it('rejects empty bodies and impossibly-named skills', async () => {
+  it("writes localized display metadata for user-created skills", async () => {
     const root = fresh();
     try {
-      await expect(
-        importUserSkill(root, { name: 'foo', body: '   ' }),
-      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
-      await expect(
-        importUserSkill(root, { name: '..', body: '# body' }),
-      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      const result = await importUserSkill(root, {
+        name: "commerce-video-template-keyword-diagnostic-tutorial",
+        displayName: {
+          en: "Commerce Video Keyword Diagnostic Tutorial",
+          "zh-CN": "带货视频关键词诊断教程"
+        },
+        description: "Use when Codex needs to create ecommerce knowledge-commerce videos.",
+        descriptionI18n: {
+          en: "Use when Codex needs to create ecommerce knowledge-commerce videos.",
+          "zh-CN": "用于让 Codex 创建知识付费类带货视频，并按痛点诊断、权威背书和关键词拆解组织脚本。"
+        },
+        body: "# 带货视频关键词诊断教程\n\n按中文方法论输出。"
+      });
+
+      const written = readFileSync(path.join(result.dir, "SKILL.md"), "utf8");
+      expect(written).toContain('zh_name: "带货视频关键词诊断教程"');
+      expect(written).toContain('en_name: "Commerce Video Keyword Diagnostic Tutorial"');
+      expect(written).toContain('zh_description: |');
+      expect(written).toContain("  用于让 Codex 创建知识付费类带货视频");
+
+      const skills = await listSkills(root);
+      expect(skills[0]).toMatchObject({
+        id: "commerce-video-template-keyword-diagnostic-tutorial",
+        displayName: {
+          en: "Commerce Video Keyword Diagnostic Tutorial",
+          "zh-CN": "带货视频关键词诊断教程"
+        },
+        descriptionI18n: {
+          en: "Use when Codex needs to create ecommerce knowledge-commerce videos.",
+          "zh-CN": "用于让 Codex 创建知识付费类带货视频，并按痛点诊断、权威背书和关键词拆解组织脚本。"
+        }
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects empty bodies and impossibly-named skills", async () => {
+    const root = fresh();
+    try {
+      await expect(importUserSkill(root, { name: "foo", body: "   " })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(importUserSkill(root, { name: "..", body: "# body" })).rejects.toMatchObject({
+        code: "BAD_REQUEST"
+      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -453,14 +541,14 @@ describe('importUserSkill / deleteUserSkill', () => {
   // listSkills round-trip prior to PR #955 review feedback. The frontmatter
   // emitter now always quotes `name`, so listSkills should round-trip the
   // exact string id we wrote.
-  it('round-trips numeric- and boolean-shaped names through listSkills', async () => {
-    const cases = ['123', 'true', 'false', 'null', '0'];
+  it("round-trips numeric- and boolean-shaped names through listSkills", async () => {
+    const cases = ["123", "true", "false", "null", "0"];
     for (const name of cases) {
       const root = fresh();
       try {
         const result = await importUserSkill(root, {
           name,
-          body: `# ${name} body`,
+          body: `# ${name} body`
         });
         expect(result.id).toBe(name);
         const skills = await listSkills(root);
@@ -473,46 +561,44 @@ describe('importUserSkill / deleteUserSkill', () => {
   });
 });
 
-describe('updateUserSkill', () => {
-  it('writes a SKILL.md and shadows a built-in entry on next listSkills', async () => {
+describe("updateUserSkill", () => {
+  it("writes a SKILL.md and shadows a built-in entry on next listSkills", async () => {
     const userRoot = fresh();
     const builtInRoot = fresh();
     try {
-      writeSkill(builtInRoot, 'shared-id', {
-        description: 'Original built-in.',
-        body: '# Original',
+      writeSkill(builtInRoot, "shared-id", {
+        description: "Original built-in.",
+        body: "# Original"
       });
 
       const result = await updateUserSkill(userRoot, {
-        name: 'shared-id',
-        description: 'User override.',
-        body: '# Override',
-        triggers: ['shared trigger'],
+        name: "shared-id",
+        description: "User override.",
+        body: "# Override",
+        triggers: ["shared trigger"]
       });
-      expect(result.slug).toBe('shared-id');
-      expect(result.dir).toBe(path.join(userRoot, 'shared-id'));
+      expect(result.slug).toBe("shared-id");
+      expect(result.dir).toBe(path.join(userRoot, "shared-id"));
 
       const skills = await listSkills([userRoot, builtInRoot]);
       expect(skills).toHaveLength(1);
       const shadowed = skills[0]!;
-      expect(shadowed.source).toBe('user');
-      expect(shadowed.body).toContain('Override');
-      expect(shadowed.triggers).toEqual(['shared trigger']);
+      expect(shadowed.source).toBe("user");
+      expect(shadowed.body).toContain("Override");
+      expect(shadowed.triggers).toEqual(["shared trigger"]);
     } finally {
       rmSync(userRoot, { recursive: true, force: true });
       rmSync(builtInRoot, { recursive: true, force: true });
     }
   });
 
-  it('rejects empty bodies and impossibly-named skills', async () => {
+  it("rejects empty bodies and impossibly-named skills", async () => {
     const root = fresh();
     try {
-      await expect(
-        updateUserSkill(root, { name: 'demo', body: '   ' }),
-      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
-      await expect(
-        updateUserSkill(root, { name: '..', body: '# body' }),
-      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      await expect(updateUserSkill(root, { name: "demo", body: "   " })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(updateUserSkill(root, { name: "..", body: "# body" })).rejects.toMatchObject({
+        code: "BAD_REQUEST"
+      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -526,104 +612,90 @@ describe('updateUserSkill', () => {
   // references/, scripts/, and examples/ silently disappeared after
   // save. The fix clones the built-in side tree into the shadow on
   // first edit; subsequent edits leave the user's tweaks alone.
-  it('clones built-in side files into the shadow on the first edit', async () => {
+  it("clones built-in side files into the shadow on the first edit", async () => {
     const userRoot = fresh();
     const builtInRoot = fresh();
     try {
-      writeSkill(builtInRoot, 'shadow-me', {
-        body: '# Original built-in',
-        withAttachments: true,
+      writeSkill(builtInRoot, "shadow-me", {
+        body: "# Original built-in",
+        withAttachments: true
       });
-      mkdirSync(path.join(builtInRoot, 'shadow-me', 'references'), {
-        recursive: true,
+      mkdirSync(path.join(builtInRoot, "shadow-me", "references"), {
+        recursive: true
       });
-      writeFileSync(
-        path.join(builtInRoot, 'shadow-me', 'references', 'notes.md'),
-        '# bundled notes',
-      );
-      mkdirSync(path.join(builtInRoot, 'shadow-me', 'scripts'), {
-        recursive: true,
+      writeFileSync(path.join(builtInRoot, "shadow-me", "references", "notes.md"), "# bundled notes");
+      mkdirSync(path.join(builtInRoot, "shadow-me", "scripts"), {
+        recursive: true
       });
-      writeFileSync(
-        path.join(builtInRoot, 'shadow-me', 'scripts', 'helper.sh'),
-        '#!/bin/sh\necho built-in\n',
-      );
+      writeFileSync(path.join(builtInRoot, "shadow-me", "scripts", "helper.sh"), "#!/bin/sh\necho built-in\n");
 
       const before = await listSkills([userRoot, builtInRoot]);
       expect(before).toHaveLength(1);
-      expect(before[0]!.source).toBe('built-in');
+      expect(before[0]!.source).toBe("built-in");
 
       const result = await updateUserSkill(userRoot, {
-        name: 'shadow-me',
-        body: '# User override',
-        sourceDir: before[0]!.dir,
+        name: "shadow-me",
+        body: "# User override",
+        sourceDir: before[0]!.dir
       });
-      expect(result.dir).toBe(path.join(userRoot, 'shadow-me'));
+      expect(result.dir).toBe(path.join(userRoot, "shadow-me"));
 
       const after = await listSkills([userRoot, builtInRoot]);
       expect(after).toHaveLength(1);
       const shadowed = after[0]!;
-      expect(shadowed.source).toBe('user');
-      expect(shadowed.body).toContain('User override');
+      expect(shadowed.source).toBe("user");
+      expect(shadowed.body).toContain("User override");
 
       const files = await listSkillFiles(shadowed.dir);
       const paths = files.map((entry) => entry.path).sort();
-      expect(paths).toContain('SKILL.md');
-      expect(paths).toContain('assets');
-      expect(paths).toContain('assets/template.html');
-      expect(paths).toContain('references');
-      expect(paths).toContain('references/notes.md');
-      expect(paths).toContain('scripts');
-      expect(paths).toContain('scripts/helper.sh');
+      expect(paths).toContain("SKILL.md");
+      expect(paths).toContain("assets");
+      expect(paths).toContain("assets/template.html");
+      expect(paths).toContain("references");
+      expect(paths).toContain("references/notes.md");
+      expect(paths).toContain("scripts");
+      expect(paths).toContain("scripts/helper.sh");
 
-      const noteContent = readFileSync(
-        path.join(shadowed.dir, 'references', 'notes.md'),
-        'utf8',
-      );
-      expect(noteContent).toContain('bundled notes');
+      const noteContent = readFileSync(path.join(shadowed.dir, "references", "notes.md"), "utf8");
+      expect(noteContent).toContain("bundled notes");
     } finally {
       rmSync(userRoot, { recursive: true, force: true });
       rmSync(builtInRoot, { recursive: true, force: true });
     }
   });
 
-  it('preserves user-edited side files on subsequent edits', async () => {
+  it("preserves user-edited side files on subsequent edits", async () => {
     const userRoot = fresh();
     const builtInRoot = fresh();
     try {
-      writeSkill(builtInRoot, 'edit-twice', {
-        body: '# Original',
-        withAttachments: true,
+      writeSkill(builtInRoot, "edit-twice", {
+        body: "# Original",
+        withAttachments: true
       });
 
       const initial = await listSkills([userRoot, builtInRoot]);
       await updateUserSkill(userRoot, {
-        name: 'edit-twice',
-        body: '# First override',
-        sourceDir: initial[0]!.dir,
+        name: "edit-twice",
+        body: "# First override",
+        sourceDir: initial[0]!.dir
       });
 
-      const tweakedAsset = path.join(
-        userRoot,
-        'edit-twice',
-        'assets',
-        'template.html',
-      );
-      writeFileSync(tweakedAsset, '<html><body>user-tweaked</body></html>');
+      const tweakedAsset = path.join(userRoot, "edit-twice", "assets", "template.html");
+      writeFileSync(tweakedAsset, "<html><body>user-tweaked</body></html>");
 
       const next = await listSkills([userRoot, builtInRoot]);
-      expect(next[0]!.source).toBe('user');
+      expect(next[0]!.source).toBe("user");
 
       await updateUserSkill(userRoot, {
-        name: 'edit-twice',
-        body: '# Second override',
-        sourceDir: next[0]!.dir,
+        name: "edit-twice",
+        body: "# Second override",
+        sourceDir: next[0]!.dir
       });
 
-      const tweaked = readFileSync(tweakedAsset, 'utf8');
-      expect(tweaked).toContain('user-tweaked');
+      const tweaked = readFileSync(tweakedAsset, "utf8");
+      expect(tweaked).toContain("user-tweaked");
       const final = await listSkills([userRoot, builtInRoot]);
-      expect(final[0]!.body).toContain('Second override');
+      expect(final[0]!.body).toContain("Second override");
     } finally {
       rmSync(userRoot, { recursive: true, force: true });
       rmSync(builtInRoot, { recursive: true, force: true });
@@ -631,49 +703,46 @@ describe('updateUserSkill', () => {
   });
 });
 
-describe('listSkillFiles', () => {
-  it('returns a flat sorted file/directory list with byte sizes', async () => {
+describe("listSkillFiles", () => {
+  it("returns a flat sorted file/directory list with byte sizes", async () => {
     const root = fresh();
     try {
-      writeSkill(root, 'demo-files', { withAttachments: true });
-      mkdirSync(path.join(root, 'demo-files', 'references'), { recursive: true });
-      writeFileSync(
-        path.join(root, 'demo-files', 'references', 'notes.md'),
-        '# notes',
-      );
+      writeSkill(root, "demo-files", { withAttachments: true });
+      mkdirSync(path.join(root, "demo-files", "references"), { recursive: true });
+      writeFileSync(path.join(root, "demo-files", "references", "notes.md"), "# notes");
 
-      const entries = await listSkillFiles(path.join(root, 'demo-files'));
+      const entries = await listSkillFiles(path.join(root, "demo-files"));
       const byPath = new Map(entries.map((entry) => [entry.path, entry]));
-      const skillMd = byPath.get('SKILL.md');
-      const assetsDir = byPath.get('assets');
-      const templateHtml = byPath.get('assets/template.html');
-      const referencesDir = byPath.get('references');
-      const notesMd = byPath.get('references/notes.md');
+      const skillMd = byPath.get("SKILL.md");
+      const assetsDir = byPath.get("assets");
+      const templateHtml = byPath.get("assets/template.html");
+      const referencesDir = byPath.get("references");
+      const notesMd = byPath.get("references/notes.md");
       if (!skillMd || !assetsDir || !templateHtml || !referencesDir || !notesMd) {
-        throw new Error('expected file tree to include SKILL.md + assets + references');
+        throw new Error("expected file tree to include SKILL.md + assets + references");
       }
-      expect(skillMd.kind).toBe('file');
+      expect(skillMd.kind).toBe("file");
       expect(skillMd.size).toBeGreaterThan(0);
-      expect(assetsDir.kind).toBe('directory');
+      expect(assetsDir.kind).toBe("directory");
       expect(assetsDir.size).toBeNull();
-      expect(templateHtml.kind).toBe('file');
+      expect(templateHtml.kind).toBe("file");
       expect(templateHtml.size).toBeGreaterThan(0);
-      expect(referencesDir.kind).toBe('directory');
-      expect(notesMd.kind).toBe('file');
+      expect(referencesDir.kind).toBe("directory");
+      expect(notesMd.kind).toBe("file");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it('skips dotfiles and returns an empty list for a missing directory', async () => {
+  it("skips dotfiles and returns an empty list for a missing directory", async () => {
     const root = fresh();
     try {
-      writeSkill(root, 'with-dotfile');
-      writeFileSync(path.join(root, 'with-dotfile', '.DS_Store'), 'x');
-      const entries = await listSkillFiles(path.join(root, 'with-dotfile'));
-      expect(entries.find((entry) => entry.path === '.DS_Store')).toBeUndefined();
+      writeSkill(root, "with-dotfile");
+      writeFileSync(path.join(root, "with-dotfile", ".DS_Store"), "x");
+      const entries = await listSkillFiles(path.join(root, "with-dotfile"));
+      expect(entries.find((entry) => entry.path === ".DS_Store")).toBeUndefined();
 
-      const missing = await listSkillFiles(path.join(root, 'no-such-skill'));
+      const missing = await listSkillFiles(path.join(root, "no-such-skill"));
       expect(missing).toEqual([]);
     } finally {
       rmSync(root, { recursive: true, force: true });

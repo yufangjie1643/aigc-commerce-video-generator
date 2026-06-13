@@ -11,7 +11,7 @@ import { mergeProviderModelOptions, providerModelsCacheKey } from './SettingsDia
 import { apiProtocolLabel } from '../utils/apiProtocol';
 import { fetchProviderModels } from '../providers/provider-models';
 import { isMacPlatform } from '../utils/platform';
-import { amrConsoleUrlForProfile } from '../runtime/amr-guidance';
+import { AMR_CONSOLE_URL } from '../runtime/amr-guidance';
 
 interface Props {
   config: AppConfig;
@@ -29,8 +29,6 @@ interface Props {
   onRefreshAgents: () => void;
   onBack?: () => void;
   placement?: 'down' | 'up';
-  /** Fired when the dropdown transitions from closed to open. */
-  onOpen?: () => void;
 }
 
 function displayAgentName(agent: Pick<AgentInfo, 'id' | 'name'>): string {
@@ -54,18 +52,9 @@ export function AvatarMenu({
   onRefreshAgents,
   onBack,
   placement = 'down',
-  onOpen,
 }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  // Toggle that reports the closed→open transition (for analytics) without
-  // firing on close.
-  function toggleOpen() {
-    setOpen((v) => {
-      if (!v) onOpen?.();
-      return !v;
-    });
-  }
   const [discoveredProviderModels, setDiscoveredProviderModels] = useState<Record<string, ProviderModelOption[]>>({});
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -159,8 +148,6 @@ export function AvatarMenu({
   const amrAvailable = installedAgents.some((a) => a.id === 'amr');
   const showAmrAccountShortcut =
     config.mode === 'daemon' && currentAgent?.id === 'amr' && amrAvailable;
-  const amrProfile = config.agentCliEnv?.amr?.OPEN_DESIGN_AMR_PROFILE;
-  const amrConsoleUrl = amrConsoleUrlForProfile(amrProfile);
 
   // Resolve the user's model + reasoning pick for the active agent. Falls
   // back to the agent's first declared option (`'default'`) when the user
@@ -176,14 +163,7 @@ export function AvatarMenu({
   )?.label;
 
   const apiProtocol = config.apiProtocol ?? 'openai';
-  const byokProvider =
-    KNOWN_PROVIDERS.find(
-      (provider) =>
-        provider.protocol === apiProtocol &&
-        (config.apiProviderBaseUrl
-          ? provider.baseUrl === config.apiProviderBaseUrl
-          : provider.baseUrl === config.baseUrl),
-    ) ?? KNOWN_PROVIDERS.find((provider) => provider.protocol === apiProtocol);
+  const byokProvider = KNOWN_PROVIDERS.find((provider) => provider.protocol === apiProtocol);
   const byokProviderModelsKey = providerModelsCacheKey(
     apiProtocol,
     config.baseUrl ?? '',
@@ -226,9 +206,7 @@ export function AvatarMenu({
 
   const byokModelOptions = mergeProviderModelOptions(
     fetchedByokModels,
-    byokProvider?.models?.length
-      ? byokProvider.models
-      : SUGGESTED_MODELS_BY_PROTOCOL[apiProtocol] ?? [],
+    SUGGESTED_MODELS_BY_PROTOCOL[apiProtocol] ?? [],
   );
 
   return (
@@ -237,7 +215,7 @@ export function AvatarMenu({
         ref={triggerRef}
         type="button"
         className="avatar-agent-trigger"
-        onClick={toggleOpen}
+        onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
         data-tooltip={t('avatar.title')}
@@ -284,7 +262,7 @@ export function AvatarMenu({
           {showAmrAccountShortcut ? (
             <a
               className="avatar-amr-account-link"
-              href={amrConsoleUrl}
+              href={AMR_CONSOLE_URL}
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setOpen(false)}

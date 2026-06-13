@@ -26,8 +26,6 @@ vi.mock('../../src/i18n', () => ({
       'entry.navProjects': 'Projects',
       'entry.navTasks': 'Automations',
       'entry.navPlugins': 'Plugins',
-      'entry.navIntegrations': 'Integrations',
-      'settings.welcomeTitle': 'Welcome',
     };
     return labels[key] ?? key;
   },
@@ -161,36 +159,63 @@ describe('WorkspaceTabsBar navigation semantics', () => {
     });
   });
 
-  it('auto-closes the Welcome tab once onboarding completes, even when a project opens', async () => {
-    const { rerender } = render(
-      <WorkspaceTabsBar
-        route={{ kind: 'home', view: 'onboarding' }}
-        projects={[project]}
-        onboardingCompleted={false}
-      />,
+  it('keeps tab label buttons out of the global tooltip layer', () => {
+    window.localStorage.setItem(
+      'open-design:workspace-tabs:v1',
+      JSON.stringify({
+        activeTabId: 'project:project-alpha',
+        tabs: [
+          {
+            id: 'entry:home:seed',
+            kind: 'entry',
+            view: 'projects',
+            createdAt: 1,
+            lastActiveAt: 2,
+          },
+          {
+            id: 'project:project-alpha',
+            kind: 'project',
+            projectId: 'project-alpha',
+            conversationId: null,
+            fileName: null,
+            createdAt: 3,
+            lastActiveAt: 4,
+          },
+        ],
+      }),
     );
 
-    await waitFor(() => {
-      const labels = screen.getAllByRole('tab').map((tab) => tab.textContent ?? '');
-      expect(labels.some((label) => label.includes('Welcome'))).toBe(true);
-    });
-
-    // Completing onboarding via the design-system path navigates to a fresh
-    // project while the entry tab is still parked on the Welcome view.
-    rerender(
-      <WorkspaceTabsBar
-        route={{ ...projectRoute }}
-        projects={[project]}
-        onboardingCompleted={true}
-      />,
+    const { container } = render(<WorkspaceTabsBar route={{ ...projectRoute }} projects={[project]} />);
+    const tabLabelButtons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('.workspace-tab__main'),
     );
 
-    await waitFor(() => {
-      const labels = screen.getAllByRole('tab').map((tab) => tab.textContent ?? '');
-      expect(labels.some((label) => label.includes('Welcome'))).toBe(false);
-      expect(labels.some((label) => label.includes('Home'))).toBe(true);
-      expect(labels.some((label) => label.includes('Project Alpha'))).toBe(true);
-    });
+    expect(tabLabelButtons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Projects',
+      'Project Alpha',
+    ]);
+    for (const button of tabLabelButtons) {
+      expect(button.classList.contains('od-tooltip')).toBe(false);
+      expect(button.hasAttribute('data-tooltip')).toBe(false);
+      expect(button.hasAttribute('title')).toBe(false);
+    }
+    expect(container.querySelector('.workspace-tab__close')?.classList.contains('od-tooltip')).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search tabs' }));
+    expect(screen.getByRole('dialog', { name: 'Search tabs' })).toBeTruthy();
+    const listLabelButtons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('.workspace-tabs-list__main'),
+    );
+
+    expect(listLabelButtons.map((button) => button.getAttribute('aria-label')).sort()).toEqual([
+      'Project Alpha',
+      'Projects',
+    ]);
+    for (const button of listLabelButtons) {
+      expect(button.classList.contains('od-tooltip')).toBe(false);
+      expect(button.hasAttribute('data-tooltip')).toBe(false);
+      expect(button.hasAttribute('title')).toBe(false);
+    }
   });
 
   it('collapses every entry section into the single leftmost tab (no new tab per section)', async () => {
@@ -199,12 +224,11 @@ describe('WorkspaceTabsBar navigation semantics', () => {
     );
     expect(screen.getAllByRole('tab')).toHaveLength(1);
 
-    const sections: Array<{ view: 'projects' | 'tasks' | 'design-systems' | 'plugins' | 'integrations'; label: string }> = [
+    const sections: Array<{ view: 'projects' | 'tasks' | 'design-systems' | 'plugins'; label: string }> = [
       { view: 'projects', label: 'Projects' },
       { view: 'tasks', label: 'Automations' },
       { view: 'design-systems', label: 'Design systems' },
       { view: 'plugins', label: 'Plugins' },
-      { view: 'integrations', label: 'Integrations' },
     ];
 
     for (const section of sections) {

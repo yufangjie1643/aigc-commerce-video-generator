@@ -1,12 +1,11 @@
 // Second-level "sub-type" rail for the Home input card.
 //
-// After a first-level create chip is picked (Prototype / Slide deck), this
-// rail surfaces a compact row of sub-categories — mirroring how Manus shows
-// "landing page / dashboard / portfolio" under its "Website" choice, and
-// matching the exact sub-category taxonomy the Community plugin grid uses.
+// After a first-level create chip is picked (Video / Product assets /
+// Storyboard motion / Voice and captions), this rail surfaces a compact row
+// of sub-categories that match the ecommerce template grid.
 //
 // The list is NOT hand-authored here: it is derived from the same
-// `SUBCATEGORIES` facet table the Community section uses
+// `SUBCATEGORIES` facet table the template section uses
 // (`plugins-home/facets.ts`), so the labels and grouping stay in lockstep.
 // Picking a sub-type filters the example-prompt cards below the rail to that
 // scene; it does NOT bind a plugin or stamp an active badge.
@@ -19,51 +18,73 @@ import {
   type FacetOption,
 } from '../plugins-home/facets';
 
-// Parent chips that carry a second-level rail. Media chips (image/video/
-// audio/hyperframes) own their own inline composer form and are excluded;
-// the facet table only defines children for prototype/deck/image/video, and
-// we surface the rail for prototype + deck.
-export type SubChipParentId = 'prototype' | 'deck';
+// Parent chips that carry a second-level rail.
+export type SubChipParentId = 'video' | 'image' | 'hyperframes' | 'audio';
 
 export interface HomeHeroSubChip {
-  // Facet subcategory slug, e.g. 'business-dashboards'.
+  // Facet subcategory slug, e.g. 'video-hooks'.
   slug: string;
   label: string;
   icon: IconName;
 }
 
-const PARENT_IDS: readonly SubChipParentId[] = ['prototype', 'deck'];
+const PARENT_IDS: readonly SubChipParentId[] = ['video', 'image', 'hyperframes', 'audio'];
 
 // Icon per facet subcategory slug. Falls back to a neutral glyph so a newly
 // added facet still renders a pill rather than crashing.
 const SUBCATEGORY_ICONS: Record<string, IconName> = {
-  // prototype
-  'business-dashboards': 'grid',
-  'app-prototypes': 'blocks',
-  'landing-marketing': 'globe',
-  'developer-tools': 'terminal',
-  'docs-reports': 'file',
-  'brand-design': 'palette',
-  // deck
-  'pitch-business': 'present',
-  'course-training': 'lightbulb',
-  'reports-briefings': 'file',
-  'product-sales': 'star',
-  'engineering-talks': 'terminal',
-  'creative-decks': 'palette',
+  'video-hooks': 'sparkles',
+  'video-product-demo': 'play',
+  'video-platform-shorts': 'play',
+  'video-reference-breakdown': 'search',
+  'image-product-assets': 'image',
+  'image-lifestyle-scenes': 'image',
+  'image-before-after': 'grid',
+  'hyperframes-storyboards': 'grid',
+  'hyperframes-captions': 'comment',
+  'hyperframes-transitions': 'palette',
+  'audio-voiceover': 'mic',
+  'audio-caption-timing': 'history',
+  'audio-sonic-brand': 'volume',
 };
 const DEFAULT_SUBCATEGORY_ICON: IconName = 'blocks';
 
-export function isSubChipParent(chipId: string | null): chipId is SubChipParentId {
-  return chipId === 'prototype' || chipId === 'deck';
+// Home-rail display order overrides. Slugs listed here float to the front (in
+// this order); everything else keeps the Community facet order behind them.
+// Kept local so it doesn't perturb the Community section's ordering.
+const SUBCATEGORY_PRIORITY: Partial<Record<SubChipParentId, readonly string[]>> = {
+  video: ['video-hooks', 'video-product-demo'],
+  image: ['image-product-assets'],
+  hyperframes: ['hyperframes-storyboards'],
+  audio: ['audio-voiceover'],
+};
+
+function orderSubcategories(
+  parent: SubChipParentId,
+  options: readonly FacetOption[],
+): FacetOption[] {
+  const priority = SUBCATEGORY_PRIORITY[parent];
+  if (!priority || priority.length === 0) return [...options];
+  const rank = (slug: string) => {
+    const index = priority.indexOf(slug);
+    return index === -1 ? priority.length : index;
+  };
+  return [...options].sort((a, b) => rank(a.slug) - rank(b.slug));
 }
 
-// Sub-types for a first-level chip, drawn from the Community facet catalog so
-// the labels, set, AND order match the Community section exactly. The display
-// order is whatever `SUBCATEGORIES` (in `plugins-home/facets.ts`) declares for
-// the parent — there is no Home-only reordering, so the two surfaces stay in
-// lockstep. Only sub-categories that actually have installed plugins
-// (count > 0) are surfaced. Returns [] for chips without a second-level rail.
+export function isSubChipParent(chipId: string | null): chipId is SubChipParentId {
+  return (
+    chipId === 'video' ||
+    chipId === 'image' ||
+    chipId === 'hyperframes' ||
+    chipId === 'audio'
+  );
+}
+
+// Sub-types for a first-level chip, drawn from the template facet catalog so
+// the labels match exactly. Only sub-categories that actually have installed
+// plugins (count > 0) are surfaced, preserving the facet display order.
+// Returns [] for chips without a second-level rail.
 export function subChipsForChip(
   chipId: string | null,
   plugins: InstalledPluginRecord[],
@@ -71,8 +92,7 @@ export function subChipsForChip(
   if (!isSubChipParent(chipId)) return [];
   const catalog = buildSubcategoryCatalog(plugins);
   const options: FacetOption[] = catalog[chipId] ?? [];
-  return options
-    .filter((option) => option.count > 0)
+  return orderSubcategories(chipId, options.filter((option) => option.count > 0))
     .map((option) => ({
       slug: option.slug,
       label: option.label,

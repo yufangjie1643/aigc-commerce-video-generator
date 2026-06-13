@@ -5,7 +5,12 @@ import { join } from "node:path";
 import { NtExecutable, NtExecutableResource, Resource } from "resedit";
 import { describe, expect, it } from "vitest";
 
-import { materializeCachedUnpackedForInstaller } from "../src/win/builder.js";
+import {
+  materializeCachedUnpackedForInstaller,
+  resolveWinElectronBuilderSignAndEditExecutable,
+  resolveWinElectronBuilderSignExts,
+  resolveWinElectronBuilderToolsets
+} from "../src/win/builder.js";
 import type { WinPaths } from "../src/win/types.js";
 import { readWinExecutableVersionSnapshot } from "../src/win/version-resource.js";
 
@@ -57,11 +62,25 @@ function createPaths(root: string): WinPaths {
     webSidecarPrebundlePath: join(namespaceRoot, "assembled", "app", "prebundled", "web-sidecar.mjs"),
     winIconPath: join(namespaceRoot, "resources", "win", "icon.ico"),
     unpackedExePath: join(namespaceRoot, "builder", "win-unpacked", "Open Design.exe"),
-    unpackedRoot: join(namespaceRoot, "builder", "win-unpacked"),
+    unpackedRoot: join(namespaceRoot, "builder", "win-unpacked")
   };
 }
 
 describe("materializeCachedUnpackedForInstaller", () => {
+  it("uses the modern Windows code-sign toolset to avoid legacy symlink extraction", () => {
+    expect(resolveWinElectronBuilderToolsets()).toEqual({ winCodeSign: "1.0.0" });
+  });
+
+  it("skips automatic exe signing for unsigned Windows builds", () => {
+    expect(resolveWinElectronBuilderSignExts(false)).toEqual(["!.exe"]);
+    expect(resolveWinElectronBuilderSignExts(true)).toBeUndefined();
+  });
+
+  it("skips executable resource editing for unsigned Windows builds", () => {
+    expect(resolveWinElectronBuilderSignAndEditExecutable(false)).toBe(false);
+    expect(resolveWinElectronBuilderSignAndEditExecutable(true)).toBeUndefined();
+  });
+
   it("overwrites cached packaged config and app package version", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-win-builder-"));
     const cachedUnpackedRoot = join(root, "cache", "builder", "win-unpacked");
@@ -73,45 +92,47 @@ describe("materializeCachedUnpackedForInstaller", () => {
       await writeFile(
         join(cachedUnpackedRoot, "resources", "open-design-config.json"),
         `${JSON.stringify({ namespace: "first", version: 1 })}\n`,
-        "utf8",
+        "utf8"
       );
       await mkdir(join(cachedUnpackedRoot, "resources", "app"), { recursive: true });
       await writeFile(
         join(cachedUnpackedRoot, "resources", "app", "package.json"),
         `${JSON.stringify({ name: "open-design-packaged-app", version: "0.5.0-beta.1" })}\n`,
-        "utf8",
+        "utf8"
       );
       await mkdir(join(paths.packagedConfigPath, ".."), { recursive: true });
       await writeFile(
         paths.packagedConfigPath,
         `${JSON.stringify({ appVersion: "0.5.0-beta.2", namespace: "second", version: 1 })}\n`,
-        "utf8",
+        "utf8"
       );
 
       const manifest = await materializeCachedUnpackedForInstaller(cachedUnpackedRoot, paths, "0.5.0-beta.2");
 
       expect(manifest.source).toBe("namespace");
       expect(manifest.unpackedRoot).toBe(paths.unpackedRoot);
-      await expect(readFile(join(paths.unpackedRoot, "resources", "open-design-config.json"), "utf8")).resolves.toContain(
-        '"namespace":"second"',
-      );
+      await expect(
+        readFile(join(paths.unpackedRoot, "resources", "open-design-config.json"), "utf8")
+      ).resolves.toContain('"namespace":"second"');
       await expect(readFile(join(paths.unpackedRoot, "resources", "app", "package.json"), "utf8")).resolves.toContain(
-        '"version": "0.5.0-beta.2"',
+        '"version": "0.5.0-beta.2"'
       );
-      await expect(readFile(join(paths.unpackedRoot, "resources", "open-design-config.json"), "utf8")).resolves.toContain(
-        '"appVersion":"0.5.0-beta.2"',
-      );
-      await expect(readWinExecutableVersionSnapshot(join(paths.unpackedRoot, "Open Design.exe"))).resolves.toMatchObject({
+      await expect(
+        readFile(join(paths.unpackedRoot, "resources", "open-design-config.json"), "utf8")
+      ).resolves.toContain('"appVersion":"0.5.0-beta.2"');
+      await expect(
+        readWinExecutableVersionSnapshot(join(paths.unpackedRoot, "Open Design.exe"))
+      ).resolves.toMatchObject({
         fixedFileVersion: "0.5.0.0",
         fixedProductVersion: "0.5.0.0",
         stringTables: [
           {
             values: expect.objectContaining({
               FileVersion: "0.5.0-beta.2",
-              ProductVersion: "0.5.0.0",
-            }),
-          },
-        ],
+              ProductVersion: "0.5.0.0"
+            })
+          }
+        ]
       });
     } finally {
       await rm(root, { force: true, recursive: true });
@@ -132,8 +153,8 @@ async function createVersionedExecutable(packagedVersion: string): Promise<Buffe
       FileDescription: "Open Design",
       FileVersion: packagedVersion,
       ProductName: "Open Design",
-      ProductVersion: "0.5.0.0",
-    },
+      ProductVersion: "0.5.0.0"
+    }
   );
   version.outputToResourceEntries(resource.entries);
   resource.outputResource(executable);

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { ToolPackCache } from "../src/cache.js";
 import type { ToolPackConfig } from "../src/config.js";
-import { ensureWorkspaceBuildArtifacts } from "../src/workspace-build.js";
+import { ensureWorkspaceBuildArtifacts, resolveStandalonePeerDepLinkSpec } from "../src/workspace-build.js";
 
 const PACKAGE_DIRS = [
   "packages/components",
@@ -24,7 +24,7 @@ const PACKAGE_DIRS = [
   "apps/daemon",
   "apps/web",
   "apps/desktop",
-  "apps/packaged",
+  "apps/packaged"
 ] as const;
 
 const OUTPUT_FILES = [
@@ -62,11 +62,15 @@ const OUTPUT_FILES = [
   "apps/desktop/dist/main/index.js",
   "apps/desktop/dist/main/index.d.ts",
   "apps/packaged/dist/index.mjs",
-  "apps/packaged/dist/index.d.ts",
+  "apps/packaged/dist/index.d.ts"
 ] as const;
 
 async function writeWorkspace(root: string): Promise<void> {
-  await writeFile(join(root, "package.json"), `${JSON.stringify({ packageManager: "pnpm@10.33.2" }, null, 2)}\n`, "utf8");
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ packageManager: "pnpm@10.33.2" }, null, 2)}\n`,
+    "utf8"
+  );
   await writeFile(join(root, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
   for (const directory of PACKAGE_DIRS) {
     await mkdir(join(root, directory, "src"), { recursive: true });
@@ -103,23 +107,49 @@ function createConfig(root: string, cacheRoot: string): ToolPackConfig {
         appBuilderRoot: join(root, ".tmp", "builder"),
         namespaceRoot: join(root, ".tmp", "out", "win", "namespaces", "test"),
         platformRoot: join(root, ".tmp", "out", "win"),
-        root: join(root, ".tmp", "out"),
+        root: join(root, ".tmp", "out")
       },
       runtime: {
         namespaceBaseRoot: join(root, ".tmp", "runtime", "win", "namespaces"),
-        namespaceRoot: join(root, ".tmp", "runtime", "win", "namespaces", "test"),
+        namespaceRoot: join(root, ".tmp", "runtime", "win", "namespaces", "test")
       },
-      toolPackRoot: join(root, ".tmp", "tools-pack"),
+      toolPackRoot: join(root, ".tmp", "tools-pack")
     },
     signed: false,
     silent: true,
     to: "dir",
     webOutputMode: "standalone",
-    workspaceRoot: root,
+    workspaceRoot: root
   };
 }
 
 describe("ensureWorkspaceBuildArtifacts", () => {
+  it("uses Windows junctions for standalone peer dependency links", () => {
+    expect(
+      resolveStandalonePeerDepLinkSpec(
+        "win32",
+        "D:\\repo\\node_modules\\.pnpm\\react@18.3.1\\node_modules\\react",
+        "..\\..\\react"
+      )
+    ).toEqual({
+      target: "D:\\repo\\node_modules\\.pnpm\\react@18.3.1\\node_modules\\react",
+      type: "junction"
+    });
+  });
+
+  it("uses relative symlinks for standalone peer dependency links outside Windows", () => {
+    expect(
+      resolveStandalonePeerDepLinkSpec(
+        "linux",
+        "/repo/node_modules/.pnpm/react@18.3.1/node_modules/react",
+        "../../react"
+      )
+    ).toEqual({
+      target: "../../react",
+      type: undefined
+    });
+  });
+
   it("builds once and skips when the key and outputs are still valid", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-workspace-build-"));
     const cache = new ToolPackCache(join(root, ".cache"));
@@ -141,7 +171,7 @@ describe("ensureWorkspaceBuildArtifacts", () => {
       expect(cache.report().entries.map((entry) => entry.status)).toEqual(["miss", "hit"]);
       expect(cache.report().entries.map((entry) => entry.nodeId)).toEqual([
         "win.workspace-build",
-        "win.workspace-build",
+        "win.workspace-build"
       ]);
       expect(await readFile(join(root, "apps/packaged/dist/index.mjs"), "utf8")).toBe("build-1\n");
     } finally {
@@ -163,7 +193,9 @@ describe("ensureWorkspaceBuildArtifacts", () => {
       const aliasesRoot = join(cache.root, "aliases", "win.workspace-build");
       const aliasBuckets = await readdir(aliasesRoot);
       expect(aliasBuckets).toHaveLength(1);
-      expect(await readFile(join(aliasesRoot, aliasBuckets[0]!, "alias.json"), "utf8")).toContain("win.workspace-build");
+      expect(await readFile(join(aliasesRoot, aliasBuckets[0]!, "alias.json"), "utf8")).toContain(
+        "win.workspace-build"
+      );
     } finally {
       await rm(root, { force: true, recursive: true });
     }
@@ -250,13 +282,13 @@ describe("ensureWorkspaceBuildArtifacts", () => {
         output: {
           ...winConfig.roots.output,
           namespaceRoot: join(root, ".tmp", "out", "mac", "namespaces", "test"),
-          platformRoot: join(root, ".tmp", "out", "mac"),
+          platformRoot: join(root, ".tmp", "out", "mac")
         },
         runtime: {
           namespaceBaseRoot: join(root, ".tmp", "runtime", "mac", "namespaces"),
-          namespaceRoot: join(root, ".tmp", "runtime", "mac", "namespaces", "test"),
-        },
-      },
+          namespaceRoot: join(root, ".tmp", "runtime", "mac", "namespaces", "test")
+        }
+      }
     };
 
     try {
@@ -270,7 +302,7 @@ describe("ensureWorkspaceBuildArtifacts", () => {
 
       expect(cache.report().entries.map((entry) => entry.nodeId)).toEqual([
         "win.workspace-build",
-        "mac.workspace-build",
+        "mac.workspace-build"
       ]);
       expect(cache.report().entries.map((entry) => entry.status)).toEqual(["miss", "miss"]);
       expect(await readFile(join(root, "apps/packaged/dist/index.mjs"), "utf8")).toBe("mac-build\n");

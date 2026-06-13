@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const shellCss = readFileSync(new URL('../../src/styles/shell.css', import.meta.url), 'utf8');
 const routinesCss = readFileSync(new URL('../../src/styles/viewer/routines.css', import.meta.url), 'utf8');
+const drawerCss = readFileSync(new URL('../../src/styles/workspace/drawer.css', import.meta.url), 'utf8');
 const entryLayoutCss = readFileSync(new URL('../../src/styles/home/entry-layout.css', import.meta.url), 'utf8');
 
 function cssDeclarations(css: string, selector: string): string {
@@ -74,6 +75,27 @@ describe('workspace tabs chrome styles', () => {
     expect(ruleValue(railDivider, 'transform')).toBe('scaleX(0.5)');
   });
 
+  it('keeps first-run onboarding visually focused on runtime choice', () => {
+    for (const selector of [
+      '.entry-shell--onboarding .onboarding-view__hero',
+      '.entry-shell--onboarding .onboarding-view__steps',
+      '.entry-shell--onboarding .onboarding-view__actions',
+    ]) {
+      expect(ruleValue(cssDeclarations(entryLayoutCss, selector), 'display')).toBe('none');
+    }
+  });
+
+  it('keeps project handoff icon-only inside the workspace action row', () => {
+    const trigger = cssDeclarations(drawerCss, '.app .ws-tabs-actions .handoff-trigger');
+    const label = cssDeclarations(drawerCss, '.app .ws-tabs-actions .handoff-trigger-label');
+
+    expect(ruleValue(trigger, 'width')).toBe('28px');
+    expect(ruleValue(trigger, 'min-width')).toBe('28px');
+    expect(ruleValue(trigger, 'padding')).toBe('0');
+    expect(ruleValue(trigger, 'gap')).toBe('0');
+    expect(ruleValue(label, 'display')).toBe('none');
+  });
+
   it('keeps workspace tabs compact and centered in the top chrome', () => {
     const projectTab = cssDeclarations(routinesCss, '.workspace-shell .workspace-tab');
     const activeProjectTab = cssDeclarations(routinesCss, '.workspace-shell .workspace-tab.is-active');
@@ -90,10 +112,7 @@ describe('workspace tabs chrome styles', () => {
     expect(ruleValue(projectTab, 'height')).toBe('26px');
     expect(ruleValue(projectTab, 'align-self')).toBe('center');
     expect(ruleValue(projectTab, 'border-radius')).toBe('7px');
-    // Tabs auto-shrink: flex-grow 0 (never balloon), flex-shrink 1 (squeeze to
-    // fit) down to --workspace-tab-min-width before the strip scrolls.
-    expect(ruleValue(projectTab, 'flex')).toBe('0 1 156px');
-    expect(ruleValue(projectTab, 'min-width')).toBe('var(--workspace-tab-min-width, 56px)');
+    expect(ruleValue(projectTab, 'flex')).toBe('0 0 156px');
     expect(ruleValue(activeProjectTab, 'background')).toBe('color-mix(in srgb, var(--bg-panel) 94%, var(--bg-subtle))');
     expect(ruleValue(activeProjectTab, 'border-color')).toBe('var(--workspace-active-tab-border)');
     expect(ruleValue(activeProjectTab, 'box-shadow')).toContain('0 1px 2px');
@@ -108,22 +127,6 @@ describe('workspace tabs chrome styles', () => {
     expect(ruleValue(preview, 'box-sizing')).toBe('border-box');
     expect(routinesCss).not.toContain('.workspace-shell .workspace-tab.is-active::before');
     expect(routinesCss).not.toContain('.workspace-shell .workspace-tab.is-active::after');
-  });
-
-  it('pins the Home tab fixed and stuck to the left edge', () => {
-    const pinnedShared = cssDeclarations(shellCss, '.workspace-tab.is-pinned');
-    const pinnedProject = cssDeclarations(routinesCss, '.workspace-shell .workspace-tab.is-pinned');
-
-    // Home never shrinks (flex-shrink 0) in either chrome…
-    expect(ruleValue(pinnedShared, 'flex')).toBe('0 0 96px');
-    expect(ruleValue(pinnedProject, 'flex')).toBe('0 0 104px');
-    // …and stays stuck to the left edge with an opaque background so scrolled
-    // project tabs pass behind it instead of squeezing it.
-    expect(ruleValue(pinnedShared, 'position')).toBe('sticky');
-    expect(ruleValue(pinnedShared, 'left')).toBe('0');
-    expect(ruleValue(pinnedProject, 'position')).toBe('sticky');
-    expect(ruleValue(pinnedProject, 'left')).toBe('0');
-    expect(ruleValue(pinnedProject, 'background')).toBe('var(--workspace-tab-bar-bg)');
   });
 
   it('uses a rounded highlight for inactive workspace tab hover', () => {

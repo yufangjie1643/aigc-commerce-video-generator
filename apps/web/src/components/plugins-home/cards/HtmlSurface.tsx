@@ -30,10 +30,6 @@ interface Props {
   pluginId: string;
   pluginTitle: string;
   inView: boolean;
-  // Gallery layout: render the live iframe as soon as the tile is in
-  // view (no hover/linger gate) and drop the built-in dot+url chrome
-  // strip, since the gallery card provides its own top bar.
-  eager?: boolean;
 }
 
 type ProbeState = 'idle' | 'probing' | 'ok' | 'unreachable';
@@ -69,7 +65,7 @@ async function probe(url: string): Promise<'ok' | 'unreachable'> {
   return result;
 }
 
-export function HtmlSurface({ preview, pluginId, pluginTitle, inView, eager = false }: Props) {
+export function HtmlSurface({ preview, pluginId, pluginTitle, inView }: Props) {
   const [armed, setArmed] = useState(false);
   const [shouldProbe, setShouldProbe] = useState(false);
   const [probeState, setProbeState] = useState<ProbeState>(() => {
@@ -90,9 +86,9 @@ export function HtmlSurface({ preview, pluginId, pluginTitle, inView, eager = fa
       setShouldProbe(true);
       return;
     }
-    const id = window.setTimeout(() => setShouldProbe(true), eager ? 60 : 520);
+    const id = window.setTimeout(() => setShouldProbe(true), 520);
     return () => window.clearTimeout(id);
-  }, [inView, preview.src, eager]);
+  }, [inView, preview.src]);
 
   // Kick off the probe on first in-view. We deliberately keep this
   // effect's deps narrow (just `inView` + `preview.src`) so the
@@ -120,25 +116,14 @@ export function HtmlSurface({ preview, pluginId, pluginTitle, inView, eager = fa
   // that linger get the live preview without requiring hover.
   useEffect(() => {
     if (probeState !== 'ok') return;
-    if (eager) {
-      if (inView) setArmed(true);
-      return;
-    }
     const id = window.setTimeout(() => {
       if (inView) setArmed(true);
     }, 720);
     return () => window.clearTimeout(id);
-  }, [inView, probeState, eager]);
+  }, [inView, probeState]);
 
   if (probeState === 'unreachable') {
-    return (
-      <UnreachableFallback
-        pluginId={pluginId}
-        pluginTitle={pluginTitle}
-        preview={preview}
-        eager={eager}
-      />
-    );
+    return <UnreachableFallback pluginId={pluginId} pluginTitle={pluginTitle} preview={preview} />;
   }
 
   return (
@@ -172,14 +157,12 @@ export function HtmlSurface({ preview, pluginId, pluginTitle, inView, eager = fa
           </div>
         )}
       </div>
-      {eager ? null : (
-        <div className="plugins-home__html-chrome" aria-hidden>
-          <span className="plugins-home__html-dot" />
-          <span className="plugins-home__html-dot" />
-          <span className="plugins-home__html-dot" />
-          <span className="plugins-home__html-url">{preview.label}</span>
-        </div>
-      )}
+      <div className="plugins-home__html-chrome" aria-hidden>
+        <span className="plugins-home__html-dot" />
+        <span className="plugins-home__html-dot" />
+        <span className="plugins-home__html-dot" />
+        <span className="plugins-home__html-url">{preview.label}</span>
+      </div>
     </div>
   );
 }
@@ -188,7 +171,6 @@ interface UnreachableFallbackProps {
   pluginId: string;
   pluginTitle: string;
   preview: HtmlPreviewSpec;
-  eager?: boolean;
 }
 
 // Stable colour from the plugin id so adjacent fallback tiles stay
@@ -201,7 +183,7 @@ function hueFor(id: string): number {
   return hash % 360;
 }
 
-function UnreachableFallback({ pluginId, pluginTitle, preview, eager = false }: UnreachableFallbackProps) {
+function UnreachableFallback({ pluginId, pluginTitle, preview }: UnreachableFallbackProps) {
   const trimmed = pluginTitle.trim();
   const cp = trimmed.codePointAt(0) ?? 0x2022;
   const glyph = cp === 0x2022 ? '·' : String.fromCodePoint(cp).toUpperCase();
@@ -218,14 +200,12 @@ function UnreachableFallback({ pluginId, pluginTitle, preview, eager = false }: 
       aria-hidden
     >
       <div className="plugins-home__html-fallback-glyph">{glyph}</div>
-      {eager ? null : (
-        <div className="plugins-home__html-chrome">
-          <span className="plugins-home__html-dot" />
-          <span className="plugins-home__html-dot" />
-          <span className="plugins-home__html-dot" />
-          <span className="plugins-home__html-url">{preview.label}</span>
-        </div>
-      )}
+      <div className="plugins-home__html-chrome">
+        <span className="plugins-home__html-dot" />
+        <span className="plugins-home__html-dot" />
+        <span className="plugins-home__html-dot" />
+        <span className="plugins-home__html-url">{preview.label}</span>
+      </div>
     </div>
   );
 }

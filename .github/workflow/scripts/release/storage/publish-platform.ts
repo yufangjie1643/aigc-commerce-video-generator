@@ -288,7 +288,7 @@ writeJson(outputsPath, outputs);
 writeFileSync(
   optional("RELEASE_SUMMARY_PATH", join(dirname(outputsPath), `${target}-publish-summary.md`)),
   [
-    `## ${config.label} ${releaseChannel} publish`,
+    `## ${config.label} beta publish`,
     "",
     `- target: \`${target}\``,
     `- version: \`${releaseVersion}\``,
@@ -298,4 +298,4 @@ writeFileSync(
   "utf8",
 );
 
-console.log(`published ${config.label} ${releaseChannel} assets to ${versionPrefix}`);
+console.log(`published ${config.label} beta assets to ${versionPrefix}`);

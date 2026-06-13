@@ -18,15 +18,11 @@
  * That's why we keep it as text-driven shell calls rather than custom
  * tool definitions.
  */
-import {
-  AUDIO_MODELS_BY_KIND,
-  IMAGE_MODELS,
-  VIDEO_MODELS,
-} from '../media-models.js';
-import type { MediaExecutionPolicy, MediaSurface } from '@open-design/contracts';
+import { AUDIO_MODELS_BY_KIND, IMAGE_MODELS, VIDEO_MODELS } from "../media-models.js";
+import type { MediaExecutionPolicy, MediaSurface } from "@open-design/contracts";
 
 function fmtList(ids: string[]): string {
-  return ids.map((id) => `\`${id}\``).join(', ');
+  return ids.map((id) => `\`${id}\``).join(", ");
 }
 
 const IMAGE_IDS = fmtList(IMAGE_MODELS.map((m) => m.id));
@@ -35,15 +31,33 @@ const AUDIO_MUSIC_IDS = fmtList(AUDIO_MODELS_BY_KIND.music.map((m) => m.id));
 const AUDIO_SPEECH_IDS = fmtList(AUDIO_MODELS_BY_KIND.speech.map((m) => m.id));
 const AUDIO_SFX_IDS = fmtList(AUDIO_MODELS_BY_KIND.sfx.map((m) => m.id));
 
-export function renderMediaGenerationContract(
-  mediaExecution?: MediaExecutionPolicy | undefined,
-): string {
-  const mode = mediaExecution?.mode ?? 'enabled';
-  if (mode === 'enabled') {
+export function renderMediaGenerationContract(mediaExecution?: MediaExecutionPolicy | undefined): string {
+  const mode = mediaExecution?.mode ?? "enabled";
+  if (mode === "enabled") {
     return renderEnabledMediaGenerationContract(mediaExecution);
   }
   const scope = renderMediaPolicyScope(mediaExecution);
-  if (mode === 'disabled') {
+  if (mode === "question") {
+    return `
+---
+
+## Media question mode (load-bearing — overrides softer wording above)
+
+This conversation is in **Question / chat mode**. Do not call
+\`"$OD_NODE_BIN" "$OD_BIN" media generate\`, Codex built-in imagegen, OD media
+provider APIs, local renderers, or ad-hoc scripts that create media bytes.
+Do not author full production scripts, shot-by-shot storyboards, HyperFrames
+composition files, or long generation prompts unless the user explicitly asks
+for those text-only planning materials.
+
+If the user asks to generate media in this mode, answer briefly: confirm the
+creative intent, ask at most one concise clarification if it would materially
+change the result, and tell them to switch back to Design / generation mode to
+render the file. Do not claim a file was generated and do not emit an
+\`<artifact>\` block for media.
+${scope}`;
+  }
+  if (mode === "disabled") {
     return `
 ---
 
@@ -64,13 +78,11 @@ ${scope}`;
   return renderEnabledMediaGenerationContract(mediaExecution);
 }
 
-function renderEnabledMediaGenerationContract(
-  mediaExecution?: MediaExecutionPolicy | undefined,
-): string {
+function renderEnabledMediaGenerationContract(mediaExecution?: MediaExecutionPolicy | undefined): string {
   const scope = renderMediaPolicyScope(mediaExecution);
   if (!scope) return MEDIA_GENERATION_CONTRACT;
   return MEDIA_GENERATION_CONTRACT.replace(
-    '\n### Allowed model IDs (per surface)',
+    "\n### Allowed model IDs (per surface)",
     `
 ### Active media policy scope
 
@@ -79,13 +91,11 @@ allowlist. Treat this allowlist as narrower than the full catalogue below;
 select only from it.
 ${scope}
 
-### Allowed model IDs (per surface)`,
+### Allowed model IDs (per surface)`
   );
 }
 
-function renderMediaPolicyScope(
-  mediaExecution?: MediaExecutionPolicy | undefined,
-): string {
+function renderMediaPolicyScope(mediaExecution?: MediaExecutionPolicy | undefined): string {
   const lines: string[] = [];
   if (Array.isArray(mediaExecution?.allowedSurfaces) && mediaExecution.allowedSurfaces.length > 0) {
     lines.push(`Allowed surfaces for this run: ${fmtList(mediaExecution.allowedSurfaces as MediaSurface[])}.`);
@@ -93,7 +103,7 @@ function renderMediaPolicyScope(
   if (Array.isArray(mediaExecution?.allowedModels) && mediaExecution.allowedModels.length > 0) {
     lines.push(`Allowed models for this run: ${fmtList(mediaExecution.allowedModels)}.`);
   }
-  return lines.length > 0 ? `\n\n${lines.join('\n')}` : '';
+  return lines.length > 0 ? `\n\n${lines.join("\n")}` : "";
 }
 
 export const MEDIA_GENERATION_CONTRACT = `
@@ -135,7 +145,10 @@ directly in the project dir doesn't have to relaunch.
 
 ### Invocation
 
-Run via your shell tool (Bash on Claude Code, exec on Codex/Gemini, etc.):
+Run via your shell tool. Use the syntax that matches the shell you actually
+have: POSIX shells use \`"$OD_NODE_BIN" "$OD_BIN"\`; PowerShell uses
+\`& $env:OD_NODE_BIN $env:OD_BIN\`. Do not use POSIX \`$OD_NODE_BIN\`
+inside PowerShell.
 
 \`\`\`bash
 "$OD_NODE_BIN" "$OD_BIN" media generate \\
@@ -148,17 +161,62 @@ Run via your shell tool (Bash on Claude Code, exec on Codex/Gemini, etc.):
   [--length <seconds>]              # video only
   [--duration <seconds>]            # audio only
   [--prompt-influence <0-1>]        # audio:sfx only; higher follows the prompt more closely
+  [--image <project-relative-path>] # Seedance 2.0 reference image / first frame
+  [--reference-image-url <https-url>] # Seedance 2.0 remote reference image
+  [--reference-video-url <https-url>] # Seedance 2.0 reference video
+  [--reference-audio-url <https-url>] # Seedance 2.0 reference audio/music
   [--loop]                          # audio:sfx only; request a seamless loop
   [--audio-kind music|speech|sfx]   # audio only
   [--voice <provider-voice-id>]     # audio:speech only; omit to use provider default
   [--language <lang>]               # audio:speech only; language boost (e.g. Chinese,Yue for Cantonese)
 \`\`\`
 
+\`\`\`powershell
+& $env:OD_NODE_BIN $env:OD_BIN media generate \`
+  --project $env:OD_PROJECT_ID \`
+  --surface <image|video|audio> \`
+  --model <model-id> \`
+  --output <filename> \`
+  --prompt "<full prompt>" \`
+  --aspect 16:9
+\`\`\`
+
 Always quote the prompt value. Use \`--prompt "<full prompt>"\` (or the
 equivalent safe quoting for your shell) — never splice an unquoted user
 string into the command line.
 
-The command prints a single line of JSON describing the written file:
+Native image/audio/video understanding is also available when the user asks to
+inspect, summarize, tag, transcribe, or learn from existing media:
+
+\`\`\`bash
+"$OD_NODE_BIN" "$OD_BIN" media understand \\
+  --image|--audio|--video <project-relative-or-absolute-path-or-http-url> \\
+  --provider mimo|volcengine-ark \\
+  --prompt "<analysis instructions>" \\
+  --json
+\`\`\`
+
+PowerShell:
+
+\`\`\`powershell
+& $env:OD_NODE_BIN $env:OD_BIN media understand \`
+  --image|--audio|--video <path-or-url> \`
+  --provider mimo|volcengine-ark \`
+  --prompt "<analysis instructions>" \`
+  --json
+\`\`\`
+
+This calls the configured provider's native multimodal path (\`image_url\`,
+\`input_audio\`, or \`video_url\`). Xiaomi MiMo defaults to \`mimo-v2.5\` for
+all three media types; Volcengine Ark remains available for native video
+understanding with \`--provider volcengine-ark\`. That generic Ark
+understanding path only allows \`doubao-seed-2-0-lite-260215\`; ep-* endpoints
+belong to the separate Volcengine generation/text-output provider. Prefer this
+over manual frame extraction or screenshots when the user asks for video
+understanding, and prefer it over hand-written guesses when the user asks to
+understand a local image or audio file.
+
+\`media generate\` prints a single line of JSON describing the written file:
 
 \`\`\`json
 { "file": { "name": "poster.png", "size": 12345, "kind": "image", "mime": "image/png", ... } }
@@ -167,17 +225,38 @@ The command prints a single line of JSON describing the written file:
 Save the \`file.name\` and reference it in your reply ("I generated
 \`poster.png\`."). The user's FileViewer renders it automatically.
 
+Generated commerce-video outputs are project artifacts, not source material-library assets. For AI-generated finished videos, keep the MP4 in the project output/export path and media task state; never call \`assets commerce-videos import\`, \`import-crawler\`, \`import-upload\`, or \`import-search\`.
+
 ### Allowed execution paths
 
 For media projects, \`"$OD_NODE_BIN" "$OD_BIN" media generate …\` is the **only**
 approved execution path **except for the \`hyperframes-html\` video
-model** — see the carve-out below. Do not replace the dispatcher with
+model and the dedicated ecommerce/product selling-video workflow** — see
+the carve-outs below. Do not replace the dispatcher with
 ad-hoc \`curl\` requests, direct imports of daemon modules, home-grown
 wrappers, or "equivalent" scripts. Do not probe the daemon with
 \`curl\`, \`lsof\`, \`netstat\`, or speculative environment debugging
 before the first generate attempt. Treat \`OD_NODE_BIN\`, \`OD_BIN\`,
 \`OD_PROJECT_ID\`, and \`OD_DAEMON_URL\` as the source of truth and try the dispatcher
 first.
+
+#### Carve-out: ecommerce/product selling videos use \`commerce-video\`
+
+When the brief is for an ecommerce, product selling, 带货, marketplace,
+SKU, offer/CTA, product demo, or product-image-to-selling-video workflow,
+do not call direct \`"$OD_NODE_BIN" "$OD_BIN" media generate\`. Use the
+stage-aware \`commerce-video\` commands instead so 商品素材上传 -> 剧本生成 ->
+基础分镜 -> 一键成片 -> 任务进度 -> 预览导出 remains visible in the right-side UI.
+The stage name 一键成片 only creates a generation task; waiting and export
+belong to later stages unless the user explicitly asks for no-confirmation
+full automation with wording such as 一键生成视频, 使用一键生成视频的模式,
+全自动一键成片, or 连续执行到最终导出. In that explicit full-auto case,
+use \`commerce-video generate --follow --full-auto\`, then continue through
+preview and export before reporting success.
+Keep 剧本生成 and 基础分镜 separate: during strict staged execution, script
+generation may use reference-video methodology or mock clothing references,
+but must not call \`commerce-video storyboard\`; storyboard editing must not
+create generation, wait, preview, or export tasks.
 
 #### Carve-out: \`hyperframes-html\` is agent-authored, daemon-rendered
 
@@ -316,16 +395,19 @@ showed it crashed).
 
 ### Allowed model IDs (per surface)
 
+If you need to inspect the catalogue from your shell, run
+\`"$OD_NODE_BIN" "$OD_BIN" media models --surface <image|video|audio>\`
+(PowerShell: \`& $env:OD_NODE_BIN $env:OD_BIN media models --surface video\`).
+
 - **image**:   ${IMAGE_IDS}
 - **video**:   ${VIDEO_IDS}
-  Image-to-video (i2v): the Volcengine Seedance family
-  (\`doubao-seedance-2-0-260128\`, \`doubao-seedance-2-0-fast-260128\`,
-  \`doubao-seedance-1-0-pro-250528\`, \`doubao-seedance-1-0-lite-i2v-250428\`)
-  accepts a reference image as the first frame. Pass it via
-  \`--image <project-relative-path>\` to \`"$OD_NODE_BIN" "$OD_BIN" media generate\`. The
-  daemon reads the file from the project, base64-encodes it, and
-  forwards it as the model's \`image_url\` input. Path traversal
-  outside the project is rejected.
+  The current default Volcengine Ark path is \`doubao-seedance-2-0-260128\`.
+  It supports text-to-video and Seedance 2.0 reference-image video; pass
+  \`--image\` only when the user explicitly asks for first-frame/reference-image
+  video. For reachable external reference images, clips, or music, pass
+  \`--reference-image-url <https-url>\`, \`--reference-video-url <https-url>\`,
+  and/or \`--reference-audio-url <https-url>\`; the daemon sends them as Seedance
+  2.0 \`reference_image\`/\`reference_video\`/\`reference_audio\` content entries.
 - **audio · music**:  ${AUDIO_MUSIC_IDS}
 - **audio · speech**: ${AUDIO_SPEECH_IDS}
 - **audio · sfx**:    ${AUDIO_SFX_IDS}
@@ -350,10 +432,10 @@ path is given.
     tells you the user's pre-selected model, aspect, length, voice, audio
     kind, etc. Treat those as authoritative defaults — only override if
     the user's chat message explicitly contradicts them.
-    For \`minimax-tts\`, \`voice\` must be a valid MiniMax \`voice_id\`
-    (example: \`male-qn-qingse\`). Do not pass natural-language voice
-    descriptions like "warm Mandarin narrator" as \`--voice\`; omit the
-    flag instead unless you have a real id.
+    For \`speech-2.8-hd\` and \`speech-2.8-turbo\`, \`voice\` must be a valid
+    MiniMax \`voice_id\` (example: \`male-qn-qingse\`). Do not pass
+    natural-language voice descriptions like "warm Mandarin narrator" as
+    \`--voice\`; omit the flag instead unless you have a real id.
     For \`elevenlabs-v3\`, \`--voice\` expects a provider-specific ElevenLabs \`voice_id\`; do not pass a natural-language voice description there.
     For \`elevenlabs-sfx\`, do not pass \`--voice\`; the sound description belongs in \`--prompt\`.
     Keep ElevenLabs SFX \`--prompt\` under 450 characters; target 180-320 characters so the dispatcher does not waste a generation attempt on provider validation.
@@ -376,8 +458,13 @@ path is given.
      use \`flux-pro-ultra\` — but tell the user it takes 60–180s
    - **Image, default / no preference stated**: use the project metadata's
      \`imageModel\` if set; otherwise use \`gpt-image-2\`
-   - **Video, best quality**: use project metadata \`videoModel\` if set; otherwise
-     \`doubao-seedance-2-0-260128\`
+   - **Video, best quality / default text-to-video**: use project metadata
+     \`videoModel\` if set; otherwise \`doubao-seedance-2-0-260128\`.
+   - **Video, explicit image-to-video / first-frame animation**: use
+     \`doubao-seedance-2-0-260128\` and pass
+     \`--image <project-relative-path>\`. Use \`minimax-video-01\` only when the
+     user explicitly asks for MiniMax. Do not infer image-to-video merely
+     because uploaded images exist.
 
    Default aspect ratio (use when \`aspectRatio\` is unknown):
    - Landscape/outdoor scenes, cinematic, widescreen → \`16:9\`
@@ -395,13 +482,11 @@ path is given.
    metadata doesn't carry.
 
    For \`hyperframes-html\`, the discovery turn is the last turn before
-   you start authoring. Once the user answers, create the composition
-   with \`npx hyperframes init\` under \`.hyperframes-cache/\`, edit the
-   generated \`index.html\`, and dispatch through
-   \`"$OD_NODE_BIN" "$OD_BIN" media generate --surface video --model hyperframes-html --composition-dir <rel>\`.
-   Do not run \`npx hyperframes render\` yourself; Chrome-bound rendering
-   must happen in the daemon process. Do not add a second "plan" or
-   "environment check" message first.
+   you start authoring. Once the user answers, write the composition
+   files into \`.hyperframes-cache/\`, then call
+   \`"$OD_NODE_BIN" "$OD_BIN" media generate --surface video --model hyperframes-html --composition-dir <path>\`
+   so the daemon performs the Chrome-bound render. Do not add a second
+   "plan" or "environment check" message first.
 3. **Generate by shell, reply in one short message.** When you invoke
    \`"$OD_NODE_BIN" "$OD_BIN" media generate\`, do it inside a clearly-labelled tool call.
    After the command completes, reply with **one brief message** (2–3 sentences max):
@@ -428,7 +513,7 @@ path is given.
 Today the dispatcher ships real provider integrations for OpenAI
 (image and speech, with Azure OpenAI auto-detected from the configured
 base URL), Volcengine (Doubao Seedance video / Seedream image), Grok
-image/video, Nano Banana image, HyperFrames video, and the MiniMax, FishAudio, and ElevenLabs audio renderers are production integrations.
+image/video, Nano Banana image, MiniMax image/i2v video, HyperFrames video, and the MiniMax, FishAudio, and ElevenLabs audio renderers are production integrations.
 Models whose provider path has no renderer still return a configured
 stub/error signal as described below.
 

@@ -9,8 +9,8 @@
  *   - 'stderr'  : incidental stderr. Shown only when the process exits
  *                 non-zero (tail appended to the error message).
  */
-import type { AgentEvent, ChatCommentAttachment, ChatMessage } from '../types';
-import type { AmrEntryAttribution } from '../analytics/amr-attribution';
+import type { AgentEvent, ChatCommentAttachment, ChatMessage } from "../types";
+import type { AmrEntryAttribution } from "../analytics/amr-attribution";
 import type {
   ChatAnalyticsHints,
   ChatRunCreateResponse,
@@ -27,8 +27,12 @@ import type {
   ResearchOptions,
   RunContextSelection,
   SseErrorPayload,
-} from '@open-design/contracts';
-import type { StreamHandlers } from './anthropic';
+  WeChatAgentBridgeCancelResponse,
+  WeChatAgentBridgeCommandResponse,
+  WeChatAgentBridgeStartResponse,
+  WeChatAgentBridgeStatusResponse
+} from "@open-design/contracts";
+import type { StreamHandlers } from "./anthropic";
 
 /**
  * Returns the front-end carrier that's about to send this request:
@@ -39,19 +43,15 @@ import type { StreamHandlers } from './anthropic';
  * The daemon uses this to label telemetry traces. Cheap, called once per
  * run so caching isn't worth the complexity.
  */
-function detectClientType(): 'desktop' | 'web' | 'unknown' {
-  if (typeof navigator === 'undefined') return 'unknown';
-  const ua = navigator.userAgent ?? '';
-  if (ua.includes('Electron/')) return 'desktop';
-  if (ua) return 'web';
-  return 'unknown';
+function detectClientType(): "desktop" | "web" | "unknown" {
+  if (typeof navigator === "undefined") return "unknown";
+  const ua = navigator.userAgent ?? "";
+  if (ua.includes("Electron/")) return "desktop";
+  if (ua) return "web";
+  return "unknown";
 }
-import { parseSseFrame } from './sse';
-import {
-  summarizeArtifactsForTranscript,
-  type PersistedArtifactFileRef,
-} from '../artifacts/strip';
-import { trackRunProgress, trackRunStart, trackRunTerminal } from '../observability/stuck-run';
+import { parseSseFrame } from "./sse";
+import { trackRunProgress, trackRunStart, trackRunTerminal } from "../observability/stuck-run";
 
 const MAX_TRANSCRIPT_MESSAGE_CHARS = 12_000;
 const LARGE_TOOL_RESULT_CHARS = 8_000;
@@ -60,9 +60,9 @@ const HIGH_INPUT_TOKEN_WARNING_THRESHOLD = 200_000;
 export function latestUserPromptFromHistory(history: ChatMessage[]): string {
   for (let i = history.length - 1; i >= 0; i -= 1) {
     const message = history[i];
-    if (message?.role === 'user') return message.content;
+    if (message?.role === "user") return message.content;
   }
-  return '';
+  return "";
 }
 
 function truncateForTranscript(content: string): string {
@@ -72,11 +72,11 @@ function truncateForTranscript(content: string): string {
 }
 
 function escapeTranscriptRoleDelimiters(content: string): string {
-  return content.replace(/^(## (?:user|assistant)[ \t]*)(\r?)$/gm, '\\$1$2');
+  return content.replace(/^(## (?:user|assistant)[ \t]*)(\r?)$/gm, "\\$1$2");
 }
 
 function compactInput(input: unknown): string {
-  if (typeof input === 'string') return input;
+  if (typeof input === "string") return input;
   try {
     return JSON.stringify(input);
   } catch {
@@ -91,22 +91,22 @@ function buildPriorRunContextWarning(history: ChatMessage[]): string | null {
 
   for (const message of history) {
     for (const event of message.events ?? []) {
-      if (event.kind === 'usage' && typeof event.inputTokens === 'number') {
+      if (event.kind === "usage" && typeof event.inputTokens === "number") {
         highestInputTokens = Math.max(highestInputTokens, event.inputTokens);
       }
-      if (event.kind === 'tool_result') {
+      if (event.kind === "tool_result") {
         if (event.content.length > LARGE_TOOL_RESULT_CHARS) largeToolResults += 1;
         if (
-          event.content.includes('agent-browser skills get core') ||
-          event.content.includes('Agent Browser Core') ||
-          event.content.includes('name: core')
+          event.content.includes("agent-browser skills get core") ||
+          event.content.includes("Agent Browser Core") ||
+          event.content.includes("name: core")
         ) {
           sawAgentBrowserCoreDump = true;
         }
       }
-      if (event.kind === 'tool_use') {
+      if (event.kind === "tool_use") {
         const input = compactInput(event.input);
-        if (input.includes('agent-browser skills get core')) {
+        if (input.includes("agent-browser skills get core")) {
           sawAgentBrowserCoreDump = true;
         }
       }
@@ -118,25 +118,27 @@ function buildPriorRunContextWarning(history: ChatMessage[]): string | null {
     notes.push(`a previous run reported ${highestInputTokens} input tokens`);
   }
   if (largeToolResults > 0) {
-    notes.push(`${largeToolResults} large prior tool result${largeToolResults === 1 ? '' : 's'} exist only in persisted event history`);
+    notes.push(
+      `${largeToolResults} large prior tool result${largeToolResults === 1 ? "" : "s"} exist only in persisted event history`
+    );
   }
   if (sawAgentBrowserCoreDump) {
-    notes.push('agent-browser documentation output was seen earlier; do not replay it into this turn');
+    notes.push("agent-browser documentation output was seen earlier; do not replay it into this turn");
   }
   if (notes.length === 0) return null;
 
   return [
-    '## context warning',
-    `Open Design detected ${notes.join(', ')}.`,
-    'Keep this turn compact: summarize prior tool output, read large references from temp files, and quote only task-relevant lines.',
-  ].join('\n');
+    "## context warning",
+    `Open Design detected ${notes.join(", ")}.`,
+    "Keep this turn compact: summarize prior tool output, read large references from temp files, and quote only task-relevant lines."
+  ].join("\n");
 }
 
 function scopeHistoryToAgent(history: ChatMessage[], targetAgentId?: string): ChatMessage[] {
   if (!targetAgentId) return history;
   for (let i = history.length - 1; i >= 0; i -= 1) {
     const message = history[i];
-    if (message?.role === 'assistant' && message.agentId && message.agentId !== targetAgentId) {
+    if (message?.role === "assistant" && message.agentId && message.agentId !== targetAgentId) {
       return history.slice(i + 1);
     }
   }
@@ -145,92 +147,47 @@ function scopeHistoryToAgent(history: ChatMessage[], targetAgentId?: string): Ch
 
 // Strip OD-specific markup that the agent emitted on a prior turn but
 // that the model would otherwise pattern-match as a template to echo.
-// Today this is `<question-form>` blocks (and the `<ask-question>` alias the
-// UI parser and the daemon open-tag matcher both accept) and the ```json
-// fenced schemas
+// Today this is `<question-form>` blocks and the ```json fenced schemas
 // some models (GPT-OSS-120B Medium, Gemini 3.5 Flash) emit alongside
 // them — leaving those literal in the transcript causes weak/medium
 // plain-stream models to re-emit an identical form on the user's
 // follow-up turn, looking like the discovery form loop never breaks
-// (see PR #3157 form-loop investigation). If we only scrubbed the canonical
-// tag, an alias-form turn would replay verbatim and re-trigger that loop.
+// (see PR #3157 form-loop investigation).
 //
 // User content is preserved verbatim — a user message that legitimately
 // quotes `<question-form>` (e.g. discussing the markup with the agent)
 // must not be mangled.
-export function sanitizePriorAssistantTurnForTranscript(
-  content: string,
-  persistedArtifactFiles: ReadonlyArray<PersistedArtifactFileRef> = [],
-): string {
+export function sanitizePriorAssistantTurnForTranscript(content: string): string {
   let sanitized = content.replace(
-    // `\1` backreference keeps the open/close tag names matched so we never
-    // splice across a `<question-form>…</ask-question>` mismatch.
-    /<(question-form|ask-question)\b[^>]*>[\s\S]*?<\/\1>/g,
-    '[question-form was emitted here on a prior turn; the user already answered, see their reply below.]',
+    /<question-form\b[^>]*>[\s\S]*?<\/question-form>/g,
+    "[question-form was emitted here on a prior turn; the user already answered, see their reply below.]"
   );
   // Strip ```json (or plain ```) fenced blocks whose body matches the
   // form schema shape — `"questions": [` is the strongest tell. A
   // generic JSON snippet without that key (e.g. an API response the
   // agent shared) is left intact.
-  sanitized = sanitized.replace(
-    /```(?:json)?\s*\n([\s\S]*?)\n```/g,
-    (match, body: string) => {
-      if (/"questions"\s*:\s*\[/.test(body)) {
-        return '[form schema was echoed here on a prior turn; stripped to avoid a loop.]';
-      }
-      return match;
-    },
-  );
-  // Replace prior-turn `<artifact>` HTML with a one-line summary — but ONLY
-  // for artifacts whose save to the project files is confirmed by the
-  // message's producedFiles record. persistArtifact has refusal and
-  // write-failure branches; on those paths the transcript copy is the only
-  // surviving artifact body, so an unconfirmed block stays verbatim (the
-  // 12K truncation below still bounds it) and a follow-up turn can repair it.
-  // For confirmed saves the agent reads/edits the file from disk, never from
-  // this transcript copy, so re-sending the whole document each turn is pure
-  // waste — the summary keeps identifier/title/type plus the saved file name.
-  // Runs before truncateForTranscript so the summarized message no longer
-  // trips the 12K cap. Uses markdown-aware detection so a literal
-  // `<artifact>` recited in a code fence survives.
-  sanitized = summarizeArtifactsForTranscript(sanitized, persistedArtifactFiles);
+  sanitized = sanitized.replace(/```(?:json)?\s*\n([\s\S]*?)\n```/g, (match, body: string) => {
+    if (/"questions"\s*:\s*\[/.test(body)) {
+      return "[form schema was echoed here on a prior turn; stripped to avoid a loop.]";
+    }
+    return match;
+  });
   return sanitized;
 }
 
-// producedFiles → the persistence evidence summarizeArtifactsForTranscript
-// matches artifact blocks against. producedFiles is the whole per-turn file
-// diff — tool-written files included — so a name collision with an unrelated
-// same-turn file must not count as proof the <artifact> body was saved. Only
-// artifact-originated saves qualify: persistArtifact always writes an explicit
-// (non-inferred) manifest, whereas tool-written files surface with no manifest
-// or a daemon-inferred one (`metadata.inferred === true`). Within that
-// narrowed set, the manifest identifier is the strongest link (it survives
-// `-2`/`-3` collision renames); the file name is the fallback for artifact
-// saves whose manifest predates identifier metadata.
-function persistedArtifactFilesOf(message: ChatMessage): PersistedArtifactFileRef[] {
-  return (message.producedFiles ?? [])
-    .filter((file) => file.artifactManifest && file.artifactManifest.metadata?.inferred !== true)
-    .map((file) => {
-      const identifier = file.artifactManifest?.metadata?.identifier;
-      return {
-        name: file.name,
-        identifier: typeof identifier === 'string' && identifier ? identifier : undefined,
-      };
-    });
-}
-
-export function buildDaemonTranscript(history: ChatMessage[], targetAgentId?: string): string {
-  const scopedHistory = scopeHistoryToAgent(history, targetAgentId);
+export function buildDaemonTranscript(
+  history: ChatMessage[],
+  targetAgentId?: string,
+  options: { scopeToAgent?: boolean } = {}
+): string {
+  const scopedHistory = options.scopeToAgent === false ? history : scopeHistoryToAgent(history, targetAgentId);
   const transcript = scopedHistory
     .map((m) => {
       const trimmed = m.content.trim();
-      const sanitized =
-        m.role === 'assistant'
-          ? sanitizePriorAssistantTurnForTranscript(trimmed, persistedArtifactFilesOf(m))
-          : trimmed;
+      const sanitized = m.role === "assistant" ? sanitizePriorAssistantTurnForTranscript(trimmed) : trimmed;
       return `## ${m.role}\n${escapeTranscriptRoleDelimiters(truncateForTranscript(sanitized))}`;
     })
-    .join('\n\n');
+    .join("\n\n");
   const warning = buildPriorRunContextWarning(scopedHistory);
   return warning ? `${warning}\n\n${transcript}` : transcript;
 }
@@ -307,10 +264,10 @@ export interface DaemonReattachOptions {
   onRunEventId?: (eventId: string) => void;
 }
 
-export const RUNS_CHANGED_EVENT = 'open-design:runs-changed';
+export const RUNS_CHANGED_EVENT = "open-design:runs-changed";
 
 function notifyRunsChanged() {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(RUNS_CHANGED_EVENT));
 }
 
@@ -318,15 +275,15 @@ function daemonSseErrorMessage(data: SseErrorPayload): string {
   const formattedOpenCodeError = formatOpenCodeSessionError(data.error?.details);
   if (formattedOpenCodeError) return formattedOpenCodeError;
 
-  const message = String(data.error?.message ?? data.message ?? 'daemon error');
+  const message = String(data.error?.message ?? data.message ?? "daemon error");
   const legacyOpenCodeError = formatLegacyOpenCodeSessionError(message);
   if (legacyOpenCodeError) return legacyOpenCodeError;
 
   const detail =
     data.error?.details &&
-    typeof data.error.details === 'object' &&
+    typeof data.error.details === "object" &&
     !Array.isArray(data.error.details) &&
-    typeof data.error.details.detail === 'string'
+    typeof data.error.details.detail === "string"
       ? data.error.details.detail
       : null;
   if (!detail || detail === message || message.includes(detail)) return message;
@@ -347,37 +304,36 @@ function shouldSuppressLifecycleExitFallback(
   agentId: string | undefined,
   exitCode: number | null,
   exitSignal: string | null,
-  stderrTail: string,
+  stderrTail: string
 ): boolean {
   if (exitCode !== 130 || exitSignal) return false;
-  if (agentId === 'amr') return true;
+  if (agentId === "amr") return true;
   const normalizedStderr = stderrTail.toLowerCase();
   return (
-    normalizedStderr.includes('opencode server listening') ||
-    normalizedStderr.includes('opencode_server_password')
+    normalizedStderr.includes("opencode server listening") || normalizedStderr.includes("opencode_server_password")
   );
 }
 
 const AMR_OPENCODE_INCOMPLETE_MESSAGE =
-  'AMR/OpenCode started, but the run did not complete. Please retry or check the run details for the session stream error.';
+  "AMR/OpenCode started, but the run did not complete. Please retry or check the run details for the session stream error.";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function readStringField(record: Record<string, unknown> | null, key: string): string | null {
   const value = record?.[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function readNumberField(record: Record<string, unknown> | null, key: string): number | null {
   const value = record?.[key];
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function readBooleanField(record: Record<string, unknown> | null, key: string): boolean | null {
   const value = record?.[key];
-  return typeof value === 'boolean' ? value : null;
+  return typeof value === "boolean" ? value : null;
 }
 
 interface OpenCodeSessionErrorDetails {
@@ -396,16 +352,16 @@ function inferOpenCodeRetryable(statusCode: number | null): boolean | null {
 }
 
 function normalizeOpenCodeSessionErrorDetails(value: unknown): OpenCodeSessionErrorDetails | null {
-  if (!isRecord(value) || value.kind !== 'opencode_session_error') return null;
-  const statusCode = readNumberField(value, 'statusCode');
+  if (!isRecord(value) || value.kind !== "opencode_session_error") return null;
+  const statusCode = readNumberField(value, "statusCode");
   return {
-    source: readStringField(value, 'source'),
-    code: readStringField(value, 'code'),
-    message: readStringField(value, 'message'),
+    source: readStringField(value, "source"),
+    code: readStringField(value, "code"),
+    message: readStringField(value, "message"),
     statusCode,
-    retryable: readBooleanField(value, 'retryable') ?? inferOpenCodeRetryable(statusCode),
-    suggestion: readStringField(value, 'suggestion'),
-    responseBodyPreview: readStringField(value, 'responseBodyPreview'),
+    retryable: readBooleanField(value, "retryable") ?? inferOpenCodeRetryable(statusCode),
+    suggestion: readStringField(value, "suggestion"),
+    responseBodyPreview: readStringField(value, "responseBodyPreview")
   };
 }
 
@@ -418,7 +374,7 @@ function linkErrorMessageFromResponseBodyPreview(preview: string | null): string
     return null;
   }
   const error = isRecord(parsed) && isRecord(parsed.error) ? parsed.error : null;
-  return readStringField(error, 'message');
+  return readStringField(error, "message");
 }
 
 function retryExhaustedMessage(details: OpenCodeSessionErrorDetails): string | null {
@@ -428,10 +384,10 @@ function retryExhaustedMessage(details: OpenCodeSessionErrorDetails): string | n
   if (!retryMatch) return null;
   const retryCount = retryMatch[1];
   return [
-    'The upstream model service is temporarily unavailable.',
-    '',
-    `We already retried ${retryCount} times, but the request still failed. Please retry later or switch to another model.`,
-  ].join('\n');
+    "The upstream model service is temporarily unavailable.",
+    "",
+    `We already retried ${retryCount} times, but the request still failed. Please retry later or switch to another model.`
+  ].join("\n");
 }
 
 function formatOpenCodeSessionError(value: unknown): string | null {
@@ -439,24 +395,24 @@ function formatOpenCodeSessionError(value: unknown): string | null {
   if (!details) return null;
   const statusCode = details.statusCode;
   const message = details.message;
-  if (details.source === 'opencode' && details.code === 'ROLE_MARKER_HALLUCINATION') {
+  if (details.source === "opencode" && details.code === "ROLE_MARKER_HALLUCINATION") {
     return message;
   }
   if (statusCode === 404) {
-    return 'The model service returned 404 Not Found for the configured runtime endpoint. Check the AMR Link URL or model route.';
+    return "The model service returned 404 Not Found for the configured runtime endpoint. Check the AMR Link URL or model route.";
   }
   if (statusCode === 401 || statusCode === 403) {
-    return 'AMR authentication failed. Please sign in again or refresh the runtime key.';
+    return "AMR authentication failed. Please sign in again or refresh the runtime key.";
   }
   if (statusCode === 429) {
-    return 'The model service rejected the request due to quota or rate limits. Retry later or check quota and rate limits.';
+    return "The model service rejected the request due to quota or rate limits. Retry later or check quota and rate limits.";
   }
-  if (typeof statusCode === 'number' && statusCode >= 500) {
+  if (typeof statusCode === "number" && statusCode >= 500) {
     const exhaustedMessage = retryExhaustedMessage(details);
     if (exhaustedMessage) return exhaustedMessage;
-    return 'The upstream model provider returned a temporary error. Please retry or switch models.';
+    return "The upstream model provider returned a temporary error. Please retry or switch models.";
   }
-  const base = message ? `OpenCode session failed: ${message}` : 'OpenCode session failed.';
+  const base = message ? `OpenCode session failed: ${message}` : "OpenCode session failed.";
   return details.suggestion ? `${base}\n${details.suggestion}` : base;
 }
 
@@ -469,7 +425,7 @@ function extractBalancedJsonObject(text: string, startIndex: number): string | n
     if (inString) {
       if (escaped) {
         escaped = false;
-      } else if (char === '\\') {
+      } else if (char === "\\") {
         escaped = true;
       } else if (char === '"') {
         inString = false;
@@ -480,9 +436,9 @@ function extractBalancedJsonObject(text: string, startIndex: number): string | n
       inString = true;
       continue;
     }
-    if (char === '{') {
+    if (char === "{") {
       depth += 1;
-    } else if (char === '}') {
+    } else if (char === "}") {
       depth -= 1;
       if (depth === 0) return text.slice(startIndex, i + 1);
     }
@@ -491,10 +447,10 @@ function extractBalancedJsonObject(text: string, startIndex: number): string | n
 }
 
 function legacyOpenCodeSessionErrorDetails(text: string): OpenCodeSessionErrorDetails | null {
-  const marker = 'opencode session error:';
+  const marker = "opencode session error:";
   const markerIndex = text.toLowerCase().indexOf(marker);
   if (markerIndex === -1) return null;
-  const jsonStart = text.indexOf('{', markerIndex + marker.length);
+  const jsonStart = text.indexOf("{", markerIndex + marker.length);
   if (jsonStart === -1) return null;
   const jsonText = extractBalancedJsonObject(text, jsonStart);
   if (!jsonText) return null;
@@ -507,16 +463,16 @@ function legacyOpenCodeSessionErrorDetails(text: string): OpenCodeSessionErrorDe
   if (!isRecord(parsed)) return null;
   const error = isRecord(parsed.error) ? parsed.error : null;
   const data = isRecord(error?.data) ? error.data : null;
-  const statusCode = readNumberField(data, 'statusCode');
-  const retryable = readBooleanField(data, 'isRetryable') ?? inferOpenCodeRetryable(statusCode);
+  const statusCode = readNumberField(data, "statusCode");
+  const retryable = readBooleanField(data, "isRetryable") ?? inferOpenCodeRetryable(statusCode);
   return {
     source: null,
     code: null,
-    message: readStringField(data, 'message') ?? readStringField(error, 'message'),
+    message: readStringField(data, "message") ?? readStringField(error, "message"),
     statusCode,
     retryable,
     suggestion: null,
-    responseBodyPreview: readStringField(data, 'responseBodyPreview') ?? readStringField(data, 'responseBody'),
+    responseBodyPreview: readStringField(data, "responseBodyPreview") ?? readStringField(data, "responseBody")
   };
 }
 
@@ -524,15 +480,15 @@ function formatLegacyOpenCodeSessionError(text: string): string | null {
   const details = legacyOpenCodeSessionErrorDetails(text);
   if (!details) return null;
   return formatOpenCodeSessionError({
-    kind: 'opencode_session_error',
-    ...details,
+    kind: "opencode_session_error",
+    ...details
   });
 }
 
 function isAmrOpenCodeExitFallback(agentId: string | undefined, stderr: string): boolean {
-  if (agentId === 'amr' || agentId === 'opencode') return true;
+  if (agentId === "amr" || agentId === "opencode") return true;
   const normalized = stderr.toLowerCase();
-  return normalized.includes('opencode server listening') || normalized.includes('opencode session error:');
+  return normalized.includes("opencode server listening") || normalized.includes("opencode session error:");
 }
 
 function isAmrOpenCodeBootstrapLine(line: string): boolean {
@@ -552,7 +508,7 @@ function cleanAmrOpenCodeStderrFallback(agentId: string | undefined, stderr: str
   return stderr
     .split(/\r?\n/)
     .filter((line) => line.trim() && !isAmrOpenCodeBootstrapLine(line))
-    .join('\n')
+    .join("\n")
     .trim();
 }
 
@@ -583,7 +539,7 @@ export async function streamViaDaemon({
   onRunCreated,
   onRunStatus,
   onRunEventId,
-  analyticsHints,
+  analyticsHints
 }: DaemonStreamOptions): Promise<void> {
   const emitRunStatus = (status: ChatRunStatus) => {
     onRunStatus?.(status);
@@ -592,7 +548,9 @@ export async function streamViaDaemon({
   // Local CLIs are single-turn print-mode programs, so we collapse the whole
   // chat into one string. If this becomes too noisy for long histories, the
   // fix is to only include the final user turn.
-  const transcript = buildDaemonTranscript(history, agentId);
+  const transcript = buildDaemonTranscript(history, agentId, {
+    scopeToAgent: sessionMode !== "comprehensive"
+  });
   const request: ChatRequest = {
     agentId,
     message: transcript,
@@ -614,28 +572,28 @@ export async function streamViaDaemon({
     ...(context ? { context } : {}),
     ...(research ? { research } : {}),
     ...(mediaExecution ? { mediaExecution } : {}),
-    ...(analyticsHints ? { analyticsHints } : {}),
+    ...(analyticsHints ? { analyticsHints } : {})
   };
   const body = JSON.stringify(request);
 
   try {
-    const createResp = await fetch('/api/runs', {
-      method: 'POST',
+    const createResp = await fetch("/api/runs", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         // Tells the daemon which front-end carrier started the run so the
         // telemetry trace can be tagged 'client:desktop' vs 'client:web'.
         // The daemon falls back to a User-Agent sniff when this header is
         // absent (e.g. third-party clients), so omitting it in tests is OK.
-        'X-OD-Client': detectClientType(),
+        "X-OD-Client": detectClientType()
       },
-      body,
+      body
     });
 
     if (!createResp.ok) {
-      const text = await createResp.text().catch(() => '');
-      emitRunStatus('failed');
-      handlers.onError(new Error(`daemon ${createResp.status}: ${text || 'no body'}`));
+      const text = await createResp.text().catch(() => "");
+      emitRunStatus("failed");
+      handlers.onError(new Error(`daemon ${createResp.status}: ${text || "no body"}`));
       return;
     }
 
@@ -649,10 +607,10 @@ export async function streamViaDaemon({
       agent_id: agentId,
       project_id: projectId ?? undefined,
       conversation_id: conversationId ?? undefined,
-      client_type: detectClientType(),
+      client_type: detectClientType()
     });
     notifyRunsChanged();
-    emitRunStatus('queued');
+    emitRunStatus("queued");
     await consumeDaemonRun({
       agentId,
       runId,
@@ -661,11 +619,11 @@ export async function streamViaDaemon({
       handlers,
       initialLastEventId,
       onRunStatus: emitRunStatus,
-      onRunEventId,
+      onRunEventId
     });
   } catch (err) {
-    if ((err as Error).name === 'AbortError') return;
-    emitRunStatus('failed');
+    if ((err as Error).name === "AbortError") return;
+    emitRunStatus("failed");
     handlers.onError(err instanceof Error ? err : new Error(String(err)));
   }
 }
@@ -676,7 +634,7 @@ export async function reattachDaemonRun(options: DaemonReattachOptions): Promise
     onRunStatus: (status) => {
       options.onRunStatus?.(status);
       notifyRunsChanged();
-    },
+    }
   });
 }
 
@@ -687,6 +645,30 @@ export async function fetchChatRunStatus(runId: string): Promise<ChatRunStatusRe
     return (await resp.json()) as ChatRunStatusResponse;
   } catch {
     return null;
+  }
+}
+
+// Push a `tool_result` content block back into a running stream-json child.
+// Used to answer Claude's `AskUserQuestion` tool: the host card collects the
+// user's pick, formats it as one text string, and we route it through the
+// daemon's POST /api/runs/:id/tool-result. The daemon writes it as a JSONL
+// line on the still-open stdin so claude-code can resume mid-call instead
+// of auto-erroring the tool in headless mode.
+export async function submitChatRunToolResult(
+  runId: string,
+  toolUseId: string,
+  content: string,
+  options: { isError?: boolean } = {}
+): Promise<{ ok: boolean; status?: number }> {
+  try {
+    const resp = await fetch(`/api/runs/${encodeURIComponent(runId)}/tool-result`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ toolUseId, content, isError: !!options.isError })
+    });
+    return { ok: resp.ok, status: resp.status };
+  } catch {
+    return { ok: false };
   }
 }
 
@@ -706,26 +688,23 @@ export interface LaunchAntigravityOauthResult {
 }
 export async function launchAntigravityOauth(): Promise<LaunchAntigravityOauthResult> {
   try {
-    const resp = await fetch('/api/agents/antigravity/oauth-launch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
+    const resp = await fetch("/api/agents/antigravity/oauth-launch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}"
     });
-    const body = (await resp.json().catch(() => null)) as
-      | LaunchAntigravityOauthResult
-      | null;
+    const body = (await resp.json().catch(() => null)) as LaunchAntigravityOauthResult | null;
     if (!resp.ok) {
       return {
         ok: false,
-        error:
-          body?.error ?? `daemon returned ${resp.status} ${resp.statusText}`,
+        error: body?.error ?? `daemon returned ${resp.status} ${resp.statusText}`
       };
     }
     return body ?? { ok: true };
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : String(err),
+      error: err instanceof Error ? err.message : String(err)
     };
   }
 }
@@ -754,7 +733,7 @@ export interface VelaLoginStatus {
 // The Settings UI polls /status after kicking off /login to detect completion.
 export async function fetchVelaLoginStatus(): Promise<VelaLoginStatus | null> {
   try {
-    const resp = await fetch('/api/integrations/vela/status');
+    const resp = await fetch("/api/integrations/vela/status");
     if (!resp.ok) return null;
     return (await resp.json()) as VelaLoginStatus;
   } catch {
@@ -764,7 +743,7 @@ export async function fetchVelaLoginStatus(): Promise<VelaLoginStatus | null> {
 
 export async function fetchAmrModels(): Promise<AmrModelsResponse | null> {
   try {
-    const resp = await fetch('/api/amr/models', { cache: 'no-store' });
+    const resp = await fetch("/api/amr/models", { cache: "no-store" });
     if (!resp.ok) return null;
     return (await resp.json()) as AmrModelsResponse;
   } catch {
@@ -780,14 +759,12 @@ export interface StartVelaLoginResult {
   error?: string;
 }
 
-export async function startVelaLogin(
-  attribution?: AmrEntryAttribution | null,
-): Promise<StartVelaLoginResult> {
+export async function startVelaLogin(attribution?: AmrEntryAttribution | null): Promise<StartVelaLoginResult> {
   try {
-    const resp = await fetch('/api/integrations/vela/login', {
-      method: 'POST',
-      headers: attribution ? { 'Content-Type': 'application/json' } : undefined,
-      body: attribution ? JSON.stringify({ attribution }) : undefined,
+    const resp = await fetch("/api/integrations/vela/login", {
+      method: "POST",
+      headers: attribution ? { "Content-Type": "application/json" } : undefined,
+      body: attribution ? JSON.stringify({ attribution }) : undefined
     });
     if (resp.ok) {
       const body = (await resp.json()) as { pid?: number };
@@ -798,7 +775,7 @@ export async function startVelaLogin(
       ok: false,
       status: resp.status,
       alreadyRunning: resp.status === 409,
-      error: body?.error ?? '',
+      error: body?.error ?? ""
     };
   } catch (err) {
     return { ok: false, status: 0, error: err instanceof Error ? err.message : String(err) };
@@ -807,7 +784,7 @@ export async function startVelaLogin(
 
 export async function cancelVelaLogin(): Promise<{ ok: boolean; canceled?: boolean }> {
   try {
-    const resp = await fetch('/api/integrations/vela/login/cancel', { method: 'POST' });
+    const resp = await fetch("/api/integrations/vela/login/cancel", { method: "POST" });
     if (!resp.ok) return { ok: false };
     const body = (await resp.json().catch(() => null)) as { canceled?: boolean } | null;
     return { ok: true, canceled: body?.canceled };
@@ -818,10 +795,126 @@ export async function cancelVelaLogin(): Promise<{ ok: boolean; canceled?: boole
 
 export async function velaLogout(): Promise<{ ok: boolean }> {
   try {
-    const resp = await fetch('/api/integrations/vela/logout', { method: 'POST' });
+    const resp = await fetch("/api/integrations/vela/logout", { method: "POST" });
     return { ok: resp.ok };
   } catch {
     return { ok: false };
+  }
+}
+
+export async function fetchWeChatAgentBridgeStatus(): Promise<WeChatAgentBridgeStatusResponse | null> {
+  try {
+    const resp = await fetch("/api/integrations/wechat/agent/status", { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as WeChatAgentBridgeStatusResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function connectWeChatAgentBridge(): Promise<WeChatAgentBridgeStartResponse> {
+  try {
+    const resp = await fetch("/api/integrations/wechat/agent/connect", {
+      method: "POST"
+    });
+    const body = (await resp.json().catch(() => null)) as Partial<WeChatAgentBridgeStartResponse> | null;
+    return {
+      ok: resp.ok,
+      alreadyRunning: resp.status === 409 || body?.alreadyRunning === true,
+      login: body?.login ?? {
+        phase: "failed",
+        running: false,
+        command: [],
+        output: "",
+        detectedUrls: [],
+        error: body?.error ?? `HTTP ${resp.status}`
+      },
+      error: body?.error
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      login: {
+        phase: "failed",
+        running: false,
+        command: [],
+        output: "",
+        detectedUrls: [],
+        error: err instanceof Error ? err.message : String(err)
+      },
+      error: err instanceof Error ? err.message : String(err)
+    };
+  }
+}
+
+export async function cancelWeChatAgentBridge(): Promise<WeChatAgentBridgeCancelResponse> {
+  try {
+    const resp = await fetch("/api/integrations/wechat/agent/cancel", { method: "POST" });
+    const body = (await resp.json().catch(() => null)) as WeChatAgentBridgeCancelResponse | null;
+    return (
+      body ?? {
+        ok: resp.ok,
+        canceled: false,
+        login: {
+          phase: resp.ok ? "idle" : "failed",
+          running: false,
+          command: [],
+          output: "",
+          detectedUrls: []
+        }
+      }
+    );
+  } catch {
+    return {
+      ok: false,
+      canceled: false,
+      login: {
+        phase: "failed",
+        running: false,
+        command: [],
+        output: "",
+        detectedUrls: []
+      }
+    };
+  }
+}
+
+export async function refreshWeChatAgentBridge(): Promise<WeChatAgentBridgeCommandResponse> {
+  try {
+    const resp = await fetch("/api/integrations/wechat/agent/refresh", { method: "POST" });
+    const body = (await resp.json().catch(() => null)) as Partial<WeChatAgentBridgeCommandResponse> | null;
+    return {
+      ok: resp.ok,
+      command: body?.command ?? ["od", "wechat", "refresh"],
+      stdout: body?.stdout ?? "",
+      stderr: body?.stderr ?? "",
+      login: body?.login ?? {
+        phase: resp.ok ? "connected" : "failed",
+        running: false,
+        command: body?.command ?? ["od", "wechat", "refresh"],
+        output: body?.stdout || body?.stderr || "",
+        detectedUrls: [],
+        ...(body?.error ? { error: body.error } : {})
+      },
+      exitCode: body?.exitCode,
+      signal: body?.signal,
+      error: body?.error
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      command: ["od", "wechat", "refresh"],
+      stdout: "",
+      stderr: "",
+      login: {
+        phase: "failed",
+        running: false,
+        command: ["od", "wechat", "refresh"],
+        output: "",
+        detectedUrls: []
+      },
+      error: err instanceof Error ? err.message : String(err)
+    };
   }
 }
 
@@ -834,28 +927,25 @@ export async function reportChatRunFeedback(req: {
   projectId: string;
   conversationId: string;
   assistantMessageId: string;
-  rating: 'positive' | 'negative';
+  rating: "positive" | "negative";
   reasonCodes: string[];
   hasCustomReason: boolean;
   customReason: string;
 }): Promise<void> {
   try {
     await fetch(`/api/runs/${encodeURIComponent(req.runId)}/feedback`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req)
     });
   } catch {
     // Best-effort.
   }
 }
 
-export async function listActiveChatRuns(
-  projectId: string,
-  conversationId: string,
-): Promise<ChatRunStatusResponse[]> {
+export async function listActiveChatRuns(projectId: string, conversationId: string): Promise<ChatRunStatusResponse[]> {
   try {
-    const qs = new URLSearchParams({ projectId, conversationId, status: 'active' });
+    const qs = new URLSearchParams({ projectId, conversationId, status: "active" });
     const resp = await fetch(`/api/runs?${qs.toString()}`);
     if (!resp.ok) return [];
     const body = (await resp.json()) as ChatRunListResponse;
@@ -867,7 +957,7 @@ export async function listActiveChatRuns(
 
 export async function listProjectRuns(): Promise<ChatRunStatusResponse[]> {
   try {
-    const resp = await fetch('/api/runs');
+    const resp = await fetch("/api/runs");
     if (!resp.ok) return [];
     const body = (await resp.json()) as ChatRunListResponse;
     return body.runs ?? [];
@@ -884,14 +974,13 @@ async function consumeDaemonRun({
   handlers,
   initialLastEventId,
   onRunStatus,
-  onRunEventId,
+  onRunEventId
 }: DaemonReattachOptions & { agentId?: string }): Promise<void> {
-  let acc = '';
-  let stderrBuf = '';
+  let acc = "";
+  let stderrBuf = "";
   let exitCode: number | null = null;
   let exitSignal: string | null = null;
   let endStatus: ChatRunStatus | null = null;
-  let pendingStructuredError: Error | null = null;
   // Tracks whether the server explicitly declared `status: 'succeeded'` in
   // the SSE end payload (or via the fallback run-status fetch). Distinct
   // from `endStatus === 'succeeded'`, which can be a local fallback when
@@ -901,49 +990,44 @@ async function consumeDaemonRun({
   // failure response with `{code:1}` or `{code:null,signal:"SIGTERM"}` and
   // no `status` field still surfaces an error banner.
   let serverDeclaredSuccess = false;
-  // Set when the daemon reports this terminal failure can be recovered by
-  // resuming the agent's CLI session (transient upstream drop / inactivity on
-  // a session-resuming runtime). Carried onto the surfaced error so the chat
-  // can offer a Continue affordance. See ChatRunStatusResponse.resumable.
-  let endResumable = false;
   let lastEventId: string | null = initialLastEventId ?? null;
   let canceled = false;
   const cancelRun = () => {
     if (canceled) return;
     canceled = true;
-    void fetch(`/api/runs/${encodeURIComponent(runId)}/cancel`, { method: 'POST' }).catch(() => {});
+    void fetch(`/api/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" }).catch(() => {});
   };
 
-  cancelSignal?.addEventListener('abort', cancelRun, { once: true });
+  cancelSignal?.addEventListener("abort", cancelRun, { once: true });
   try {
     if (cancelSignal?.aborted) {
       cancelRun();
       return;
     }
 
-    for (let reconnects = 0; endStatus === null && reconnects < 5;) {
-      const qs = lastEventId ? `?after=${encodeURIComponent(lastEventId)}` : '';
+    for (let reconnects = 0; endStatus === null && reconnects < 5; ) {
+      const qs = lastEventId ? `?after=${encodeURIComponent(lastEventId)}` : "";
       let resp: Response;
       try {
         resp = await fetch(`/api/runs/${encodeURIComponent(runId)}/events${qs}`, {
-          method: 'GET',
-          signal,
+          method: "GET",
+          signal
         });
       } catch (err) {
-        if ((err as Error).name === 'AbortError') throw err;
+        if ((err as Error).name === "AbortError") throw err;
         reconnects += 1;
         continue;
       }
 
       if (!resp.ok || !resp.body) {
-        const text = await resp.text().catch(() => '');
-        handlers.onError(new Error(`daemon ${resp.status}: ${text || 'no body'}`));
+        const text = await resp.text().catch(() => "");
+        handlers.onError(new Error(`daemon ${resp.status}: ${text || "no body"}`));
         return;
       }
 
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
-      let buf = '';
+      let buf = "";
       let sawStreamProgress = false;
 
       while (true) {
@@ -951,17 +1035,17 @@ async function consumeDaemonRun({
         if (done) break;
         buf += decoder.decode(value, { stream: true });
         let idx: number;
-        while ((idx = buf.indexOf('\n\n')) !== -1) {
+        while ((idx = buf.indexOf("\n\n")) !== -1) {
           const frame = buf.slice(0, idx);
           buf = buf.slice(idx + 2);
           const parsed = parseSseFrame(frame);
           if (!parsed) continue;
-          if (parsed.kind === 'comment') {
+          if (parsed.kind === "comment") {
             sawStreamProgress = true;
             trackRunProgress(runId);
             continue;
           }
-          if (parsed.kind !== 'event') continue;
+          if (parsed.kind !== "event") continue;
           sawStreamProgress = true;
           trackRunProgress(runId);
           if (parsed.id) {
@@ -971,25 +1055,25 @@ async function consumeDaemonRun({
 
           const event = parsed as unknown as ChatSseEvent;
 
-          if (event.event === 'stdout') {
-            const chunk = String(event.data.chunk ?? '');
+          if (event.event === "stdout") {
+            const chunk = String(event.data.chunk ?? "");
             acc += chunk;
             handlers.onDelta(chunk);
-            handlers.onAgentEvent({ kind: 'text', text: chunk });
+            handlers.onAgentEvent({ kind: "text", text: chunk });
             continue;
           }
 
-          if (event.event === 'stderr') {
-            stderrBuf += event.data.chunk ?? '';
+          if (event.event === "stderr") {
+            stderrBuf += event.data.chunk ?? "";
             continue;
           }
 
-          if (event.event === 'agent') {
-            if (event.data.type === 'tool_input_delta') {
+          if (event.event === "agent") {
+            if (event.data.type === "tool_input_delta") {
               if (
-                typeof event.data.id === 'string' &&
-                typeof event.data.name === 'string' &&
-                typeof event.data.delta === 'string'
+                typeof event.data.id === "string" &&
+                typeof event.data.name === "string" &&
+                typeof event.data.delta === "string"
               ) {
                 handlers.onToolInputDelta?.(event.data.id, event.data.name, event.data.delta);
               }
@@ -997,7 +1081,7 @@ async function consumeDaemonRun({
             }
             const translated = translateAgentEvent(event.data);
             if (!translated) continue;
-            if (translated.kind === 'text') {
+            if (translated.kind === "text") {
               acc += translated.text;
               handlers.onDelta(translated.text);
             }
@@ -1005,63 +1089,33 @@ async function consumeDaemonRun({
             continue;
           }
 
-          if (event.event === 'start') {
+          if (event.event === "start") {
             const data = event.data as ChatSseStartPayload;
-            onRunStatus?.('running');
+            onRunStatus?.("running");
             handlers.onAgentEvent({
-              kind: 'status',
-              label: 'starting',
-              detail: typeof data.bin === 'string' ? data.bin : undefined,
+              kind: "status",
+              label: "starting",
+              detail: typeof data.bin === "string" ? data.bin : undefined
             });
             continue;
           }
 
-          if (event.event === 'error') {
+          if (event.event === "error") {
+            onRunStatus?.("failed");
             const data = event.data as SseErrorPayload;
-            const structuredError = daemonSseError(data);
-            pendingStructuredError = structuredError;
-            // The daemon emits this error frame from the child-close handler
-            // BEFORE `finishWithRetryDecision()` runs, so a transient failure it
-            // can recover via a same-run retry is reported here first and only
-            // resolved later. `run.resumable` is also computed at that same
-            // finalize step. Read the run status ONCE to classify, and let the
-            // SSE `end` frame (always emitted on terminal) resolve in-flight
-            // runs — this has no timeout, so even a slow retry is handled:
-            //  - failed / canceled    -> surface the error now, with the
-            //    finalized `resumable` bit (set just before status flips to
-            //    failed, so a `failed` read already has it);
-            //  - status unreachable   -> surface the structured error (safe
-            //    default; never drop a real failure);
-            //  - succeeded (recovered) or still running/queued (retry in
-            //    flight) -> do NOT surface; keep consuming so the stream's
-            //    `end` frame resolves it (succeeded -> onDone; failed ->
-            //    the failure path below, carrying `end`'s resumable bit).
-            const status = await fetchChatRunStatus(runId).catch(() => null);
-            if (status && (status.status === 'failed' || status.status === 'canceled')) {
-              onRunStatus?.('failed');
-              handlers.onError(
-                markErrorResumable(structuredError, status.resumable === true),
-              );
-              return;
-            }
-            if (!status) {
-              onRunStatus?.('failed');
-              handlers.onError(structuredError);
-              return;
-            }
-            continue;
+            handlers.onError(daemonSseError(data));
+            return;
           }
 
-          if (event.event === 'end') {
-            exitCode = typeof event.data.code === 'number' ? event.data.code : null;
-            exitSignal = typeof event.data.signal === 'string' ? event.data.signal : null;
-            if (event.data.resumable === true) endResumable = true;
+          if (event.event === "end") {
+            exitCode = typeof event.data.code === "number" ? event.data.code : null;
+            exitSignal = typeof event.data.signal === "string" ? event.data.signal : null;
             // `serverDeclaredSuccess` records whether the server explicitly
             // set `status: 'succeeded'` in the end payload — the local
             // `'succeeded'` fallback below does not count and must keep
             // hitting the exit-code/signal safety net later.
-            serverDeclaredSuccess = event.data.status === 'succeeded';
-            endStatus = isChatRunStatus(event.data.status) ? event.data.status : 'succeeded';
+            serverDeclaredSuccess = event.data.status === "succeeded";
+            endStatus = isChatRunStatus(event.data.status) ? event.data.status : "succeeded";
             onRunStatus?.(endStatus);
           }
         }
@@ -1071,7 +1125,7 @@ async function consumeDaemonRun({
 
     if (endStatus === null) {
       const status = await fetchChatRunStatus(runId);
-      if (status && isChatRunStatus(status.status) && status.status !== 'queued' && status.status !== 'running') {
+      if (status && isChatRunStatus(status.status) && status.status !== "queued" && status.status !== "running") {
         endStatus = status.status;
         exitCode = status.exitCode ?? null;
         exitSignal = status.signal ?? null;
@@ -1079,17 +1133,16 @@ async function consumeDaemonRun({
         // daemon's run record (it passed `isChatRunStatus()` above), so an
         // explicit `'succeeded'` here is just as authoritative as the SSE
         // end-event success.
-        serverDeclaredSuccess = status.status === 'succeeded';
-        if (status.resumable === true) endResumable = true;
+        serverDeclaredSuccess = status.status === "succeeded";
         onRunStatus?.(endStatus);
       } else {
-        onRunStatus?.('failed');
-        handlers.onError(new Error('daemon stream disconnected before run completed'));
+        onRunStatus?.("failed");
+        handlers.onError(new Error("daemon stream disconnected before run completed"));
         return;
       }
     }
 
-    if (endStatus === 'canceled') {
+    if (endStatus === "canceled") {
       handlers.onDone(acc);
       return;
     }
@@ -1108,14 +1161,8 @@ async function consumeDaemonRun({
     // `{code:null,signal:"SIGTERM"}` without `status` still surfaces an
     // error banner.
     const looksLikeFailure =
-      endStatus === 'failed' ||
-      (!serverDeclaredSuccess &&
-        (exitSignal || (exitCode !== null && exitCode !== 0)));
+      endStatus === "failed" || (!serverDeclaredSuccess && (exitSignal || (exitCode !== null && exitCode !== 0)));
     if (looksLikeFailure) {
-      if (pendingStructuredError) {
-        handlers.onError(markErrorResumable(pendingStructuredError, endResumable));
-        return;
-      }
       if (shouldSuppressLifecycleExitFallback(agentId, exitCode, exitSignal, stderrBuf)) {
         handlers.onDone(acc);
         return;
@@ -1124,56 +1171,49 @@ async function consumeDaemonRun({
       const formattedOpenCodeError = formatLegacyOpenCodeSessionError(cleanedStderr);
       const tail = (formattedOpenCodeError ?? cleanedStderr).trim().slice(-400);
       const fallbackTail =
-        tail || (isAmrOpenCodeExitFallback(agentId, stderrBuf) ? AMR_OPENCODE_INCOMPLETE_MESSAGE : '');
+        tail || (isAmrOpenCodeExitFallback(agentId, stderrBuf) ? AMR_OPENCODE_INCOMPLETE_MESSAGE : "");
       handlers.onError(
-        markErrorResumable(
-          new Error(`agent exited with ${exitSignal ? `signal ${exitSignal}` : `code ${exitCode}`}${fallbackTail ? `\n${fallbackTail}` : ''}`),
-          endResumable,
-        ),
+        new Error(
+          `agent exited with ${exitSignal ? `signal ${exitSignal}` : `code ${exitCode}`}${fallbackTail ? `\n${fallbackTail}` : ""}`
+        )
       );
       return;
     }
     handlers.onDone(acc);
   } finally {
-    cancelSignal?.removeEventListener('abort', cancelRun);
+    cancelSignal?.removeEventListener("abort", cancelRun);
     // Settle the stuck-run watchdog with whatever terminal state we
     // resolved. If the watchdog was never armed (reattach paths that
     // hit the daemon for an already-finished run), trackRunTerminal
     // is a no-op for unknown runIds.
-    trackRunTerminal(runId, endStatus ?? (canceled ? 'canceled' : 'unknown'));
+    trackRunTerminal(runId, endStatus ?? (canceled ? "canceled" : "unknown"));
   }
 }
 
 function isChatRunStatus(value: unknown): value is ChatRunStatus {
-  return value === 'queued' || value === 'running' || value === 'succeeded' || value === 'failed' || value === 'canceled';
-}
-
-/** Tag an error surfaced to the chat with whether the failed run can be
- *  resumed (continued from its existing CLI session). Only stamps the property
- *  when true so non-resumable failures stay undefined. */
-function markErrorResumable(err: Error, resumable: boolean): Error {
-  if (resumable) (err as Error & { resumable?: boolean }).resumable = true;
-  return err;
+  return (
+    value === "queued" || value === "running" || value === "succeeded" || value === "failed" || value === "canceled"
+  );
 }
 
 function normalizeToolInput(input: unknown): unknown {
-  if (input == null || typeof input !== 'object') return input;
+  if (input == null || typeof input !== "object") return input;
   const obj = input as Record<string, unknown>;
-  if ('filePath' in obj && typeof obj.filePath === 'string') {
+  if ("filePath" in obj && typeof obj.filePath === "string") {
     return { ...obj, file_path: obj.filePath };
   }
   return input;
 }
 
 const TRANSIENT_ACP_STATUS_LABELS = new Set([
-  'waiting_for_first_output',
-  'tool_call',
-  'tool_call_update',
-  'session_update',
+  "waiting_for_first_output",
+  "tool_call",
+  "tool_call_update",
+  "session_update"
 ]);
 
 function normalizeAgentStatusLabel(label: string): string {
-  return TRANSIENT_ACP_STATUS_LABELS.has(label) ? 'running' : label;
+  return TRANSIENT_ACP_STATUS_LABELS.has(label) ? "running" : label;
 }
 
 // Translate a raw `agent` SSE payload (what apps/daemon/src/claude-stream.ts emits)
@@ -1181,81 +1221,81 @@ function normalizeAgentStatusLabel(label: string): string {
 // return null so the UI ignores them instead of rendering garbage.
 function translateAgentEvent(data: DaemonAgentPayload): AgentEvent | null {
   const t = data.type;
-  if (t === 'status' && typeof data.label === 'string') {
+  if (t === "status" && typeof data.label === "string") {
     return {
-      kind: 'status',
+      kind: "status",
       label: normalizeAgentStatusLabel(data.label),
       detail:
-        typeof data.detail === 'string'
+        typeof data.detail === "string"
           ? data.detail
-          : typeof data.model === 'string'
-          ? data.model
-          : typeof data.ttftMs === 'number'
-            ? `first token in ${Math.round((data.ttftMs as number) / 100) / 10}s`
-            : undefined,
+          : typeof data.model === "string"
+            ? data.model
+            : typeof data.ttftMs === "number"
+              ? `first token in ${Math.round((data.ttftMs as number) / 100) / 10}s`
+              : undefined
     };
   }
-  if (t === 'text_delta' && typeof data.delta === 'string') {
-    return { kind: 'text', text: data.delta };
+  if (t === "text_delta" && typeof data.delta === "string") {
+    return { kind: "text", text: data.delta };
   }
-  if (t === 'thinking_delta' && typeof data.delta === 'string') {
-    return { kind: 'thinking', text: data.delta };
+  if (t === "thinking_delta" && typeof data.delta === "string") {
+    return { kind: "thinking", text: data.delta };
   }
-  if (t === 'thinking_start') {
-    return { kind: 'status', label: 'thinking' };
+  if (t === "thinking_start") {
+    return { kind: "status", label: "thinking" };
   }
-  if (t === 'live_artifact') {
+  if (t === "live_artifact") {
     return {
-      kind: 'live_artifact',
+      kind: "live_artifact",
       action: data.action,
       projectId: data.projectId,
       artifactId: data.artifactId,
       title: data.title,
-      refreshStatus: data.refreshStatus,
+      refreshStatus: data.refreshStatus
     };
   }
-  if (t === 'live_artifact_refresh') {
+  if (t === "live_artifact_refresh") {
     return {
-      kind: 'live_artifact_refresh',
+      kind: "live_artifact_refresh",
       phase: data.phase,
       projectId: data.projectId,
       artifactId: data.artifactId,
       refreshId: data.refreshId,
       title: data.title,
       refreshedSourceCount: data.refreshedSourceCount,
-      error: data.error,
+      error: data.error
     };
   }
-  if (t === 'tool_use' && typeof data.id === 'string' && typeof data.name === 'string') {
-    return { kind: 'tool_use', id: data.id, name: data.name, input: normalizeToolInput(data.input) };
+  if (t === "tool_use" && typeof data.id === "string" && typeof data.name === "string") {
+    return { kind: "tool_use", id: data.id, name: data.name, input: normalizeToolInput(data.input) };
   }
-  if (t === 'tool_result' && typeof data.toolUseId === 'string') {
+  if (t === "tool_result" && typeof data.toolUseId === "string") {
     return {
-      kind: 'tool_result',
+      kind: "tool_result",
       toolUseId: data.toolUseId,
-      content: String(data.content ?? ''),
-      isError: Boolean(data.isError),
+      content: String(data.content ?? ""),
+      isError: Boolean(data.isError)
     };
   }
-  if (t === 'usage') {
+  if (t === "usage") {
     const usage = (data.usage ?? {}) as Record<string, number>;
     return {
-      kind: 'usage',
+      kind: "usage",
       inputTokens: usage.input_tokens,
       outputTokens: usage.output_tokens,
-      costUsd: typeof data.costUsd === 'number' ? data.costUsd : undefined,
-      durationMs: typeof data.durationMs === 'number' ? data.durationMs : undefined,
+      costUsd: typeof data.costUsd === "number" ? data.costUsd : undefined,
+      durationMs: typeof data.durationMs === "number" ? data.durationMs : undefined
     };
   }
-  if (t === 'fabricated_role_marker' && typeof data.marker === 'string') {
+  if (t === "fabricated_role_marker" && typeof data.marker === "string") {
     return {
-      kind: 'status',
-      label: 'warning',
-      detail: `Model emitted fabricated role marker ("${data.marker}"). Response was truncated to prevent unauthorized instruction injection.`,
+      kind: "status",
+      label: "warning",
+      detail: `Model emitted fabricated role marker ("${data.marker}"). Response was truncated to prevent unauthorized instruction injection.`
     };
   }
-  if (t === 'raw' && typeof data.line === 'string') {
-    return { kind: 'raw', line: data.line };
+  if (t === "raw" && typeof data.line === "string") {
+    return { kind: "raw", line: data.line };
   }
   return null;
 }
@@ -1263,13 +1303,13 @@ function translateAgentEvent(data: DaemonAgentPayload): AgentEvent | null {
 export async function saveArtifact(
   identifier: string,
   title: string,
-  html: string,
+  html: string
 ): Promise<{ url: string; path: string } | null> {
   try {
-    const resp = await fetch('/api/artifacts/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, title, html }),
+    const resp = await fetch("/api/artifacts/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier, title, html })
     });
     if (!resp.ok) return null;
     return (await resp.json()) as { url: string; path: string };

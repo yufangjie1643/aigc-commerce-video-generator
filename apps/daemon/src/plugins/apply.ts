@@ -41,7 +41,6 @@ import {
   type ConnectorProbe,
 } from './connector-gate.js';
 import { deriveAutoAtomSurfaces } from './atoms/auto-surfaces.js';
-import { getManifestContextCraft } from './context-craft.js';
 
 export class MissingInputError extends Error {
   readonly fields: string[];
@@ -159,8 +158,9 @@ export function applyPlugin(input: ApplyInput): ApplyComputed {
   if (skillRef) projectMetadata.skillId = skillRef;
   const dsId = pickDesignSystemId(manifest, input.activeProjectDesignSystem);
   if (dsId) projectMetadata.designSystemId = dsId;
-  const craftRequires = getManifestContextCraft(manifest);
-  if (craftRequires.length > 0) projectMetadata.craftRequires = craftRequires;
+  if (Array.isArray(manifest.od?.context?.craft) && manifest.od!.context!.craft!.length > 0) {
+    projectMetadata.craftRequires = manifest.od!.context!.craft!.slice();
+  }
 
   const queryText = resolveLocalizedText(manifest.od?.useCase?.query, input.locale);
 
@@ -181,7 +181,6 @@ export function applyPlugin(input: ApplyInput): ApplyComputed {
     pinnedRef:            input.plugin.pinnedRef,
     inputs:               validated.coerced,
     resolvedContext:      resolved.context,
-    craftRequires,
     capabilitiesGranted:  granted,
     capabilitiesRequired: required,
     assetsStaged:         assets,

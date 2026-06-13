@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildQuestionFormKey,
-  mergeServerMessagesIntoConversation,
+  isLatestUnansweredQuestionFormRequest,
 } from '../../src/components/ProjectView';
-import type { ChatMessage, ProjectFile } from '../../src/types';
 
 describe('buildQuestionFormKey', () => {
   it('is stable across a streaming form-id change (no remount mid-answer)', () => {
@@ -35,59 +34,14 @@ describe('buildQuestionFormKey', () => {
   });
 });
 
-describe('mergeServerMessagesIntoConversation', () => {
-  it('adds server-created CTA messages while preserving local produced files', () => {
-    const producedFile: ProjectFile = {
-      name: 'deck.html',
-      size: 1024,
-      mtime: 1,
-      kind: 'html',
-      mime: 'text/html',
-    };
-    const localMessages: ChatMessage[] = [
-      {
-        id: 'user-1',
-        role: 'user',
-        content: 'Use this SKILL.md',
-      },
-      {
-        id: 'assistant-1',
-        role: 'assistant',
-        content: 'Done',
-        runStatus: 'succeeded',
-        producedFiles: [producedFile],
-      },
-    ];
-    const serverMessages: ChatMessage[] = [
-      {
-        id: 'user-1',
-        role: 'user',
-        content: 'Use this SKILL.md',
-      },
-      {
-        id: 'assistant-1',
-        role: 'assistant',
-        content: 'Done',
-        runStatus: 'succeeded',
-      },
-      {
-        id: 'cta-1',
-        role: 'assistant',
-        content: '',
-        events: [
-          {
-            kind: 'plugin_candidate',
-            candidateId: 'candidate-1',
-            title: 'Main',
-            description: 'This repo looks like a plugin.',
-          },
-        ],
-      },
-    ];
+describe('isLatestUnansweredQuestionFormRequest', () => {
+  it('keeps the latest unanswered banner-opened form interactive', () => {
+    expect(isLatestUnansweredQuestionFormRequest('msg-1', 'msg-1', undefined)).toBe(true);
+  });
 
-    const merged = mergeServerMessagesIntoConversation(localMessages, serverMessages);
-
-    expect(merged.map((message) => message.id)).toEqual(['user-1', 'assistant-1', 'cta-1']);
-    expect(merged[1]?.producedFiles).toEqual([producedFile]);
+  it('does not treat answered or older forms as active', () => {
+    expect(isLatestUnansweredQuestionFormRequest('msg-1', 'msg-1', { platform: 'Bilibili' })).toBe(false);
+    expect(isLatestUnansweredQuestionFormRequest('msg-1', 'msg-2', undefined)).toBe(false);
+    expect(isLatestUnansweredQuestionFormRequest(null, 'msg-2', undefined)).toBe(false);
   });
 });
